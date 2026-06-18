@@ -9,8 +9,14 @@
     Title="SouthBaySoccer">
 
     <ShellContent
-        Title="Dashboard"
+        Title="Home"
         Icon="{StaticResource IconDashboard}"
+        ContentTemplate="{DataTemplate pages:DesignSystemPage}"
+        Route="home" />
+
+    <ShellContent
+        Title="Sample dashboard"
+        Icon="{StaticResource IconRibbon}"
         ContentTemplate="{DataTemplate pages:MainPage}"
         Route="main" />
 
@@ -26,14 +32,9 @@
         ContentTemplate="{DataTemplate pages:ManageMetaPage}"
         Route="manage" />
 
-    <ShellContent
-        Title="UI Library"
-        Icon="{StaticResource IconRibbon}"
-        ContentTemplate="{DataTemplate pages:DesignSystemPage}"
-        Route="ui-library" />
-
     <Shell.FlyoutFooter>
-        <Grid Padding="15">
+        <Grid Padding="{StaticResource SpaceLg}"
+              BackgroundColor="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}">
             <sf:SfSegmentedControl x:Name="ThemeSegmentedControl" 
                 VerticalOptions="Center" HorizontalOptions="Center" SelectionChanged="SfSegmentedControl_SelectionChanged"
                 SegmentWidth="40" SegmentHeight="40">

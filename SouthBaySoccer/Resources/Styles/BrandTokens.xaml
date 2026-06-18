@@ -28,6 +28,8 @@
     <x:Double x:Key="StepperValueWidth">22</x:Double>
     <x:Double x:Key="LineThickness">1</x:Double>
     <x:Double x:Key="RadiusCircleButton">22</x:Double>
+    <x:Double x:Key="WelcomeLogoSize">42</x:Double>
+    <x:Double x:Key="WelcomeLogoGlyphSize">23</x:Double>
 
     <x:Double x:Key="FontDisplay">28</x:Double>
     <x:Double x:Key="FontH1">21</x:Double>
@@ -48,6 +50,14 @@
     <Thickness x:Key="StatTilePadding">8,12</Thickness>
     <Thickness x:Key="NoticePadding">12,11</Thickness>
     <Thickness x:Key="LinkButtonPadding">8,0</Thickness>
+    <Thickness x:Key="WelcomeHeaderPadding">16,34,16,30</Thickness>
+    <Thickness x:Key="WelcomeHeaderTextMargin">9,0,0,0</Thickness>
+    <Thickness x:Key="WelcomeContentPadding">16,20,16,24</Thickness>
+    <Thickness x:Key="WelcomeInputPadding">12,4,13,4</Thickness>
+    <Thickness x:Key="WelcomeButtonIconMargin">18,0,0,0</Thickness>
+    <Thickness x:Key="WelcomeButtonBusyMargin">0,0,18,0</Thickness>
+    <Thickness x:Key="WelcomeOpenButtonPadding">24,0,0,0</Thickness>
+    <Thickness x:Key="WelcomeDividerMargin">0,2</Thickness>
 
     <RoundRectangle x:Key="ShapeCard" CornerRadius="16" />
     <RoundRectangle x:Key="ShapeAction" CornerRadius="14" />

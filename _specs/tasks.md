@@ -105,11 +105,41 @@ incremental adoption order in [`documentation/architecture.md`](../documentation
 - [ ] **M10.3** RSVP/dues reminder timers (single reminder per cycle). — Stories: NOTIF-3.
 
 ## M11 — Client integration
+
+> **Per-story spec (pilot):** Welcome Back task slices are mirrored under
+> [`stories/AUTH-7-welcome-back-screen/tasks.md`](stories/AUTH-7-welcome-back-screen/tasks.md)
+> (plus AUTH-8/AUTH-9).
+
 - [x] **M11.0** Reusable MAUI UI foundation: brand color/type/spacing tokens, shared styles,
   eleven MVVM-friendly controls, and a UI Library showcase. — Spec: `client-ui.md`.
-- [ ] **M11.1** `Contracts`-based typed API services + `HttpClient` pipeline (`CorrelationIdHandler`→`AuthenticationHandler`→`ApiExceptionHandler`); secure token storage. — Stories: AUTH-4, NFR-Security.
+- [x] **M11.0a** Add licensed Font Awesome Free Solid and Brands font resources, register
+  `FontAwesomeSolid`/`FontAwesomeBrands`, and add a typed glyph catalog. Replace emoji/text
+  pictograms used by the Welcome Back screen with Font Awesome glyphs and semantic descriptions.
+  — Stories: INV-13, AUTH-7 · Projects: MAUI client · Depends on: M11.0.
+- [~] **M11.1** `Contracts`-based typed API services + `HttpClient` pipeline (`CorrelationIdHandler`→`AuthenticationHandler`→`ApiExceptionHandler`); secure token storage. — Current: typed authentication client and secure token storage are implemented for AUTH-7/8; the shared correlation/authentication/exception handler pipeline remains. — Stories: AUTH-4, NFR-Security.
 - [ ] **M11.2** Replace one MAUI sample repository flow with a typed API client (proves the path). — Stories: PROF-1.
-- [ ] **M11.3** Auth/profile/sessions/RSVP screens; loading/empty/error/offline states; brand (`skills/brand-design-kit`). — Stories: PROF, SES, RSVP.
+- [x] **M11.3a** Implement `WelcomeBackPage` and `WelcomeBackPageModel` directly from the first
+  `signin` screen in `documentation/mobile-wireframes.html`: branded header, welcome copy, phone
+  input, WhatsApp action, security notice, Pickup Pal bot card, divider, signup action, and caption.
+  Use only shared brand resources and Font Awesome glyphs; no emoji or page-local hex values.
+  — Stories: AUTH-7, INV-13 · Projects: MAUI client · Depends on: M11.0a.
+- [x] **M11.3b** Add typed Pickup Pal configuration, external launcher abstractions, international
+  phone validation, busy/error/offline states, and commands for opening the bot and signup page.
+  External-return alone must not authenticate the user.
+  — Stories: AUTH-8, AUTH-9 · Projects: MAUI client · Depends on: M11.1, M11.3a.
+- [~] **M11.3c** Implement the WhatsApp one-time challenge client flow and approved deep-link
+  callback: request challenge, prevent duplicate submission, verify/exchange the callback, store
+  tokens securely, and replace the auth route with the Sessions Shell only after success.
+  — Stories: AUTH-8, AUTH-3, AUTH-4 · Projects: Contracts, Functions, Application, MAUI client
+  · Depends on: M3.4, M11.1, M11.3b.
+- [~] **M11.3d** Add `Client.Tests` for Welcome Back startup routing, validation, single-submit,
+  external launch failures, deep-link completion, secure token storage interaction, semantic icon
+  descriptions, large text, and narrow-screen scrolling. Verify against the first wireframe and
+  build `net10.0-windows10.0.19041.0`.
+  — Stories: AUTH-7, AUTH-8, AUTH-9, INV-13 · Depends on: M11.3c.
+- [ ] **M11.3e** Implement remaining profile/sessions/RSVP screens with
+  loading/empty/error/offline states and the shared brand system.
+  — Stories: PROF, SES, RSVP · Depends on: M11.3d.
 - [ ] **M11.4** Offline live-stats with idempotency-keyed queue + sync. — Stories: ADMIN-2.
 - [ ] **M11.5** Move `SouthBaySoccer/` → `src/SouthBaySoccer.Client/` as a dedicated change (no feature work mixed in). — architecture §5/§18.
 

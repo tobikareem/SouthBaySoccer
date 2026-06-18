@@ -40,6 +40,9 @@ protected operation is authorized server-side; client-side hiding is UX only.
 - **INV-12** RSVP state records attendance intent only. Actual attendance is represented by
   `CheckIn` and a derived/recorded attendance outcome, not by mutating RSVP into check-in/no-show
   states.
+- **INV-13** MAUI product UI uses bundled Font Awesome Free font glyphs for pictograms. Do not use
+  Unicode emoji, platform emoji fonts, or text characters as substitute icons. Icon meaning must
+  also be expressed through text or semantic descriptions.
 
 ---
 
@@ -140,6 +143,112 @@ Scenario: Repeated failures lock the account temporarily
   When I fail sign-in N times
   Then the account is locked for the configured duration
   And further attempts return 401 with a locked indication
+```
+
+### AUTH-7 — Welcome Back screen
+
+> **Per-story spec (pilot):** the canonical AUTH-7/8/9 specs now live under
+> [`stories/AUTH-7-welcome-back-screen/`](stories/AUTH-7-welcome-back-screen/requirements.md),
+> [`stories/AUTH-8-continue-with-whatsapp/`](stories/AUTH-8-continue-with-whatsapp/requirements.md), and
+> [`stories/AUTH-9-pickup-pal-actions/`](stories/AUTH-9-pickup-pal-actions/requirements.md). The
+> summaries below remain as the overview index.
+
+*As a* returning SouthBaySoccer player, *I want* a clear WhatsApp sign-in screen, *so that* I can
+connect the app to my Pickup Pal account without entering a password.
+
+This is the first application screen and directly implements the first `signin` screen in
+[`documentation/mobile-wireframes.html`](../documentation/mobile-wireframes.html).
+
+```gherkin
+Scenario: Signed-out launch displays the Welcome Back screen
+  Given I do not have a valid local authenticated session
+  When the MAUI application starts
+  Then the Welcome Back screen is the initial route
+  And the Shell flyout and authenticated tab navigation are not visible
+  And the screen displays the SouthBay Soccer football mark
+  And the header displays "SouthBay Soccer"
+  And the header subtitle displays "Pickup soccer, organized."
+  And the content displays "WELCOME BACK"
+  And the primary heading displays "Your next game starts here."
+
+Scenario: The screen matches the first mobile wireframe hierarchy
+  Given the Welcome Back screen is displayed
+  Then it has a Flag Green-to-Pine header with the white flag stripe and decorative motif
+  And the content is a white-dominant scrollable surface with 16 device-independent-pixel side padding
+  And the WhatsApp number field appears before the primary action
+  And the security notice appears after the primary action
+  And the Pickup Pal bot card appears before the "not on pickup pal?" divider
+  And the external signup action and explanatory copy are the final content
+
+Scenario: Iconography uses Font Awesome instead of emoji
+  Given the Welcome Back screen contains football, WhatsApp, shield, and external-link pictograms
+  Then each pictogram is rendered from a bundled Font Awesome Free font
+  And no Unicode emoji is used
+  And every informational or interactive icon has a semantic description
+
+Scenario: Screen remains usable with large text and a narrow viewport
+  Given the operating system text scale is increased
+  When the Welcome Back screen is rendered on the narrowest supported phone width
+  Then text is not clipped
+  And content remains vertically scrollable
+  And every interactive target is at least 44 device-independent pixels
+```
+
+### AUTH-8 — Continue with WhatsApp from Welcome Back
+*As a* returning player, *I want* to request a one-time WhatsApp sign-in link, *so that* I can
+authenticate through the Pickup Pal account connected to my phone number.
+
+```gherkin
+Scenario: Valid WhatsApp number starts password-free sign-in
+  Given the Welcome Back screen is displayed
+  And I enter a valid international phone number
+  When I select "Continue with WhatsApp"
+  Then the client requests a one-time Pickup Pal sign-in challenge
+  And the primary action enters a busy state and cannot be submitted twice
+  And no authenticated route opens until the challenge is verified
+
+Scenario: Invalid WhatsApp number is rejected locally
+  Given the Welcome Back screen is displayed
+  When I enter a missing or invalid phone number
+  And I select "Continue with WhatsApp"
+  Then an inline validation message explains the required phone format
+  And no network request is sent
+
+Scenario: Challenge request failure is recoverable
+  Given a valid phone number is entered
+  When the challenge request fails because the service is unavailable or the device is offline
+  Then a non-sensitive error message is displayed
+  And the number remains available for correction or retry
+  And the primary action becomes enabled again
+
+Scenario: Verified one-time link completes sign-in
+  Given a one-time sign-in challenge was requested for my number
+  When the app receives and verifies the Pickup Pal deep link
+  Then the Function App exchanges the verified challenge for SouthBaySoccer access and refresh tokens
+  And the tokens are stored using platform secure storage
+  And the app replaces the Welcome Back route with the authenticated Sessions route
+```
+
+### AUTH-9 — Pickup Pal help and signup actions
+
+```gherkin
+Scenario: Open the configured Pickup Pal bot
+  Given the Welcome Back screen displays the Pickup Pal bot card
+  When I select "Open"
+  Then the app opens the configured Pickup Pal WhatsApp conversation
+  And the bot number is loaded from typed configuration rather than duplicated page text
+
+Scenario: Sign up on Pickup Pal
+  Given I am not registered with Pickup Pal
+  When I select "Sign up on Pickup Pal"
+  Then the app opens the configured HTTPS signup page in the system browser
+  And the app does not treat returning from the browser as authenticated
+
+Scenario: External application cannot be opened
+  Given WhatsApp or a browser cannot handle the configured URI
+  When I select an external action
+  Then the app displays a recoverable explanation
+  And remains on the Welcome Back screen
 ```
 
 ---
@@ -646,6 +755,8 @@ Scenario: Assign a role
 - **NFR-Performance** — Large tables (RSVPs, matches, stats, rating votes ~ participants²) always filtered and paginated; never expose `IQueryable`. (architecture §13)
 - **NFR-Offline** — Client SQLite only as an intentional, expiring cache; never determines payment/waiver/role/RSVP eligibility. (architecture §6)
 - **NFR-Accessibility** — Semantic descriptions, contrast, keyboard/focus, mobile touch targets. (architecture §6)
+- **NFR-Iconography** — MAUI pictograms use bundled, licensed Font Awesome Free glyphs with typed
+  constants and accessible names; Unicode emoji are prohibited in product UI. (INV-13)
 - **NFR-Time** — UTC everywhere; convert to local only at the UI boundary. (INV-10)
 - **NFR-Migration** — Each increment leaves the solution buildable; do not mix sample removal with new feature behavior. (architecture §18)
 
@@ -654,3 +765,6 @@ Scenario: Assign a role
 `tasks.md` maps each milestone/task to the story IDs above; `design.md` maps each epic to the
 architecture layers and components. The high-risk scenarios in architecture §17 correspond to:
 AUTH-3/4, RSVP-2/4, PAY-2, SES-3, STAT-3, LEAD-1, PROF-4, and NOTIF-1.
+
+The first-screen client trace is `AUTH-7/8/9 + INV-13` → `design.md` §11 →
+`tasks.md` M11.0a and M11.3a–M11.3d.

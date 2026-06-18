@@ -1,0 +1,67 @@
+using System.Net;
+using SouthBaySoccer.Configuration;
+
+namespace SouthBaySoccer.Services.Authentication;
+
+public sealed class AuthenticationCoordinator(
+    IAuthenticationClient authenticationClient,
+    ISecureTokenStore tokenStore,
+    IAuthenticationNavigator navigator,
+    PickupPalOptions options) : IAuthenticationCoordinator
+{
+    private readonly SemaphoreSlim _completionLock = new(1, 1);
+    private bool _completed;
+
+    public async Task<bool> HandleCallbackAsync(
+        Uri callbackUri,
+        CancellationToken cancellationToken = default)
+    {
+        if (!MatchesConfiguredCallback(callbackUri) || !TryGetQueryValue(callbackUri, "token", out var token))
+        {
+            return false;
+        }
+
+        await _completionLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_completed)
+            {
+                return true;
+            }
+
+            var tokens = await authenticationClient.VerifyWhatsAppChallengeAsync(token, cancellationToken);
+            await tokenStore.StoreAsync(tokens);
+            await navigator.ShowAuthenticatedAppAsync();
+            _completed = true;
+            return true;
+        }
+        finally
+        {
+            _completionLock.Release();
+        }
+    }
+
+    private bool MatchesConfiguredCallback(Uri callbackUri) =>
+        string.Equals(callbackUri.Scheme, options.CallbackUri.Scheme, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(callbackUri.Host, options.CallbackUri.Host, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(
+            callbackUri.AbsolutePath.TrimEnd('/'),
+            options.CallbackUri.AbsolutePath.TrimEnd('/'),
+            StringComparison.OrdinalIgnoreCase);
+
+    private static bool TryGetQueryValue(Uri uri, string key, out string value)
+    {
+        foreach (var pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = pair.Split('=', 2);
+            if (parts.Length == 2 && string.Equals(parts[0], key, StringComparison.OrdinalIgnoreCase))
+            {
+                value = WebUtility.UrlDecode(parts[1]);
+                return !string.IsNullOrWhiteSpace(value);
+            }
+        }
+
+        value = string.Empty;
+        return false;
+    }
+}

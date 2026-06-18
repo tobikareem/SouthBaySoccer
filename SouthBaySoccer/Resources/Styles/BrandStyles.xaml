@@ -112,6 +112,10 @@
         <Setter Property="FontSize" Value="{StaticResource FontBody}" />
         <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
     </Style>
+    <Style x:Key="WelcomePhoneEntry" TargetType="Entry" BasedOn="{StaticResource BrandEntry}">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="Margin" Value="0" />
+    </Style>
 
     <Style x:Key="CardSurface" TargetType="Border">
         <Setter Property="BackgroundColor"
@@ -154,6 +158,16 @@
         <Setter Property="StrokeShape" Value="{StaticResource ShapeAction}" />
         <Setter Property="HeightRequest" Value="40" />
         <Setter Property="WidthRequest" Value="40" />
+    </Style>
+    <Style x:Key="WelcomeInputSurface" TargetType="Border">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}" />
+        <Setter Property="Stroke"
+                Value="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="{StaticResource ShapeAction}" />
+        <Setter Property="Padding" Value="{StaticResource WelcomeInputPadding}" />
+        <Setter Property="MinimumHeightRequest" Value="48" />
     </Style>
     <Style x:Key="StepperButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
         <Setter Property="HeightRequest" Value="{StaticResource TouchMin}" />

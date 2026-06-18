@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="FluentAssertions" Version="7.2.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="Moq" Version="4.20.72" />
@@ -18,6 +19,24 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SouthBaySoccer.Contracts\SouthBaySoccer.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\SouthBaySoccer\Configuration\PickupPalOptions.cs" Link="Client\Configuration\PickupPalOptions.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\WelcomeBackPageModel.cs" Link="Client\PageModels\WelcomeBackPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationCoordinator.cs" Link="Client\Services\AuthenticationCoordinator.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AppStartupService.cs" Link="Client\Services\AppStartupService.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IAppStartupService.cs" Link="Client\Services\IAppStartupService.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IAuthenticationClient.cs" Link="Client\Services\IAuthenticationClient.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IAuthenticationCoordinator.cs" Link="Client\Services\IAuthenticationCoordinator.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IAuthenticationNavigator.cs" Link="Client\Services\IAuthenticationNavigator.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IExternalLauncher.cs" Link="Client\Services\IExternalLauncher.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\ISecureTokenStore.cs" Link="Client\Services\ISecureTokenStore.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\PhoneNumberValidator.cs" Link="Client\Services\PhoneNumberValidator.cs" />
   </ItemGroup>
 
 </Project>

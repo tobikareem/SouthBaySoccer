@@ -18,11 +18,11 @@ namespace SouthBaySoccer
 
             var snackbarOptions = new SnackbarOptions
             {
-                BackgroundColor = Color.FromArgb("#FF3300"),
+                BackgroundColor = Color.FromArgb("#005C37"),
                 TextColor = Colors.White,
-                ActionButtonTextColor = Colors.Yellow,
-                CornerRadius = new CornerRadius(0),
-                Font = Font.SystemFontOfSize(18),
+                ActionButtonTextColor = Color.FromArgb("#E8F5EE"),
+                CornerRadius = new CornerRadius(12),
+                Font = Font.SystemFontOfSize(15),
                 ActionButtonFont = Font.SystemFontOfSize(14)
             };
 

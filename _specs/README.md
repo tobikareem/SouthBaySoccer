@@ -13,6 +13,7 @@ build-ready work: **what** we're building (requirements), **how** it maps to the
 | [`tasks.md`](tasks.md) | Ordered, dependency-aware milestones/tasks (`M0…M12`) tracing back to story IDs, plus the high-level sequential roadmap. |
 | [`client-ui.md`](client-ui.md) | MAUI client **reusable UI / design system**: color/typography/spacing tokens, shared styles, and the custom XAML control catalog (maps to milestone M11). |
 | [`../documentation/mobile-wireframes.html`](../documentation/mobile-wireframes.html) | Authoritative mobile visual hierarchy, screen composition, interaction states, and navigation reference. |
+| [`stories/`](stories/README.md) | **Per-story specs** — each story in its own directory with separate requirements/design/tasks. Pilot: AUTH-7/8/9 (Welcome Back). Cross-cutting rules stay in the overviews above. |
 
 Authority: [`../documentation/architecture.md`](../documentation/architecture.md) is the
 authoritative architecture. The spec realizes it; it never re-decides it.

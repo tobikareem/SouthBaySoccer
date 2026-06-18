@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.WelcomeBackPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    x:DataType="pageModels:WelcomeBackPageModel"
+    Shell.FlyoutBehavior="Disabled"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}">
+
+    <Grid RowDefinitions="Auto,*">
+        <Grid Grid.Row="0"
+              Background="{StaticResource HeaderGradientBrush}"
+              Padding="{StaticResource WelcomeHeaderPadding}"
+              ColumnDefinitions="Auto,*">
+            <Border HeightRequest="{StaticResource WelcomeLogoSize}"
+                    WidthRequest="{StaticResource WelcomeLogoSize}"
+                    BackgroundColor="{StaticResource HeaderOverlay}"
+                    StrokeThickness="0"
+                    StrokeShape="{StaticResource ShapePill}"
+                    VerticalOptions="Center">
+                <Label Text="{x:Static fonts:FluentUI.sport_soccer_24_regular}"
+                       FontFamily="{x:Static fonts:FluentUI.FontFamily}"
+                       FontSize="{StaticResource WelcomeLogoGlyphSize}"
+                       TextColor="White"
+                       HorizontalTextAlignment="Center"
+                       VerticalTextAlignment="Center"
+                       SemanticProperties.Description="South Bay Soccer football mark" />
+            </Border>
+
+            <VerticalStackLayout Grid.Column="1"
+                                 Margin="{StaticResource WelcomeHeaderTextMargin}"
+                                 Spacing="{StaticResource SpaceXs}"
+                                 VerticalOptions="Center">
+                <Label Text="SouthBay Soccer"
+                       Style="{StaticResource TextH2}"
+                       TextColor="White"
+                       SemanticProperties.HeadingLevel="Level1" />
+                <Label Text="Pickup soccer, organized."
+                       Style="{StaticResource TextCaption}"
+                       TextColor="White"
+                       Opacity="0.85" />
+            </VerticalStackLayout>
+
+            <BoxView Grid.ColumnSpan="2"
+                     HorizontalOptions="End"
+                     Margin="{StaticResource HeaderStripeMargin}"
+                     WidthRequest="{StaticResource HeaderStripeWidth}"
+                     BackgroundColor="White"
+                     Opacity="0.22"
+                     InputTransparent="True" />
+        </Grid>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="{StaticResource WelcomeContentPadding}"
+                                 Spacing="{StaticResource SpaceMd}">
+                <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                    <Label Text="{x:Static pageModels:WelcomeBackPageModel.WelcomeLabel}"
+                           Style="{StaticResource TextLabel}" />
+                    <Label Text="{x:Static pageModels:WelcomeBackPageModel.Heading}"
+                           Style="{StaticResource TextH1}"
+                           SemanticProperties.HeadingLevel="Level1" />
+                    <Label Text="{x:Static pageModels:WelcomeBackPageModel.Description}"
+                           Style="{StaticResource TextCaption}"
+                           LineHeight="1.5" />
+                </VerticalStackLayout>
+
+                <Border Style="{StaticResource WelcomeInputSurface}">
+                    <Grid ColumnDefinitions="Auto,*"
+                          ColumnSpacing="{StaticResource SpaceSm}">
+                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
+                               FontFamily="FontAwesomeBrands"
+                               FontSize="{StaticResource IconMd}"
+                               TextColor="{StaticResource WhatsApp}"
+                               VerticalTextAlignment="Center"
+                               SemanticProperties.Description="WhatsApp number" />
+                        <Entry Grid.Column="1"
+                               Text="{Binding PhoneNumber}"
+                               Keyboard="Telephone"
+                               Placeholder="+1 555 123 4567"
+                               ReturnType="Done"
+                               Style="{StaticResource WelcomePhoneEntry}"
+                               SemanticProperties.Description="WhatsApp phone number"
+                               SemanticProperties.Hint="Include the country code" />
+                    </Grid>
+                </Border>
+
+                <Label Text="{Binding PhoneNumberError}"
+                       Style="{StaticResource TextCaption}"
+                       TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                       IsVisible="{Binding HasPhoneNumberError}" />
+
+                <Grid>
+                    <Button Text="Continue with WhatsApp"
+                            Command="{Binding RequestWhatsAppChallengeCommand}"
+                            IsEnabled="{Binding IsNotBusy}"
+                            Style="{StaticResource WhatsAppButton}"
+                            SemanticProperties.Description="Continue with WhatsApp" />
+                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
+                           FontFamily="FontAwesomeBrands"
+                           FontSize="{StaticResource IconMd}"
+                           TextColor="White"
+                           HorizontalOptions="Start"
+                           Margin="{StaticResource WelcomeButtonIconMargin}"
+                           VerticalTextAlignment="Center"
+                           InputTransparent="True" />
+                    <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                       IsVisible="{Binding IsBusy}"
+                                       Color="White"
+                                       HorizontalOptions="End"
+                                       Margin="{StaticResource WelcomeButtonBusyMargin}" />
+                </Grid>
+
+                <Border Style="{StaticResource NoticeSurface}">
+                    <Grid ColumnDefinitions="Auto,*"
+                          ColumnSpacing="{StaticResource SpaceSm}">
+                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}"
+                               FontFamily="FontAwesomeSolid"
+                               FontSize="{StaticResource IconMd}"
+                               TextColor="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandSpringDark}}"
+                               SemanticProperties.Description="Secure sign-in" />
+                        <VerticalStackLayout Grid.Column="1"
+                                             Spacing="{StaticResource SpaceXs}">
+                            <Label Text="{x:Static pageModels:WelcomeBackPageModel.SecurityHeading}"
+                                   Style="{StaticResource TextBodyStrong}" />
+                            <Label Text="{x:Static pageModels:WelcomeBackPageModel.SecurityMessage}"
+                                   Style="{StaticResource TextCaption}"
+                                   LineHeight="1.4" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </Border>
+
+                <Border Style="{StaticResource CardSurface}"
+                        BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}">
+                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout>
+                                <Label Text="PICKUP PAL BOT" Style="{StaticResource TextLabel}" />
+                                <Label Text="{Binding BotDisplayNumber}" Style="{StaticResource TextBodyStrong}" />
+                            </VerticalStackLayout>
+                            <Grid Grid.Column="1">
+                                <Button Text="Open"
+                                        Command="{Binding OpenPickupPalBotCommand}"
+                                        Style="{StaticResource LinkButton}"
+                                        Padding="{StaticResource WelcomeOpenButtonPadding}"
+                                        SemanticProperties.Description="Open the Pickup Pal WhatsApp bot" />
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.ArrowUpRightFromSquare}"
+                                       FontFamily="FontAwesomeSolid"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                                       HorizontalOptions="Start"
+                                       VerticalTextAlignment="Center"
+                                       InputTransparent="True" />
+                            </Grid>
+                        </Grid>
+                        <Label Text="{x:Static pageModels:WelcomeBackPageModel.BotHelpMessage}"
+                               Style="{StaticResource TextCaption}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Grid ColumnDefinitions="*,Auto,*"
+                      ColumnSpacing="{StaticResource SpaceSm}"
+                      Margin="{StaticResource WelcomeDividerMargin}">
+                    <BoxView HeightRequest="{StaticResource LineThickness}"
+                             BackgroundColor="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}"
+                             VerticalOptions="Center" />
+                    <Label Grid.Column="1"
+                           Text="not on pickup pal?"
+                           Style="{StaticResource TextCaption}" />
+                    <BoxView Grid.Column="2"
+                             HeightRequest="{StaticResource LineThickness}"
+                             BackgroundColor="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}"
+                             VerticalOptions="Center" />
+                </Grid>
+
+                <Grid>
+                    <Button Text="Sign up on Pickup Pal"
+                            Command="{Binding OpenPickupPalSignupCommand}"
+                            Style="{StaticResource GhostButton}"
+                            SemanticProperties.Description="Sign up on Pickup Pal" />
+                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.ArrowUpRightFromSquare}"
+                           FontFamily="FontAwesomeSolid"
+                           FontSize="{StaticResource FontCaption}"
+                           TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                           HorizontalOptions="Start"
+                           Margin="{StaticResource WelcomeButtonIconMargin}"
+                           VerticalTextAlignment="Center"
+                           InputTransparent="True" />
+                </Grid>
+
+                <Label Text="{x:Static pageModels:WelcomeBackPageModel.SignupHelpMessage}"
+                       Style="{StaticResource TextCaption}"
+                       HorizontalTextAlignment="Center" />
+
+                <Label Text="{Binding StatusMessage}"
+                       Style="{StaticResource TextCaption}"
+                       HorizontalTextAlignment="Center"
+                       IsVisible="{Binding HasStatusMessage}" />
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

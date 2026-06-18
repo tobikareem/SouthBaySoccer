@@ -45,7 +45,7 @@ Domain  ←  Application  ←  Infrastructure
 
 | Epic | Domain | Application `Features/` | Functions group | Contracts | Providers |
 |------|--------|--------------------------|-----------------|-----------|-----------|
-| AUTH | `ApplicationIdentityUser`(infra), refresh-token records | `Authentication` | `Authentication` | `Authentication` | Identity, `ITokenService` |
+| AUTH | `ApplicationIdentityUser`(infra), refresh-token records | `Authentication` | `Authentication` | `Authentication` | Identity, `ITokenService`, Pickup Pal challenge integration |
 | PROF | `PlayerProfile`, `EmergencyContact`, `ProfileMerge` | `Players` | `Players` | `Players` | — |
 | WAIV | `WaiverDocument`, `WaiverAcceptance` | `Players`/`Compliance` | `Players` | `Players` | — |
 | PAY | `Membership`, `PaymentLedger`, `StripeCustomerReference`, `ProcessedWebhookEvent` | `Payments` | `Payments`, `Webhooks` | `Payments` | `IPaymentGateway` (Stripe) |
@@ -140,3 +140,151 @@ first-class acceptance tests, traced to the story IDs in `requirements.md`.
 - Whether SMS (Twilio) ships in v1 or later (cost + A2P 10DLC registration).
 - Team-balancing algorithm for TEAM-2 (manual vs. rating-weighted auto-balance).
 - Minimum minutes threshold for a goalkeeper clean sheet, scaled to session length.
+
+## 11. First screen — Welcome Back
+
+> **Per-story spec (pilot):** the canonical AUTH-7/8/9 design now lives under
+> [`stories/AUTH-7-welcome-back-screen/design.md`](stories/AUTH-7-welcome-back-screen/design.md)
+> (plus AUTH-8/AUTH-9). This section remains as the overview.
+
+### 11.1 Visual source and scope
+
+The first `signin` screen in
+[`documentation/mobile-wireframes.html`](../documentation/mobile-wireframes.html) is authoritative
+for this screen. The MAUI implementation must reproduce its order, hierarchy, spacing, brand
+surfaces, copy, and interaction emphasis. This section covers `AUTH-7`, `AUTH-8`, and `AUTH-9`.
+Its Font Awesome contract implements `INV-13`.
+
+The screen is shown only when no valid authenticated session can be restored. It is an authentication
+route outside the signed-in Shell navigation; the flyout and Sessions/Stats/Profile tabs must not
+appear behind it.
+
+### 11.2 Screen composition
+
+`WelcomeBackPage` uses a vertically scrollable layout:
+
+1. Green-to-Pine brand header, approximately matching the wireframe's `34,16,30` padding.
+   - 42-dip circular football mark on the left.
+   - `SouthBay Soccer` title.
+   - `Pickup soccer, organized.` subtitle.
+   - white right-side flag stripe and low-opacity circular motif.
+2. Content area with 16-dip horizontal padding and 20-dip top padding.
+   - `WELCOME BACK` using `TextLabel`.
+   - `Your next game starts here.` using `TextH1`.
+   - explanatory WhatsApp/Pickup Pal copy using `TextCaption`.
+3. Phone-number input surface.
+   - Font Awesome WhatsApp brand glyph.
+   - phone input with telephone keyboard and international-format validation.
+   - the wireframe number `+1 (516) 344-7233` is design sample data only; production uses the last
+     explicitly entered number or an example placeholder and must not ship a personal number as a
+     default value.
+4. Full-width `Continue with WhatsApp` action using the WhatsApp green button treatment.
+5. `NoticeSurface` with Font Awesome shield-check glyph and the exact security message:
+   `Password-free and secure` followed by
+   `We use a one-time link through WhatsApp. SouthBaySoccer never sees your WhatsApp password.`
+6. Pickup Pal bot `BrandCard` using `SurfaceAlt`.
+   - uppercase `PICKUP PAL BOT` label;
+   - configured display number (wireframe example `+1 (650) 220-5416`);
+   - Font Awesome external-link glyph and `Open` command;
+   - `Or message the bot a link code to connect this device.`
+7. Divider with centered lowercase copy `not on pickup pal?`.
+8. Full-width `Sign up on Pickup Pal` ghost action with Font Awesome external-link glyph.
+9. Centered caption:
+   `Create your account on the web, then come back and continue with WhatsApp.`
+
+Colors, radii, typography, and touch sizes come from `BrandColors.xaml`, `BrandTokens.xaml`, and
+`BrandStyles.xaml`; the page adds no raw hex colors or emoji.
+
+### 11.3 Font Awesome contract
+
+Font Awesome is the icon font for the MAUI product UI. Use the free desktop font files committed as
+MAUI font resources:
+
+```text
+SouthBaySoccer/Resources/Fonts/
+├── Font Awesome 6 Free-Solid-900.otf
+└── Font Awesome 6 Brands-Regular-400.otf
+```
+
+Register aliases in `MauiProgram.cs`:
+
+```csharp
+fonts.AddFont("Font Awesome 6 Free-Solid-900.otf", "FontAwesomeSolid");
+fonts.AddFont("Font Awesome 6 Brands-Regular-400.otf", "FontAwesomeBrands");
+```
+
+Add a typed glyph catalog such as `Resources/Fonts/FontAwesomeGlyphs.cs`; page XAML references
+constants rather than embedding Unicode literals. Required Welcome Back glyphs:
+
+| Purpose | Font family | Font Awesome icon |
+|---|---|---|
+| Product mark | Solid | `futbol` |
+| WhatsApp field/action | Brands | `whatsapp` |
+| Security notice | Solid | `shield-halved` or `shield` |
+| External actions | Solid | `arrow-up-right-from-square` |
+
+Font Awesome is for pictograms, not body copy. Text continues to use the registered Open Sans /
+Segoe Semibold brand typography. The Font Awesome Free license and attribution file must remain in
+the repository.
+
+### 11.4 MVVM and navigation
+
+```text
+WelcomeBackPage
+  -> WelcomeBackPageModel
+       -> IAuthenticationClient.RequestWhatsAppChallengeAsync(...)
+       -> IExternalLauncher.OpenPickupPalBotAsync(...)
+       -> IExternalLauncher.OpenPickupPalSignupAsync(...)
+       -> ISecureTokenStore
+       -> IAuthenticationNavigator
+```
+
+`WelcomeBackPageModel` owns:
+
+- `PhoneNumber`;
+- `PhoneNumberError`;
+- `IsBusy`;
+- `RequestWhatsAppChallengeCommand`;
+- `OpenPickupPalBotCommand`;
+- `OpenPickupPalSignupCommand`;
+- deep-link completion handling through an injected authentication coordinator.
+
+The page code-behind contains only `InitializeComponent`. URI launching, validation, sign-in state,
+and navigation do not live in XAML code-behind. Configuration uses typed options for the Pickup Pal
+bot number, bot URI, signup URI, and approved deep-link callback scheme.
+
+The app startup coordinator:
+
+1. checks secure storage for a refresh token;
+2. attempts one safe token refresh;
+3. routes to the authenticated Sessions Shell only after success;
+4. otherwise displays `WelcomeBackPage` and clears invalid credentials.
+
+### 11.5 States and security
+
+The screen supports:
+
+- initial;
+- invalid phone;
+- requesting challenge;
+- challenge sent / awaiting deep link;
+- offline;
+- recoverable service error.
+
+Do not log the complete phone number, challenge, deep-link token, access token, or refresh token.
+Display values should be masked in telemetry. The client never claims authentication from button
+navigation or browser return alone; only a verified challenge exchange establishes a session.
+
+### 11.6 Test design
+
+`Client.Tests` covers:
+
+- signed-out startup selects `WelcomeBackPage`;
+- valid restored session bypasses it;
+- wireframe copy and commands are exposed by the page model;
+- invalid numbers do not invoke the authentication client;
+- repeated taps while busy produce one challenge request;
+- failures preserve the entered number and restore the command;
+- bot and signup commands use typed configuration;
+- verified deep link stores tokens and navigates once;
+- icon controls expose semantic descriptions and the page remains scrollable at large text sizes.

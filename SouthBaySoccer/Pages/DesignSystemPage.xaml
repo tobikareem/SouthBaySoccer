@@ -6,16 +6,22 @@
     xmlns:controls="clr-namespace:SouthBaySoccer.Controls"
     x:Name="Page"
     Style="{StaticResource BrandPage}"
-    Title="UI Library">
+    Title="Home">
 
     <ScrollView>
         <VerticalStackLayout Spacing="{StaticResource SpaceLg}">
-            <controls:BrandHeader Title="SouthBay Soccer"
-                                  Subtitle="Reusable MAUI design system" />
+            <controls:BrandHeader Title="South Bay Soccer"
+                                  Subtitle="Play. Connect. Compete.">
+                <controls:BrandHeader.TrailingContent>
+                    <controls:Avatar Initials="SB"
+                                     Variant="OnGreen"
+                                     Description="South Bay Soccer profile" />
+                </controls:BrandHeader.TrailingContent>
+            </controls:BrandHeader>
 
             <VerticalStackLayout Padding="{StaticResource SpaceLg}"
                                  Spacing="{StaticResource SpaceLg}">
-                <controls:SectionHeader Text="Session overview" ActionText="View all" />
+                <controls:SectionHeader Text="Your next session" ActionText="View schedule" />
 
                 <controls:BrandCard IsHero="True">
                     <VerticalStackLayout Spacing="{StaticResource SpaceSm}">

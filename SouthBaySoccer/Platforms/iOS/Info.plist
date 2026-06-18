@@ -28,5 +28,16 @@
 	</array>
 	<key>XSAppIconAssets</key>
 	<string>Assets.xcassets/appicon.appiconset</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.companyname.southbaysoccer.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>southbaysoccer</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

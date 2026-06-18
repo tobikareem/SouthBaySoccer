@@ -1,10 +1,24 @@
-﻿using Foundation;
+using Foundation;
+using UIKit;
 
-namespace SouthBaySoccer
+namespace SouthBaySoccer;
+
+[Register("AppDelegate")]
+public class AppDelegate : MauiUIApplicationDelegate
 {
-    [Register("AppDelegate")]
-    public class AppDelegate : MauiUIApplicationDelegate
+    protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
+
+    public override bool OpenUrl(
+        UIApplication application,
+        NSUrl url,
+        NSDictionary options)
     {
-        protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
+        if (Uri.TryCreate(url.AbsoluteString, UriKind.Absolute, out var uri))
+        {
+            Microsoft.Maui.Controls.Application.Current?.SendOnAppLinkRequestReceived(uri);
+            return true;
+        }
+
+        return false;
     }
 }

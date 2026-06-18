@@ -1,210 +1,328 @@
-# Match Stats Confirmation Architecture — Review Plan
+# Simplified Match Stats Confirmation Architecture — Review Plan
 
-> **Status:** Proposed; saved for review before implementation.  
+> **Status:** Proposed; revised for review before implementation.
 > **Scope:** Documentation and architecture only. Do not implement entities, migrations, APIs,
 > handlers, or client behavior until this plan is approved.
 
 ## 1. Purpose
 
-Define the authoritative lifecycle from RSVP through check-in, match-team assignment, captain
-selection, goal-claim review, match publication, and leaderboard projection.
+Provide a lightweight post-match workflow appropriate for casual pickup soccer:
 
-The approved architecture will be documented in `documentation/match-stats-flow.md` and referenced
-by the main architecture, executable specifications, tasks, mobile wireframe, and agent memory.
+1. Players submit their total goals and assists.
+2. Both match captains independently approve or deny each submission.
+3. Two approvals automatically confirm the submission.
+4. Confirmed submissions update the leaderboard without Game Admin involvement.
+5. Game Admin handles only exceptional disputes or corrections when explicitly escalated.
 
-## 2. Proposed end-to-end flow
+This replaces the earlier per-goal claim, dual-review-per-event, mandatory reconciliation, and
+admin-finalization workflow.
+
+Peer ratings, likes, MVP selection, cards, and team balancing are separate workflows and are not
+changed by this plan.
+
+## 2. Why this design is simpler
+
+The earlier proposal required one claim per goal, two reviews per claim, conflict substitution,
+return/revision states, an admin queue, score reconciliation, and manual publication. That would
+create too many post-game actions and make leaderboard updates depend on continued participation
+from several people.
+
+The simplified design has one submission per player per match:
+
+```text
+Goals: 2
+Assists: 1
+```
+
+A match with six players claiming a goal or assist therefore needs at most six submissions and
+twelve captain decisions, rather than dozens of per-goal reviews. Captains may also use a bulk
+“Approve all reviewed” action.
+
+## 3. Simplified end-to-end flow
 
 ```mermaid
 flowchart TD
-    RSVP["Player RSVPs Going"] --> ELIGIBLE{"Payment and waiver eligible?"}
-    ELIGIBLE -- No --> BLOCKED["RSVP rejected"]
-    ELIGIBLE -- Yes --> CHECKIN["Game Admin checks player in"]
-
-    CHECKIN --> CREATE["Game Admin creates Match"]
-    CREATE --> ASSIGN["Assign checked-in players to Match Team A or B"]
-    ASSIGN --> CAPTAINS["Select one eligible Captain-role player per team"]
-
-    CAPTAINS --> VALIDATE{"Captain is checked in and assigned to that team?"}
-    VALIDATE -- No --> CAPTAIN_ERROR["Reject captain assignment"]
-    VALIDATE -- Yes --> START["Start Match and lock teams/captains"]
+    RSVP["Player RSVPs Going"] --> CHECKIN["Game Admin checks player in"]
+    CHECKIN --> MATCH["Game Admin creates Match"]
+    MATCH --> TEAMS["Assign checked-in players to Team A or Team B"]
+    TEAMS --> CAPTAINS["Select one Captain-role player per team"]
+    CAPTAINS --> START["Start Match and lock teams/captains"]
 
     START --> PLAY["Match is played"]
-    PLAY --> RESULT["Game Admin records provisional score"]
-    RESULT --> REVIEW_WINDOW["Open configured stat-review window"]
+    PLAY --> RESULT["Record final score and close Match"]
+    RESULT --> WINDOW["Open stat submission window"]
 
-    REVIEW_WINDOW --> CLAIM["Scorer submits one Goal Claim per goal with optional assister"]
-    CLAIM --> PARTICIPANT{"Scorer and assister assigned to scoring team?"}
-    PARTICIPANT -- No --> INVALID["Reject invalid claim"]
-    PARTICIPANT -- Yes --> REVIEWERS["Create two review slots: Team A captain and Team B captain"]
+    WINDOW --> SUBMIT{"Did player record goals or assists?"}
+    SUBMIT -- Yes --> TOTALS["Submit total Goals and Assists"]
+    SUBMIT -- No --> ZERO["Appearance remains 0 Goals / 0 Assists"]
 
-    REVIEWERS --> SELF{"Captain is scorer or named assister?"}
-    SELF -- Yes --> ADMIN_SUB["Game Admin substitutes for conflicted captain"]
-    SELF -- No --> CAPTAIN_REVIEW["Captain reviews claim"]
-    ADMIN_SUB --> DECISIONS
-    CAPTAIN_REVIEW --> DECISIONS{"Review decisions"}
+    TOTALS --> VALIDATE{"Non-negative totals and player participated?"}
+    VALIDATE -- No --> INVALID["Reject invalid submission"]
+    VALIDATE -- Yes --> PENDING["Pending both captain reviews"]
 
-    DECISIONS -- Return for correction --> RETURNED["Record reason and return to scorer"]
-    RETURNED --> BEFORE_DEADLINE{"Before review deadline?"}
-    BEFORE_DEADLINE -- Yes --> REVISE["Scorer creates revised claim; prior revision is superseded"]
-    REVISE --> REVIEWERS
-    BEFORE_DEADLINE -- No --> ADMIN_QUEUE["Game Admin resolution queue"]
+    PENDING --> CAPTAIN_A["Team A Captain: Approve or Deny"]
+    PENDING --> CAPTAIN_B["Team B Captain: Approve or Deny"]
 
-    DECISIONS -- Any captain rejects --> REJECTED["Claim rejected"]
-    REJECTED --> ADMIN_OVERRIDE{"Audited Game Admin override?"}
-    ADMIN_OVERRIDE -- No --> EXCLUDED["Exclude claim from official events"]
-    ADMIN_OVERRIDE -- Yes --> RESOLUTION["Record reason and resolved claim values"]
+    CAPTAIN_A --> DECISION{"Review status"}
+    CAPTAIN_B --> DECISION
 
-    DECISIONS -- Both confirm --> ACCEPTED["Claim accepted pending finalization"]
-    RESOLUTION --> ACCEPTED
+    DECISION -- One approval only --> WAITING["Await remaining captain"]
+    WAITING --> DECISION
 
-    REVIEW_WINDOW --> DEADLINE{"Review deadline reached?"}
-    DEADLINE -- Yes --> LOCK_REVIEW["Lock player revisions"]
-    LOCK_REVIEW --> ADMIN_QUEUE
-    ADMIN_QUEUE --> RESOLVE["Game Admin resolves pending, returned, missing-captain, and disputed claims"]
-    RESOLVE --> ACCEPTED
+    DECISION -- Both approve --> LIMITS{"Team confirmed totals remain within final score?"}
+    LIMITS -- Yes --> CONFIRMED["Automatically confirm player totals"]
+    LIMITS -- No --> CHANGES
+    DECISION -- Any denial --> CHANGES["Needs correction with denial reason"]
 
-    ACCEPTED --> RECONCILE{"Accepted goals per team equal provisional score?"}
-    EXCLUDED --> RECONCILE
-    RECONCILE -- No --> FIX["Game Admin amends score or claims with required audit reason"]
-    FIX --> RECONCILE
-    RECONCILE -- Yes --> FINALIZE["Game Admin finalizes Match"]
+    CHANGES --> BEFORE{"Submission window still open?"}
+    BEFORE -- Yes --> REVISE["Player edits totals and resubmits"]
+    REVISE --> PENDING
+    BEFORE -- No --> EXCLUDE["Keep last unconfirmed totals out of leaderboard"]
 
-    FINALIZE --> EVENTS["Create official linked Goal and Assist MatchEvents"]
-    EVENTS --> PARTICIPATION["Finalize PlayerMatchStats and MatchResult"]
-    PARTICIPATION --> PUBLISH["Publish and lock Match"]
+    CONFIRMED --> PROJECT["Update season and career projections"]
+    ZERO --> PROJECT
+    PROJECT --> TOP10["Leaderboard displays top 10"]
+    TOP10 --> ALL["View All: search and pagination"]
+    PROJECT --> PROFILE["Profile displays totals and overall rank"]
 
-    PUBLISH --> PROJECTION["Recompute season and career read projections"]
-    PROJECTION --> TOP10["Leaderboard shows top 10 qualifying players"]
-    TOP10 --> ALL["View All provides search and paginated rankings"]
-    PROJECTION --> PROFILE["Player profile shows career totals and overall rank"]
+    EXCLUDE --> ESCALATE{"Manual escalation requested?"}
+    ESCALATE -- No --> CLOSED["Submission remains unconfirmed"]
+    ESCALATE -- Yes --> ADMIN["Game Admin reviews exceptional dispute"]
+    ADMIN --> OVERRIDE{"Confirm corrected totals?"}
+    OVERRIDE -- Yes --> CONFIRMED
+    OVERRIDE -- No --> CLOSED
 
-    PUBLISH --> CORRECTION{"Correction required later?"}
-    CORRECTION -- Yes --> AUDIT["Create StatCorrection and audited amended events"]
-    AUDIT --> PROJECTION
-
-    PLAY --> RATINGS["Participants submit teammate ratings and likes during review window"]
-    RATINGS --> DEDUPE["Enforce no self-vote and one vote/like per peer per Match"]
-    DEDUPE --> PROJECTION
+    CONFIRMED --> CORRECTION{"Correction required after confirmation?"}
+    CORRECTION -- Yes --> AUDIT["Game Admin records audited StatCorrection"]
+    AUDIT --> PROJECT
 ```
 
-## 3. Architecture decisions to approve
+## 4. Core architecture decisions
 
-- `RsvpResponse` records attendance intent.
+### Participation
+
+- `RsvpResponse` records attendance intent only.
 - `CheckIn` records actual arrival.
 - `TeamAssignment` records participation and team membership for one match.
-- `MatchTeam` has an optional `CaptainPlayerProfileId`.
-- A captain must hold the Captain role, be checked in, and be assigned to that match team.
-- Teams and captains lock when the match starts. Later changes require an audited Game Admin action.
-- Game Admin acts as reviewer when a team has no captain.
-- Goal submissions are event-based:
-  - One claim per goal.
-  - A scorer is required.
-  - At most one assister may be identified.
-  - The scorer creates the claim.
-  - Game Admin may create claims for guests or missing submissions.
-- Both captains review every goal claim.
-- A captain cannot review a claim that identifies them as scorer or assister; Game Admin fills that
-  review slot.
-- A returned claim requires a reason and may be revised before the review deadline.
-- Any captain rejection rejects the claim by default.
-- Game Admin may override a rejected claim only with a required audit reason.
-- Claims remain separate from official `MatchEvent` records until match finalization.
-- Game Admin is the only final publication authority.
-- Accepted goal counts must reconcile with the provisional `MatchResult`.
-- Only published and locked matches contribute to leaderboard projections.
-- Post-publication changes require `StatCorrection`.
+- Appearance and 0-goal/0-assist stats come from participation, not from a required zero submission.
+- Only players assigned to the match may submit stats for it.
 
-## 4. Proposed domain model
+### Captains
 
-The final architecture document will include a Mermaid relationship diagram covering:
+- Each `MatchTeam` has one optional `CaptainPlayerProfileId`.
+- A selected captain must:
+  - Hold the Captain role.
+  - Be checked in.
+  - Be assigned to that match team.
+- Teams and captain assignments lock when the match starts.
+- Both captains review submissions from both teams.
+- A captain may approve their own submission. The opposing captain supplies the independent review.
+  This is an intentional casual-pickup tradeoff that avoids routing every captain submission to an
+  administrator.
+- If a match has no captain for one team, Game Admin may fill that missing review role.
 
-- `Session`
-- `CheckIn`
-- `Match`
-- `MatchTeam`
-- `TeamAssignment`
-- `GoalClaim`
-- `GoalClaimReview`
-- `MatchEvent`
+### Player submission
+
+- A player submits one summary per match:
+  - `Goals`
+  - `Assists`
+- Values must be non-negative integers.
+- A player who records no goals or assists does not need to submit a 0/0 form.
+- A player may edit their submission while it is awaiting review.
+- Once either captain has reviewed it, changes create a new revision and reset both captain
+  decisions.
+- Previous revisions and decisions remain auditable.
+
+### Captain review
+
+- Each captain makes one decision on the complete player submission:
+  - `Approve`
+  - `Deny`
+- Denial requires a short reason.
+- Two approvals automatically change the submission to `Confirmed`.
+- Before automatic confirmation, the system verifies that the team’s resulting confirmed goals and
+  assists would not exceed that team’s recorded final score.
+- No Game Admin approval or publication step is required in the normal path.
+- Either denial changes the submission to `NeedsCorrection`.
+- The player may revise and resubmit while the configured submission window remains open.
+- Captains may bulk approve submissions they have reviewed, but denials must be individual and
+  include a reason.
+
+### Deadline and exceptions
+
+- The session has a configurable stat-submission deadline.
+- Unconfirmed submissions at the deadline do not contribute goals or assists to the leaderboard.
+- They do not automatically enter an admin work queue.
+- A player or captain may manually escalate an unresolved submission.
+- Game Admin may confirm corrected totals or leave the submission unconfirmed, with an audit reason.
+- Corrections after confirmation require `StatCorrection`.
+
+## 5. Data model simplification and integrity tradeoff
+
+This plan intentionally changes the existing raw-event direction for goals and assists:
+
+- Confirmed `Goals` and `Assists` totals on `PlayerMatchStats` become the authoritative source for
+  those two statistics.
+- The system does not create one `MatchEvent` per goal or link an assist to an individual goal.
+- `MatchEvent` may remain for independently useful events such as cards or an explicitly recorded
+  own goal, but it is not required for the goals/assists leaderboard.
+- Derived season and career totals aggregate confirmed `PlayerMatchStats` rows.
+
+This removes significant implementation and review complexity, with these accepted limitations:
+
+- The system cannot prove which assist belonged to which goal.
+- The one-assist-per-specific-goal rule cannot be enforced directly.
+- Both captains provide the human verification that the submitted totals are correct.
+- Automatic validation prevents confirmed team goal totals and confirmed team assist totals from
+  exceeding the recorded final score.
+- Confirmed player goals may be lower than the final score when a scorer never submits or the score
+  includes an own goal. Missing credit is preferable to inventing or blocking stats.
+
+## 6. Simplified domain model
+
+The final architecture should use the existing official `PlayerMatchStats` row and add only the
+minimum workflow records needed for review:
+
+```mermaid
+erDiagram
+    SESSION ||--o{ CHECK_IN : records
+    SESSION ||--o{ MATCH : contains
+    MATCH ||--|{ MATCH_TEAM : has
+    MATCH_TEAM ||--o{ TEAM_ASSIGNMENT : includes
+    PLAYER_PROFILE ||--o{ MATCH_TEAM : captains
+    PLAYER_PROFILE ||--o{ TEAM_ASSIGNMENT : receives
+    MATCH ||--o{ PLAYER_MATCH_STATS : records
+    PLAYER_PROFILE ||--o{ PLAYER_MATCH_STATS : owns
+    PLAYER_MATCH_STATS ||--o{ STAT_SUBMISSION_REVISION : proposed_by
+    STAT_SUBMISSION_REVISION ||--o{ CAPTAIN_STAT_REVIEW : reviewed_by
+    PLAYER_PROFILE ||--o{ CAPTAIN_STAT_REVIEW : captain
+    PLAYER_MATCH_STATS ||--o{ STAT_CORRECTION : corrected_by
+```
+
+Proposed responsibilities:
+
 - `PlayerMatchStats`
-- `MatchResult`
+  - One official row per match participant.
+  - Stores appearance data and the authoritative confirmed goals/assists.
+  - Unconfirmed totals never become official values.
+- `StatSubmissionRevision`
+  - One immutable revision of a player’s proposed goals and assists.
+  - References the player and match stats row.
+  - Has `PendingReview`, `NeedsCorrection`, `Confirmed`, `Expired`, or `Superseded` status.
+- `CaptainStatReview`
+  - One decision per captain per submission revision.
+  - Stores `Approve` or `Deny`, timestamp, and optional/required reason.
+  - Unique per `(SubmissionRevisionId, CaptainPlayerProfileId)`.
 - `StatCorrection`
+  - Audited post-confirmation adjustment.
 
-Proposed claim lifecycle:
+No per-goal claim, per-goal review, or goal/assist `MatchEvent` is required.
+
+## 7. Submission state diagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Draft
-    Draft --> PendingReview: Submit
-    PendingReview --> Accepted: Both reviews confirm
-    PendingReview --> ReturnedForCorrection: Reviewer returns with reason
-    ReturnedForCorrection --> Superseded: Scorer revises
-    Superseded --> PendingReview: Submit new revision
-    PendingReview --> Rejected: Any captain rejects
-    Rejected --> AdminResolved: Audited Game Admin override
-    Accepted --> Materialized: Match finalized
-    AdminResolved --> Materialized: Match finalized
-    Rejected --> [*]: Excluded
-    Materialized --> [*]
+    [*] --> PendingReview: Player submits totals
+    PendingReview --> Confirmed: Both captains approve
+    PendingReview --> NeedsCorrection: Either captain denies
+    PendingReview --> Superseded: Player edits after a review
+    NeedsCorrection --> Superseded: Player revises
+    Superseded --> PendingReview: New revision submitted
+    PendingReview --> Expired: Deadline passes incomplete
+    NeedsCorrection --> Expired: Deadline passes unrevised
+    Expired --> Confirmed: Audited Game Admin exception
+    NeedsCorrection --> Confirmed: Audited Game Admin exception
+    Confirmed --> [*]: Update official stats and projections
+    Expired --> [*]: Exclude proposed totals
 ```
 
-## 5. Role and authorization model
+## 8. Role and authorization model
 
-| Actor | Proposed responsibilities |
+| Actor | Responsibilities |
 |---|---|
-| Player | Submit their own goal claims, revise returned claims before the deadline, rate eligible peers, and view published results. |
-| Captain | Review each goal claim for the match unless conflicted; return with a reason, confirm, or reject. Captaincy is assigned per match team. |
-| Game Admin | Check players in, create matches, assign teams and captains, substitute for missing/conflicted captains, resolve claims, reconcile the score, publish, and lock the match. |
-| Admin/Owner | Inherit Game Admin authority and perform audited post-publication corrections when authorized. |
+| Player | Submit and revise their own goals/assists totals and view review status. |
+| Captain | Approve or deny every submitted player summary for that match; optionally bulk approve reviewed summaries. |
+| Game Admin | Check in players, create the match, assign teams/captains, fill a missing captain review role, and resolve manually escalated exceptions. |
+| Admin/Owner | Inherit Game Admin authority and perform audited post-confirmation corrections. |
 
-Server-side policies remain authoritative. Client-side control visibility is user experience only.
+Server-side authorization remains authoritative. Client-side control visibility is user experience
+only.
 
-## 6. Leaderboard behavior
+## 9. Leaderboard behavior
 
-- The initial leaderboard displays the top 10 qualifying players for the selected season and metric.
-- Supported primary metrics are Goals, Assists, Rating, and MVP.
+- A confirmed submission updates the player’s official match stats automatically.
+- The normal path does not wait for Game Admin finalization.
+- Only confirmed goals and assists contribute to season and career totals.
+- Match appearances come from recorded participation even when the player submits nothing.
+- The initial leaderboard displays the top 10 qualifying players for the selected metric.
 - “View all” opens a searchable, paginated ranking.
-- Players with a zero value for the selected competitive metric are excluded from that metric’s
-  ranked list.
-- A player profile may show the player’s overall rank even when they are outside the top 10.
-- Rankings are read projections computed from published, locked match data.
-- Rejected, returned, pending, or superseded claims never affect rankings.
-- Audited post-publication corrections trigger projection recomputation.
+- Players with zero values are excluded from Goals and Assists rankings.
+- Profiles may show a player’s overall rank even when outside the top 10.
+- Audited corrections trigger projection recomputation.
 
-## 7. Documentation deliverables after approval
+## 10. Wireframe impact
 
-1. Create `documentation/match-stats-flow.md` as the authoritative architecture reference.
-2. Add the complete flowchart, domain relationship diagram, claim state diagram, authorization
-   matrix, invariants, and failure paths.
-3. Update `documentation/architecture.md` to summarize and link to the detailed flow.
-4. Update `_specs/requirements.md` with Gherkin scenarios for:
-   - Captain eligibility and same-team enforcement.
-   - Team and captain locking at match start.
-   - Dual-captain review.
-   - Conflicted captain substitution.
-   - Claim return, revision, rejection, and audited override.
-   - Review-deadline escalation.
-   - Score reconciliation.
-   - Publication and locking.
-   - Leaderboard inclusion and pagination.
-5. Update `_specs/design.md` and `_specs/tasks.md` with the domain, API, and implementation impact.
-6. Update `documentation/mobile-wireframes.html`:
-   - Replace “Confirm teammates” with “Pending team submissions.”
-   - Show dual-review status and Game Admin reconciliation states.
-7. Add durable memory and references in agent guidance.
+The Match Stats screen should have two modes based on the current user:
 
-## 8. Validation and eventual commit
+### Player submission
 
-- Validate Mermaid syntax and diagram completeness.
-- Verify terminology is consistent across architecture, requirements, design, tasks, wireframe, and
-  memory.
+- Goals and assists steppers.
+- Submit or update totals.
+- Status:
+  - Awaiting both captains.
+  - One of two approved.
+  - Confirmed.
+  - Needs correction, including the denial reason.
+  - Deadline passed/unconfirmed.
+
+### Captain review
+
+- Heading: `Pending stat submissions`.
+- One row per player submission, not one row per goal.
+- Display player, team, goals, assists, and current other-captain decision.
+- Actions: `Approve` or `Deny`.
+- Deny opens a required reason input.
+- Optional `Approve all reviewed` action.
+- Confirmed rows leave the pending list automatically.
+
+Remove normal-path references to:
+
+- Per-goal claims.
+- “Pending captain/admin.”
+- Mandatory admin reconciliation.
+- Manual Game Admin publication.
+
+## 11. Documentation changes after approval
+
+1. Create `documentation/match-stats-flow.md` from this simplified plan.
+2. Update `documentation/architecture.md` to link to the detailed flow.
+3. Update `_specs/requirements.md` with Gherkin scenarios for:
+   - One goals/assists submission per player per match.
+   - Dual-captain approval.
+   - Automatic confirmation after two approvals.
+   - Denial reason and resubmission.
+   - Review reset after revision.
+   - Automatic rejection of totals that would exceed the recorded team score.
+   - Deadline expiry without automatic admin routing.
+   - Missing-captain Game Admin fallback.
+   - Manual exception escalation.
+   - Confirmed-only leaderboard inclusion.
+4. Update `_specs/design.md` and `_specs/tasks.md`.
+5. Update `documentation/mobile-wireframes.html` and `_specs/client-ui.md` to show the simplified
+   player and captain modes.
+6. Add durable memory and references in agent guidance.
+
+## 12. Validation and eventual commit
+
+- Validate Mermaid syntax and terminology.
+- Verify the architecture, requirements, tasks, and wireframe describe the same workflow.
 - Run `git diff --check`.
 - Keep the change documentation-only.
 - After review approval, commit as:
 
 ```text
-docs: define match stat confirmation architecture
+docs: simplify match stat confirmation architecture
 ```
 
-No entities, migrations, handlers, endpoints, or client behavior should be added with this
+No entities, migrations, APIs, handlers, or client behavior should be implemented in that
 documentation commit.
