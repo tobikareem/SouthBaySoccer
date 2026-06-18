@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AzureFunctionsVersion>v4</AzureFunctionsVersion>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.50.0" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.5" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" Version="2.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="host.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="local.settings.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('local.settings.json')" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SouthBaySoccer.Application\SouthBaySoccer.Application.csproj" />
+    <ProjectReference Include="..\SouthBaySoccer.Infrastructure\SouthBaySoccer.Infrastructure.csproj" />
+    <ProjectReference Include="..\SouthBaySoccer.Contracts\SouthBaySoccer.Contracts.csproj" />
+  </ItemGroup>
+</Project>

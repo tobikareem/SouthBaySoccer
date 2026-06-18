@@ -1,0 +1,53 @@
+## .NET / .NET MAUI build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+
+## Visual Studio / Rider / VS Code
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+*_i.c
+*_p.c
+*.rsuser
+
+## MAUI / mobile build & publish artifacts
+*.binlog
+*.apk
+*.aab
+*.ipa
+*.app
+*.appx
+*.appxbundle
+*.msix
+Resources/**/*.g.cs
+*.keystore
+*.jks
+
+## Local data / secrets — never commit
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+appsettings.*.local.json
+secrets.json
+.env
+*.pfx
+*.p12
+
+## OS noise
+.DS_Store
+Thumbs.db
+
+## Keep AI agent scaffolding tracked (do NOT ignore these)
+!.ai/
+!.claude/
+!.codex/
+!AGENTS.md
+!CLAUDE.md
+!skills/

@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SouthBaySoccer.Application/SouthBaySoccer.Application.csproj" />
+    <Project Path="src/SouthBaySoccer.Contracts/SouthBaySoccer.Contracts.csproj" />
+    <Project Path="src/SouthBaySoccer.Domain/SouthBaySoccer.Domain.csproj" />
+    <Project Path="src/SouthBaySoccer.Functions/SouthBaySoccer.Functions.csproj" />
+    <Project Path="src/SouthBaySoccer.Infrastructure/SouthBaySoccer.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SouthBaySoccer.Application.Tests/SouthBaySoccer.Application.Tests.csproj" />
+    <Project Path="tests/SouthBaySoccer.Client.Tests/SouthBaySoccer.Client.Tests.csproj" />
+    <Project Path="tests/SouthBaySoccer.Domain.Tests/SouthBaySoccer.Domain.Tests.csproj" />
+    <Project Path="tests/SouthBaySoccer.Functions.Tests/SouthBaySoccer.Functions.Tests.csproj" />
+    <Project Path="tests/SouthBaySoccer.Infrastructure.Tests/SouthBaySoccer.Infrastructure.Tests.csproj" />
+  </Folder>
+  <Project Path="SouthBaySoccer/SouthBaySoccer.csproj" />
+</Solution>
