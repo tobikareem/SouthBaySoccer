@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SouthBaySoccer — Mobile wireframes</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.1.0/dist/tabler-icons.min.css" />
+<style>
+  :root{
+    --g:#008751; --gd:#005C37; --spring:#1FB573; --mist:#E8F5EE; --ink:#14241B;
+    --sage:#5B6B62; --line:#E7EBE7; --surface:#FFFFFF; --surface-alt:#FBFCFB;
+    --amber:#BA7517; --amber-bg:#FAEEDA; --danger:#A32D2D; --danger-bg:#FCEBEB;
+    --wa:#25D366; --shadow:0 18px 50px rgba(20,36,27,.13); --soft-shadow:0 8px 24px rgba(20,36,27,.07);
+  }
+  *{box-sizing:border-box;font-family:Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  body{
+    margin:0;color:var(--ink);padding:36px 18px 56px;min-height:100vh;
+    background:radial-gradient(circle at 12% 8%,rgba(31,181,115,.13),transparent 25rem),linear-gradient(135deg,#f8fbf9 0%,#edf4ef 100%);
+  }
+  button,a,[onclick],input{touch-action:manipulation}
+  button:focus-visible,a:focus-visible,[onclick]:focus-visible,input:focus-visible{outline:3px solid rgba(31,181,115,.35);outline-offset:2px}
+  .board{max-width:1240px;margin:0 auto}
+  .boardhead{display:flex;justify-content:space-between;align-items:end;gap:24px;margin-bottom:22px}
+  .eyebrow{display:flex;align-items:center;gap:8px;color:var(--gd);font-size:12px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;margin-bottom:7px}
+  .eyebrow:before{content:"";width:24px;height:4px;border-radius:4px;background:var(--g)}
+  .board h1{font-size:28px;line-height:1.15;font-weight:700;letter-spacing:-.02em;margin:0 0 7px}
+  .board p.sub{color:var(--sage);font-size:14px;line-height:1.55;margin:0;max-width:760px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;padding:5px;background:rgba(255,255,255,.72);border:1px solid rgba(231,235,231,.9);border-radius:13px;box-shadow:var(--soft-shadow)}
+  .ctl{border:0;background:transparent;border-radius:9px;min-height:38px;padding:8px 13px;font-size:13px;font-weight:600;cursor:pointer;color:var(--sage)}
+  .ctl.active{background:var(--g);color:#fff;box-shadow:0 4px 12px rgba(0,135,81,.22)}
+  .stage{display:flex;justify-content:center;padding-top:4px}
+  .gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,332px));gap:34px 28px;justify-content:center}
+
+  .phone{width:332px;height:712px;background:#0D1711;border:1px solid rgba(255,255,255,.13);border-radius:42px;padding:11px;flex:0 0 auto;box-shadow:var(--shadow);position:relative}
+  .phone:after{content:"";position:absolute;inset:3px;border:1px solid rgba(255,255,255,.08);border-radius:39px;pointer-events:none}
+  .phone .scr{position:relative;width:100%;height:100%;background:var(--surface);border-radius:32px;overflow:hidden;display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:120px;height:24px;background:#0e1411;border-radius:0 0 14px 14px;z-index:6}
+  .statusbar{display:flex;justify-content:space-between;align-items:center;padding:9px 20px 4px;font-size:12px;font-weight:600;color:var(--ink);background:var(--surface);z-index:2}
+  .statusbar .ic{display:flex;gap:5px;font-size:13px}
+  .body{flex:1;overflow:hidden;position:relative}
+  .screen{display:none;flex-direction:column;height:100%}
+  .screen.on{display:flex}
+  .scroll{flex:1;overflow:auto;padding:8px 16px 20px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{width:0}
+
+  .ghdr{background:linear-gradient(135deg,var(--g),var(--gd));color:#fff;padding:16px 16px 18px;position:relative;overflow:hidden}
+  .ghdr:after{content:"";position:absolute;width:120px;height:120px;border:28px solid rgba(255,255,255,.06);border-radius:50%;right:-55px;top:-54px;pointer-events:none}
+  .ghdr > *{position:relative;z-index:1}
+  .ghdr .flag{position:absolute;top:0;right:12px;height:100%;width:6px;background:#fff;opacity:.22}
+  .backbtn{cursor:pointer;width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;flex:0 0 auto;border:1px solid rgba(255,255,255,.16)}
+  .label{font-size:11px;letter-spacing:.1em;color:var(--sage);font-weight:700;text-transform:uppercase}
+  .h{font-size:21px;line-height:1.2;font-weight:700;letter-spacing:-.015em;margin:3px 0}
+  .muted{color:var(--sage);font-size:13px}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:5px 9px;border-radius:999px;white-space:nowrap}
+  .pill.ok{background:var(--mist);color:var(--gd)}
+  .pill.warn{background:var(--amber-bg);color:var(--amber)}
+  .pill.full{background:var(--danger-bg);color:var(--danger)}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:15px;margin:12px 0;box-shadow:0 3px 14px rgba(20,36,27,.035)}
+  .card.interactive{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+  .card.interactive:hover{transform:translateY(-2px);box-shadow:var(--soft-shadow);border-color:#D5E3DA}
+  .btn{display:flex;width:100%;min-height:46px;border:none;border-radius:12px;padding:11px 14px;font-size:14px;font-weight:700;cursor:pointer;text-align:center;align-items:center;justify-content:center;gap:7px;transition:transform .15s ease,box-shadow .15s ease,background .15s ease}
+  .btn:hover:not([disabled]){transform:translateY(-1px)}
+  .btn.primary{background:var(--g);color:#fff;box-shadow:0 6px 16px rgba(0,135,81,.2)}
+  .btn.primary:hover{background:var(--gd)}
+  .btn.ghost{background:#fff;color:var(--g);border:1.5px solid var(--g)}
+  .btn.wa{background:var(--wa);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn[disabled]{opacity:.7;cursor:default}
+  .input{width:100%;min-height:48px;border:1px solid var(--line);border-radius:12px;padding:12px 13px;font-size:15px;margin-top:8px;background:var(--surface-alt)}
+  .bar{height:8px;border-radius:6px;background:var(--mist);overflow:hidden}
+  .bar > i{display:block;height:100%;background:var(--g)}
+  .avatar{border-radius:50%;background:var(--mist);color:var(--gd);display:flex;align-items:center;justify-content:center;font-weight:500;flex:0 0 auto}
+  .tab{display:flex;border-top:1px solid var(--line);background:rgba(255,255,255,.96);padding:5px 7px 7px}
+  .tab a{flex:1;text-align:center;min-height:48px;padding:6px 0 5px;color:var(--sage);font-size:10px;font-weight:600;cursor:pointer;text-decoration:none;border-radius:12px}
+  .tab a i{display:block;font-size:21px;margin-bottom:2px}
+  .tab a.active{color:var(--g);background:var(--mist)}
+  .row{display:flex;align-items:center;gap:11px}
+  .listrow{display:flex;align-items:center;gap:10px;min-height:46px;padding:8px 0;border-bottom:1px solid var(--line)}
+  .statgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+  .stat{background:linear-gradient(145deg,var(--mist),#F5FAF7);border:1px solid #DDEFE5;border-radius:13px;padding:12px 8px;text-align:center}
+  .stat b{display:block;font-size:22px;font-weight:700;color:var(--gd)}
+  .stat span{font-size:11px;color:var(--sage)}
+  .seg{display:flex;background:var(--mist);border-radius:11px;padding:3px;margin:12px 0}
+  .seg a{flex:1;text-align:center;font-size:12px;min-height:38px;padding:10px 0 7px;border-radius:9px;color:var(--sage);cursor:pointer;font-weight:600}
+  .seg a.active{background:#fff;color:var(--g);font-weight:700;box-shadow:0 3px 9px rgba(20,36,27,.08)}
+  .lead-list .lead:last-child{border:none}
+  .lead{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+  .lead .rk{width:22px;text-align:center;font-weight:500;color:var(--sage)}
+  .lead.top{background:linear-gradient(135deg,#FFF8E8,var(--amber-bg));border:1px solid #F1D8A8;border-radius:13px;padding:11px;border-bottom:1px solid #F1D8A8}
+  .lead.top .rk{color:var(--amber)}
+  .ic-btn{cursor:pointer;font-size:22px;color:var(--sage)}
+  .ic-btn.lk.on{color:var(--danger)}
+  .ic-btn.mvp.on{color:var(--amber)}
+  .step{display:flex;align-items:center;gap:14px}
+  .step i{width:44px;height:44px;border-radius:14px;border:1.5px solid var(--g);color:var(--g);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;background:#fff}
+  .step b{font-size:22px;font-weight:700;min-width:22px;text-align:center}
+  input[type=range]{width:100%;accent-color:var(--g)}
+  .link{color:var(--g);font-size:13px;cursor:pointer;font-weight:500}
+  .api{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--sage);margin-top:8px;justify-content:center;width:100%}
+  .hero-card{background:linear-gradient(135deg,var(--gd),var(--g));color:#fff;border:none;position:relative;overflow:hidden;box-shadow:0 12px 26px rgba(0,92,55,.2)}
+  .hero-card:after{content:"";position:absolute;width:112px;height:112px;border-radius:50%;background:rgba(255,255,255,.08);right:-35px;bottom:-60px}
+  .hero-kicker{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.78}
+  .hero-title{font-size:18px;font-weight:700;line-height:1.2;margin:4px 0}
+  .meta-row{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0 12px}
+  .meta-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:6px 8px;border-radius:9px;background:var(--surface-alt);color:var(--sage)}
+  .hero-card .meta-chip{background:rgba(255,255,255,.13);color:#fff}
+  .mini-action{width:40px;height:40px;border-radius:12px;background:var(--mist);color:var(--g);display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;flex:0 0 auto}
+  .section-row{display:flex;align-items:center;justify-content:space-between;margin-top:14px}
+  .notice{display:flex;align-items:flex-start;gap:10px;background:var(--mist);border:1px solid #D7EBDF;border-radius:13px;padding:11px 12px;color:var(--gd);font-size:12px;line-height:1.4}
+  .notice i{font-size:18px;margin-top:1px}
+  .rank-value{font-size:18px;font-weight:700;color:var(--gd)}
+  @media(max-width:720px){
+    body{padding:22px 12px 40px}
+    .boardhead{align-items:flex-start;flex-direction:column}
+    .board h1{font-size:24px}
+  }
+</style>
+</head>
+<body>
+<div class="board">
+  <div class="boardhead">
+    <div>
+      <div class="eyebrow">Product design benchmark</div>
+      <h1>SouthBaySoccer mobile experience</h1>
+      <p class="sub">Clickable wireframes for sign-in, session RSVP, player stats, confirmation, ratings, and leaderboards. The design follows the reusable MAUI control system and the green-and-white Pickup Soccer brand.</p>
+    </div>
+    <div class="controls" aria-label="Wireframe view">
+      <button class="ctl active" id="c-flow" aria-pressed="true" onclick="setView('flow')"><i class="ti ti-device-mobile"></i> Interactive</button>
+      <button class="ctl" id="c-gal" aria-pressed="false" onclick="setView('gallery')"><i class="ti ti-layout-grid"></i> All screens</button>
+    </div>
+  </div>
+  <div class="stage" id="stage"></div>
+</div>
+
+<template id="tpl">
+<div class="phone"><div class="scr">
+  <div class="notch"></div>
+  <div class="statusbar"><span>9:41</span><span class="ic"><i class="ti ti-signal-4g"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+  <div class="body">
+
+    <!-- SIGN IN — WhatsApp SSO via Pickup Pal -->
+    <section class="screen" data-s="signin">
+      <div class="ghdr" style="padding:34px 16px 30px"><span class="flag"></span>
+        <div class="row" style="gap:9px"><div class="avatar" style="width:42px;height:42px;background:rgba(255,255,255,.16);color:#fff"><i class="ti ti-ball-football" style="font-size:23px"></i></div>
+          <div><div style="font-size:17px;font-weight:500">SouthBay Soccer</div><div style="font-size:12px;opacity:.85">Pickup soccer, organized.</div></div></div>
+      </div>
+      <div class="scroll" style="padding-top:20px">
+        <div class="label">Welcome back</div><div class="h">Your next game starts here.</div>
+        <p class="muted" style="margin:4px 0 12px;line-height:1.5">Sign in securely with the WhatsApp number connected to your Pickup Pal account.</p>
+        <div class="input" style="display:flex;align-items:center;gap:9px;background:#fbfcfb"><i class="ti ti-brand-whatsapp" style="color:var(--wa);font-size:20px"></i><span style="font-size:15px">+1 (516) 344-7233</span></div>
+        <button class="btn wa" style="margin-top:12px" onclick="show('home')"><i class="ti ti-brand-whatsapp" style="font-size:20px"></i> Continue with WhatsApp</button>
+        <div class="notice" style="margin-top:14px"><i class="ti ti-shield-check"></i><div><strong>Password-free and secure</strong><br>We use a one-time link through WhatsApp. SouthBaySoccer never sees your WhatsApp password.</div></div>
+        <div class="card" style="margin:14px 0 6px;background:#fbfcfb"><div class="row" style="justify-content:space-between"><div><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.4px">Pickup Pal bot</div><div style="font-weight:600">+1 (650) 220-5416</div></div><span class="link"><i class="ti ti-external-link"></i> Open</span></div>
+          <p class="muted" style="margin:8px 0 0">Or message the bot a link code to connect this device.</p></div>
+        <div style="display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--sage);font-size:12px"><span style="flex:1;height:1px;background:var(--line)"></span>not on pickup pal?<span style="flex:1;height:1px;background:var(--line)"></span></div>
+        <button class="btn ghost" onclick="show('home')"><i class="ti ti-external-link"></i> Sign up on Pickup Pal</button>
+        <p class="muted" style="text-align:center;margin-top:14px">Create your account on the web, then come back and continue with WhatsApp.</p>
+      </div>
+    </section>
+
+    <!-- HOME / SESSIONS -->
+    <section class="screen" data-s="home">
+      <div class="scroll">
+        <div class="row" style="justify-content:space-between;margin:6px 0 2px">
+          <div><div class="muted">Saturday crew</div><div class="h" style="margin:0">Good morning, Tobi</div></div>
+          <div class="row" style="gap:8px"><span class="pill ok"><i class="ti ti-circle-check"></i> Paid</span><span class="mini-action" aria-label="Notifications"><i class="ti ti-bell"></i></span></div>
+        </div>
+        <div class="card hero-card interactive" onclick="show('session')" style="cursor:pointer">
+          <div class="hero-kicker">Next match · in 2 days</div>
+          <div class="hero-title">Marina Field · Saturday pickup</div>
+          <div class="meta-row"><span class="meta-chip"><i class="ti ti-calendar"></i> Jun 20</span><span class="meta-chip"><i class="ti ti-clock"></i> 9:00 AM</span><span class="meta-chip"><i class="ti ti-users"></i> 7v7</span></div>
+          <div class="row" style="justify-content:space-between;position:relative;z-index:1"><span class="pill" style="background:#fff;color:var(--gd)"><i class="ti ti-circle-check"></i> You're going</span><span style="font-size:12px;font-weight:700">View details <i class="ti ti-arrow-right"></i></span></div>
+        </div>
+        <div class="card interactive" style="cursor:pointer;padding:12px 14px" onclick="show('matchstats')">
+          <div class="row"><span class="mini-action" style="background:var(--g);color:#fff"><i class="ti ti-chart-bar"></i></span><div style="flex:1"><div style="font-size:14px;font-weight:700">Submit your latest stats</div><div class="muted">2 goals entered · captain confirmation pending</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div>
+        </div>
+        <div class="section-row"><div class="label">Coming up</div><span class="link">See schedule</span></div>
+        <div class="card interactive" onclick="show('session')" style="cursor:pointer">
+          <div class="row" style="justify-content:space-between"><div style="font-weight:700">Stanford Turf · 5v5</div><span class="pill full">Full</span></div>
+          <div class="meta-row"><span class="meta-chip"><i class="ti ti-calendar"></i> Wed Jun 24</span><span class="meta-chip"><i class="ti ti-clock"></i> 7:00 PM</span></div>
+          <div class="bar"><i style="width:100%"></i></div>
+          <div class="row" style="justify-content:space-between;margin-top:9px"><span class="muted">20 / 20 · waitlist 3</span><span class="pill warn">Join waitlist <i class="ti ti-chevron-right"></i></span></div>
+        </div>
+      </div>
+      <nav class="tab"><a class="active" onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('profile')"><i class="ti ti-user"></i>Profile</a></nav>
+    </section>
+
+    <!-- SESSION DETAIL — going + waitlist lists, Pickup Pal API -->
+    <section class="screen" data-s="session">
+      <div class="ghdr"><span class="flag"></span>
+        <div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Saturday pickup</div><div style="font-size:17px;font-weight:500">Marina Field</div></div></div>
+      </div>
+      <div class="scroll">
+        <div class="card" style="padding:12px 14px">
+          <div class="row" style="padding:3px 0 10px;border-bottom:1px solid var(--line)"><span class="mini-action"><i class="ti ti-calendar"></i></span><div><div class="label">Date and time</div><div style="font-weight:700;margin-top:2px">Sat Jun 20 · 9:00 AM</div></div></div>
+          <div class="row" style="padding-top:10px"><span class="mini-action"><i class="ti ti-map-pin"></i></span><div style="flex:1"><div class="label">Location</div><div style="font-weight:700;margin-top:2px">Marina Field · 7v7</div></div><span class="link">Map</span></div>
+        </div>
+        <div class="card" style="margin:12px 0 8px"><div class="row" style="justify-content:space-between;margin-bottom:7px"><span style="font-weight:500">16 / 20 going</span><span class="pill warn"><i class="ti ti-clock-hour-4"></i> closes 1d 4h</span></div><div class="bar"><i style="width:80%"></i></div></div>
+
+        <div class="label">Going · 16</div>
+        <div class="listrow"><span class="avatar" style="width:30px;height:30px;font-size:11px">TK</span><div style="flex:1"><div style="font-weight:500">Tobi Kareem <span class="muted">· you</span></div></div><span class="muted">Captain</span></div>
+        <div class="listrow"><span class="avatar" style="width:30px;height:30px;font-size:11px">KT</span><div style="flex:1"><div style="font-weight:500">Kola T.</div></div><span class="muted">Forward</span></div>
+        <div class="listrow"><span class="avatar" style="width:30px;height:30px;font-size:11px">JD</span><div style="flex:1"><div style="font-weight:500">Jide D.</div></div><span class="muted">Forward</span></div>
+        <div class="listrow"><span class="avatar" style="width:30px;height:30px;font-size:11px">SM</span><div style="flex:1"><div style="font-weight:500">Sade M.</div></div><span class="muted">Winger</span></div>
+        <div class="listrow" style="border:none"><span class="muted">+ 12 more going</span></div>
+
+        <div class="label" style="margin-top:12px">Waitlist · 3</div>
+        <div class="listrow"><span class="avatar" style="width:28px;height:28px;font-size:11px;background:var(--amber-bg);color:var(--amber)">1</span><div style="flex:1"><div style="font-weight:500">Tunde B. <span class="pill warn" style="padding:1px 8px">guest</span></div></div><span class="muted">next up</span></div>
+        <div class="listrow"><span class="avatar" style="width:28px;height:28px;font-size:11px;background:var(--mist)">2</span><div style="flex:1"><div style="font-weight:500">Mike A.</div></div></div>
+        <div class="listrow" style="border:none"><span class="avatar" style="width:28px;height:28px;font-size:11px;background:var(--mist)">3</span><div style="flex:1"><div style="font-weight:500">Femi O.</div></div></div>
+
+        <button class="btn primary" id="rsvpBtn" style="margin-top:8px" onclick="toggleRsvp()">RSVP — I'm going</button>
+        <span class="api"><i class="ti ti-plug-connected"></i> Confirmed via Pickup Pal</span>
+      </div>
+    </section>
+
+    <!-- PROFILE -->
+    <section class="screen" data-s="profile">
+      <div class="ghdr" style="padding:18px 16px 22px"><span class="flag"></span>
+        <div class="row" style="gap:12px"><div class="avatar" style="width:54px;height:54px;font-size:18px;background:rgba(255,255,255,.16);color:#fff">TK</div>
+          <div><div style="font-size:18px;font-weight:500">Tobi Kareem</div><div style="font-size:12px;opacity:.85">"Captain" · #8</div></div></div>
+      </div>
+      <div class="scroll">
+        <div class="row" style="justify-content:space-between;margin:4px 0 12px"><span class="pill ok"><i class="ti ti-brand-whatsapp"></i> Linked via WhatsApp</span><span class="link">Edit on Pickup Pal</span></div>
+        <div class="label">Career stats</div>
+        <div class="statgrid" style="margin-top:9px">
+          <div class="stat"><b>24</b><span>Matches</span></div><div class="stat"><b>12</b><span>Goals</span></div><div class="stat"><b>9</b><span>Assists</span></div>
+          <div class="stat"><b>7.8</b><span>Avg rating</span></div><div class="stat"><b>3</b><span>MVP</span></div><div class="stat"><b>41</b><span>Likes</span></div>
+        </div>
+        <div class="card" style="margin-top:14px"><div class="row" style="justify-content:space-between"><span style="font-weight:500">Recent form</span><span class="muted">last 5</span></div>
+          <div class="row" style="gap:6px;margin-top:10px"><span class="pill ok">W</span><span class="pill ok">W</span><span class="pill warn">D</span><span class="pill ok">W</span><span class="pill full">L</span></div>
+        </div>
+        <div class="muted" style="margin:2px 0 10px"><i class="ti ti-clock-hour-4" style="color:var(--amber)"></i> 2 goals from Sat awaiting confirmation</div>
+        <button class="btn ghost" onclick="show('leaderboard')">View season leaderboard</button>
+      </div>
+      <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a class="active" onclick="show('profile')"><i class="ti ti-user"></i>Profile</a></nav>
+    </section>
+
+    <!-- LEADERBOARD — clickable, data-driven segments -->
+    <section class="screen" data-s="leaderboard">
+      <div class="scroll">
+        <div class="row" style="justify-content:space-between;margin:6px 0 2px"><div class="h" style="margin:0">Leaderboard</div><span class="pill ok">Season 2026 <i class="ti ti-chevron-down"></i></span></div>
+        <div class="seg">
+          <a data-k="goals" class="active" onclick="leadTab(this)">Goals</a>
+          <a data-k="assists" onclick="leadTab(this)">Assists</a>
+          <a data-k="rating" onclick="leadTab(this)">Rating</a>
+          <a data-k="mvp" onclick="leadTab(this)">MVP</a>
+        </div>
+        <div class="lead-list"></div>
+        <p class="muted lead-note" style="margin-top:10px"></p>
+      </div>
+      <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a class="active" onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('profile')"><i class="ti ti-user"></i>Profile</a></nav>
+    </section>
+
+    <!-- MATCH STATS — self submit + captain/admin confirm -->
+    <section class="screen" data-s="matchstats">
+      <div class="ghdr"><span class="flag"></span>
+        <div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Sat · Marina Field</div><div style="font-size:17px;font-weight:500">Match stats</div></div></div>
+      </div>
+      <div class="scroll">
+        <div class="notice" style="margin:4px 0 14px"><i class="ti ti-info-circle"></i><div>Enter your final totals. A captain or game admin confirms every submission before it reaches the leaderboard.</div></div>
+        <div class="label" style="margin-top:6px">Your performance</div>
+        <div class="card">
+          <div class="row" style="justify-content:space-between"><span style="font-weight:500"><i class="ti ti-ball-football" style="color:var(--g)"></i> Goals</span>
+            <span class="step"><i class="ti ti-minus" onclick="step(this,-1)"></i><b>2</b><i class="ti ti-plus" onclick="step(this,1)"></i></span></div>
+          <div class="row" style="justify-content:space-between;margin-top:12px"><span style="font-weight:500"><i class="ti ti-shoe" style="color:var(--g)"></i> Assists</span>
+            <span class="step"><i class="ti ti-minus" onclick="step(this,-1)"></i><b>1</b><i class="ti ti-plus" onclick="step(this,1)"></i></span></div>
+        </div>
+        <button class="btn primary" id="subBtn" onclick="submitStats()">Submit for confirmation</button>
+        <span class="api"><i class="ti ti-plug-connected"></i> Sent to Pickup Pal · pending captain/admin</span>
+
+        <div class="label" style="margin-top:16px">Confirm teammates · captain</div>
+        <div class="card" style="padding:6px 14px">
+          <div class="listrow"><span class="avatar" style="width:30px;height:30px;font-size:11px">JD</span><div style="flex:1"><div style="font-weight:500">Jide D.</div><div class="muted">1 goal · 2 assists</div></div><i class="ti ti-circle-check" style="color:var(--g);font-size:22px"></i></div>
+          <div class="listrow"><span class="avatar" style="width:30px;height:30px;font-size:11px">SM</span><div style="flex:1"><div style="font-weight:500">Sade M.</div><div class="muted">submitted: 1 goal</div></div><button class="btn ghost" style="width:auto;padding:6px 12px;font-size:12px" onclick="confirmRow(this)">Confirm</button></div>
+          <div class="listrow" style="border:none"><span class="avatar" style="width:30px;height:30px;font-size:11px">TB</span><div style="flex:1"><div style="font-weight:500">Tunde B.</div><div class="muted">submitted: 2 goals</div></div><button class="btn ghost" style="width:auto;padding:6px 12px;font-size:12px" onclick="confirmRow(this)">Confirm</button></div>
+        </div>
+        <div style="text-align:center"><span class="link" onclick="show('rate')">Rate teammates instead <i class="ti ti-chevron-right"></i></span></div>
+      </div>
+    </section>
+
+    <!-- RATE TEAMMATES — ratings / likes / MVP -->
+    <section class="screen" data-s="rate">
+      <div class="ghdr"><span class="flag"></span>
+        <div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Sat · Marina Field</div><div style="font-size:17px;font-weight:500">Rate the match</div></div></div>
+      </div>
+      <div class="scroll">
+        <p class="muted" style="margin:10px 0 4px">Rate teammates 0–10, like a great game, and pick one MVP. You can't rate yourself.</p>
+        <div class="card"><div class="row" style="justify-content:space-between"><div class="row"><span class="avatar" style="width:36px;height:36px;font-size:12px">KT</span><div><div style="font-weight:500">Kola T.</div><div class="muted">2 goals</div></div></div>
+            <div class="row" style="gap:14px"><i class="ti ti-heart ic-btn lk" onclick="this.classList.toggle('on')"></i><i class="ti ti-star ic-btn mvp" onclick="pickMvp(this)"></i></div></div>
+          <div class="row" style="gap:10px;margin-top:10px"><input type="range" min="0" max="10" step="1" value="9" oninput="this.nextElementSibling.textContent=this.value"><b style="width:20px;text-align:right">9</b></div></div>
+        <div class="card"><div class="row" style="justify-content:space-between"><div class="row"><span class="avatar" style="width:36px;height:36px;font-size:12px">JD</span><div><div style="font-weight:500">Jide D.</div><div class="muted">1 assist</div></div></div>
+            <div class="row" style="gap:14px"><i class="ti ti-heart ic-btn lk on" onclick="this.classList.toggle('on')"></i><i class="ti ti-star ic-btn mvp" onclick="pickMvp(this)"></i></div></div>
+          <div class="row" style="gap:10px;margin-top:10px"><input type="range" min="0" max="10" step="1" value="7" oninput="this.nextElementSibling.textContent=this.value"><b style="width:20px;text-align:right">7</b></div></div>
+        <div class="card"><div class="row" style="justify-content:space-between"><div class="row"><span class="avatar" style="width:36px;height:36px;font-size:12px">SM</span><div><div style="font-weight:500">Sade M.</div><div class="muted">clean sheet</div></div></div>
+            <div class="row" style="gap:14px"><i class="ti ti-heart ic-btn lk" onclick="this.classList.toggle('on')"></i><i class="ti ti-star ic-btn mvp on" onclick="pickMvp(this)"></i></div></div>
+          <div class="row" style="gap:10px;margin-top:10px"><input type="range" min="0" max="10" step="1" value="8" oninput="this.nextElementSibling.textContent=this.value"><b style="width:20px;text-align:right">8</b></div></div>
+        <button class="btn primary" onclick="show('home')">Submit ratings</button>
+      </div>
+    </section>
+
+  </div>
+</div></div>
+</template>
+
+<script>
+  var LEAD={
+    goals:{note:'Only captain/admin-confirmed goals count. Ties break by fewer appearances, then assists.',rows:[
+      ['KT','Kola T.','Forward · 18 apps','15'],['TK','Tobi Kareem','Captain · 24 apps','12'],['JD','Jide D.','Forward · 20 apps','11'],['SM','Sade M.','Winger · 16 apps','8'],['TB','Tunde B.','Guest · 6 apps','5']]},
+    assists:{note:'Each assist is confirmed with its goal. Ties break by fewer minutes, then goals.',rows:[
+      ['JD','Jide D.','Forward · 20 apps','14'],['SM','Sade M.','Winger · 16 apps','11'],['TK','Tobi Kareem','Captain · 24 apps','9'],['KT','Kola T.','Forward · 18 apps','7'],['MA','Mike A.','Midfield · 12 apps','5']]},
+    rating:{note:'Average peer rating (0–10) across rated matches. Matches with no votes are excluded.',rows:[
+      ['SM','Sade M.','Winger · 16 apps','8.4'],['TK','Tobi Kareem','Captain · 24 apps','7.8'],['KT','Kola T.','Forward · 18 apps','7.6'],['JD','Jide D.','Forward · 20 apps','7.2'],['FO','Femi O.','Defender · 14 apps','6.9']]},
+    mvp:{note:'Explicit man-of-the-match awards — a distinct axis from rating and likes.',rows:[
+      ['TK','Tobi Kareem','Captain · 24 apps','3'],['KT','Kola T.','Forward · 18 apps','3'],['SM','Sade M.','Winger · 16 apps','2'],['JD','Jide D.','Forward · 20 apps','1'],['TB','Tunde B.','Guest · 6 apps','1']]}
+  };
+  function leadRow(r,i){
+    var top=i===0;
+    return '<div class="lead'+(top?' top':'')+'" onclick="show(\'profile\')">'+
+      '<span class="rk">'+(top?'<i class="ti ti-trophy"></i>':(i+1))+'</span>'+
+      '<span class="avatar" style="width:34px;height:34px;font-size:12px">'+r[0]+'</span>'+
+      '<div style="flex:1"><div style="font-weight:500">'+r[1]+'</div><div class="muted">'+r[2]+'</div></div>'+
+      '<b class="rank-value" style="'+(top?'color:var(--amber)':'')+'">'+r[3]+'</b></div>';
+  }
+  function renderLead(scr,key){
+    if(!scr) return;
+    scr.querySelectorAll('.seg a').forEach(function(a){ a.classList.toggle('active', a.dataset.k===key); });
+    var d=LEAD[key];
+    scr.querySelector('.lead-list').innerHTML=d.rows.map(leadRow).join('');
+    scr.querySelector('.lead-note').textContent=d.note;
+  }
+  function leadTab(el){ renderLead(el.closest('.screen'), el.dataset.k); }
+
+  function build(active){
+    var node=document.getElementById('tpl').content.cloneNode(true);
+    var phone=node.querySelector('.phone');
+    phone.querySelectorAll('.screen').forEach(function(s){ s.classList.toggle('on', s.dataset.s===active); });
+    phone.querySelectorAll('[onclick]').forEach(function(el){
+      if(!el.matches('button,input')){
+        el.setAttribute('tabindex','0');
+        if(!el.hasAttribute('role')) el.setAttribute('role','button');
+        el.addEventListener('keydown',function(event){
+          if(event.key==='Enter'||event.key===' '){ event.preventDefault(); el.click(); }
+        });
+      }
+    });
+    phone.querySelectorAll('.backbtn').forEach(function(el){ el.setAttribute('aria-label','Back'); });
+    phone.querySelectorAll('.step .ti-minus').forEach(function(el){ el.setAttribute('aria-label','Decrease value'); });
+    phone.querySelectorAll('.step .ti-plus').forEach(function(el){ el.setAttribute('aria-label','Increase value'); });
+    phone.querySelectorAll('.ic-btn.lk').forEach(function(el){ el.setAttribute('aria-label','Like player'); });
+    phone.querySelectorAll('.ic-btn.mvp').forEach(function(el){ el.setAttribute('aria-label','Select match MVP'); });
+    renderLead(phone.querySelector('.screen[data-s=leaderboard]'),'goals');
+    return phone;
+  }
+  function activeScreen(){ return document.querySelector('#stage .phone .screen.on'); }
+  var hist=[];
+  function go(id){
+    var stage=document.getElementById('stage');
+    if(stage.dataset.view==='gallery'){ setView('flow'); }
+    var ph=document.querySelector('#stage .phone');
+    ph.querySelectorAll('.screen').forEach(function(s){ s.classList.toggle('on', s.dataset.s===id); });
+    var sc=ph.querySelector('.screen.on .scroll'); if(sc) sc.scrollTop=0;
+  }
+  function show(id){ var cur=activeScreen(); if(cur && cur.dataset.s!==id) hist.push(cur.dataset.s); go(id); }
+  function back(){ go(hist.pop()||'home'); }
+  function toggleRsvp(){
+    var b=activeScreen().querySelector('#rsvpBtn'); if(!b) return;
+    if(b.dataset.on){ b.dataset.on=''; b.className='btn primary'; b.textContent="RSVP — I'm going"; }
+    else { b.dataset.on='1'; b.className='btn ghost'; b.innerHTML="<i class='ti ti-circle-check'></i> You're in — see you Saturday"; }
+  }
+  function step(el,d){ var b=el.parentNode.querySelector('b'); b.textContent=Math.max(0,parseInt(b.textContent,10)+d); }
+  function submitStats(){ var b=activeScreen().querySelector('#subBtn'); b.disabled=true; b.className='btn ghost'; b.disabled=true; b.innerHTML="<i class='ti ti-clock-hour-4'></i> Pending captain confirmation"; }
+  function confirmRow(btn){ var s=document.createElement('i'); s.className='ti ti-circle-check'; s.style.cssText='color:var(--g);font-size:22px'; btn.replaceWith(s); }
+  function pickMvp(el){ el.closest('.scroll').querySelectorAll('.mvp').forEach(function(m){ if(m!==el) m.classList.remove('on'); }); el.classList.toggle('on'); }
+
+  var order=['signin','home','session','profile','leaderboard','matchstats','rate'];
+  function setView(v){
+    var stage=document.getElementById('stage'); stage.dataset.view=v; hist=[];
+    document.getElementById('c-flow').classList.toggle('active', v==='flow');
+    document.getElementById('c-gal').classList.toggle('active', v==='gallery');
+    document.getElementById('c-flow').setAttribute('aria-pressed',v==='flow');
+    document.getElementById('c-gal').setAttribute('aria-pressed',v==='gallery');
+    stage.innerHTML='';
+    if(v==='flow'){ stage.className='stage'; stage.appendChild(build('signin')); }
+    else { stage.className='gallery'; order.forEach(function(s){ stage.appendChild(build(s)); }); }
+  }
+  setView('flow');
+</script>
+</body>
+</html>

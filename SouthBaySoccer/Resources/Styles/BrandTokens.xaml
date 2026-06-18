@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <x:Double x:Key="SpaceXs">4</x:Double>
+    <x:Double x:Key="SpaceSm">8</x:Double>
+    <x:Double x:Key="SpaceMd">12</x:Double>
+    <x:Double x:Key="SpaceLg">16</x:Double>
+    <x:Double x:Key="SpaceXl">24</x:Double>
+    <x:Double x:Key="Space2Xl">32</x:Double>
+
+    <x:Double x:Key="RadiusSm">8</x:Double>
+    <x:Double x:Key="RadiusSegment">9</x:Double>
+    <x:Double x:Key="RadiusMd">12</x:Double>
+    <x:Double x:Key="RadiusAction">14</x:Double>
+    <x:Double x:Key="RadiusLg">16</x:Double>
+    <x:Double x:Key="RadiusPill">999</x:Double>
+
+    <x:Double x:Key="TouchMin">44</x:Double>
+    <x:Double x:Key="ButtonMinHeight">46</x:Double>
+    <x:Double x:Key="AvatarSm">28</x:Double>
+    <x:Double x:Key="AvatarMd">34</x:Double>
+    <x:Double x:Key="AvatarLg">54</x:Double>
+    <x:Double x:Key="BarHeight">8</x:Double>
+    <x:Double x:Key="IconMd">20</x:Double>
+    <x:Double x:Key="HeaderStripeWidth">6</x:Double>
+    <x:Double x:Key="StepperValueWidth">22</x:Double>
+    <x:Double x:Key="LineThickness">1</x:Double>
+    <x:Double x:Key="RadiusCircleButton">22</x:Double>
+
+    <x:Double x:Key="FontDisplay">28</x:Double>
+    <x:Double x:Key="FontH1">21</x:Double>
+    <x:Double x:Key="FontH2">17</x:Double>
+    <x:Double x:Key="FontBody">15</x:Double>
+    <x:Double x:Key="FontButton">14</x:Double>
+    <x:Double x:Key="FontCaption">13</x:Double>
+    <x:Double x:Key="FontLabel">11</x:Double>
+    <x:Double x:Key="FontStat">22</x:Double>
+    <Thickness x:Key="ButtonPadding">14,11</Thickness>
+    <Thickness x:Key="CardPadding">15</Thickness>
+    <Thickness x:Key="HeaderPadding">16,16,16,18</Thickness>
+    <Thickness x:Key="HeaderStripeMargin">0,0,12,0</Thickness>
+    <Thickness x:Key="HeaderTitleMargin">12,0</Thickness>
+    <Thickness x:Key="BadgePadding">9,5</Thickness>
+    <Thickness x:Key="RowPadding">0,8</Thickness>
+    <Thickness x:Key="SegmentPadding">12,7</Thickness>
+    <Thickness x:Key="StatTilePadding">8,12</Thickness>
+    <Thickness x:Key="NoticePadding">12,11</Thickness>
+    <Thickness x:Key="LinkButtonPadding">8,0</Thickness>
+
+    <RoundRectangle x:Key="ShapeCard" CornerRadius="16" />
+    <RoundRectangle x:Key="ShapeAction" CornerRadius="14" />
+    <RoundRectangle x:Key="ShapeSegment" CornerRadius="9" />
+    <RoundRectangle x:Key="ShapePill" CornerRadius="999" />
+</ResourceDictionary>

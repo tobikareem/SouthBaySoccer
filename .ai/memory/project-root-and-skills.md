@@ -5,7 +5,11 @@ type: project
 created: 2026-06-17
 ---
 
-`D:\source\SouthBaySoccer` is the canonical project/solution root: it holds `SouthBaySoccer.slnx`, `CLAUDE.md`, `agent.md`, and all agent tooling (`.ai/`, `.claude/`, `.codex/`, `skills/`). The .NET MAUI project itself lives one level down at `D:\source\SouthBaySoccer\SouthBaySoccer\` (its `.csproj`). Run agents from the repo root so the tooling is discovered. Four project skills live under `skills/` (at the root): `brand-design-kit`, `maui-blazor-conventions`, `matchday-content`, and `player-stats` (stats follow Premier League / UEFA Champions League conventions).
+`D:\source\SouthBaySoccer` is the canonical project/solution root: it holds
+`SouthBaySoccer.slnx`, `AGENTS.md`, `CLAUDE.md`, `_specs/`, and all agent tooling (`.ai/`,
+`.claude/`, `.codex/`, `skills/`). The .NET MAUI project itself lives one level down at
+`D:\source\SouthBaySoccer\SouthBaySoccer\` (its `.csproj`). Run agents from the repo root so the
+tooling is discovered. Project skills live under `skills/` at the root.
 
 Codex code-review requests use the canonical automatic skill at
 `.agents/skills/source-command-code-review/SKILL.md`. Do not duplicate that workflow under

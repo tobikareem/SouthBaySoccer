@@ -9,6 +9,9 @@
                 <ResourceDictionary Source="Resources/Styles/Colors.xaml" />
                 <ResourceDictionary Source="Resources/Styles/Styles.xaml" />
                 <ResourceDictionary Source="Resources/Styles/AppStyles.xaml" />
+                <ResourceDictionary Source="Resources/Styles/BrandColors.xaml" />
+                <ResourceDictionary Source="Resources/Styles/BrandTokens.xaml" />
+                <ResourceDictionary Source="Resources/Styles/BrandStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

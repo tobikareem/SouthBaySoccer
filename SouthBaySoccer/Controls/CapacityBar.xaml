@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="SouthBaySoccer.Controls.CapacityBar"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+        <Label x:Name="CapacityLabel"
+               Style="{StaticResource TextBodyStrong}"
+               FontSize="{StaticResource FontCaption}"
+               HorizontalOptions="Start" />
+        <Grid HeightRequest="{StaticResource BarHeight}">
+            <BoxView BackgroundColor="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}"
+                     CornerRadius="{StaticResource SpaceXs}" />
+            <BoxView x:Name="Fill"
+                     BackgroundColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                     CornerRadius="{StaticResource SpaceXs}"
+                     HorizontalOptions="Start" />
+        </Grid>
+    </VerticalStackLayout>
+</ContentView>

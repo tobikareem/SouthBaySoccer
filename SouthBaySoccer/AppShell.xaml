@@ -26,6 +26,12 @@
         ContentTemplate="{DataTemplate pages:ManageMetaPage}"
         Route="manage" />
 
+    <ShellContent
+        Title="UI Library"
+        Icon="{StaticResource IconRibbon}"
+        ContentTemplate="{DataTemplate pages:DesignSystemPage}"
+        Route="ui-library" />
+
     <Shell.FlyoutFooter>
         <Grid Padding="15">
             <sf:SfSegmentedControl x:Name="ThemeSegmentedControl" 

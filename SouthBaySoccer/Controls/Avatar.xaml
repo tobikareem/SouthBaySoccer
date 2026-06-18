@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="SouthBaySoccer.Controls.Avatar"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    <Border x:Name="AvatarBorder"
+            HeightRequest="{Binding Size, Source={x:Reference Root}}"
+            WidthRequest="{Binding Size, Source={x:Reference Root}}"
+            StrokeThickness="0"
+            StrokeShape="{StaticResource ShapePill}">
+        <Grid>
+            <Label x:Name="InitialsLabel"
+                   Text="{Binding Initials, Source={x:Reference Root}}"
+                   Style="{StaticResource TextBodyStrong}"
+                   HorizontalTextAlignment="Center"
+                   VerticalTextAlignment="Center" />
+            <Image x:Name="AvatarImage"
+                   Source="{Binding ImageSource, Source={x:Reference Root}}"
+                   Aspect="AspectFill" />
+        </Grid>
+    </Border>
+</ContentView>

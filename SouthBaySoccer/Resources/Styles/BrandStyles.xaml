@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <Style x:Key="BrandPage" TargetType="ContentPage">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource SurfaceLight}, Dark={StaticResource SurfaceDark}}" />
+    </Style>
+
+    <Style x:Key="TextBody" TargetType="Label">
+        <Setter Property="FontFamily" Value="OpenSansRegular" />
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding Light={StaticResource BrandInkLight}, Dark={StaticResource BrandInkDark}}" />
+    </Style>
+    <Style x:Key="TextDisplay" TargetType="Label" BasedOn="{StaticResource TextBody}">
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="{StaticResource FontDisplay}" />
+    </Style>
+    <Style x:Key="TextH1" TargetType="Label" BasedOn="{StaticResource TextBody}">
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="{StaticResource FontH1}" />
+    </Style>
+    <Style x:Key="TextH2" TargetType="Label" BasedOn="{StaticResource TextBody}">
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="{StaticResource FontH2}" />
+    </Style>
+    <Style x:Key="TextBodyStrong" TargetType="Label" BasedOn="{StaticResource TextBody}">
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+    </Style>
+    <Style x:Key="TextCaption" TargetType="Label" BasedOn="{StaticResource TextBody}">
+        <Setter Property="FontSize" Value="{StaticResource FontCaption}" />
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}" />
+    </Style>
+    <Style x:Key="TextLabel" TargetType="Label" BasedOn="{StaticResource TextCaption}">
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="{StaticResource FontLabel}" />
+        <Setter Property="CharacterSpacing" Value="0.4" />
+        <Setter Property="TextTransform" Value="Uppercase" />
+    </Style>
+    <Style x:Key="TextStat" TargetType="Label" BasedOn="{StaticResource TextBody}">
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="{StaticResource FontStat}" />
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandSpringDark}}" />
+    </Style>
+
+    <Style x:Key="PrimaryButton" TargetType="Button">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDepthDark}}" />
+        <Setter Property="TextColor" Value="White" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="{StaticResource FontButton}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+        <Setter Property="MinimumHeightRequest" Value="{StaticResource ButtonMinHeight}" />
+        <Setter Property="Padding" Value="{StaticResource ButtonPadding}" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor"
+                                    Value="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandGreenLight}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="Opacity" Value="0.55" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+    <Style x:Key="GhostButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource SurfaceLight}, Dark={StaticResource SurfaceDark}}" />
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+        <Setter Property="BorderColor"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+        <Setter Property="BorderWidth" Value="1.5" />
+    </Style>
+    <Style x:Key="WhatsAppButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+        <Setter Property="BackgroundColor" Value="{StaticResource WhatsApp}" />
+    </Style>
+    <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}" />
+    </Style>
+    <Style x:Key="LinkButton" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="{StaticResource FontCaption}" />
+        <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
+        <Setter Property="Padding" Value="{StaticResource LinkButtonPadding}" />
+    </Style>
+
+    <Style x:Key="BrandEntry" TargetType="Entry">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}" />
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding Light={StaticResource BrandInkLight}, Dark={StaticResource BrandInkDark}}" />
+        <Setter Property="PlaceholderColor"
+                Value="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}" />
+        <Setter Property="FontFamily" Value="OpenSansRegular" />
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
+    </Style>
+
+    <Style x:Key="CardSurface" TargetType="Border">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource SurfaceLight}, Dark={StaticResource SurfaceDark}}" />
+        <Setter Property="Stroke"
+                Value="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="{StaticResource ShapeCard}" />
+        <Setter Property="Padding" Value="{StaticResource CardPadding}" />
+    </Style>
+    <Style x:Key="TintSurface" TargetType="Border" BasedOn="{StaticResource CardSurface}">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}" />
+        <Setter Property="StrokeThickness" Value="0" />
+    </Style>
+    <Style x:Key="HeroCardSurface" TargetType="Border" BasedOn="{StaticResource CardSurface}">
+        <Setter Property="Background" Value="{StaticResource HeroGradientBrush}" />
+        <Setter Property="StrokeThickness" Value="0" />
+    </Style>
+    <Style x:Key="StatTileSurface" TargetType="Border" BasedOn="{StaticResource CardSurface}">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource StatSurfaceLight}, Dark={StaticResource StatSurfaceDark}}" />
+        <Setter Property="Stroke"
+                Value="{AppThemeBinding Light={StaticResource BrandSoftLineLight}, Dark={StaticResource BrandSoftLineDark}}" />
+        <Setter Property="Padding" Value="{StaticResource StatTilePadding}" />
+        <Setter Property="StrokeShape" Value="{StaticResource ShapeAction}" />
+    </Style>
+    <Style x:Key="NoticeSurface" TargetType="Border" BasedOn="{StaticResource CardSurface}">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}" />
+        <Setter Property="Stroke"
+                Value="{AppThemeBinding Light={StaticResource BrandSoftLineLight}, Dark={StaticResource BrandSoftLineDark}}" />
+        <Setter Property="StrokeShape" Value="{StaticResource ShapeAction}" />
+        <Setter Property="Padding" Value="{StaticResource NoticePadding}" />
+    </Style>
+    <Style x:Key="IconTileSurface" TargetType="Border">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}" />
+        <Setter Property="StrokeThickness" Value="0" />
+        <Setter Property="StrokeShape" Value="{StaticResource ShapeAction}" />
+        <Setter Property="HeightRequest" Value="40" />
+        <Setter Property="WidthRequest" Value="40" />
+    </Style>
+    <Style x:Key="StepperButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+        <Setter Property="HeightRequest" Value="{StaticResource TouchMin}" />
+        <Setter Property="WidthRequest" Value="{StaticResource TouchMin}" />
+        <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
+        <Setter Property="MinimumWidthRequest" Value="{StaticResource TouchMin}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusAction}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontSize" Value="{StaticResource FontH2}" />
+    </Style>
+
+    <Style TargetType="Shell">
+        <Setter Property="Shell.BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource SurfaceLight}, Dark={StaticResource SurfaceDark}}" />
+        <Setter Property="Shell.ForegroundColor"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+        <Setter Property="Shell.TitleColor"
+                Value="{AppThemeBinding Light={StaticResource BrandInkLight}, Dark={StaticResource BrandInkDark}}" />
+        <Setter Property="Shell.TabBarBackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource SurfaceLight}, Dark={StaticResource SurfaceDark}}" />
+        <Setter Property="Shell.TabBarForegroundColor"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+        <Setter Property="Shell.TabBarUnselectedColor"
+                Value="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}" />
+    </Style>
+</ResourceDictionary>

@@ -25,7 +25,8 @@ allowed-tools: Bash(git diff *), Bash(git diff --staged *), Bash(git status *), 
 
 - Do NOT edit any files.
 - Do NOT make formatting-only changes.
-- Apply project standards from `agent.md`, `CLAUDE.md`, and `skills/maui-blazor-conventions/SKILL.md`.
+- Apply project standards from `AGENTS.md`, `CLAUDE.md`, `documentation/architecture.md`, `_specs/`,
+  and `skills/southbay-soccer-conventions/SKILL.md`.
 - Check `.ai/memory/` and `.ai/lessons/` for relevant constraints before reporting.
 
 Finish by asking: "Do you want me to implement the action plan now?"

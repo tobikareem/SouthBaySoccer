@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.DesignSystemPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:SouthBaySoccer.Controls"
+    x:Name="Page"
+    Style="{StaticResource BrandPage}"
+    Title="UI Library">
+
+    <ScrollView>
+        <VerticalStackLayout Spacing="{StaticResource SpaceLg}">
+            <controls:BrandHeader Title="SouthBay Soccer"
+                                  Subtitle="Reusable MAUI design system" />
+
+            <VerticalStackLayout Padding="{StaticResource SpaceLg}"
+                                 Spacing="{StaticResource SpaceLg}">
+                <controls:SectionHeader Text="Session overview" ActionText="View all" />
+
+                <controls:BrandCard IsHero="True">
+                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                        <Label Text="Next match · in 2 days"
+                               Style="{StaticResource TextLabel}"
+                               TextColor="White"
+                               Opacity="0.78" />
+                        <Label Text="Marina Field · Saturday pickup"
+                               Style="{StaticResource TextH2}"
+                               TextColor="White" />
+                        <Label Text="Jun 20 · 9:00 AM · 7v7"
+                               Style="{StaticResource TextCaption}"
+                               TextColor="White"
+                               Opacity="0.85" />
+                        <controls:Badge Text="You're going"
+                                        Glyph="✓"
+                                        Variant="Success" />
+                    </VerticalStackLayout>
+                </controls:BrandCard>
+
+                <controls:BrandCard>
+                    <VerticalStackLayout Spacing="{StaticResource SpaceMd}">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout>
+                                <Label Text="Saturday Pickup" Style="{StaticResource TextH2}" />
+                                <Label Text="Wilson Park · 9:00 AM" Style="{StaticResource TextCaption}" />
+                            </VerticalStackLayout>
+                            <controls:Badge Grid.Column="1"
+                                            Text="Going"
+                                            Glyph="✓"
+                                            Variant="Success" />
+                        </Grid>
+                        <controls:CapacityBar Current="16" Max="20" />
+                        <Button Text="Manage RSVP" Style="{StaticResource PrimaryButton}" />
+                    </VerticalStackLayout>
+                </controls:BrandCard>
+
+                <controls:SectionHeader Text="Career stats" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="{StaticResource SpaceSm}">
+                    <controls:StatTile Value="24" Label="Matches" Glyph="⚽" />
+                    <controls:StatTile Grid.Column="1" Value="11" Label="Goals" Glyph="◎" />
+                    <controls:StatTile Grid.Column="2" Value="7" Label="Assists" Glyph="A" />
+                </Grid>
+
+                <controls:SectionHeader Text="Players" ActionText="Roster" />
+                <controls:BrandCard>
+                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                        <controls:PlayerRow Initials="AK"
+                                            Name="Amaka K."
+                                            Detail="Midfielder"
+                                            TrailingText="8 G" />
+                        <BoxView HeightRequest="{StaticResource LineThickness}"
+                                 BackgroundColor="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}" />
+                        <controls:PlayerRow Initials="TO"
+                                            Name="Tunde O."
+                                            Detail="Guest player">
+                            <controls:PlayerRow.TrailingContent>
+                                <controls:Badge Text="Guest" Variant="Neutral" />
+                            </controls:PlayerRow.TrailingContent>
+                        </controls:PlayerRow>
+                    </VerticalStackLayout>
+                </controls:BrandCard>
+
+                <controls:SectionHeader Text="Leaderboard" />
+                <controls:SegmentedControl SelectedIndex="0">
+                    <controls:SegmentedControl.ItemsSource>
+                        <x:Array Type="{x:Type x:String}">
+                            <x:String>Goals</x:String>
+                            <x:String>Assists</x:String>
+                            <x:String>Rating</x:String>
+                            <x:String>MVP</x:String>
+                        </x:Array>
+                    </controls:SegmentedControl.ItemsSource>
+                </controls:SegmentedControl>
+
+                <controls:BrandCard>
+                    <VerticalStackLayout Spacing="{StaticResource SpaceMd}">
+                        <controls:CounterStepper Glyph="⚽" Caption="Goals" Value="2" Maximum="20" />
+                        <BoxView HeightRequest="{StaticResource LineThickness}"
+                                 BackgroundColor="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}" />
+                        <controls:CounterStepper Glyph="A" Caption="Assists" Value="1" Maximum="20" />
+                    </VerticalStackLayout>
+                </controls:BrandCard>
+
+                <controls:SectionHeader Text="States" />
+                <controls:BrandCard>
+                    <controls:StateView State="Empty"
+                                        Glyph="⚽"
+                                        Title="No upcoming sessions"
+                                        Message="New game days will appear here." />
+                </controls:BrandCard>
+
+                <Button Text="Primary action" Style="{StaticResource PrimaryButton}" />
+                <Button Text="Secondary action" Style="{StaticResource GhostButton}" />
+                <Button Text="Continue with WhatsApp" Style="{StaticResource WhatsAppButton}" />
+            </VerticalStackLayout>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

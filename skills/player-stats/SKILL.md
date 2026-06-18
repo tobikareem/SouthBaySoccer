@@ -36,7 +36,8 @@ Track and present stats the way the **Premier League** and **UEFA Champions Leag
 
 ## Leaderboards (PL/UCL style)
 
-- **Golden Boot** — rank by Goals. Tie-breakers in order: fewer minutes played, then more assists, then fewer appearances (mirrors PL's "fewest minutes" emphasis).
+- **Golden Boot** — rank by Goals. Project tie-breakers are fewer appearances, then more assists,
+  matching `documentation/architecture.md` and `_specs/requirements.md`.
 - **Playmaker (Assists)** — rank by Assists; tie-break by fewer minutes, then more goals.
 - **Goal Involvements** — rank by G+A.
 - **Golden Glove** — rank GKs by Clean Sheets; tie-break by fewer goals conceded.

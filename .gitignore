@@ -157,6 +157,7 @@ _ReSharper*/
 # ===== Secrets / local config =====
 appsettings.*.local.json
 secrets.json
+.claude/settings.local.json
 *.pfx
 *.snk
 

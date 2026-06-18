@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="SouthBaySoccer.Controls.Badge"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    <Border x:Name="Pill"
+            Padding="{StaticResource BadgePadding}"
+            StrokeThickness="0"
+            StrokeShape="{StaticResource ShapePill}"
+            HorizontalOptions="Start">
+        <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+            <Label x:Name="GlyphLabel"
+                   Text="{Binding Glyph, Source={x:Reference Root}}"
+                   Style="{StaticResource TextCaption}" />
+            <Label x:Name="TextLabel"
+                   Text="{Binding Text, Source={x:Reference Root}}"
+                   Style="{StaticResource TextBodyStrong}"
+                   FontSize="{StaticResource FontLabel}" />
+        </HorizontalStackLayout>
+    </Border>
+</ContentView>

@@ -33,7 +33,8 @@ This is the canonical Codex workflow for reviewing local changes. Use it for exp
 
 - Do not edit files during the review.
 - Do not make formatting-only changes.
-- Apply project standards from `AGENTS.md`, `agent.md`, and relevant project skills.
+- Apply project standards from `AGENTS.md`, `documentation/architecture.md`, `_specs/`, and relevant
+  project skills.
 - Check `.ai/memory/` and `.ai/lessons/` for relevant constraints.
 - Finish by asking: "Do you want me to implement the action plan now?"
 - If the review exposes a non-obvious issue worth retaining, suggest `/create-lessons`.

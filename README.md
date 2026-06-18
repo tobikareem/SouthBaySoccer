@@ -29,6 +29,10 @@ Domain <- Application <- Infrastructure
 See [documentation/architecture.md](documentation/architecture.md) for the complete architecture,
 security, persistence, payment, reliability, deployment, and testing decisions.
 
+For mobile UI implementation, [documentation/mobile-wireframes.html](documentation/mobile-wireframes.html)
+is the authoritative visual and interaction reference. The reusable MAUI implementation contract is
+defined in [_specs/client-ui.md](_specs/client-ui.md).
+
 ## Repository structure
 
 ```text
@@ -47,6 +51,7 @@ SouthBaySoccer.slnx
 │   ├── SouthBaySoccer.Functions.Tests/
 │   └── SouthBaySoccer.Client.Tests/
 ├── documentation/
+├── _specs/                            # Requirements, design, and ordered tasks
 ├── skills/
 └── .ai/                               # Shared agent memory and lessons
 ```
@@ -85,10 +90,14 @@ Use the target framework appropriate to platform-specific work:
 
 ## Test
 
-Run all test projects through the solution:
+Run the relevant backend test projects:
 
 ```powershell
-dotnet test .\SouthBaySoccer.slnx
+dotnet test .\tests\SouthBaySoccer.Domain.Tests\SouthBaySoccer.Domain.Tests.csproj
+dotnet test .\tests\SouthBaySoccer.Application.Tests\SouthBaySoccer.Application.Tests.csproj
+dotnet test .\tests\SouthBaySoccer.Infrastructure.Tests\SouthBaySoccer.Infrastructure.Tests.csproj
+dotnet test .\tests\SouthBaySoccer.Functions.Tests\SouthBaySoccer.Functions.Tests.csproj
+dotnet test .\tests\SouthBaySoccer.Client.Tests\SouthBaySoccer.Client.Tests.csproj
 ```
 
 During development, prefer running the affected test project or individual test first.
@@ -127,7 +136,7 @@ Repository-wide coding-agent guidance is centralized at the root:
 
 - [AGENTS.md](AGENTS.md) — Codex entry point and enforced project conventions
 - [CLAUDE.md](CLAUDE.md) — Claude-specific entry point
-- [agent.md](agent.md) — detailed shared engineering guidance
+- [_specs/](_specs/) — executable requirements, design, and implementation tasks
 - [.ai/](.ai/) — durable project memory and lessons
 - [skills/](skills/) — project-specific coding, branding, content, and statistics guidance
 

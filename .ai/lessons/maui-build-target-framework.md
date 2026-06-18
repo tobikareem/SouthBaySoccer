@@ -11,4 +11,5 @@ created: 2026-06-17
 
 **Resolution:** Build an explicit TFM, e.g. `dotnet build .\SouthBaySoccer.csproj -f net10.0-windows10.0.19041.0`, and pick the TFM that matches the change (use `net10.0-android` for Android-specific work).
 
-**Takeaway:** Always pass `-f <tfm>` when building or verifying. There is no test project yet — add one before relying on `dotnet test`.
+**Takeaway:** Always pass `-f <tfm>` when building or verifying the MAUI client. Layer-specific test
+projects now exist under `tests/`, but placeholder tests are not meaningful verification.

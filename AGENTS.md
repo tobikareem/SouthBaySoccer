@@ -14,8 +14,8 @@ Product/MVP scope, in priority order:
 1. Auth, player profiles, role-based access (Owner/Admin, Game Admin, Captain, Player, Guest).
 2. Stripe monthly subscriptions + one-time guest/drop-in payments. **Stripe is the source of truth
    for payment state** — sync via signed webhooks; never treat the database as the payment authority.
-3. Sessions (game days) with RSVP states (Going / Maybe / Not Going / Waitlisted / Checked In /
-   No-show), capacity caps, automatic waitlist promotion, and an RSVP deadline lock.
+3. Sessions (game days) with RSVP intent states (Going / Maybe / Not Going / Waitlisted), capacity
+   caps, automatic waitlist promotion, deadline locking, and separate check-in/attendance outcomes.
 4. Digital waiver + code-of-conduct acceptance (timestamped) required before a player can RSVP.
 5. Admin dashboard: paid/unpaid members, upcoming sessions, RSVP counts, attendance.
 6. Game-day check-in, manual or skill/position-balanced team assignment, and basic stat recording
@@ -25,20 +25,21 @@ Product/MVP scope, in priority order:
 
 The system has two parts:
 
-1. **Backend** — an ASP.NET Core API built with **Clean Architecture**. This is the system of record:
-   players, sessions, RSVPs, stats, payment ledger, Stripe webhook sync, EF Core persistence.
+1. **Backend** — a .NET 10 Azure Functions v4 isolated-worker application built with **Clean
+   Architecture**. This is the system of record: players, sessions, RSVPs, stats, payment ledger,
+   Stripe webhook sync, and EF Core persistence.
 2. **MAUI client** — the cross-platform app players and admins use. It is MVVM over the backend API.
    *(The current repo contents are the MAUI client, still carrying sample project/task scaffolding —
    see "Current state" below.)*
 
 ### Dependency rule (backend)
 
-**Domain ← Application ← Infrastructure ← WebApi. Never invert.**
+**Domain ← Application ← Infrastructure, with Functions as the composition root. Never invert.**
 
 Each layer may depend only on layers to its left. Domain references nothing outside itself.
-Application depends on Domain only. Infrastructure implements Application/Domain interfaces. WebApi
-is the composition root (DI wiring, controllers, middleware). Domain must never reference
-Application or Infrastructure namespaces.
+Application depends on Domain only. Infrastructure implements Application/Domain interfaces.
+Functions wires dependencies and exposes triggers/middleware without containing business rules.
+Domain must never reference Application, Infrastructure, or Functions namespaces.
 
 ### Backend folder layout
 
@@ -54,7 +55,7 @@ Domain/
 
 Application/                              # use cases: commands/queries + handlers, DTOs, validators
 Infrastructure/                          # EF Core DbContext, repository implementations, Stripe, email
-WebApi/                                  # controllers, DI composition root, middleware
+Functions/                               # triggers, DI composition root, middleware
 ```
 
 ## Coding conventions
@@ -62,8 +63,8 @@ WebApi/                                  # controllers, DI composition root, mid
 ### Entity rules (ENFORCED — never deviate)
 
 - **Primary keys**: `Guid` only — never `int` or auto-increment.
-- **Timestamps**: `DateTime.UtcNow` always — never `DateTime.Now`. Convert to local time only at the
-  UI boundary.
+- **Timestamps**: UTC `DateTime` values only. Use `IClock.UtcNow` in application/backend behavior;
+  never `DateTime.Now`. Convert to local time only at the UI boundary.
 - **Soft deletes**: set `IsDeleted = true` — never call `DbSet.Remove()`.
 - **Audit fields**: every entity inherits `BaseEntity`, which provides `Id`, `CreatedAt`,
   `CreatedBy`, `UpdatedAt`, `UpdatedBy`, `IsDeleted`.
@@ -115,10 +116,17 @@ apply; `lessons/` = past problems not to repeat. Treat a recalled entry as backg
 file/symbol it names still exists. After finishing, add a memory (`/create-agent-memory`) for a
 durable fact or a lesson (`/create-lessons`) for a non-obvious problem you solved.
 
+**Mobile design source of truth — `documentation/mobile-wireframes.html`.** All MAUI product screens
+and reusable controls must follow this wireframe's screen hierarchy, spacing, shapes, component
+states, and navigation patterns. `_specs/client-ui.md` translates the wireframe into reusable MAUI
+tokens/styles/controls. When they differ, update the spec and control library to match the wireframe;
+do not introduce competing page-local patterns.
+
 **Skills — `skills/`.** Invoke the relevant one before doing matching work:
 - **`brand-design-kit`** — green/white Nigerian-flag brand (primary `#008751`); apply to any UI,
   doc, deck, or image.
-- **`maui-blazor-conventions`** — .NET code conventions (structure, DI, EF/data, Stripe webhooks).
+- **`southbay-soccer-conventions`** — solution conventions for MAUI, Azure Functions, Clean
+  Architecture, EF Core/Azure SQL, and Stripe webhooks.
 - **`matchday-content`** — announcements, RSVP reminders, recaps.
 - **`player-stats`** — goals/assists/matches-played, leaderboards, and league tables aligned with
   Premier League / UEFA Champions League conventions.
@@ -152,9 +160,9 @@ projects are added. Run tests with `dotnet test`.
    `source-command-code-review` skill or a reviewer subagent) after every implementation — not just
    when asked.
    One focused task per subagent.
-3. **Self-improvement loop.** After any correction from the user, immediately record the pattern in
-   `_specs/lessons.md`: what the mistake was, why it happened, and the rule that prevents it. Read
-   `_specs/lessons.md` at the start of every session before writing code.
+3. **Self-improvement loop.** After any correction from the user, record the pattern in
+   `.ai/lessons/`: what the mistake was, why it happened, and the rule that prevents it. Skim
+   `.ai/lessons/INDEX.md` at the start of every task.
 4. **Verify before done.** Never mark a task complete without proving it: `dotnet build` passes with
    zero warnings, relevant `dotnet test` passes, code review finds no critical issues, and no
    personal or payment data leaks into logs or URLs. Ask: *would a senior .NET engineer approve this
@@ -168,7 +176,7 @@ projects are added. Run tests with `dotnet test`.
 
 ## Common mistakes to avoid
 
-- **`DateTime.Now`** — always `DateTime.UtcNow`.
+- **`DateTime.Now`** — use UTC; backend/application behavior obtains time through `IClock`.
 - **`int` primary keys** — always `Guid`.
 - **Hard deletes** — always set `IsDeleted = true`.
 - **Missing `BaseEntity` inheritance** — every entity must inherit it.
@@ -194,7 +202,7 @@ renamed to the `SouthBaySoccer` namespace. This is scaffolding to learn the MAUI
 **migrate incrementally** into the pickup-soccer domain — not the intended product. Do not do
 unrelated wholesale rewrites; replace sample concepts feature by feature.
 
-MAUI client patterns currently in use (see `agent.md` for detail): MVVM with
+MAUI client patterns currently in use: MVVM with
 CommunityToolkit.Mvvm (`[ObservableProperty]` / `[RelayCommand]`), Shell routes registered in
 `MauiProgram.cs` via `AddTransientWithShellRoute`, page-model navigation params through
 `IQueryAttributable`, and per-table repositories over raw `Microsoft.Data.Sqlite` with a lazy

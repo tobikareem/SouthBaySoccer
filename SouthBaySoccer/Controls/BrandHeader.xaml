@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="SouthBaySoccer.Controls.BrandHeader"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    <Grid Background="{StaticResource HeaderGradientBrush}"
+          Padding="{StaticResource HeaderPadding}"
+          ColumnDefinitions="Auto,*,Auto">
+        <Button x:Name="BackButton"
+                Grid.Column="0"
+                Text="‹"
+                Command="{Binding BackCommand, Source={x:Reference Root}}"
+                IsVisible="{Binding ShowBack, Source={x:Reference Root}}"
+                BackgroundColor="{StaticResource HeaderOverlay}"
+                TextColor="White"
+                FontSize="{StaticResource FontH1}"
+                CornerRadius="{StaticResource RadiusAction}"
+                HeightRequest="{StaticResource TouchMin}"
+                WidthRequest="{StaticResource TouchMin}"
+                SemanticProperties.Description="Back" />
+        <VerticalStackLayout Grid.Column="1"
+                             Margin="{StaticResource HeaderTitleMargin}"
+                             VerticalOptions="Center">
+            <Label Text="{Binding Title, Source={x:Reference Root}}"
+                   Style="{StaticResource TextH2}"
+                   TextColor="White"
+                   SemanticProperties.HeadingLevel="Level1" />
+            <Label x:Name="SubtitleLabel"
+                   Text="{Binding Subtitle, Source={x:Reference Root}}"
+                   Style="{StaticResource TextCaption}"
+                   TextColor="White"
+                   Opacity="0.85" />
+        </VerticalStackLayout>
+        <ContentView Grid.Column="2"
+                     Content="{Binding TrailingContent, Source={x:Reference Root}}"
+                     VerticalOptions="Center" />
+        <BoxView Grid.ColumnSpan="3"
+                 HorizontalOptions="End"
+                 Margin="{StaticResource HeaderStripeMargin}"
+                 WidthRequest="{StaticResource HeaderStripeWidth}"
+                 BackgroundColor="White"
+                 Opacity="0.22"
+                 InputTransparent="True" />
+    </Grid>
+</ContentView>

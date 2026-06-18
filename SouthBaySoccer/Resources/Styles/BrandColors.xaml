@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <Color x:Key="BrandGreenLight">#008751</Color>
+    <Color x:Key="BrandGreenDarkTheme">#1FB573</Color>
+    <Color x:Key="BrandGreenDepthLight">#005C37</Color>
+    <Color x:Key="BrandGreenDepthDark">#0C7A4E</Color>
+    <Color x:Key="BrandSpringLight">#1FB573</Color>
+    <Color x:Key="BrandSpringDark">#52D39A</Color>
+    <Color x:Key="BrandMistLight">#E8F5EE</Color>
+    <Color x:Key="BrandMistDark">#163A2B</Color>
+    <Color x:Key="BrandInkLight">#14241B</Color>
+    <Color x:Key="BrandInkDark">#ECF3EE</Color>
+    <Color x:Key="BrandSageLight">#5B6B62</Color>
+    <Color x:Key="BrandSageDark">#9DB0A6</Color>
+    <Color x:Key="BrandLineLight">#E7EBE7</Color>
+    <Color x:Key="BrandLineDark">#2A332E</Color>
+    <Color x:Key="SurfaceLight">#FFFFFF</Color>
+    <Color x:Key="SurfaceDark">#10160F</Color>
+    <Color x:Key="SurfaceAltLight">#FBFCFB</Color>
+    <Color x:Key="SurfaceAltDark">#171F18</Color>
+    <Color x:Key="StatSurfaceLight">#F5FAF7</Color>
+    <Color x:Key="StatSurfaceDark">#1B2C22</Color>
+    <Color x:Key="BrandSoftLineLight">#DDEFE5</Color>
+    <Color x:Key="BrandSoftLineDark">#254A36</Color>
+    <Color x:Key="WarningLight">#BA7517</Color>
+    <Color x:Key="WarningDark">#E0A33A</Color>
+    <Color x:Key="WarningSurfaceLight">#FAEEDA</Color>
+    <Color x:Key="WarningSurfaceDark">#4A3518</Color>
+    <Color x:Key="DangerLight">#A32D2D</Color>
+    <Color x:Key="DangerDark">#E26B6B</Color>
+    <Color x:Key="DangerSurfaceLight">#FCEBEB</Color>
+    <Color x:Key="DangerSurfaceDark">#4A2020</Color>
+    <Color x:Key="WhatsApp">#25D366</Color>
+    <Color x:Key="HeaderOverlay">#29FFFFFF</Color>
+
+    <SolidColorBrush x:Key="BrandGreenBrush"
+                     Color="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+    <SolidColorBrush x:Key="BrandGreenDepthBrush"
+                     Color="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandGreenDepthDark}}" />
+    <SolidColorBrush x:Key="BrandMistBrush"
+                     Color="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}" />
+    <SolidColorBrush x:Key="BrandInkBrush"
+                     Color="{AppThemeBinding Light={StaticResource BrandInkLight}, Dark={StaticResource BrandInkDark}}" />
+    <SolidColorBrush x:Key="BrandSageBrush"
+                     Color="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}" />
+    <SolidColorBrush x:Key="BrandLineBrush"
+                     Color="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}" />
+    <SolidColorBrush x:Key="SurfaceBrush"
+                     Color="{AppThemeBinding Light={StaticResource SurfaceLight}, Dark={StaticResource SurfaceDark}}" />
+    <SolidColorBrush x:Key="SurfaceAltBrush"
+                     Color="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}" />
+    <LinearGradientBrush x:Key="HeaderGradientBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDepthDark}}"
+                      Offset="0" />
+        <GradientStop Color="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandGreenDepthLight}}"
+                      Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="HeroGradientBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandGreenDepthDark}}"
+                      Offset="0" />
+        <GradientStop Color="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenLight}}"
+                      Offset="1" />
+    </LinearGradientBrush>
+</ResourceDictionary>

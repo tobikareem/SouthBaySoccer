@@ -1,7 +1,8 @@
 namespace SouthBaySoccer.Domain.Enumerations;
 
 /// <summary>
-/// Represents a player's RSVP state for a given session, through to game-day attendance.
+/// Represents a player's attendance intent for a given session. Actual attendance is tracked
+/// separately through check-in and attendance-outcome records.
 /// </summary>
 public enum RsvpStatus
 {
@@ -15,11 +16,5 @@ public enum RsvpStatus
     NotGoing,
 
     /// <summary>The player is on the waitlist because the session is at capacity.</summary>
-    Waitlisted,
-
-    /// <summary>The player has been checked in on game day.</summary>
-    CheckedIn,
-
-    /// <summary>The player confirmed attendance but did not show up.</summary>
-    NoShow
+    Waitlisted
 }

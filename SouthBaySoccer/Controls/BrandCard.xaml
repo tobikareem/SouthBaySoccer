@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="SouthBaySoccer.Controls.BrandCard"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    <Border x:Name="CardBorder"
+            Style="{StaticResource CardSurface}"
+            Padding="{Binding Padding, Source={x:Reference Root}}">
+        <ContentPresenter Content="{Binding Body, Source={x:Reference Root}}" />
+    </Border>
+</ContentView>

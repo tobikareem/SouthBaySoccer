@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="SouthBaySoccer.Controls.CounterStepper"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceMd}">
+        <HorizontalStackLayout Grid.Column="0"
+                               Spacing="{StaticResource SpaceSm}"
+                               VerticalOptions="Center">
+            <Label Text="{Binding Glyph, Source={x:Reference Root}}"
+                   Style="{StaticResource TextH2}"
+                   TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                   VerticalTextAlignment="Center" />
+            <Label Text="{Binding Caption, Source={x:Reference Root}}"
+                   Style="{StaticResource TextBodyStrong}"
+                   VerticalTextAlignment="Center" />
+        </HorizontalStackLayout>
+        <HorizontalStackLayout Grid.Column="1"
+                               Spacing="{StaticResource SpaceMd}"
+                               HorizontalOptions="End">
+            <Button x:Name="DecrementButton"
+                    Text="−"
+                    Clicked="DecrementClicked"
+                    Style="{StaticResource StepperButton}"
+                    SemanticProperties.Description="Decrease value" />
+            <Label Text="{Binding Value, Source={x:Reference Root}}"
+                   Style="{StaticResource TextStat}"
+                   MinimumWidthRequest="{StaticResource StepperValueWidth}"
+                   HorizontalTextAlignment="Center"
+                   VerticalTextAlignment="Center" />
+            <Button x:Name="IncrementButton"
+                    Text="+"
+                    Clicked="IncrementClicked"
+                    Style="{StaticResource StepperButton}"
+                    SemanticProperties.Description="Increase value" />
+        </HorizontalStackLayout>
+    </Grid>
+</ContentView>
