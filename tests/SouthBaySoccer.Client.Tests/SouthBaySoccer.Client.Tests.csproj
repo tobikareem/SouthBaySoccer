@@ -37,6 +37,7 @@
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IExternalLauncher.cs" Link="Client\Services\IExternalLauncher.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\ISecureTokenStore.cs" Link="Client\Services\ISecureTokenStore.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\PhoneNumberValidator.cs" Link="Client\Services\PhoneNumberValidator.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Resources\Fonts\FontAwesomeGlyphs.cs" Link="Client\Resources\FontAwesomeGlyphs.cs" />
   </ItemGroup>
 
 </Project>

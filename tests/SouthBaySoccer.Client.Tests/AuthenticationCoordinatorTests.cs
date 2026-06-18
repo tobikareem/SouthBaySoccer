@@ -59,4 +59,27 @@ public class AuthenticationCoordinatorTests
         tokenStore.VerifyNoOtherCalls();
         navigator.VerifyNoOtherCalls();
     }
+
+    [Fact]
+    public async Task HandleCallback_ConfiguredSchemeWithoutVerifiedToken_DoesNotAuthenticate()
+    {
+        var authenticationClient = new Mock<IAuthenticationClient>(MockBehavior.Strict);
+        var tokenStore = new Mock<ISecureTokenStore>(MockBehavior.Strict);
+        var navigator = new Mock<IAuthenticationNavigator>(MockBehavior.Strict);
+        var coordinator = new AuthenticationCoordinator(
+            authenticationClient.Object,
+            tokenStore.Object,
+            navigator.Object,
+            new PickupPalOptions());
+
+        // Merely returning to the app on the approved scheme (no verified one-time token)
+        // must never establish a session (AUTH-8/AUTH-9, INV-11 fail-closed).
+        var result = await coordinator.HandleCallbackAsync(
+            new Uri("southbaysoccer://auth/whatsapp"));
+
+        result.Should().BeFalse();
+        authenticationClient.VerifyNoOtherCalls();
+        tokenStore.VerifyNoOtherCalls();
+        navigator.VerifyNoOtherCalls();
+    }
 }
