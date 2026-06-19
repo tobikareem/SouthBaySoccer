@@ -14,6 +14,14 @@ incremental adoption order in [`documentation/architecture.md`](../documentation
 
 ---
 
+## Delivery strategy — UI-first (current)
+
+The current focus is the **MAUI/XAML client**. Backend milestones **M1–M10** (Domain, Application,
+Infrastructure, Functions, Azure SQL) are **deferred**. Client stories that need data use **seed-data
+providers** (`M11.0b`) behind client service interfaces, swapped for the typed API client (`M11.1`)
+later with no screen change. During this phase, client tasks are **not** blocked on `M3`; backend
+wiring is completed in the backend phase. See `design.md` §12.
+
 ## Sequential roadmap (high level)
 
 1. **M0 Foundation** — shared kernel, `BaseEntity`, cross-cutting abstractions, CI.
@@ -111,11 +119,24 @@ incremental adoption order in [`documentation/architecture.md`](../documentation
 > (plus AUTH-8/AUTH-9).
 
 - [x] **M11.0** Reusable MAUI UI foundation: brand color/type/spacing tokens, shared styles,
-  eleven MVVM-friendly controls, and a UI Library showcase. — Spec: `client-ui.md`.
+  eleven MVVM-friendly controls, Shell theming, and a UI Library showcase. The
+  `client-ui.md` specification is complete; future product-screen adoption is tracked separately.
+  — Spec: `client-ui.md`.
 - [x] **M11.0a** Add licensed Font Awesome Free Solid and Brands font resources, register
   `FontAwesomeSolid`/`FontAwesomeBrands`, and add a typed glyph catalog. Replace emoji/text
   pictograms used by the Welcome Back screen with Font Awesome glyphs and semantic descriptions.
   — Stories: INV-13, AUTH-7 · Projects: MAUI client · Depends on: M11.0.
+- [ ] **M11.0c** Extend the reusable UI library for the first product-screen wave: add
+  `LeadingContent` to `BrandHeader` and `PlayerRow`; add shared `IconButton`, `IconToggleButton`,
+  `MetadataChip`, and `RatingSlider` styles; update the UI Library showcase and accessibility tests.
+  — Stories: SES-6, PROF-5, LEAD-4, STAT-8 · Projects: MAUI client · Depends on: M11.0, M11.0a.
+- [ ] **M11.0b** Add seed-data providers in `SouthBaySoccer/SeedData/` implementing the client service
+  interfaces (auth, sessions, roster, stats, leaderboard, profile) with deterministic fixtures matching
+  every first-wave wireframe operation; keep immutable baseline fixtures plus resettable,
+  application-scoped demo state for RSVP/stats/rating commands. Register Seed by configuration,
+  fail fast for unavailable Api or Release+Seed, and let M11.1 complete the Api branch. Seeds are
+  Release-guarded and carry no real personal data. — Stories: UI-first phase (design.md §12) · Projects:
+  MAUI client · Depends on: M11.0.
 - [~] **M11.1** `Contracts`-based typed API services + `HttpClient` pipeline (`CorrelationIdHandler`→`AuthenticationHandler`→`ApiExceptionHandler`); secure token storage. — Current: typed authentication client and secure token storage are implemented for AUTH-7/8; the shared correlation/authentication/exception handler pipeline remains. — Stories: AUTH-4, NFR-Security.
 - [ ] **M11.2** Replace one MAUI sample repository flow with a typed API client (proves the path). — Stories: PROF-1.
 - [x] **M11.3a** Implement `WelcomeBackPage` and `WelcomeBackPageModel` directly from the first
@@ -137,9 +158,10 @@ incremental adoption order in [`documentation/architecture.md`](../documentation
   descriptions, large text, and narrow-screen scrolling. Verify against the first wireframe and
   build `net10.0-windows10.0.19041.0`.
   — Stories: AUTH-7, AUTH-8, AUTH-9, INV-13 · Depends on: M11.3c.
-- [ ] **M11.3e** Implement remaining profile/sessions/RSVP screens with
-  loading/empty/error/offline states and the shared brand system.
-  — Stories: PROF, SES, RSVP · Depends on: M11.3d.
+- [ ] **M11.3e** Implement the first-wave product screens using the per-story slices in
+  `stories/`: SES-6 → RSVP-8, STAT-7 → STAT-8, and PROF-5/LEAD-4 in parallel after M11.0b.
+  Integrate shared Shell routes after the owning pages exist.
+  — Stories: PROF-5, SES-6, RSVP-8, LEAD-4, STAT-7, STAT-8 · Depends on: M11.0b, M11.0c.
 - [ ] **M11.4** Offline live-stats with idempotency-keyed queue + sync. — Stories: ADMIN-2.
 - [ ] **M11.5** Move `SouthBaySoccer/` → `src/SouthBaySoccer.Client/` as a dedicated change (no feature work mixed in). — architecture §5/§18.
 

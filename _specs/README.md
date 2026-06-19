@@ -4,6 +4,13 @@ This folder is the executable specification for SouthBaySoccer. It turns the arc
 build-ready work: **what** we're building (requirements), **how** it maps to the system (design),
 **in what order** (tasks), and the **client UI** design system.
 
+## Current delivery strategy — UI-first
+
+Build the MAUI/XAML client first. The Function App, web services, and database (milestones **M1–M10**)
+are deferred; anything that needs the backend uses a **seed-data provider** behind a client service
+interface, swapped for the real typed API client later (M11.1) with no screen change. See
+`design.md` §12.
+
 ## Documents
 
 | File | Purpose |
@@ -54,7 +61,7 @@ scenarios (§17) are first-class acceptance tests.
 | LEAD — Leaderboards | LEAD-1..3 | M9 | Spec ready |
 | NOTIF — Notifications | NOTIF-1..3 | M10 | Spec ready |
 | ADMIN — Admin/live | ADMIN-1..3 | M11 | Spec ready |
-| Client reusable UI | design system | M11 | Foundation implemented; product adoption incremental |
+| Client reusable UI | design system | M11.0 | Complete; product adoption tracked by separate M11 story tasks |
 
 All epics are specified; implementation has not started (solution skeleton builds; backend features,
 domain entities, and meaningful tests are pending). Begin at **M0** in `tasks.md`.

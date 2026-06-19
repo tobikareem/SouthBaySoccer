@@ -7,16 +7,36 @@ public sealed class AuthenticationCoordinator(
     IAuthenticationClient authenticationClient,
     ISecureTokenStore tokenStore,
     IAuthenticationNavigator navigator,
-    PickupPalOptions options) : IAuthenticationCoordinator
+    PickupPalOptions options,
+    ClientDataSourceOptions dataSourceOptions) : IAuthenticationCoordinator
 {
     private readonly SemaphoreSlim _completionLock = new(1, 1);
     private bool _completed;
+
+    public Task<bool> TryCompleteChallengeAsync(
+        string challengeToken,
+        CancellationToken cancellationToken = default) =>
+        dataSourceOptions.DataSource == ClientDataSource.Seed
+            ? CompleteChallengeAsync(challengeToken, cancellationToken)
+            : Task.FromResult(false);
 
     public async Task<bool> HandleCallbackAsync(
         Uri callbackUri,
         CancellationToken cancellationToken = default)
     {
         if (!MatchesConfiguredCallback(callbackUri) || !TryGetQueryValue(callbackUri, "token", out var token))
+        {
+            return false;
+        }
+
+        return await CompleteChallengeAsync(token, cancellationToken);
+    }
+
+    private async Task<bool> CompleteChallengeAsync(
+        string challengeToken,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(challengeToken))
         {
             return false;
         }
@@ -29,7 +49,9 @@ public sealed class AuthenticationCoordinator(
                 return true;
             }
 
-            var tokens = await authenticationClient.VerifyWhatsAppChallengeAsync(token, cancellationToken);
+            var tokens = await authenticationClient.VerifyWhatsAppChallengeAsync(
+                challengeToken,
+                cancellationToken);
             await tokenStore.StoreAsync(tokens);
             await navigator.ShowAuthenticatedAppAsync();
             _completed = true;

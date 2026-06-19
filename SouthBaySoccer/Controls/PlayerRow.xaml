@@ -13,9 +13,15 @@
             <TapGestureRecognizer Command="{Binding TapCommand, Source={x:Reference Root}}"
                                   CommandParameter="{Binding TapCommandParameter, Source={x:Reference Root}}" />
         </Grid.GestureRecognizers>
-        <controls:Avatar Initials="{Binding Initials, Source={x:Reference Root}}"
-                         ImageSource="{Binding ImageSource, Source={x:Reference Root}}"
-                         Description="{Binding Name, Source={x:Reference Root}}" />
+        <HorizontalStackLayout Spacing="{StaticResource SpaceMd}" VerticalOptions="Center">
+            <ContentView x:Name="LeadingSlot"
+                         IsVisible="False"
+                         Content="{Binding LeadingContent, Source={x:Reference Root}}"
+                         VerticalOptions="Center" />
+            <controls:Avatar Initials="{Binding Initials, Source={x:Reference Root}}"
+                             ImageSource="{Binding ImageSource, Source={x:Reference Root}}"
+                             Description="{Binding Name, Source={x:Reference Root}}" />
+        </HorizontalStackLayout>
         <VerticalStackLayout Grid.Column="1"
                              Spacing="{StaticResource SpaceXs}"
                              VerticalOptions="Center">

@@ -13,8 +13,12 @@ public class WelcomeBackPageModelTests
     public async Task RequestWhatsAppChallenge_InvalidPhone_DoesNotCallClient()
     {
         var authenticationClient = new Mock<IAuthenticationClient>(MockBehavior.Strict);
+        var authenticationCoordinator = new Mock<IAuthenticationCoordinator>(MockBehavior.Strict);
         var externalLauncher = new Mock<IExternalLauncher>(MockBehavior.Strict);
-        var pageModel = CreatePageModel(authenticationClient, externalLauncher);
+        var pageModel = CreatePageModel(
+            authenticationClient,
+            authenticationCoordinator,
+            externalLauncher);
         pageModel.PhoneNumber = "123";
 
         await pageModel.RequestWhatsAppChallengeCommand.ExecuteAsync(null);
@@ -36,7 +40,11 @@ public class WelcomeBackPageModelTests
                 "challenge-id",
                 DateTime.UtcNow.AddMinutes(10)));
         var externalLauncher = new Mock<IExternalLauncher>(MockBehavior.Strict);
-        var pageModel = CreatePageModel(authenticationClient, externalLauncher);
+        var authenticationCoordinator = CreateIncompleteCoordinator();
+        var pageModel = CreatePageModel(
+            authenticationClient,
+            authenticationCoordinator,
+            externalLauncher);
         pageModel.PhoneNumber = "+1 (516) 344-7233";
 
         await pageModel.RequestWhatsAppChallengeCommand.ExecuteAsync(null);
@@ -46,6 +54,46 @@ public class WelcomeBackPageModelTests
         authenticationClient.Verify(
             client => client.RequestWhatsAppChallengeAsync(
                 "+15163447233",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        authenticationCoordinator.Verify(
+            coordinator => coordinator.TryCompleteChallengeAsync(
+                "challenge-id",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task RequestWhatsAppChallenge_SeedChallengeCompletes_NavigatesWithoutWaitingMessage()
+    {
+        var authenticationClient = new Mock<IAuthenticationClient>();
+        authenticationClient
+            .Setup(client => client.RequestWhatsAppChallengeAsync(
+                "+15163447233",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new RequestWhatsAppChallengeResponse(
+                "seed-whatsapp-challenge",
+                DateTime.UtcNow.AddMinutes(10)));
+        var authenticationCoordinator = new Mock<IAuthenticationCoordinator>();
+        authenticationCoordinator
+            .Setup(coordinator => coordinator.TryCompleteChallengeAsync(
+                "seed-whatsapp-challenge",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var externalLauncher = new Mock<IExternalLauncher>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(
+            authenticationClient,
+            authenticationCoordinator,
+            externalLauncher);
+        pageModel.PhoneNumber = "+1 (516) 344-7233";
+
+        await pageModel.RequestWhatsAppChallengeCommand.ExecuteAsync(null);
+
+        pageModel.HasStatusMessage.Should().BeFalse();
+        pageModel.IsBusy.Should().BeFalse();
+        authenticationCoordinator.Verify(
+            coordinator => coordinator.TryCompleteChallengeAsync(
+                "seed-whatsapp-challenge",
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -60,7 +108,10 @@ public class WelcomeBackPageModelTests
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("offline"));
         var externalLauncher = new Mock<IExternalLauncher>(MockBehavior.Strict);
-        var pageModel = CreatePageModel(authenticationClient, externalLauncher);
+        var pageModel = CreatePageModel(
+            authenticationClient,
+            CreateIncompleteCoordinator(),
+            externalLauncher);
         pageModel.PhoneNumber = "+1 516 344 7233";
 
         await pageModel.RequestWhatsAppChallengeCommand.ExecuteAsync(null);
@@ -74,11 +125,15 @@ public class WelcomeBackPageModelTests
     public async Task OpenPickupPalBot_LaunchFailure_ShowsRecoverableMessage()
     {
         var authenticationClient = new Mock<IAuthenticationClient>(MockBehavior.Strict);
+        var authenticationCoordinator = new Mock<IAuthenticationCoordinator>(MockBehavior.Strict);
         var externalLauncher = new Mock<IExternalLauncher>();
         externalLauncher
             .Setup(launcher => launcher.OpenPickupPalBotAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
-        var pageModel = CreatePageModel(authenticationClient, externalLauncher);
+        var pageModel = CreatePageModel(
+            authenticationClient,
+            authenticationCoordinator,
+            externalLauncher);
 
         await pageModel.OpenPickupPalBotCommand.ExecuteAsync(null);
 
@@ -110,7 +165,11 @@ public class WelcomeBackPageModelTests
                 It.IsAny<CancellationToken>()))
             .Returns(gate.Task);
         var externalLauncher = new Mock<IExternalLauncher>(MockBehavior.Strict);
-        var pageModel = CreatePageModel(authenticationClient, externalLauncher);
+        var authenticationCoordinator = CreateIncompleteCoordinator();
+        var pageModel = CreatePageModel(
+            authenticationClient,
+            authenticationCoordinator,
+            externalLauncher);
         pageModel.PhoneNumber = "+1 (516) 344-7233";
 
         var inFlight = pageModel.RequestWhatsAppChallengeCommand.ExecuteAsync(null);
@@ -142,7 +201,10 @@ public class WelcomeBackPageModelTests
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("unexpected"));
         var externalLauncher = new Mock<IExternalLauncher>(MockBehavior.Strict);
-        var pageModel = CreatePageModel(authenticationClient, externalLauncher);
+        var pageModel = CreatePageModel(
+            authenticationClient,
+            CreateIncompleteCoordinator(),
+            externalLauncher);
         pageModel.PhoneNumber = "+1 (516) 344-7233";
 
         await pageModel.RequestWhatsAppChallengeCommand.ExecuteAsync(null);
@@ -157,11 +219,15 @@ public class WelcomeBackPageModelTests
     public async Task OpenPickupPalBot_LaunchSucceeds_OpensBotWithoutError()
     {
         var authenticationClient = new Mock<IAuthenticationClient>(MockBehavior.Strict);
+        var authenticationCoordinator = new Mock<IAuthenticationCoordinator>(MockBehavior.Strict);
         var externalLauncher = new Mock<IExternalLauncher>();
         externalLauncher
             .Setup(launcher => launcher.OpenPickupPalBotAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        var pageModel = CreatePageModel(authenticationClient, externalLauncher);
+        var pageModel = CreatePageModel(
+            authenticationClient,
+            authenticationCoordinator,
+            externalLauncher);
 
         await pageModel.OpenPickupPalBotCommand.ExecuteAsync(null);
 
@@ -175,11 +241,15 @@ public class WelcomeBackPageModelTests
     public async Task OpenPickupPalSignup_LaunchSucceeds_OpensSignupWithoutError()
     {
         var authenticationClient = new Mock<IAuthenticationClient>(MockBehavior.Strict);
+        var authenticationCoordinator = new Mock<IAuthenticationCoordinator>(MockBehavior.Strict);
         var externalLauncher = new Mock<IExternalLauncher>();
         externalLauncher
             .Setup(launcher => launcher.OpenPickupPalSignupAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        var pageModel = CreatePageModel(authenticationClient, externalLauncher);
+        var pageModel = CreatePageModel(
+            authenticationClient,
+            authenticationCoordinator,
+            externalLauncher);
 
         await pageModel.OpenPickupPalSignupCommand.ExecuteAsync(null);
 
@@ -193,11 +263,15 @@ public class WelcomeBackPageModelTests
     public async Task OpenPickupPalSignup_LaunchFailure_ShowsRecoverableMessageAndStays()
     {
         var authenticationClient = new Mock<IAuthenticationClient>(MockBehavior.Strict);
+        var authenticationCoordinator = new Mock<IAuthenticationCoordinator>(MockBehavior.Strict);
         var externalLauncher = new Mock<IExternalLauncher>();
         externalLauncher
             .Setup(launcher => launcher.OpenPickupPalSignupAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
-        var pageModel = CreatePageModel(authenticationClient, externalLauncher);
+        var pageModel = CreatePageModel(
+            authenticationClient,
+            authenticationCoordinator,
+            externalLauncher);
 
         await pageModel.OpenPickupPalSignupCommand.ExecuteAsync(null);
 
@@ -209,16 +283,37 @@ public class WelcomeBackPageModelTests
     public void BotDisplayNumber_BindsFromTypedConfiguration_NotPageText()
     {
         var authenticationClient = new Mock<IAuthenticationClient>(MockBehavior.Strict);
+        var authenticationCoordinator = new Mock<IAuthenticationCoordinator>(MockBehavior.Strict);
         var externalLauncher = new Mock<IExternalLauncher>(MockBehavior.Strict);
         var options = new PickupPalOptions { BotDisplayNumber = "+1 (650) 111-2222" };
-        var pageModel = CreatePageModel(authenticationClient, externalLauncher, options);
+        var pageModel = CreatePageModel(
+            authenticationClient,
+            authenticationCoordinator,
+            externalLauncher,
+            options);
 
         pageModel.BotDisplayNumber.Should().Be("+1 (650) 111-2222");
     }
 
     private static WelcomeBackPageModel CreatePageModel(
         Mock<IAuthenticationClient> authenticationClient,
+        Mock<IAuthenticationCoordinator> authenticationCoordinator,
         Mock<IExternalLauncher> externalLauncher,
         PickupPalOptions? options = null) =>
-        new(authenticationClient.Object, externalLauncher.Object, options ?? new PickupPalOptions());
+        new(
+            authenticationClient.Object,
+            authenticationCoordinator.Object,
+            externalLauncher.Object,
+            options ?? new PickupPalOptions());
+
+    private static Mock<IAuthenticationCoordinator> CreateIncompleteCoordinator()
+    {
+        var coordinator = new Mock<IAuthenticationCoordinator>();
+        coordinator
+            .Setup(item => item.TryCompleteChallengeAsync(
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        return coordinator;
+    }
 }

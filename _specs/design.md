@@ -137,6 +137,10 @@ first-class acceptance tests, traced to the story IDs in `requirements.md`.
 - **Resolved — membership model:** support both monthly membership eligibility and
   session-specific guest/drop-in eligibility. They are separate ledger/eligibility concepts;
   neither is manually marked paid.
+- **Resolved — UI-first delivery with seed data:** build the MAUI/XAML client first; the Function
+  App, web services, and database (milestones M1–M10) are deferred. Any story needing the backend is
+  satisfied in the client phase by a **seed-data provider** behind the same client service interface,
+  later swapped for the typed API client (M11.1) with no page/page-model change. See §12.
 - Whether SMS (Twilio) ships in v1 or later (cost + A2P 10DLC registration).
 - Team-balancing algorithm for TEAM-2 (manual vs. rating-weighted auto-balance).
 - Minimum minutes threshold for a goalkeeper clean sheet, scaled to session length.
@@ -288,3 +292,29 @@ navigation or browser return alone; only a verified challenge exchange establish
 - bot and signup commands use typed configuration;
 - verified deep link stores tokens and navigates once;
 - icon controls expose semantic descriptions and the page remains scrollable at large text sizes.
+
+## 12. Seed-data strategy (UI-first phase)
+
+Delivery is **UI-first**: build and demo the MAUI screens before the backend exists. The backend
+milestones (M1–M10: Domain, Application, Infrastructure, Functions, Azure SQL) are deferred. To keep
+the client unblocked:
+
+- **Depend on interfaces, not the API.** Page models depend only on client service abstractions
+  (e.g. `IAuthenticationClient`, `ISessionsClient`, `IRosterClient`, `IStatsClient`,
+  `ILeaderboardClient`, `IProfileClient`). Pages bind to page models; neither knows whether data is
+  real or seeded.
+- **Provide a complete seed implementation.** `SEED-1` defines the entire first-wave client
+  contract before screen implementation. `Seed*Client` types return immutable deterministic
+  baseline fixtures matching every wireframe; an application-scoped, resettable `SeedState` holds
+  RSVP/stat/rating command changes without mutating shared fixtures.
+- **Swap by DI, not by editing screens.** Registration chooses Seed vs. typed API client by build
+  configuration / option flag. Before the complete API implementation exists, selecting Api fails
+  fast rather than silently falling back. Replacing seeds with the real client (M11.1) requires no
+  page or page-model change.
+- **Seeds never ship as product behavior.** They are isolated, excluded from Release (or guarded by
+  config), contain no real personal data, and are removed/replaced as each backend milestone lands.
+- **Acceptance in this phase.** Backend-dependent Gherkin scenarios are validated in the client
+  against seed providers (page-model/UI behavior, states, navigation); full server-side verification
+  (transactions, webhooks, idempotency, authorization) is re-run when the corresponding backend
+  milestone is implemented. UI-only scenarios (e.g. AUTH-7 composition, accessibility) are fully
+  verifiable now.

@@ -12,6 +12,8 @@ public partial class BrandHeader
         BindableProperty.Create(nameof(ShowBack), typeof(bool), typeof(BrandHeader), false);
     public static readonly BindableProperty BackCommandProperty =
         BindableProperty.Create(nameof(BackCommand), typeof(ICommand), typeof(BrandHeader));
+    public static readonly BindableProperty LeadingContentProperty =
+        BindableProperty.Create(nameof(LeadingContent), typeof(View), typeof(BrandHeader));
     public static readonly BindableProperty TrailingContentProperty =
         BindableProperty.Create(nameof(TrailingContent), typeof(View), typeof(BrandHeader));
 
@@ -21,5 +23,6 @@ public partial class BrandHeader
     public string? Subtitle { get => (string?)GetValue(SubtitleProperty); set => SetValue(SubtitleProperty, value); }
     public bool ShowBack { get => (bool)GetValue(ShowBackProperty); set => SetValue(ShowBackProperty, value); }
     public ICommand? BackCommand { get => (ICommand?)GetValue(BackCommandProperty); set => SetValue(BackCommandProperty, value); }
+    public View? LeadingContent { get => (View?)GetValue(LeadingContentProperty); set => SetValue(LeadingContentProperty, value); }
     public View? TrailingContent { get => (View?)GetValue(TrailingContentProperty); set => SetValue(TrailingContentProperty, value); }
 }

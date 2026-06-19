@@ -11,6 +11,7 @@
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="FluentAssertions" Version="7.2.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -27,6 +28,8 @@
 
   <ItemGroup>
     <Compile Include="..\..\SouthBaySoccer\Configuration\PickupPalOptions.cs" Link="Client\Configuration\PickupPalOptions.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Configuration\ClientDataSourceOptions.cs" Link="Client\Configuration\ClientDataSourceOptions.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Configuration\ClientDataSourceValidator.cs" Link="Client\Configuration\ClientDataSourceValidator.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\WelcomeBackPageModel.cs" Link="Client\PageModels\WelcomeBackPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationCoordinator.cs" Link="Client\Services\AuthenticationCoordinator.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AppStartupService.cs" Link="Client\Services\AppStartupService.cs" />
@@ -37,7 +40,19 @@
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IExternalLauncher.cs" Link="Client\Services\IExternalLauncher.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\ISecureTokenStore.cs" Link="Client\Services\ISecureTokenStore.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\PhoneNumberValidator.cs" Link="Client\Services\PhoneNumberValidator.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Clients\*.cs" Link="Client\Services\Clients\%(Filename)%(Extension)" />
+    <Compile Include="..\..\SouthBaySoccer\SeedData\*.cs" Link="Client\SeedData\%(Filename)%(Extension)" />
     <Compile Include="..\..\SouthBaySoccer\Resources\Fonts\FontAwesomeGlyphs.cs" Link="Client\Resources\FontAwesomeGlyphs.cs" />
+  </ItemGroup>
+
+  <!-- M11.0c: reusable-control XAML copied to the test output so the accessibility/structure
+       tests can inspect tokens, touch targets, and bound visual states without a MAUI host. -->
+  <ItemGroup>
+    <None Include="..\..\SouthBaySoccer\Resources\Styles\BrandStyles.xaml" Link="Client\Xaml\BrandStyles.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Resources\Styles\BrandTokens.xaml" Link="Client\Xaml\BrandTokens.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Controls\BrandHeader.xaml" Link="Client\Xaml\BrandHeader.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Controls\PlayerRow.xaml" Link="Client\Xaml\PlayerRow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\AppShell.xaml" Link="Client\Xaml\AppShell.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

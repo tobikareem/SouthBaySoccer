@@ -8,4 +8,5 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [membership-and-drop-in-eligibility](membership-and-drop-in-eligibility.md) — Eligibility supports monthly members and session-specific guests
 - [spec-driven-development](spec-driven-development.md) — Specs live in _specs/ (requirements, design, tasks, client-ui); Gherkin
 - [client-reusable-ui](client-reusable-ui.md) — MAUI client uses a token-driven reusable UI design system; spec in _specs/client-ui.md
+- [ui-first-seed-data](ui-first-seed-data.md) — UI-first delivery: build MAUI/XAML against seed data; backend (M1–M10) deferred
 - [mobile-wireframes-design-source](mobile-wireframes-design-source.md) — mobile-wireframes.html is the authoritative visual and interaction reference for the MAUI client

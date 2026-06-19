@@ -8,6 +8,10 @@ Spec-driven requirements for the whole product. Grounded in
 - A story is **Done** only when every scenario is covered by an automated test and the behavior
   works through the Function App (and, where relevant, the MAUI client).
 - Authority rules from the architecture are restated as invariants, not re-decided here.
+- **Delivery is UI-first (current phase):** the MAUI/XAML client is built first against **seed data**;
+  the backend (Function App, web services, database — milestones M1–M10) comes later. Backend-dependent
+  scenarios are validated in the client against seed providers now and re-verified server-side when the
+  backend milestone lands. See `design.md` §12.
 
 ## Personas / Roles
 
