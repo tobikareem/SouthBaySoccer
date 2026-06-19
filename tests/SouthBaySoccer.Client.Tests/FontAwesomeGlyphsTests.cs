@@ -12,6 +12,15 @@ public class FontAwesomeGlyphsTests
             FontAwesomeGlyphs.WhatsApp,
             FontAwesomeGlyphs.ShieldHalved,
             FontAwesomeGlyphs.ArrowUpRightFromSquare,
+            FontAwesomeGlyphs.ArrowLeft,
+            FontAwesomeGlyphs.Trophy,
+            FontAwesomeGlyphs.Bell,
+            FontAwesomeGlyphs.ChartColumn,
+            FontAwesomeGlyphs.Heart,
+            FontAwesomeGlyphs.Star,
+            FontAwesomeGlyphs.Calendar,
+            FontAwesomeGlyphs.Clock,
+            FontAwesomeGlyphs.Users,
         };
 
     // AUTH-7 / INV-13: every pictogram is a Font Awesome glyph from the BMP Private Use Area

@@ -8,6 +8,7 @@ namespace SouthBaySoccer.PageModels;
 
 public partial class WelcomeBackPageModel(
     IAuthenticationClient authenticationClient,
+    IAuthenticationCoordinator authenticationCoordinator,
     IExternalLauncher externalLauncher,
     PickupPalOptions options) : ObservableObject
 {
@@ -57,9 +58,17 @@ public partial class WelcomeBackPageModel(
         try
         {
             IsBusy = true;
-            await authenticationClient.RequestWhatsAppChallengeAsync(
+            var challenge = await authenticationClient.RequestWhatsAppChallengeAsync(
                 normalizedPhoneNumber,
                 cancellationToken);
+
+            if (await authenticationCoordinator.TryCompleteChallengeAsync(
+                    challenge.ChallengeId,
+                    cancellationToken))
+            {
+                return;
+            }
+
             StatusMessage = "Check WhatsApp for your secure one-time sign-in link.";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

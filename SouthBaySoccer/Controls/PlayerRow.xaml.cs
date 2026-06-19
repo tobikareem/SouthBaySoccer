@@ -16,6 +16,10 @@ public partial class PlayerRow
         BindableProperty.Create(nameof(Detail), typeof(string), typeof(PlayerRow), null);
     public static readonly BindableProperty TrailingTextProperty =
         BindableProperty.Create(nameof(TrailingText), typeof(string), typeof(PlayerRow), null);
+    public static readonly BindableProperty LeadingContentProperty =
+        BindableProperty.Create(nameof(LeadingContent), typeof(View), typeof(PlayerRow),
+            propertyChanged: static (bindable, _, value) =>
+                ((PlayerRow)bindable).LeadingSlot.IsVisible = value is not null);
     public static readonly BindableProperty TrailingContentProperty =
         BindableProperty.Create(nameof(TrailingContent), typeof(View), typeof(PlayerRow));
     public static readonly BindableProperty TapCommandProperty =
@@ -30,6 +34,7 @@ public partial class PlayerRow
     public string Name { get => (string)GetValue(NameProperty); set => SetValue(NameProperty, value); }
     public string? Detail { get => (string?)GetValue(DetailProperty); set => SetValue(DetailProperty, value); }
     public string? TrailingText { get => (string?)GetValue(TrailingTextProperty); set => SetValue(TrailingTextProperty, value); }
+    public View? LeadingContent { get => (View?)GetValue(LeadingContentProperty); set => SetValue(LeadingContentProperty, value); }
     public View? TrailingContent { get => (View?)GetValue(TrailingContentProperty); set => SetValue(TrailingContentProperty, value); }
     public ICommand? TapCommand { get => (ICommand?)GetValue(TapCommandProperty); set => SetValue(TapCommandProperty, value); }
     public object? TapCommandParameter { get => GetValue(TapCommandParameterProperty); set => SetValue(TapCommandParameterProperty, value); }

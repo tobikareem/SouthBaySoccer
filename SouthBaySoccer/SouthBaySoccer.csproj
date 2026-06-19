@@ -81,5 +81,9 @@
 	<ItemGroup>
 		<ProjectReference Include="..\src\SouthBaySoccer.Contracts\SouthBaySoccer.Contracts.csproj" />
 	</ItemGroup>
+
+	<ItemGroup Condition="'$(Configuration)' == 'Release'">
+		<Compile Remove="SeedData\**\*.cs" />
+	</ItemGroup>
 	
 </Project>

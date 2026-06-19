@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:controls="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
     x:Name="Page"
     Style="{StaticResource BrandPage}"
     Title="Home">
@@ -112,6 +113,161 @@
                                         Glyph="⚽"
                                         Title="No upcoming sessions"
                                         Message="New game days will appear here." />
+                </controls:BrandCard>
+
+                <controls:SectionHeader Text="First-wave extensions (M11.0c)" />
+
+                <!-- BrandHeader.LeadingContent: profile avatar in the header leading slot -->
+                <controls:BrandHeader Title="Tobi Kareem"
+                                      Subtitle="Captain · #8"
+                                      ShowBack="True">
+                    <controls:BrandHeader.LeadingContent>
+                        <controls:Avatar Initials="TK"
+                                         Size="{StaticResource AvatarLg}"
+                                         Variant="OnGreen"
+                                         Description="Tobi Kareem" />
+                    </controls:BrandHeader.LeadingContent>
+                </controls:BrandHeader>
+
+                <!-- IconButton: square icon actions (neutral at rest, green when pressed) -->
+                <controls:BrandCard>
+                    <HorizontalStackLayout Spacing="{StaticResource SpaceMd}">
+                        <Button Style="{StaticResource IconButton}"
+                                Text="{x:Static fonts:FontAwesomeGlyphs.Bell}"
+                                SemanticProperties.Description="Notifications" />
+                        <Button Style="{StaticResource IconButton}"
+                                Text="{x:Static fonts:FontAwesomeGlyphs.ChartColumn}"
+                                SemanticProperties.Description="View stats" />
+                    </HorizontalStackLayout>
+                </controls:BrandCard>
+
+                <!-- IconToggleButton: like and single-select MVP, each shown in its off and on state.
+                     Likes are independent toggles (distinct groups); MVP is single-select (shared
+                     group). Product pages bind IsChecked two-way and own the toggle interaction. -->
+                <controls:BrandCard>
+                    <HorizontalStackLayout Spacing="{StaticResource SpaceLg}">
+                        <RadioButton Style="{StaticResource IconToggleButtonLike}"
+                                     Content="{x:Static fonts:FontAwesomeGlyphs.Heart}"
+                                     GroupName="ShowcaseLikeOff"
+                                     SemanticProperties.Description="Like player" />
+                        <RadioButton Style="{StaticResource IconToggleButtonLike}"
+                                     Content="{x:Static fonts:FontAwesomeGlyphs.Heart}"
+                                     IsChecked="True"
+                                     GroupName="ShowcaseLikeOn"
+                                     SemanticProperties.Description="Like player" />
+                        <RadioButton Style="{StaticResource IconToggleButtonMvp}"
+                                     Content="{x:Static fonts:FontAwesomeGlyphs.Star}"
+                                     GroupName="ShowcaseMvp"
+                                     SemanticProperties.Description="Select match MVP" />
+                        <RadioButton Style="{StaticResource IconToggleButtonMvp}"
+                                     Content="{x:Static fonts:FontAwesomeGlyphs.Star}"
+                                     IsChecked="True"
+                                     GroupName="ShowcaseMvp"
+                                     SemanticProperties.Description="Select match MVP" />
+                    </HorizontalStackLayout>
+                </controls:BrandCard>
+
+                <!-- MetadataChip: session date / time / format -->
+                <controls:BrandCard>
+                    <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
+                        <Border Style="{StaticResource MetadataChip}">
+                            <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.Calendar}"
+                                       FontFamily="FontAwesomeSolid"
+                                       FontSize="{StaticResource FontLabel}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+                                       VerticalTextAlignment="Center" />
+                                <Label Text="Jun 20"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="{StaticResource FontLabel}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+                                       VerticalTextAlignment="Center" />
+                            </HorizontalStackLayout>
+                        </Border>
+                        <Border Style="{StaticResource MetadataChip}">
+                            <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}"
+                                       FontFamily="FontAwesomeSolid"
+                                       FontSize="{StaticResource FontLabel}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+                                       VerticalTextAlignment="Center" />
+                                <Label Text="9:00 AM"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="{StaticResource FontLabel}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+                                       VerticalTextAlignment="Center" />
+                            </HorizontalStackLayout>
+                        </Border>
+                        <Border Style="{StaticResource MetadataChip}">
+                            <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.Users}"
+                                       FontFamily="FontAwesomeSolid"
+                                       FontSize="{StaticResource FontLabel}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+                                       VerticalTextAlignment="Center" />
+                                <Label Text="7v7"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="{StaticResource FontLabel}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+                                       VerticalTextAlignment="Center" />
+                            </HorizontalStackLayout>
+                        </Border>
+                    </HorizontalStackLayout>
+                </controls:BrandCard>
+
+                <!-- PlayerRow.LeadingContent: leaderboard rank (trophy for the leader, number otherwise) -->
+                <controls:BrandCard>
+                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                        <controls:PlayerRow Initials="AK"
+                                            Name="Amaka K."
+                                            Detail="Forward"
+                                            TrailingText="12 G">
+                            <controls:PlayerRow.LeadingContent>
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.Trophy}"
+                                       FontFamily="FontAwesomeSolid"
+                                       FontSize="{StaticResource IconMd}"
+                                       TextColor="{AppThemeBinding Light={StaticResource WarningLight}, Dark={StaticResource WarningDark}}"
+                                       WidthRequest="{StaticResource StepperValueWidth}"
+                                       HorizontalTextAlignment="Center"
+                                       VerticalTextAlignment="Center"
+                                       SemanticProperties.Description="Leader" />
+                            </controls:PlayerRow.LeadingContent>
+                        </controls:PlayerRow>
+                        <BoxView HeightRequest="{StaticResource LineThickness}"
+                                 BackgroundColor="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}" />
+                        <controls:PlayerRow Initials="TO"
+                                            Name="Tunde O."
+                                            Detail="Midfielder"
+                                            TrailingText="9 G">
+                            <controls:PlayerRow.LeadingContent>
+                                <Label Text="2"
+                                       Style="{StaticResource TextBodyStrong}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+                                       WidthRequest="{StaticResource StepperValueWidth}"
+                                       HorizontalTextAlignment="Center"
+                                       VerticalTextAlignment="Center" />
+                            </controls:PlayerRow.LeadingContent>
+                        </controls:PlayerRow>
+                    </VerticalStackLayout>
+                </controls:BrandCard>
+
+                <!-- RatingSlider: 0-10 teammate rating with trailing value -->
+                <controls:BrandCard>
+                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                        <controls:PlayerRow Initials="KT" Name="Kola T." Detail="2 goals" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                            <Slider Style="{StaticResource RatingSlider}"
+                                    Value="8"
+                                    VerticalOptions="Center"
+                                    SemanticProperties.Description="Rating for Kola T." />
+                            <Label Grid.Column="1"
+                                   Text="8"
+                                   Style="{StaticResource TextBodyStrong}"
+                                   WidthRequest="{StaticResource StepperValueWidth}"
+                                   HorizontalTextAlignment="End"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </VerticalStackLayout>
                 </controls:BrandCard>
 
                 <Button Text="Primary action" Style="{StaticResource PrimaryButton}" />

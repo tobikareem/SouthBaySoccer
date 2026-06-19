@@ -11,14 +11,14 @@
     <ShellContent
         Title="Home"
         Icon="{StaticResource IconDashboard}"
-        ContentTemplate="{DataTemplate pages:DesignSystemPage}"
+        ContentTemplate="{DataTemplate pages:MainPage}"
         Route="home" />
 
     <ShellContent
-        Title="Sample dashboard"
+        Title="UI Library"
         Icon="{StaticResource IconRibbon}"
-        ContentTemplate="{DataTemplate pages:MainPage}"
-        Route="main" />
+        ContentTemplate="{DataTemplate pages:DesignSystemPage}"
+        Route="design-system" />
 
     <ShellContent
         Title="Projects"

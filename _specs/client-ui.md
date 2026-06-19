@@ -11,9 +11,12 @@ text styles, spacing), **shared styles**, and **custom XAML controls**. Grounded
 > the MAUI implementation contract for that wireframe. If they diverge, update this spec and the
 > shared control library to match the wireframe before implementing product pages.
 
-> **Status: implemented foundation.** Brand resources and the reusable control catalog are present
-> in the MAUI client, with a navigable UI Library showcase. Product screens adopt the system
-> incrementally as their M11 features are implemented.
+> **Status: complete.** The reusable MAUI UI foundation is implemented: brand resources, shared
+> styles, the eleven-control catalog, Shell theming, and the navigable UI Library showcase are
+> present in the client. Product-screen adoption is tracked separately by the relevant M11 story
+> tasks and does not reopen this design-system specification. The first product-screen wave requires
+> the additive `M11.0c` extensions in §6.1; these extend the shared library and must land before a
+> page attempts a local substitute.
 
 ## 1. Purpose & principles
 
@@ -36,7 +39,7 @@ are merged after them in `App.xaml`, and the reusable catalog lives under `Contr
 sample controls remain under `Pages/Controls/` and are migrated or retired only when their product
 feature is replaced; do not wholesale-rewrite the sample app.
 
-## 3. File & resource plan (when implemented)
+## 3. Implemented file and resource layout
 
 ```
 SouthBaySoccer/
@@ -44,10 +47,10 @@ SouthBaySoccer/
 │   ├── Colors.xaml          (existing — template)
 │   ├── Styles.xaml          (existing — template)
 │   ├── AppStyles.xaml       (existing)
-│   ├── BrandColors.xaml     (NEW — brand color + brush tokens, light/dark)
-│   ├── BrandTokens.xaml     (NEW — spacing, radii, sizes, font sizes as x:Double/x:String)
-│   └── BrandStyles.xaml     (NEW — typography + control styles keyed/implicit)
-└── Controls/                (NEW — reusable ContentView controls + code-behind)
+│   ├── BrandColors.xaml     (brand color + brush tokens, light/dark)
+│   ├── BrandTokens.xaml     (spacing, radii, sizes, font sizes as x:Double/x:String)
+│   └── BrandStyles.xaml     (typography + control styles keyed/implicit)
+└── Controls/                (reusable ContentView controls + code-behind)
     ├── BrandHeader.xaml(.cs)
     ├── BrandCard.xaml(.cs)
     ├── Badge.xaml(.cs)
@@ -132,11 +135,15 @@ Keyed styles (and a few implicit) built only from tokens:
   - `GhostButton` — `Surface` bg, `BrandGreen` text + 1.5px `BrandGreen` border.
   - `WhatsAppButton` — `WhatsApp` bg, white text, leading WhatsApp glyph.
   - `DangerButton`, `LinkButton` (text-style).
+  - `IconButton` — square/pill icon action, minimum `TouchMin`, neutral/green visual states.
+  - `IconToggleButton` — reusable off/on states for like/MVP actions; state is bound, not decided in
+    code-behind.
 - **Entry/Editor**: `BrandEntry` — `SurfaceAlt` bg, `BrandLine` border, `RadiusMd`, focus ring `BrandGreen`.
 - **Frame/Border**: `CardSurface` (white, 1px `BrandLine`, `RadiusLg`), `TintSurface` (`BrandMist`).
 - **Wireframe surfaces**: `HeroCardSurface` (Pine→Flag Green), `StatTileSurface`
   (Mist/subtle white, fine green-tinted line), `NoticeSurface` (Mist + green-tinted line),
-  `IconTileSurface`, and `StepperButton`.
+  `IconTileSurface`, `MetadataChip`, and `StepperButton`.
+- **Slider**: `RatingSlider` — tokenized track/thumb/focus treatment for the 0–10 teammate rating.
 
 ## 6. Custom control catalog
 
@@ -147,7 +154,8 @@ outputs. Each control: defines `VisualStateManager` states where interactive, se
 ### BrandHeader
 Green-to-pine app header with optional back button, title, subtitle, right flag stripe, and subtle
 decorative motif.
-- `Title` (string), `Subtitle` (string?), `ShowBack` (bool=false), `BackCommand` (ICommand?), `TrailingContent` (View?).
+- `Title` (string), `Subtitle` (string?), `ShowBack` (bool=false), `BackCommand` (ICommand?),
+  `LeadingContent` (View?), `TrailingContent` (View?).
 - A11y: back button `SemanticProperties.Description="Back"`, ≥44px.
 - Wireframe: session/match-stats/rate headers.
 
@@ -160,7 +168,7 @@ White surface container.
 ### Badge (status pill)
 - `Text` (string), `Variant` (enum `Neutral|Success|Warning|Danger`=Neutral), `Glyph` (string?).
 - Maps Variant → token pair (e.g. Success → `BrandMist`/`BrandGreenDark`; Warning → warn bg/text). `RadiusPill`.
-- Wireframe: "Going", "Full", "guest", "Dues paid".
+- Wireframe: "Going", "Full", "guest", "Paid".
 
 ### Avatar
 - `Initials` (string), `ImageSource` (ImageSource?), `Size` (double=`AvatarMd`), `Variant` (enum `Mist|OnGreen`=Mist).
@@ -179,10 +187,11 @@ White surface container.
 
 ### SectionHeader
 - `Text` (string, uppercase via style), `ActionText` (string?), `ActionCommand` (ICommand?).
-- Wireframe: "Upcoming", "Going · 16", "Confirm teammates · captain".
+- Wireframe: "Coming up", "Going · 16", "Confirm teammates · captain".
 
 ### PlayerRow
-- `Initials`/`ImageSource`, `Name` (string), `Detail` (string?), `TrailingText` (string?), `TrailingContent` (View?), `TapCommand` (ICommand?).
+- `LeadingContent` (View?), `Initials`/`ImageSource`, `Name` (string), `Detail` (string?),
+  `TrailingText` (string?), `TrailingContent` (View?), `TapCommand` (ICommand?).
 - Avatar + name + subtitle + trailing; tappable. A11y: row description.
 - Wireframe: going/waitlist lists, confirm-teammates rows, leaderboard rows.
 
@@ -205,6 +214,19 @@ White surface container.
 ### (Styles, not controls)
 PrimaryButton / GhostButton / WhatsAppButton are **styles** (§5), applied to MAUI `Button`. Bottom
 navigation uses Shell `TabBar` themed via `BrandStyles`, not a custom control.
+
+## 6.1 First-wave additive extensions (`M11.0c`)
+
+Before SES-6, PROF-5, LEAD-4, or STAT-8 is implemented:
+
+- add `LeadingContent` to `BrandHeader` for the Profile avatar;
+- add `LeadingContent` to `PlayerRow` for leaderboard rank/trophy content;
+- add `IconButton`, `IconToggleButton`, `MetadataChip`, and `RatingSlider` shared styles;
+- add each extension to the UI Library showcase and its accessibility tests.
+
+Pages may use standard MAUI layout primitives (`Grid`, `VerticalStackLayout`, `CollectionView`) to
+compose shared controls. Any repeated visual/interactive pattern must come from this catalog or a
+named shared style; no page-local control template, raw style, or bespoke visual state is allowed.
 
 ## 7. Theming & dark mode
 
@@ -229,6 +251,9 @@ contrast (WCAG AA for text). The app may default to light but must not break in 
 
 ## 10. Acceptance criteria
 
+The reusable-foundation acceptance criteria below are complete. They remain regression requirements
+for future control and product-screen changes.
+
 ```gherkin
 Scenario: Pages use tokens, not raw values
   Given any page or control XAML
@@ -251,8 +276,7 @@ Scenario: Controls are accessible
 
 Scenario: A new screen reuses the library
   Given a new screen built from this system
-  Then it composes BrandHeader, BrandCard, Badge, Avatar, StatTile, CapacityBar,
-       SectionHeader, PlayerRow, SegmentedControl, CounterStepper, and StateView
+  Then it composes the applicable controls and named shared styles from this specification
   And it adds no bespoke one-off styles for those patterns
 
 Scenario: Product UI follows the authoritative wireframe
@@ -272,7 +296,7 @@ Scenario: Product UI follows the authoritative wireframe
 | Avatars & initials | `Avatar` |
 | Career stat tiles | `StatTile` (grid) |
 | Capacity "16/20" bar | `CapacityBar` |
-| "Upcoming", "Going · 16" labels | `SectionHeader` + `TextLabel` |
+| "Coming up", "Going · 16" labels | `SectionHeader` + `TextLabel` |
 | Going / waitlist / confirm rows | `PlayerRow` |
 | Leaderboard Goals/Assists/Rating/MVP | `SegmentedControl` |
 | Goals/assists +/- entry | `CounterStepper` |
@@ -283,5 +307,5 @@ Scenario: Product UI follows the authoritative wireframe
 
 - Business behavior (RSVP rules, eligibility, stat confirmation) lives in PageModels/services, not controls.
 - Navigation is Shell (architecture §6); this spec styles it but does not replace it.
-- Product-screen adoption remains part of milestone **M11**. The reusable foundation is available
-  now and should be used by all new client screens.
+- Product-screen adoption remains part of milestone **M11** and is tracked by its own story tasks.
+  The completed reusable foundation must be used by all new client screens.

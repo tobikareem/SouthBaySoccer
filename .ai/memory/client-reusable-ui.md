@@ -11,6 +11,14 @@ typography, spacing, radii, and shared styles live in
 `SouthBaySoccer/Resources/Styles/BrandColors.xaml`, `BrandTokens.xaml`, and `BrandStyles.xaml`.
 Reusable controls live in `SouthBaySoccer/Controls/`.
 
+The reusable foundation and its `M11.0` task are complete. Adoption by individual product screens is
+tracked separately and does not make the design-system foundation incomplete.
+
+The first product-screen wave has one additive shared-library prerequisite (`M11.0c`): add
+`LeadingContent` to `BrandHeader`/`PlayerRow` plus shared `IconButton`, `IconToggleButton`,
+`MetadataChip`, and `RatingSlider` styles. Product pages must wait for those shared extensions rather
+than create page-local substitutes.
+
 **Why:** This keeps screens consistent with the green/white brand and authoritative mobile wireframe while
 keeping controls MVVM-clean: `BindableProperty` inputs, `ICommand` outputs, and no business logic.
 

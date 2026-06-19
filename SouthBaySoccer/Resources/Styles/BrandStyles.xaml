@@ -179,6 +179,182 @@
         <Setter Property="FontSize" Value="{StaticResource FontH2}" />
     </Style>
 
+    <!-- M11.0c: square/pill icon action. Neutral (Mist/Green) at rest, green when pressed. -->
+    <Style x:Key="IconButton" TargetType="Button">
+        <Setter Property="FontFamily" Value="FontAwesomeSolid" />
+        <Setter Property="FontSize" Value="{StaticResource IconMd}" />
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}" />
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HeightRequest" Value="{StaticResource TouchMin}" />
+        <Setter Property="WidthRequest" Value="{StaticResource TouchMin}" />
+        <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
+        <Setter Property="MinimumWidthRequest" Value="{StaticResource TouchMin}" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor"
+                                    Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDepthDark}}" />
+                            <Setter Property="TextColor" Value="White" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="Opacity" Value="0.55" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <!-- M11.0c: glyph-only toggle (like/MVP). On/off is the bound RadioButton IsChecked state,
+         never decided in code-behind. The glyph stays constant; the CheckedStates group recolors it.
+         Per the MAUI "Redefine RadioButton appearance" guidance the visual states live inside the
+         control template, on the template-root glyph (self-targeting setters), so each semantic
+         on-color gets its own template. -->
+    <ControlTemplate x:Key="IconToggleTemplate">
+        <Label Text="{TemplateBinding Content}"
+               FontFamily="{TemplateBinding FontFamily}"
+               FontSize="{TemplateBinding FontSize}"
+               TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+               HeightRequest="{StaticResource TouchMin}"
+               MinimumWidthRequest="{StaticResource TouchMin}"
+               HorizontalTextAlignment="Center"
+               VerticalTextAlignment="Center">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroupList>
+                    <VisualStateGroup x:Name="CheckedStates">
+                        <VisualState x:Name="Unchecked">
+                            <VisualState.Setters>
+                                <Setter Property="TextColor"
+                                        Value="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}" />
+                            </VisualState.Setters>
+                        </VisualState>
+                        <VisualState x:Name="Checked">
+                            <VisualState.Setters>
+                                <Setter Property="TextColor"
+                                        Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+                            </VisualState.Setters>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateGroupList>
+            </VisualStateManager.VisualStateGroups>
+        </Label>
+    </ControlTemplate>
+    <ControlTemplate x:Key="IconToggleTemplateLike">
+        <Label Text="{TemplateBinding Content}"
+               FontFamily="{TemplateBinding FontFamily}"
+               FontSize="{TemplateBinding FontSize}"
+               TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+               HeightRequest="{StaticResource TouchMin}"
+               MinimumWidthRequest="{StaticResource TouchMin}"
+               HorizontalTextAlignment="Center"
+               VerticalTextAlignment="Center">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroupList>
+                    <VisualStateGroup x:Name="CheckedStates">
+                        <VisualState x:Name="Unchecked">
+                            <VisualState.Setters>
+                                <Setter Property="TextColor"
+                                        Value="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}" />
+                            </VisualState.Setters>
+                        </VisualState>
+                        <VisualState x:Name="Checked">
+                            <VisualState.Setters>
+                                <Setter Property="TextColor"
+                                        Value="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}" />
+                            </VisualState.Setters>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateGroupList>
+            </VisualStateManager.VisualStateGroups>
+        </Label>
+    </ControlTemplate>
+    <ControlTemplate x:Key="IconToggleTemplateMvp">
+        <Label Text="{TemplateBinding Content}"
+               FontFamily="{TemplateBinding FontFamily}"
+               FontSize="{TemplateBinding FontSize}"
+               TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+               HeightRequest="{StaticResource TouchMin}"
+               MinimumWidthRequest="{StaticResource TouchMin}"
+               HorizontalTextAlignment="Center"
+               VerticalTextAlignment="Center">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroupList>
+                    <VisualStateGroup x:Name="CheckedStates">
+                        <VisualState x:Name="Unchecked">
+                            <VisualState.Setters>
+                                <Setter Property="TextColor"
+                                        Value="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}" />
+                            </VisualState.Setters>
+                        </VisualState>
+                        <VisualState x:Name="Checked">
+                            <VisualState.Setters>
+                                <Setter Property="TextColor"
+                                        Value="{AppThemeBinding Light={StaticResource WarningLight}, Dark={StaticResource WarningDark}}" />
+                            </VisualState.Setters>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateGroupList>
+            </VisualStateManager.VisualStateGroups>
+        </Label>
+    </ControlTemplate>
+    <Style x:Key="IconToggleButton" TargetType="RadioButton">
+        <Setter Property="FontFamily" Value="FontAwesomeSolid" />
+        <Setter Property="FontSize" Value="{StaticResource IconMd}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
+        <Setter Property="MinimumWidthRequest" Value="{StaticResource TouchMin}" />
+        <Setter Property="ControlTemplate" Value="{StaticResource IconToggleTemplate}" />
+    </Style>
+    <Style x:Key="IconToggleButtonLike" TargetType="RadioButton" BasedOn="{StaticResource IconToggleButton}">
+        <Setter Property="ControlTemplate" Value="{StaticResource IconToggleTemplateLike}" />
+    </Style>
+    <Style x:Key="IconToggleButtonMvp" TargetType="RadioButton" BasedOn="{StaticResource IconToggleButton}">
+        <Setter Property="ControlTemplate" Value="{StaticResource IconToggleTemplateMvp}" />
+    </Style>
+
+    <!-- M11.0c: inline metadata chip (date/time/format/location). Mist surface, sage content. -->
+    <Style x:Key="MetadataChip" TargetType="Border">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}" />
+        <Setter Property="StrokeThickness" Value="0" />
+        <Setter Property="StrokeShape" Value="{StaticResource ShapeSegment}" />
+        <Setter Property="Padding" Value="{StaticResource ChipPadding}" />
+    </Style>
+
+    <!-- M11.0c: 0-10 teammate rating slider. Integer coercion happens in the page model. -->
+    <Style x:Key="RatingSlider" TargetType="Slider">
+        <Setter Property="Minimum" Value="0" />
+        <Setter Property="Maximum" Value="10" />
+        <Setter Property="MinimumTrackColor"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}" />
+        <Setter Property="MaximumTrackColor"
+                Value="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}" />
+        <Setter Property="ThumbColor"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}" />
+        <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="Opacity" Value="0.55" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
     <Style TargetType="Shell">
         <Setter Property="Shell.BackgroundColor"
                 Value="{AppThemeBinding Light={StaticResource SurfaceLight}, Dark={StaticResource SurfaceDark}}" />

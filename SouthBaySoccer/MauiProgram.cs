@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Maui.LifecycleEvents;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Services.Authentication;
+using SouthBaySoccer.Services.Clients;
 using Syncfusion.Maui.Toolkit.Hosting;
 
 namespace SouthBaySoccer;
@@ -79,11 +80,9 @@ public static class MauiProgram
 
         var pickupPalOptions = new PickupPalOptions();
         builder.Services.AddSingleton(pickupPalOptions);
-        builder.Services.AddHttpClient<IAuthenticationClient, AuthenticationClient>(client =>
-        {
-            client.BaseAddress = pickupPalOptions.ApiBaseUri;
-            client.Timeout = TimeSpan.FromSeconds(15);
-        });
+        builder.Services.AddSouthBaySoccerClients(
+            ClientDataSourceOptions.FromValue(builder.Configuration["ClientDataSource"]),
+            pickupPalOptions);
         builder.Services.AddSingleton<ISecureTokenStore, SecureTokenStore>();
         builder.Services.AddSingleton<IAuthenticationNavigator, AuthenticationNavigator>();
         builder.Services.AddSingleton<IAuthenticationCoordinator, AuthenticationCoordinator>();

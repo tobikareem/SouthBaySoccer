@@ -20,7 +20,9 @@ The top-level `_specs/` files remain the **cross-cutting source of truth** and a
 A per-story file states only what is specific to that story and **links** to the global rules it
 depends on, rather than copying them (so invariants/NFRs never drift).
 
-## Index (pilot: Welcome Back screen)
+## Index
+
+### Authentication (sign-in)
 
 | Story | Directory | Summary |
 |-------|-----------|---------|
@@ -28,8 +30,52 @@ depends on, rather than copying them (so invariants/NFRs never drift).
 | `AUTH-8` | [`AUTH-8-continue-with-whatsapp/`](AUTH-8-continue-with-whatsapp/requirements.md) | Request + verify the one-time WhatsApp sign-in challenge. |
 | `AUTH-9` | [`AUTH-9-pickup-pal-actions/`](AUTH-9-pickup-pal-actions/requirements.md) | Pickup Pal bot / signup external actions. |
 
-This is the **pilot** of the per-story layout. Once approved, the remaining stories (PROF, WAIV,
-PAY, SES, RSVP, CHK, TEAM, STAT, LEAD, NOTIF, ADMIN) are migrated into the same structure.
+### UI-first client screens (built against seed data — see [`../design.md`](../design.md) §12)
+
+| Story | Directory | Summary |
+|-------|-----------|---------|
+| `SEED-1` | [`SEED-1-seed-data-providers/`](SEED-1-seed-data-providers/requirements.md) | Seed-data providers behind client-service interfaces — **build first; unblocks every screen.** |
+| `SES-6` | [`SES-6-sessions-home-screen/`](SES-6-sessions-home-screen/requirements.md) | Sessions (home) — upcoming list, dues status, submit-stats banner. |
+| `RSVP-8` | [`RSVP-8-session-detail-screen/`](RSVP-8-session-detail-screen/requirements.md) | Session detail — going + waitlist lists, capacity, RSVP toggle. |
+| `PROF-5` | [`PROF-5-player-profile-screen/`](PROF-5-player-profile-screen/requirements.md) | Player profile — career stat tiles, recent form. |
+| `LEAD-4` | [`LEAD-4-leaderboard-screen/`](LEAD-4-leaderboard-screen/requirements.md) | Leaderboard — Goals/Assists/Rating/MVP segments. |
+| `STAT-7` | [`STAT-7-match-stats-screen/`](STAT-7-match-stats-screen/requirements.md) | Match stats — self-submit goals/assists + captain confirm. |
+| `STAT-8` | [`STAT-8-rate-teammates-screen/`](STAT-8-rate-teammates-screen/requirements.md) | Rate teammates — 0–10 rating, like, single MVP. |
+
+## Recommended execution graph
+
+Two enabling tasks can run in parallel before screen work:
+
+- `SEED-1` owns the complete interfaces, fixtures, mutable demo state, and DI seam.
+- `M11.0c` adds the shared control/style extensions required by the wireframes.
+
+Screen stories must not extend Seed clients or create page-local substitutes for missing controls.
+
+```text
+SEED-1 + M11.0c
+├── Sessions flow: SES-6 → RSVP-8
+├── Stats flow:    STAT-7 → STAT-8
+├── Discovery:     PROF-5 ─┐
+└── Ranking:       LEAD-4 ─┴─ navigation integration
+```
+
+After `SEED-1`, run these workstreams in parallel:
+
+1. **Sessions/RSVP workstream (sequential):** `SES-6` then `RSVP-8`. Session detail can be built in
+   parallel at the file level, but end-to-end navigation and selected-session handoff are verified
+   only after SES-6 exists.
+2. **Stats workstream (sequential):** `STAT-7` then `STAT-8`. STAT-8 can be implemented independently
+   against a route/match id, but final navigation and same-match context are verified after STAT-7.
+3. **Profile/Leaderboard workstream (parallel):** `PROF-5` and `LEAD-4` can be implemented
+   independently. Integrate Profile → Leaderboard and Leaderboard → Player Profile routes after
+   both pages exist.
+
+Cross-workstream Shell tabs and route names are shared integration points. Assign one owner to
+`MauiProgram.cs`, Shell registration, and shared navigation constants to avoid parallel merge
+conflicts. Each story otherwise owns its page, page model, and tests.
+
+The remaining backend-oriented stories (WAIV, PAY, CHK, TEAM, NOTIF, ADMIN, and the rest of each
+epic) migrate into this structure as they are built.
 
 ## Conventions
 
