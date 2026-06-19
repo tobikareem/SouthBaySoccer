@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.ProfilePage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:sf="clr-namespace:Syncfusion.Maui.Toolkit.SegmentedControl;assembly=Syncfusion.Maui.Toolkit"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Profile">
+
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader Grid.Row="0"
+                       Title="Profile"
+                       Subtitle="Your account" />
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="{StaticResource WelcomeContentPadding}"
+                                 Spacing="{StaticResource SpaceMd}">
+
+                <c:BrandCard>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceMd}">
+                        <VerticalStackLayout Spacing="{StaticResource SpaceXs}" VerticalOptions="Center">
+                            <Label Text="Appearance" Style="{StaticResource TextBodyStrong}" />
+                            <Label Text="Switch between light and dark mode." Style="{StaticResource TextCaption}" />
+                        </VerticalStackLayout>
+                        <sf:SfSegmentedControl x:Name="ThemeSegmentedControl"
+                                               Grid.Column="1"
+                                               VerticalOptions="Center"
+                                               HorizontalOptions="End"
+                                               SelectionChanged="SfSegmentedControl_SelectionChanged"
+                                               SegmentWidth="44" SegmentHeight="44">
+                            <sf:SfSegmentedControl.ItemsSource>
+                                <x:Array Type="{x:Type sf:SfSegmentItem}">
+                                    <sf:SfSegmentItem ImageSource="{StaticResource IconLight}" SemanticProperties.Description="Light mode" />
+                                    <sf:SfSegmentItem ImageSource="{StaticResource IconDark}" SemanticProperties.Description="Dark mode" />
+                                </x:Array>
+                            </sf:SfSegmentedControl.ItemsSource>
+                        </sf:SfSegmentedControl>
+                    </Grid>
+                </c:BrandCard>
+
+                <Label Text="Profile, payments and waivers land here soon."
+                       Style="{StaticResource TextCaption}"
+                       HorizontalTextAlignment="Center"
+                       Margin="{StaticResource WelcomeDividerMargin}" />
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

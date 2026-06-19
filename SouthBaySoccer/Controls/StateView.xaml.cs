@@ -18,7 +18,12 @@ public partial class StateView
         BindableProperty.Create(nameof(RetryCommand), typeof(ICommand), typeof(StateView), null,
             propertyChanged: static (bindable, _, _) => ((StateView)bindable).Refresh());
     public static readonly BindableProperty BodyProperty =
-        BindableProperty.Create(nameof(Body), typeof(View), typeof(StateView));
+        BindableProperty.Create(
+            nameof(Body),
+            typeof(View),
+            typeof(StateView),
+            propertyChanged: static (bindable, _, value) =>
+                ((StateView)bindable).ApplyBody((View?)value));
 
     public StateView()
     {
@@ -33,12 +38,31 @@ public partial class StateView
     public ICommand? RetryCommand { get => (ICommand?)GetValue(RetryCommandProperty); set => SetValue(RetryCommandProperty, value); }
     public View? Body { get => (View?)GetValue(BodyProperty); set => SetValue(BodyProperty, value); }
 
+    protected override void OnBindingContextChanged()
+    {
+        base.OnBindingContextChanged();
+        if (Body is not null)
+        {
+            SetInheritedBindingContext(Body, BindingContext);
+        }
+    }
+
+    private void ApplyBody(View? body)
+    {
+        ContentPresenter.Content = body;
+        if (body is not null)
+        {
+            SetInheritedBindingContext(body, BindingContext);
+        }
+    }
+
     private void Refresh()
     {
         var showsContent = State == ViewState.Content;
         ContentPresenter.IsVisible = showsContent;
         StatePanel.IsVisible = !showsContent;
         LoadingIndicator.IsVisible = State == ViewState.Loading;
+        LoadingIndicator.IsRunning = State == ViewState.Loading;
         RetryButton.IsVisible = RetryCommand is not null && State is ViewState.Error or ViewState.Offline;
         SemanticProperties.SetDescription(this, showsContent ? "Content" : $"{State}: {Title}. {Message}");
     }

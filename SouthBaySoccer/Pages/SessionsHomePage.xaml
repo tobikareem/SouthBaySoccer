@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.SessionsHomePage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:sessions="clr-namespace:SouthBaySoccer.Contracts.Sessions;assembly=SouthBaySoccer.Contracts"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="SessionsHome"
+    x:DataType="pageModels:SessionsHomePageModel"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Sessions">
+
+    <ContentPage.Resources>
+        <toolkit:InvertedBoolConverter x:Key="InvertedBool" />
+    </ContentPage.Resources>
+
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference SessionsHome}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+
+    <controls:StateView
+        State="{Binding State}"
+        Title="{Binding StateTitle}"
+        Message="{Binding StateMessage}"
+        Glyph="{x:Static fonts:FontAwesomeGlyphs.Calendar}"
+        RetryCommand="{Binding RefreshCommand}">
+
+        <RefreshView Command="{Binding RefreshCommand}">
+            <ScrollView>
+                <VerticalStackLayout
+                    Padding="{StaticResource LayoutPadding}"
+                    Spacing="{StaticResource SpaceLg}">
+
+                    <!-- Greeting header: group label, greeting, dues badge, notifications bell -->
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                        <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                            <Label Text="{Binding GroupLabel}" Style="{StaticResource TextCaption}" />
+                            <Label Text="{Binding Greeting}"
+                                   Style="{StaticResource TextH1}"
+                                   SemanticProperties.HeadingLevel="Level1" />
+                        </VerticalStackLayout>
+                        <HorizontalStackLayout Grid.Column="1"
+                                               Spacing="{StaticResource SpaceSm}"
+                                               VerticalOptions="Center">
+                            <controls:Badge Text="{Binding DuesStatus}" Variant="Success" />
+                            <Border Style="{StaticResource IconTileSurface}"
+                                    SemanticProperties.Description="Notifications">
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.Bell}"
+                                       FontFamily="FontAwesomeSolid"
+                                       FontSize="{StaticResource IconMd}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                            </Border>
+                        </HorizontalStackLayout>
+                    </Grid>
+
+                    <!-- Hero featured session card -->
+                    <controls:BrandCard IsHero="True">
+                        <controls:BrandCard.GestureRecognizers>
+                            <TapGestureRecognizer
+                                Command="{Binding ViewSessionDetailCommand}"
+                                CommandParameter="{Binding FeaturedSession.Id}" />
+                        </controls:BrandCard.GestureRecognizers>
+                        <VerticalStackLayout Spacing="{StaticResource SpaceSm}"
+                                             BindingContext="{Binding FeaturedSession}"
+                                             x:DataType="sessions:SessionSummaryDto"
+                                             SemanticProperties.Description="{Binding Title}">
+                            <Label Text="{Binding RelativeLabel}"
+                                   Style="{StaticResource TextLabel}"
+                                   TextColor="White"
+                                   Opacity="0.85" />
+                            <Label Text="{Binding Title}"
+                                   Style="{StaticResource TextH2}"
+                                   TextColor="White"
+                                   SemanticProperties.HeadingLevel="Level2" />
+                            <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
+                                <Border Style="{StaticResource MetadataChip}"
+                                        BackgroundColor="{StaticResource HeaderOverlay}">
+                                    <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.Calendar}"
+                                               FontFamily="FontAwesomeSolid"
+                                               Style="{StaticResource TextCaption}"
+                                               TextColor="White" />
+                                        <Label Text="{Binding DateLabel}"
+                                               Style="{StaticResource TextCaption}"
+                                               TextColor="White" />
+                                    </HorizontalStackLayout>
+                                </Border>
+                                <Border Style="{StaticResource MetadataChip}"
+                                        BackgroundColor="{StaticResource HeaderOverlay}">
+                                    <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}"
+                                               FontFamily="FontAwesomeSolid"
+                                               Style="{StaticResource TextCaption}"
+                                               TextColor="White" />
+                                        <Label Text="{Binding TimeLabel}"
+                                               Style="{StaticResource TextCaption}"
+                                               TextColor="White" />
+                                    </HorizontalStackLayout>
+                                </Border>
+                                <Border Style="{StaticResource MetadataChip}"
+                                        BackgroundColor="{StaticResource HeaderOverlay}">
+                                    <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.Users}"
+                                               FontFamily="FontAwesomeSolid"
+                                               Style="{StaticResource TextCaption}"
+                                               TextColor="White" />
+                                        <Label Text="{Binding Format}"
+                                               Style="{StaticResource TextCaption}"
+                                               TextColor="White" />
+                                    </HorizontalStackLayout>
+                                </Border>
+                            </HorizontalStackLayout>
+                            <Border Style="{StaticResource MetadataChip}"
+                                    BackgroundColor="White"
+                                    HorizontalOptions="Start">
+                                <Label Text="{Binding StatusLabel}"
+                                       Style="{StaticResource TextBodyStrong}"
+                                       FontSize="{StaticResource FontLabel}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandGreenDepthDark}}" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </controls:BrandCard>
+
+                    <!-- Stats prompt card -->
+                    <controls:BrandCard>
+                        <controls:BrandCard.GestureRecognizers>
+                            <TapGestureRecognizer
+                                Command="{Binding OpenMatchStatsCommand}"
+                                CommandParameter="{Binding StatsPrompt.MatchId}" />
+                        </controls:BrandCard.GestureRecognizers>
+                        <Grid ColumnDefinitions="Auto,*"
+                              ColumnSpacing="{StaticResource SpaceMd}"
+                              BindingContext="{Binding StatsPrompt}"
+                              x:DataType="sessions:StatsPromptDto"
+                              SemanticProperties.Description="{Binding Title}">
+                            <Border Style="{StaticResource IconTileSurface}" VerticalOptions="Center">
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.ChartColumn}"
+                                       FontFamily="FontAwesomeSolid"
+                                       FontSize="{StaticResource IconMd}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1"
+                                                 Spacing="{StaticResource SpaceXs}"
+                                                 VerticalOptions="Center">
+                                <Label Text="{Binding Title}" Style="{StaticResource TextBodyStrong}" />
+                                <Label Text="{Binding Caption}" Style="{StaticResource TextCaption}" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </controls:BrandCard>
+
+                    <!-- Coming up section -->
+                    <controls:SectionHeader
+                        Text="{Binding ComingUpLabel}"
+                        ActionText="{Binding ScheduleActionLabel}"
+                        ActionCommand="{Binding ViewScheduleCommand}" />
+
+                    <!-- BindableLayout (not CollectionView): this list lives inside the page's
+                         ScrollView, and a vertically-scrolling CollectionView nested in a vertical
+                         ScrollView causes an unbounded measure pass / ANR on Android. The coming-up
+                         list is small, so a BindableLayout is the correct, scroll-safe container. -->
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding ComingUpSessions}"
+                                         Spacing="{StaticResource SpaceMd}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="sessions:SessionSummaryDto">
+                                <controls:BrandCard SemanticProperties.Description="{Binding Title}">
+                                    <controls:BrandCard.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Command="{Binding Source={x:Reference SessionsHome}, Path=BindingContext.ViewSessionDetailCommand, x:DataType=ContentPage}"
+                                            CommandParameter="{Binding Id}" />
+                                    </controls:BrandCard.GestureRecognizers>
+                                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Label Text="{Binding Title}"
+                                                   Style="{StaticResource TextBodyStrong}"
+                                                   VerticalOptions="Center" />
+                                            <controls:Badge Grid.Column="1"
+                                                            Text="{Binding StatusLabel}"
+                                                            Variant="Danger"
+                                                            IsVisible="{Binding IsFull}" />
+                                            <controls:Badge Grid.Column="1"
+                                                            Text="{Binding StatusLabel}"
+                                                            Variant="Success"
+                                                            IsVisible="{Binding IsFull, Converter={StaticResource InvertedBool}}" />
+                                        </Grid>
+                                        <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
+                                            <Border Style="{StaticResource MetadataChip}">
+                                                <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.Calendar}"
+                                                           FontFamily="FontAwesomeSolid"
+                                                           Style="{StaticResource TextCaption}" />
+                                                    <Label Text="{Binding DateLabel}" Style="{StaticResource TextCaption}" />
+                                                </HorizontalStackLayout>
+                                            </Border>
+                                            <Border Style="{StaticResource MetadataChip}">
+                                                <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}"
+                                                           FontFamily="FontAwesomeSolid"
+                                                           Style="{StaticResource TextCaption}" />
+                                                    <Label Text="{Binding TimeLabel}" Style="{StaticResource TextCaption}" />
+                                                </HorizontalStackLayout>
+                                            </Border>
+                                        </HorizontalStackLayout>
+                                        <controls:CapacityBar Current="{Binding GoingCount}"
+                                                              Max="{Binding Capacity}" />
+                                        <Label Text="{Binding WaitlistCount, StringFormat='Waitlist {0}'}"
+                                               Style="{StaticResource TextCaption}"
+                                               IsVisible="{Binding IsFull}" />
+                                        <Button Text="Join waitlist"
+                                                Style="{StaticResource GhostButton}"
+                                                IsVisible="{Binding IsFull}"
+                                                Command="{Binding Source={x:Reference SessionsHome}, Path=BindingContext.JoinWaitlistCommand, x:DataType=ContentPage}"
+                                                CommandParameter="{Binding Id}"
+                                                SemanticProperties.Description="Join the waitlist" />
+                                    </VerticalStackLayout>
+                                </controls:BrandCard>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
+        </RefreshView>
+    </controls:StateView>
+</ContentPage>

@@ -4,32 +4,35 @@
     x:Name="Root"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
-    <Grid>
-        <ContentPresenter x:Name="ContentPresenter"
-                          Content="{Binding Body, Source={x:Reference Root}}" />
-        <VerticalStackLayout x:Name="StatePanel"
-                             Padding="{StaticResource SpaceXl}"
-                             Spacing="{StaticResource SpaceMd}"
-                             HorizontalOptions="Center"
-                             VerticalOptions="Center">
-            <ActivityIndicator x:Name="LoadingIndicator"
-                               IsRunning="True"
-                               Color="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
-            <Label Text="{Binding Glyph, Source={x:Reference Root}}"
-                   Style="{StaticResource TextDisplay}"
-                   HorizontalTextAlignment="Center" />
-            <Label Text="{Binding Title, Source={x:Reference Root}}"
-                   Style="{StaticResource TextH2}"
-                   HorizontalTextAlignment="Center"
-                   SemanticProperties.HeadingLevel="Level2" />
-            <Label Text="{Binding Message, Source={x:Reference Root}}"
-                   Style="{StaticResource TextCaption}"
-                   HorizontalTextAlignment="Center" />
-            <Button x:Name="RetryButton"
-                    Text="Try again"
-                    Command="{Binding RetryCommand, Source={x:Reference Root}}"
-                    Style="{StaticResource PrimaryButton}"
-                    SemanticProperties.Description="Retry" />
-        </VerticalStackLayout>
-    </Grid>
+    <ContentView.Content>
+        <Grid>
+            <ContentPresenter x:Name="ContentPresenter"
+                              BindingContext="{Binding BindingContext, Source={x:Reference Root}}"
+                              Content="{x:Null}" />
+            <VerticalStackLayout x:Name="StatePanel"
+                                 Padding="{StaticResource SpaceXl}"
+                                 Spacing="{StaticResource SpaceMd}"
+                                 HorizontalOptions="Center"
+                                 VerticalOptions="Center">
+                <ActivityIndicator x:Name="LoadingIndicator"
+                                   IsRunning="False"
+                                   Color="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+                <Label Text="{Binding Glyph, Source={x:Reference Root}}"
+                       Style="{StaticResource TextDisplay}"
+                       HorizontalTextAlignment="Center" />
+                <Label Text="{Binding Title, Source={x:Reference Root}}"
+                       Style="{StaticResource TextH2}"
+                       HorizontalTextAlignment="Center"
+                       SemanticProperties.HeadingLevel="Level2" />
+                <Label Text="{Binding Message, Source={x:Reference Root}}"
+                       Style="{StaticResource TextCaption}"
+                       HorizontalTextAlignment="Center" />
+                <Button x:Name="RetryButton"
+                        Text="Try again"
+                        Command="{Binding RetryCommand, Source={x:Reference Root}}"
+                        Style="{StaticResource PrimaryButton}"
+                        SemanticProperties.Description="Retry" />
+            </VerticalStackLayout>
+        </Grid>
+    </ContentView.Content>
 </ContentView>

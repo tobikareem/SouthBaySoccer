@@ -31,6 +31,9 @@
     <Compile Include="..\..\SouthBaySoccer\Configuration\ClientDataSourceOptions.cs" Link="Client\Configuration\ClientDataSourceOptions.cs" />
     <Compile Include="..\..\SouthBaySoccer\Configuration\ClientDataSourceValidator.cs" Link="Client\Configuration\ClientDataSourceValidator.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\WelcomeBackPageModel.cs" Link="Client\PageModels\WelcomeBackPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\SessionsHomePageModel.cs" Link="Client\PageModels\SessionsHomePageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\SessionDetailPageModel.cs" Link="Client\PageModels\SessionDetailPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Controls\ControlVariants.cs" Link="Client\Controls\ControlVariants.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationCoordinator.cs" Link="Client\Services\AuthenticationCoordinator.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AppStartupService.cs" Link="Client\Services\AppStartupService.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IAppStartupService.cs" Link="Client\Services\IAppStartupService.cs" />
@@ -51,8 +54,11 @@
     <None Include="..\..\SouthBaySoccer\Resources\Styles\BrandStyles.xaml" Link="Client\Xaml\BrandStyles.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Resources\Styles\BrandTokens.xaml" Link="Client\Xaml\BrandTokens.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Controls\BrandHeader.xaml" Link="Client\Xaml\BrandHeader.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Controls\BrandCard.xaml" Link="Client\Xaml\BrandCard.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Controls\PlayerRow.xaml" Link="Client\Xaml\PlayerRow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Controls\StateView.xaml" Link="Client\Xaml\StateView.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\AppShell.xaml" Link="Client\Xaml\AppShell.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\SessionsHomePage.xaml" Link="Client\Xaml\SessionsHomePage.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -3,49 +3,35 @@
     x:Class="SouthBaySoccer.AppShell"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:sf="clr-namespace:Syncfusion.Maui.Toolkit.SegmentedControl;assembly=Syncfusion.Maui.Toolkit"
     xmlns:pages="clr-namespace:SouthBaySoccer.Pages"
-    Shell.FlyoutBehavior="Flyout"
+    Shell.FlyoutBehavior="Disabled"
     Title="SouthBaySoccer">
 
-    <ShellContent
-        Title="Home"
-        Icon="{StaticResource IconDashboard}"
-        ContentTemplate="{DataTemplate pages:MainPage}"
-        Route="home" />
+    <!--
+        Authenticated shell: a bottom TabBar matching the mobile wireframe.
+        Sessions is declared first, so it is the initial route after sign-in (//sessions).
+        Legacy sample pages (MainPage, DesignSystemPage, ProjectListPage, ManageMetaPage) are no
+        longer on the authenticated startup path; their detail routes remain registered in
+        MauiProgram for incremental migration.
+    -->
+    <TabBar>
+        <ShellContent
+            Title="Sessions"
+            Icon="{StaticResource IconSessions}"
+            ContentTemplate="{DataTemplate pages:SessionsHomePage}"
+            Route="sessions" />
 
-    <ShellContent
-        Title="UI Library"
-        Icon="{StaticResource IconRibbon}"
-        ContentTemplate="{DataTemplate pages:DesignSystemPage}"
-        Route="design-system" />
+        <ShellContent
+            Title="Stats"
+            Icon="{StaticResource IconStats}"
+            ContentTemplate="{DataTemplate pages:StatsPage}"
+            Route="stats" />
 
-    <ShellContent
-        Title="Projects"
-        Icon="{StaticResource IconProjects}"
-        ContentTemplate="{DataTemplate pages:ProjectListPage}"
-        Route="projects" />
-
-    <ShellContent
-        Title="Manage Meta"
-        Icon="{StaticResource IconMeta}"
-        ContentTemplate="{DataTemplate pages:ManageMetaPage}"
-        Route="manage" />
-
-    <Shell.FlyoutFooter>
-        <Grid Padding="{StaticResource SpaceLg}"
-              BackgroundColor="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}">
-            <sf:SfSegmentedControl x:Name="ThemeSegmentedControl" 
-                VerticalOptions="Center" HorizontalOptions="Center" SelectionChanged="SfSegmentedControl_SelectionChanged"
-                SegmentWidth="40" SegmentHeight="40">
-                <sf:SfSegmentedControl.ItemsSource>
-                    <x:Array Type="{x:Type sf:SfSegmentItem}">
-                        <sf:SfSegmentItem ImageSource="{StaticResource IconLight}" SemanticProperties.Description="Light mode"/>
-                        <sf:SfSegmentItem ImageSource="{StaticResource IconDark}" SemanticProperties.Description="Dark mode"/>
-                    </x:Array>
-                </sf:SfSegmentedControl.ItemsSource>
-            </sf:SfSegmentedControl>
-        </Grid>
-    </Shell.FlyoutFooter>
+        <ShellContent
+            Title="Profile"
+            Icon="{StaticResource IconProfile}"
+            ContentTemplate="{DataTemplate pages:ProfilePage}"
+            Route="profile" />
+    </TabBar>
 
 </Shell>
