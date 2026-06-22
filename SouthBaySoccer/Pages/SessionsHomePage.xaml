@@ -139,6 +139,13 @@
 
                     <!-- Stats prompt card -->
                     <controls:BrandCard>
+                        <controls:BrandCard.Triggers>
+                            <DataTrigger TargetType="controls:BrandCard"
+                                         Binding="{Binding StatsPrompt}"
+                                         Value="{x:Null}">
+                                <Setter Property="IsVisible" Value="False" />
+                            </DataTrigger>
+                        </controls:BrandCard.Triggers>
                         <controls:BrandCard.GestureRecognizers>
                             <TapGestureRecognizer
                                 Command="{Binding OpenMatchStatsCommand}"
