@@ -23,7 +23,26 @@ public partial class App : Application
 
         // Surface unexpected failures from the fire-and-forget startup/callback paths instead of
         // swallowing them silently (a broken restore otherwise strands the user on Welcome Back).
-        _errorHandler = serviceProvider.GetService<ModalErrorHandler>();
+        _errorHandler = new StartupErrorHandler(serviceProvider.GetService<ModalErrorHandler>());
+    }
+
+    private sealed class StartupErrorHandler(ModalErrorHandler? modalErrorHandler) : IErrorHandler
+    {
+        public void HandleError(Exception ex)
+        {
+            if (modalErrorHandler is not null && Shell.Current is Shell)
+            {
+                modalErrorHandler.HandleError(ex);
+                return;
+            }
+
+            Application.Current?.Dispatcher.Dispatch(() =>
+            {
+                Application.Current?.Windows.FirstOrDefault()?.Page
+                    ?.DisplayAlert("Error", ex.Message, "OK")
+                    .FireAndForgetSafeAsync();
+            });
+        }
     }
 
     protected override Window CreateWindow(IActivationState? activationState)
