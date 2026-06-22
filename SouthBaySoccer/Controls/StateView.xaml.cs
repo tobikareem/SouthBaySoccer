@@ -70,7 +70,6 @@ public partial class StateView
         StatePanel.IsVisible = !showsContent;
         LoadingIndicator.IsVisible = State == ViewState.Loading;
         LoadingIndicator.IsRunning = State == ViewState.Loading;
-        StateDetails.IsVisible = State != ViewState.Loading;
         RetryButton.IsVisible = RetryCommand is not null && State is ViewState.Error or ViewState.Offline;
         SemanticProperties.SetDescription(this, showsContent ? "Content" : $"{State}: {Title}. {Message}");
     }
