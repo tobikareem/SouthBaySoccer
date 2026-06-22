@@ -126,11 +126,11 @@ wiring is completed in the backend phase. See `design.md` §12.
   `FontAwesomeSolid`/`FontAwesomeBrands`, and add a typed glyph catalog. Replace emoji/text
   pictograms used by the Welcome Back screen with Font Awesome glyphs and semantic descriptions.
   — Stories: INV-13, AUTH-7 · Projects: MAUI client · Depends on: M11.0.
-- [ ] **M11.0c** Extend the reusable UI library for the first product-screen wave: add
+- [x] **M11.0c** Extend the reusable UI library for the first product-screen wave: add
   `LeadingContent` to `BrandHeader` and `PlayerRow`; add shared `IconButton`, `IconToggleButton`,
   `MetadataChip`, and `RatingSlider` styles; update the UI Library showcase and accessibility tests.
   — Stories: SES-6, PROF-5, LEAD-4, STAT-8 · Projects: MAUI client · Depends on: M11.0, M11.0a.
-- [ ] **M11.0b** Add seed-data providers in `SouthBaySoccer/SeedData/` implementing the client service
+- [x] **M11.0b** Add seed-data providers in `SouthBaySoccer/SeedData/` implementing the client service
   interfaces (auth, sessions, roster, stats, leaderboard, profile) with deterministic fixtures matching
   every first-wave wireframe operation; keep immutable baseline fixtures plus resettable,
   application-scoped demo state for RSVP/stats/rating commands. Register Seed by configuration,
@@ -158,7 +158,7 @@ wiring is completed in the backend phase. See `design.md` §12.
   descriptions, large text, and narrow-screen scrolling. Verify against the first wireframe and
   build `net10.0-windows10.0.19041.0`.
   — Stories: AUTH-7, AUTH-8, AUTH-9, INV-13 · Depends on: M11.3c.
-- [ ] **M11.3e** Implement the first-wave product screens using the per-story slices in
+- [~] **M11.3e** Implement the first-wave product screens using the per-story slices in
   `stories/`: SES-6 → RSVP-8, STAT-7 → STAT-8, and PROF-5/LEAD-4 in parallel after M11.0b.
   Integrate shared Shell routes after the owning pages exist.
   — Stories: PROF-5, SES-6, RSVP-8, LEAD-4, STAT-7, STAT-8 · Depends on: M11.0b, M11.0c.

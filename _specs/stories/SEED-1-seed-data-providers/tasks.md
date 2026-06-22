@@ -5,7 +5,7 @@ the SEED-1 slice of milestone **M11**; the full milestone roadmap, the UI-first 
 and the dependency graph live in [`../../tasks.md`](../../tasks.md). Status: `[ ]` todo · `[~]` in
 progress · `[x]` done.
 
-- [ ] **M11.0b** Add seed-data providers in `SouthBaySoccer/SeedData/` implementing the client-service
+- [x] **M11.0b** Add seed-data providers in `SouthBaySoccer/SeedData/` implementing the client-service
   interfaces — `IAuthenticationClient` (existing), `ISessionsClient`, `IRosterClient`, `IStatsClient`,
   `ILeaderboardClient`, `IProfileClient` — with one `SeedFixtures` source of deterministic fixtures
   matching every SES-6/RSVP-8/PROF-5/LEAD-4/STAT-7/STAT-8 wireframe value and operation. Add an
@@ -16,7 +16,7 @@ progress · `[x]` done.
   contracts unchanged and must not add Seed methods or fixtures.
   — Stories: `SEED-1` (UI-first phase, design.md §12) · Projects: MAUI client · Depends on: M11.0.
 
-- [ ] **M11.0b-tests** (SEED-1 slice) `Client.Tests`: each `Seed*Client` returns stable baseline
+- [x] **M11.0b-tests** (SEED-1 slice) `Client.Tests`: each `Seed*Client` returns stable baseline
   fixtures across fresh/reset state with no I/O; command changes remain application-scoped, are
   visible to later reads, and do not mutate shared fixtures; the guest "Tunde B." appears with
   the guest flag and no identity link; fixtures expose all values and operations required by the six
@@ -24,6 +24,10 @@ progress · `[x]` done.
   Release+Seed configurations fail fast; a guard asserts fixtures hold only invented identifiers.
   Build `net10.0-windows10.0.19041.0`.
   — Stories: `SEED-1` · Projects: MAUI client · Depends on: M11.0b.
+
+  Verified 2026-06-22: Debug and Release client tests pass (110/110); Windows Debug/Release and
+  Android Debug builds succeed. Seed registration, reset behavior, complete client contracts,
+  invented fixture safety, unavailable-API failure, and Release+Seed rejection are covered.
 
 **Prerequisites:** M11.0 (reusable UI foundation, done). **Enables:** the typed API client swap in
 [`M11.1`](../../tasks.md) with no page or page-model change, and the backend-dependent client

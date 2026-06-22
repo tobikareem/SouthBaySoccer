@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.ProfilePage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Profile">
+
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader Grid.Row="0"
+                       Title="Profile"
+                       Subtitle="Your account" />
+
+        <c:StateView Grid.Row="1"
+                     State="Empty"
+                     Title="Your profile is coming soon"
+                     Message="Career stats, recent form, payments, and waivers will appear here."
+                     Glyph="{x:Static fonts:FontAwesomeGlyphs.User}"
+                     GlyphFontFamily="FontAwesomeSolid" />
+    </Grid>
+</ContentPage>

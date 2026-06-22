@@ -1,4 +1,5 @@
 using SouthBaySoccer.Pages;
+using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Authentication;
 
 namespace SouthBaySoccer;
@@ -8,6 +9,7 @@ public partial class App : Application
     private readonly IServiceProvider _serviceProvider;
     private readonly IAuthenticationCoordinator _authenticationCoordinator;
     private readonly IAppStartupService _startupService;
+    private readonly IErrorHandler? _errorHandler;
 
     public App(
         IServiceProvider serviceProvider,
@@ -18,6 +20,29 @@ public partial class App : Application
         _serviceProvider = serviceProvider;
         _authenticationCoordinator = authenticationCoordinator;
         _startupService = startupService;
+
+        // Surface unexpected failures from the fire-and-forget startup/callback paths instead of
+        // swallowing them silently (a broken restore otherwise strands the user on Welcome Back).
+        _errorHandler = new StartupErrorHandler(serviceProvider.GetService<ModalErrorHandler>());
+    }
+
+    private sealed class StartupErrorHandler(ModalErrorHandler? modalErrorHandler) : IErrorHandler
+    {
+        public void HandleError(Exception ex)
+        {
+            if (modalErrorHandler is not null && Shell.Current is Shell)
+            {
+                modalErrorHandler.HandleError(ex);
+                return;
+            }
+
+            Application.Current?.Dispatcher.Dispatch(() =>
+            {
+                Application.Current?.Windows.FirstOrDefault()?.Page
+                    ?.DisplayAlert("Error", ex.Message, "OK")
+                    .FireAndForgetSafeAsync();
+            });
+        }
     }
 
     protected override Window CreateWindow(IActivationState? activationState)
@@ -27,13 +52,13 @@ public partial class App : Application
         {
             BarBackgroundColor = Colors.Transparent
         });
-        window.Created += (_, _) => _startupService.TryRestoreSessionAsync().FireAndForgetSafeAsync();
+        window.Created += (_, _) => _startupService.TryRestoreSessionAsync().FireAndForgetSafeAsync(_errorHandler);
         return window;
     }
 
     protected override void OnAppLinkRequestReceived(Uri uri)
     {
         base.OnAppLinkRequestReceived(uri);
-        _authenticationCoordinator.HandleCallbackAsync(uri).FireAndForgetSafeAsync();
+        _authenticationCoordinator.HandleCallbackAsync(uri).FireAndForgetSafeAsync(_errorHandler);
     }
 }

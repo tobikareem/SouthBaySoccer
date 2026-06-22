@@ -183,28 +183,6 @@ public class BrandUiLibraryTests
         row.ToString().Should().Contain("LeadingContent");
     }
 
-    [Fact]
-    public void AppShell_HomeRoute_UsesStableDashboardInsteadOfUiLibraryShowcase()
-    {
-        var shell = LoadXaml("AppShell.xaml");
-        var home = shell.Descendants()
-            .First(element =>
-                element.Name.LocalName == "ShellContent"
-                && element.Attribute("Route")?.Value == "home");
-
-        home.Attribute("ContentTemplate")!.Value.Should().Contain("MainPage");
-        home.Attribute("ContentTemplate")!.Value.Should().NotContain("DesignSystemPage");
-    }
-
-    [Fact]
-    public void AppShell_UiLibrary_RemainsAvailableAsSecondaryRoute()
-    {
-        var shell = LoadXaml("AppShell.xaml");
-        var uiLibrary = shell.Descendants()
-            .First(element =>
-                element.Name.LocalName == "ShellContent"
-                && element.Attribute("Route")?.Value == "design-system");
-
-        uiLibrary.Attribute("ContentTemplate")!.Value.Should().Contain("DesignSystemPage");
-    }
+    // The authenticated-shell route contract moved to a Sessions/Stats/Profile TabBar (SES-6);
+    // see AuthenticatedShellTests for the current startup-navigation guards.
 }

@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.SessionDetailPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    x:DataType="pageModels:SessionDetailPageModel"
+    Shell.FlyoutBehavior="Disabled"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}">
+
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader Grid.Row="0"
+                       Title="{Binding Venue}"
+                       Subtitle="{Binding Eyebrow}"
+                       ShowBack="True"
+                       BackCommand="{Binding GoBackCommand}" />
+
+        <c:StateView Grid.Row="1"
+                     State="{Binding State}"
+                     Title="{Binding StateTitle}"
+                     Message="{Binding StateMessage}"
+                     Glyph="{x:Static fonts:FontAwesomeGlyphs.LocationDot}"
+                     GlyphFontFamily="FontAwesomeSolid"
+                     RetryCommand="{Binding LoadCommand}">
+            <ScrollView>
+                <VerticalStackLayout Padding="{StaticResource WelcomeContentPadding}"
+                                     Spacing="{StaticResource SpaceMd}">
+
+                    <!-- When / where card -->
+                    <c:BrandCard>
+                        <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                            <Grid ColumnDefinitions="Auto,*"
+                                  ColumnSpacing="{StaticResource SpaceMd}">
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.Calendar}"
+                                       FontFamily="FontAwesomeSolid"
+                                       FontSize="{StaticResource IconMd}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
+                                       VerticalTextAlignment="Center"
+                                       SemanticProperties.Description="Date and time" />
+                                <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
+                                    <Label Text="DATE AND TIME" Style="{StaticResource TextLabel}" />
+                                    <Label Text="{Binding DateTimeLabel}" Style="{StaticResource TextBodyStrong}" />
+                                </VerticalStackLayout>
+                            </Grid>
+
+                            <BoxView HeightRequest="{StaticResource LineThickness}"
+                                     BackgroundColor="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}" />
+
+                            <Grid ColumnDefinitions="Auto,*,Auto"
+                                  ColumnSpacing="{StaticResource SpaceMd}">
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.LocationDot}"
+                                       FontFamily="FontAwesomeSolid"
+                                       FontSize="{StaticResource IconMd}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
+                                       VerticalTextAlignment="Center"
+                                       SemanticProperties.Description="Location" />
+                                <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
+                                    <Label Text="LOCATION" Style="{StaticResource TextLabel}" />
+                                    <Label Text="{Binding LocationLabel}" Style="{StaticResource TextBodyStrong}" />
+                                </VerticalStackLayout>
+                                <Button Grid.Column="2"
+                                        Text="Map"
+                                        Command="{Binding OpenMapCommand}"
+                                        IsVisible="{Binding HasMap}"
+                                        Style="{StaticResource LinkButton}"
+                                        VerticalOptions="Center"
+                                        SemanticProperties.Description="Open the venue in maps" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+
+                    <!-- Capacity card -->
+                    <c:BrandCard>
+                        <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Text="{Binding GoingCount, StringFormat='{0} going'}"
+                                       Style="{StaticResource TextBodyStrong}"
+                                       VerticalOptions="Center" />
+                                <c:Badge Grid.Column="1"
+                                         Text="{Binding DeadlineLabel}"
+                                         Glyph="{x:Static fonts:FontAwesomeGlyphs.Clock}"
+                                         Variant="Warning" />
+                            </Grid>
+                            <c:CapacityBar Current="{Binding GoingCount}"
+                                           Max="{Binding Capacity}"
+                                           ShowLabel="False" />
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+
+                    <!-- Going roster -->
+                    <c:SectionHeader Text="{Binding GoingHeading}" />
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Going}"
+                                         Spacing="{StaticResource SpaceXs}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="pageModels:GoingRow">
+                                <c:PlayerRow Initials="{Binding Initials}"
+                                             Name="{Binding Name}"
+                                             Detail="{Binding Position}">
+                                    <c:PlayerRow.TrailingContent>
+                                        <Label Text="you"
+                                               Style="{StaticResource TextCaption}"
+                                               IsVisible="{Binding IsViewer}"
+                                               VerticalTextAlignment="Center" />
+                                    </c:PlayerRow.TrailingContent>
+                                </c:PlayerRow>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+
+                    <!-- Ordered waitlist -->
+                    <c:SectionHeader Text="{Binding WaitlistHeading}"
+                                     IsVisible="{Binding HasWaitlist}" />
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Waitlist}"
+                                         IsVisible="{Binding HasWaitlist}"
+                                         Spacing="{StaticResource SpaceXs}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="pageModels:WaitlistRow">
+                                <Grid Padding="{StaticResource RowPadding}"
+                                      ColumnDefinitions="Auto,*,Auto"
+                                      ColumnSpacing="{StaticResource SpaceMd}"
+                                      MinimumHeightRequest="{StaticResource TouchMin}">
+                                    <c:Avatar Initials="{Binding PositionLabel}"
+                                              Size="{StaticResource AvatarSm}"
+                                              Variant="Mist"
+                                              Description="{Binding Name, StringFormat='Waitlist position for {0}'}" />
+                                    <HorizontalStackLayout Grid.Column="1"
+                                                           Spacing="{StaticResource SpaceSm}"
+                                                           VerticalOptions="Center">
+                                        <Label Text="{Binding Name}"
+                                               Style="{StaticResource TextBodyStrong}"
+                                               VerticalTextAlignment="Center" />
+                                        <c:Badge Text="guest"
+                                                 Variant="Warning"
+                                                 IsVisible="{Binding IsGuest}"
+                                                 VerticalOptions="Center" />
+                                    </HorizontalStackLayout>
+                                    <Label Grid.Column="2"
+                                           Text="next up"
+                                           Style="{StaticResource TextCaption}"
+                                           VerticalTextAlignment="Center"
+                                           IsVisible="{Binding IsNextUp}" />
+                                </Grid>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+
+                    <!-- Primary RSVP toggle -->
+                    <Button Text="{Binding RsvpButtonText}"
+                            Command="{Binding ToggleRsvpCommand}"
+                            IsEnabled="{Binding CanRsvp}"
+                            Style="{StaticResource PrimaryButton}"
+                            Margin="{StaticResource WelcomeDividerMargin}"
+                            SemanticProperties.Description="{Binding RsvpButtonText}" />
+
+                    <HorizontalStackLayout HorizontalOptions="Center"
+                                           Spacing="{StaticResource SpaceXs}">
+                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.Plug}"
+                               FontFamily="FontAwesomeSolid"
+                               FontSize="{StaticResource FontCaption}"
+                               TextColor="{StaticResource BrandSageLight}"
+                               VerticalTextAlignment="Center" />
+                        <Label Text="Confirmed via Pickup Pal"
+                               Style="{StaticResource TextCaption}"
+                               VerticalTextAlignment="Center" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
+        </c:StateView>
+    </Grid>
+</ContentPage>

@@ -4,6 +4,7 @@ using Microsoft.Maui.LifecycleEvents;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Navigation;
 using Syncfusion.Maui.Toolkit.Hosting;
 
 namespace SouthBaySoccer;
@@ -78,6 +79,12 @@ public static class MauiProgram
         builder.Services.AddTransient<WelcomeBackPage>();
         builder.Services.AddTransient<WelcomeBackPageModel>();
 
+        builder.Services.AddTransient<SessionsHomePage>();
+        builder.Services.AddTransient<SessionsHomePageModel>();
+        builder.Services.AddTransient<StatsPage>();
+        builder.Services.AddTransient<ProfilePage>();
+        builder.Services.AddSingleton<ISessionsNavigator, ShellSessionsNavigator>();
+
         var pickupPalOptions = new PickupPalOptions();
         builder.Services.AddSingleton(pickupPalOptions);
         builder.Services.AddSouthBaySoccerClients(
@@ -88,6 +95,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<IAuthenticationCoordinator, AuthenticationCoordinator>();
         builder.Services.AddSingleton<IAppStartupService, AppStartupService>();
         builder.Services.AddSingleton<IExternalLauncher, ExternalLauncher>();
+
+        builder.Services.AddTransientWithShellRoute<SessionDetailPage, SessionDetailPageModel>("session");
 
         builder.Services.AddTransientWithShellRoute<ProjectDetailPage, ProjectDetailPageModel>("project");
         builder.Services.AddTransientWithShellRoute<TaskDetailPage, TaskDetailPageModel>("task");

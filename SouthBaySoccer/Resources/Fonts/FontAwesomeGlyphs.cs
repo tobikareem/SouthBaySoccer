@@ -15,6 +15,12 @@ public static class FontAwesomeGlyphs
     public const string Heart = "\uf004";
     public const string Star = "\uf005";
     public const string Calendar = "\uf133";
+    public const string CalendarDays = "\uf073";
     public const string Clock = "\uf017";
+    public const string User = "\uf007";
     public const string Users = "\uf0c0";
+
+    // RSVP-8 session-detail glyphs (Font Awesome 6 Free Solid).
+    public const string LocationDot = "\uf3c5";
+    public const string Plug = "\uf1e6";
 }

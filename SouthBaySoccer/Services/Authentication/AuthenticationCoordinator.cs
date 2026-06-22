@@ -53,8 +53,10 @@ public sealed class AuthenticationCoordinator(
                 challengeToken,
                 cancellationToken);
             await tokenStore.StoreAsync(tokens);
-            await navigator.ShowAuthenticatedAppAsync();
+            // Authentication is established once tokens are persisted; record it before the UI swap
+            // so a transient navigation hiccup does not force a re-verification on retry.
             _completed = true;
+            await navigator.ShowAuthenticatedAppAsync(cancellationToken);
             return true;
         }
         finally

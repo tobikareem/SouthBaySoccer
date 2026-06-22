@@ -1,0 +1,29 @@
+# Normalize text line endings to LF in the repository; check out native per platform.
+# Stops the whole-repo CRLF/LF churn that otherwise floods feature diffs.
+* text=auto
+
+# Source / config: treat as text (LF in repo)
+*.cs        text
+*.csproj    text
+*.slnx      text
+*.sln       text
+*.xaml      text
+*.xml       text
+*.json      text
+*.md        text
+*.yml       text
+*.yaml      text
+*.svg       text
+
+# Binary assets — never normalize
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.otf       binary
+*.ttf       binary
+*.pptx      binary
+*.xlsx      binary
+*.docx      binary
+*.pdf       binary

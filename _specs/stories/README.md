@@ -35,6 +35,7 @@ depends on, rather than copying them (so invariants/NFRs never drift).
 | Story | Directory | Summary |
 |-------|-----------|---------|
 | `SEED-1` | [`SEED-1-seed-data-providers/`](SEED-1-seed-data-providers/requirements.md) | Seed-data providers behind client-service interfaces — **build first; unblocks every screen.** |
+| `NAV-1` | [`NAV-1-authenticated-shell/`](NAV-1-authenticated-shell/requirements.md) | Authenticated Shell + bottom tabs (Sessions/Stats/Profile); sign-in → Shell. |
 | `SES-6` | [`SES-6-sessions-home-screen/`](SES-6-sessions-home-screen/requirements.md) | Sessions (home) — upcoming list, dues status, submit-stats banner. |
 | `RSVP-8` | [`RSVP-8-session-detail-screen/`](RSVP-8-session-detail-screen/requirements.md) | Session detail — going + waitlist lists, capacity, RSVP toggle. |
 | `PROF-5` | [`PROF-5-player-profile-screen/`](PROF-5-player-profile-screen/requirements.md) | Player profile — career stat tiles, recent form. |

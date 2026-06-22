@@ -17,7 +17,7 @@ public sealed class AppStartupService(
         {
             var tokens = await authenticationClient.RefreshAsync(refreshToken, cancellationToken);
             await tokenStore.StoreAsync(tokens);
-            await navigator.ShowAuthenticatedAppAsync();
+            await navigator.ShowAuthenticatedAppAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
