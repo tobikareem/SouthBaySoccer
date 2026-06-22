@@ -64,6 +64,13 @@
 
                     <!-- Hero featured session card -->
                     <controls:BrandCard IsHero="True">
+                        <controls:BrandCard.Triggers>
+                            <DataTrigger TargetType="controls:BrandCard"
+                                         Binding="{Binding FeaturedSession}"
+                                         Value="{x:Null}">
+                                <Setter Property="IsVisible" Value="False" />
+                            </DataTrigger>
+                        </controls:BrandCard.Triggers>
                         <controls:BrandCard.GestureRecognizers>
                             <TapGestureRecognizer
                                 Command="{Binding ViewSessionDetailCommand}"
