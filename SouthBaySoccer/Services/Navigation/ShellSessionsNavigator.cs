@@ -15,7 +15,7 @@ public sealed class ShellSessionsNavigator : ISessionsNavigator
     // Interim: the dedicated match-stats screen is a future ticket. Until it exists, surface the
     // Stats tab so the dashboard's stats prompt has a safe, sensible destination (matchId carried
     // forward once that screen lands).
-    public Task GoToMatchStatsAsync(Guid matchId) =>
+    public Task GoToMatchStatsAsync(Guid _) =>
         Shell.Current.GoToAsync("//stats");
 
     // Interim: the full schedule screen is a future ticket; the Sessions tab is the schedule home.
