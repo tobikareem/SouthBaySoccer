@@ -9,8 +9,15 @@ namespace SouthBaySoccer.Services.Navigation;
 /// </summary>
 public sealed class ShellSessionsNavigator : ISessionsNavigator
 {
-    public Task GoToSessionAsync(Guid sessionId) =>
-        Shell.Current.GoToAsync($"session?sessionId={sessionId}");
+    public Task GoToSessionAsync(Guid sessionId)
+    {
+        if (sessionId == Guid.Empty)
+        {
+            return Task.CompletedTask;
+        }
+
+        return Shell.Current.GoToAsync($"session?sessionId={sessionId}");
+    }
 
     // Interim: the dedicated match-stats screen is a future ticket. Until it exists, surface the
     // Stats tab so the dashboard's stats prompt has a safe, sensible destination (matchId carried
