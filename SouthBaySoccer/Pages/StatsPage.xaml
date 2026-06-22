@@ -14,23 +14,11 @@
                        Title="Stats"
                        Subtitle="Season 2026" />
 
-        <VerticalStackLayout Grid.Row="1"
-                             Padding="{StaticResource WelcomeContentPadding}"
-                             Spacing="{StaticResource SpaceMd}"
-                             HorizontalOptions="Center"
-                             VerticalOptions="Center">
-            <Label Text="{x:Static fonts:FontAwesomeGlyphs.Trophy}"
-                   FontFamily="FontAwesomeSolid"
-                   Style="{StaticResource TextDisplay}"
-                   TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
-                   HorizontalTextAlignment="Center" />
-            <Label Text="Leaderboards and your stats"
-                   Style="{StaticResource TextH2}"
-                   HorizontalTextAlignment="Center"
-                   SemanticProperties.HeadingLevel="Level2" />
-            <Label Text="Goals, assists and league tables land here soon."
-                   Style="{StaticResource TextCaption}"
-                   HorizontalTextAlignment="Center" />
-        </VerticalStackLayout>
+        <c:StateView Grid.Row="1"
+                     State="Empty"
+                     Title="Stats are coming soon"
+                     Message="Goals, assists, ratings, and league tables will appear here."
+                     Glyph="{x:Static fonts:FontAwesomeGlyphs.Trophy}"
+                     GlyphFontFamily="FontAwesomeSolid" />
     </Grid>
 </ContentPage>

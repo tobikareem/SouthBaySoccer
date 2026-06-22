@@ -208,7 +208,8 @@ White surface container.
 
 ### StateView (loading / empty / error / offline)
 - `State` (enum `Loading|Empty|Error|Offline|Content`=Content), `Title`, `Message`, `Glyph`,
-  `RetryCommand` (ICommand?), `Body` (View, content property — shown when `Content`).
+  `GlyphFontFamily` (string, defaults to body font), `RetryCommand` (ICommand?), `Body` (View,
+  content property — shown when `Content`).
 - Standardizes the loading/empty/populated/error/offline states required by architecture §6.
 
 ### (Styles, not controls)

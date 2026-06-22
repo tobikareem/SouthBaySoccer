@@ -2,5 +2,5 @@ namespace SouthBaySoccer.Services.Authentication;
 
 public interface IAuthenticationNavigator
 {
-    Task ShowAuthenticatedAppAsync();
+    Task ShowAuthenticatedAppAsync(CancellationToken cancellationToken = default);
 }

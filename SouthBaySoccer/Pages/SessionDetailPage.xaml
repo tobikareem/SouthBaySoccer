@@ -23,6 +23,7 @@
                      Title="{Binding StateTitle}"
                      Message="{Binding StateMessage}"
                      Glyph="{x:Static fonts:FontAwesomeGlyphs.LocationDot}"
+                     GlyphFontFamily="FontAwesomeSolid"
                      RetryCommand="{Binding LoadCommand}">
             <ScrollView>
                 <VerticalStackLayout Padding="{StaticResource WelcomeContentPadding}"

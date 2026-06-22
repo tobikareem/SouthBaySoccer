@@ -10,28 +10,36 @@
     <!--
         Authenticated shell: a bottom TabBar matching the mobile wireframe.
         Sessions is declared first, so it is the initial route after sign-in (//sessions).
-        Legacy sample pages (MainPage, DesignSystemPage, ProjectListPage, ManageMetaPage) are no
-        longer on the authenticated startup path; their detail routes remain registered in
-        MauiProgram for incremental migration.
+        Shell renders each native tab with a platform-standard target of at least 44 dip.
+        Legacy sample pages are not on the authenticated startup path.
     -->
-    <TabBar>
+    <TabBar x:Name="AuthenticatedTabBar">
         <ShellContent
+            x:Name="SessionsTab"
             Title="Sessions"
             Icon="{StaticResource IconSessions}"
             ContentTemplate="{DataTemplate pages:SessionsHomePage}"
-            Route="sessions" />
+            Route="sessions"
+            AutomationId="SessionsTab"
+            SemanticProperties.Description="Sessions tab" />
 
         <ShellContent
+            x:Name="StatsTab"
             Title="Stats"
             Icon="{StaticResource IconStats}"
             ContentTemplate="{DataTemplate pages:StatsPage}"
-            Route="stats" />
+            Route="stats"
+            AutomationId="StatsTab"
+            SemanticProperties.Description="Stats tab" />
 
         <ShellContent
+            x:Name="ProfileTab"
             Title="Profile"
             Icon="{StaticResource IconProfile}"
             ContentTemplate="{DataTemplate pages:ProfilePage}"
-            Route="profile" />
+            Route="profile"
+            AutomationId="ProfileTab"
+            SemanticProperties.Description="Profile tab" />
     </TabBar>
 
 </Shell>

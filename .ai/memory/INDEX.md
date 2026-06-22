@@ -10,3 +10,4 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [client-reusable-ui](client-reusable-ui.md) — MAUI client uses a token-driven reusable UI design system; spec in _specs/client-ui.md
 - [ui-first-seed-data](ui-first-seed-data.md) — UI-first delivery: build MAUI/XAML against seed data; backend (M1–M10) deferred
 - [mobile-wireframes-design-source](mobile-wireframes-design-source.md) — mobile-wireframes.html is the authoritative visual and interaction reference for the MAUI client
+- [maui-shell-route-ownership](maui-shell-route-ownership.md) — Shell roots belong in AppShell; register only detail routes globally

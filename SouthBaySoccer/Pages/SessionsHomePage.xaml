@@ -30,8 +30,8 @@
         Title="{Binding StateTitle}"
         Message="{Binding StateMessage}"
         Glyph="{x:Static fonts:FontAwesomeGlyphs.Calendar}"
+        GlyphFontFamily="FontAwesomeSolid"
         RetryCommand="{Binding RefreshCommand}">
-
         <RefreshView Command="{Binding RefreshCommand}">
             <ScrollView>
                 <VerticalStackLayout

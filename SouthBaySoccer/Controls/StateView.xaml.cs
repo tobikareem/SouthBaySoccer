@@ -14,6 +14,12 @@ public partial class StateView
         BindableProperty.Create(nameof(Message), typeof(string), typeof(StateView), string.Empty);
     public static readonly BindableProperty GlyphProperty =
         BindableProperty.Create(nameof(Glyph), typeof(string), typeof(StateView), string.Empty);
+    public static readonly BindableProperty GlyphFontFamilyProperty =
+        BindableProperty.Create(
+            nameof(GlyphFontFamily),
+            typeof(string),
+            typeof(StateView),
+            "OpenSansRegular");
     public static readonly BindableProperty RetryCommandProperty =
         BindableProperty.Create(nameof(RetryCommand), typeof(ICommand), typeof(StateView), null,
             propertyChanged: static (bindable, _, _) => ((StateView)bindable).Refresh());
@@ -35,6 +41,7 @@ public partial class StateView
     public string Title { get => (string)GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
     public string Message { get => (string)GetValue(MessageProperty); set => SetValue(MessageProperty, value); }
     public string Glyph { get => (string)GetValue(GlyphProperty); set => SetValue(GlyphProperty, value); }
+    public string GlyphFontFamily { get => (string)GetValue(GlyphFontFamilyProperty); set => SetValue(GlyphFontFamilyProperty, value); }
     public ICommand? RetryCommand { get => (ICommand?)GetValue(RetryCommandProperty); set => SetValue(RetryCommandProperty, value); }
     public View? Body { get => (View?)GetValue(BodyProperty); set => SetValue(BodyProperty, value); }
 

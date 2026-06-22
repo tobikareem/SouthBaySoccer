@@ -3,10 +3,9 @@ using FluentAssertions;
 
 namespace SouthBaySoccer.Client.Tests;
 
-// The authenticated shell (AppShell.xaml) is XAML, so it cannot be instantiated without a MAUI host.
-// These tests inspect the shipped XAML — copied to the test output by the project file — to guard the
-// post-sign-in navigation contract: a Sessions/Stats/Profile TabBar with Sessions as the initial tab,
-// and no legacy sample scaffolding on the authenticated startup path. (SES-6 / RSVP-8.)
+// Shell and the root pages require a MAUI host, so these tests inspect the shipped XAML/source
+// copied to the test output. Runtime tab selection remains platform-owned by the native Shell
+// TabBar; the tests guard the application-owned route, template, accessibility, and root contracts.
 public class AuthenticatedShellTests
 {
     private static readonly string[] SampleRoutes = ["home", "design-system", "projects", "manage"];
@@ -14,64 +13,170 @@ public class AuthenticatedShellTests
     private static readonly string[] SamplePages =
         ["MainPage", "DesignSystemPage", "ProjectListPage", "ManageMetaPage"];
 
-    private static XDocument LoadShell()
+    private static XDocument LoadXaml(string fileName)
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "Client", "Xaml", "AppShell.xaml");
-        File.Exists(path).Should().BeTrue("the test project must copy AppShell.xaml to its output");
+        var path = Path.Combine(AppContext.BaseDirectory, "Client", "Xaml", fileName);
+        File.Exists(path).Should().BeTrue($"the test project must copy {fileName} to its output");
         return XDocument.Load(path);
     }
 
-    private static XDocument LoadSessionsHome()
+    private static string LoadSource(string fileName)
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "Client", "Xaml", "SessionsHomePage.xaml");
-        File.Exists(path).Should().BeTrue("the test project must copy SessionsHomePage.xaml to its output");
-        return XDocument.Load(path);
+        var path = Path.Combine(AppContext.BaseDirectory, "Client", "Source", fileName);
+        File.Exists(path).Should().BeTrue($"the test project must copy {fileName} to its output");
+        return File.ReadAllText(path);
     }
 
     private static List<XElement> ShellContents(XDocument shell) =>
-        shell.Descendants().Where(e => e.Name.LocalName == "ShellContent").ToList();
+        shell.Descendants().Where(element => element.Name.LocalName == "ShellContent").ToList();
 
-    private static string? Route(XElement shellContent) =>
-        shellContent.Attribute("Route")?.Value;
+    private static string? Attribute(XElement element, string name) =>
+        element.Attribute(name)?.Value;
+
+    private static string? KeyOf(XElement element) =>
+        element.Attributes().FirstOrDefault(attribute => attribute.Name.LocalName == "Key")?.Value;
 
     [Fact]
     public void AppShell_StartupTab_IsSessionsHome()
     {
-        var first = ShellContents(LoadShell()).First();
+        var first = ShellContents(LoadXaml("AppShell.xaml")).First();
 
-        Route(first).Should().Be("sessions");
-        first.Attribute("ContentTemplate")!.Value.Should().Contain("SessionsHomePage");
+        Attribute(first, "Route").Should().Be("sessions");
+        Attribute(first, "ContentTemplate").Should().Contain("SessionsHomePage");
     }
 
     [Fact]
     public void AppShell_Tabs_AreSessionsStatsProfileInOrder()
     {
-        var routes = ShellContents(LoadShell()).Select(Route).ToList();
+        var contents = ShellContents(LoadXaml("AppShell.xaml"));
 
-        routes.Should().Equal("sessions", "stats", "profile");
+        contents.Select(content => Attribute(content, "Route"))
+            .Should().Equal("sessions", "stats", "profile");
+        contents.Select(content => Attribute(content, "Title"))
+            .Should().Equal("Sessions", "Stats", "Profile");
     }
 
     [Fact]
-    public void AppShell_Tabs_AreDeclaredInsideABottomTabBar()
+    public void AppShell_RootTabs_AreSiblingsInsideOnePersistentTabBar()
     {
-        var shell = LoadShell();
+        var shell = LoadXaml("AppShell.xaml");
+        var tabBar = shell.Descendants().Single(element => element.Name.LocalName == "TabBar");
+        var rootTabs = tabBar.Elements()
+            .Where(element => element.Name.LocalName == "ShellContent")
+            .ToList();
 
-        var tabBar = shell.Descendants().FirstOrDefault(e => e.Name.LocalName == "TabBar");
-        tabBar.Should().NotBeNull("the wireframe specifies a bottom TabBar");
-        tabBar!.Descendants().Count(e => e.Name.LocalName == "ShellContent").Should().Be(3);
+        rootTabs.Should().HaveCount(3);
+        rootTabs.Select(content => Attribute(content, "ContentTemplate"))
+            .Should().Equal(
+                "{DataTemplate pages:SessionsHomePage}",
+                "{DataTemplate pages:StatsPage}",
+                "{DataTemplate pages:ProfilePage}");
     }
 
     [Fact]
-    public void AppShell_AuthenticatedStartup_ExcludesLegacySampleScaffolding()
+    public void AppShell_Tabs_HaveStableAutomationIdsAndSemanticNames()
     {
-        var shell = LoadShell();
-        var contents = ShellContents(shell);
+        var contents = ShellContents(LoadXaml("AppShell.xaml"));
 
-        contents.Select(Route).Should().NotContain(SampleRoutes);
+        contents.Select(content => Attribute(content, "AutomationId"))
+            .Should().Equal("SessionsTab", "StatsTab", "ProfileTab");
+        contents.Select(content => Attribute(content, "SemanticProperties.Description"))
+            .Should().Equal("Sessions tab", "Stats tab", "Profile tab");
+    }
+
+    [Fact]
+    public void AppShell_TabIcons_UseTypedFontAwesomeSolidResources()
+    {
+        var styles = LoadXaml("AppStyles.xaml");
+        var expectedGlyphs = new Dictionary<string, string>
+        {
+            ["IconSessions"] = "FontAwesomeGlyphs.CalendarDays",
+            ["IconStats"] = "FontAwesomeGlyphs.Trophy",
+            ["IconProfile"] = "FontAwesomeGlyphs.User",
+        };
+
+        foreach (var (key, glyph) in expectedGlyphs)
+        {
+            var resource = styles.Descendants()
+                .Single(element => element.Name.LocalName == "FontImageSource" && KeyOf(element) == key);
+
+            Attribute(resource, "FontFamily").Should().Be("FontAwesomeSolid");
+            Attribute(resource, "Glyph").Should().Contain(glyph);
+            resource.ToString().Should().NotContain("#");
+        }
+    }
+
+    [Fact]
+    public void AppShell_UsesBrandTokensForSelectedAndUnselectedTabs()
+    {
+        var styles = LoadXaml("BrandStyles.xaml");
+        var shellStyle = styles.Descendants()
+            .Single(element =>
+                element.Name.LocalName == "Style" &&
+                Attribute(element, "TargetType") == "Shell");
+        var setters = shellStyle.Elements()
+            .Where(element => element.Name.LocalName == "Setter")
+            .ToDictionary(
+                element => Attribute(element, "Property")!,
+                element => Attribute(element, "Value")!);
+
+        setters["Shell.TabBarForegroundColor"].Should().Contain("BrandGreen");
+        setters["Shell.TabBarUnselectedColor"].Should().Contain("BrandSage");
+        shellStyle.ToString().Should().NotContain("#");
+    }
+
+    [Fact]
+    public void Accessibility_TouchMinimumToken_IsFortyFourDip()
+    {
+        var shell = LoadXaml("AppShell.xaml");
+        var tokens = LoadXaml("BrandTokens.xaml");
+        var touchMinimum = tokens.Descendants()
+            .Single(element => KeyOf(element) == "TouchMin");
+
+        shell.Descendants().Should().ContainSingle(element => element.Name.LocalName == "TabBar");
+        touchMinimum.Value.Should().Be("44");
+    }
+
+    [Theory]
+    [InlineData("StatsPage.xaml", "Stats are coming soon", "FontAwesomeGlyphs.Trophy")]
+    [InlineData("ProfilePage.xaml", "Your profile is coming soon", "FontAwesomeGlyphs.User")]
+    public void UnbuiltRootTab_ShowsAccessibleStateViewPlaceholder(
+        string fileName,
+        string title,
+        string glyph)
+    {
+        var page = LoadXaml(fileName);
+        var stateView = page.Descendants()
+            .Single(element => element.Name.LocalName == "StateView");
+
+        Attribute(stateView, "State").Should().Be("Empty");
+        Attribute(stateView, "Title").Should().Be(title);
+        Attribute(stateView, "Message").Should().NotBeNullOrWhiteSpace();
+        Attribute(stateView, "Glyph").Should().Contain(glyph);
+        Attribute(stateView, "GlyphFontFamily").Should().Be("FontAwesomeSolid");
+    }
+
+    [Fact]
+    public void AuthenticationNavigator_AuthenticatedTransition_ReplacesWindowRoot()
+    {
+        var source = LoadSource("AuthenticationNavigator.cs");
+
+        source.Should().Contain("window.Page = services.GetRequiredService<AppShell>()");
+        source.Should().NotContain("GoToAsync(");
+        source.Should().NotContain("PushAsync(");
+    }
+
+    [Fact]
+    public void AppShell_AuthenticatedStartup_ExcludesLegacySampleScaffoldingAndWelcomeBack()
+    {
+        var contents = ShellContents(LoadXaml("AppShell.xaml"));
+
+        contents.Select(content => Attribute(content, "Route")).Should().NotContain(SampleRoutes);
 
         var templates = contents
-            .Select(content => content.Attribute("ContentTemplate")?.Value ?? string.Empty)
+            .Select(content => Attribute(content, "ContentTemplate") ?? string.Empty)
             .ToList();
+        templates.Should().NotContain(template => template.Contains("WelcomeBackPage"));
         foreach (var samplePage in SamplePages)
         {
             templates.Should().NotContain(
@@ -83,7 +188,7 @@ public class AuthenticatedShellTests
     [Fact]
     public void SessionsHome_ScrollView_DoesNotContainCollectionView()
     {
-        var sessionsHome = LoadSessionsHome();
+        var sessionsHome = LoadXaml("SessionsHomePage.xaml");
         var scrollViews = sessionsHome.Descendants()
             .Where(element => element.Name.LocalName == "ScrollView");
 
@@ -97,12 +202,20 @@ public class AuthenticatedShellTests
     [InlineData("StateView.xaml")]
     public void BodyContentControl_InternalVisualTree_UsesExplicitContentProperty(string fileName)
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "Client", "Xaml", fileName);
-        File.Exists(path).Should().BeTrue($"the test project must copy {fileName} to its output");
-        var control = XDocument.Load(path);
+        var control = LoadXaml(fileName);
 
         control.Root!.Elements().Single().Name.LocalName.Should().Be(
             "ContentView.Content",
             "the control's internal tree must not be assigned to its Body content property and presented inside itself");
+    }
+
+    [Fact]
+    public void StateView_GlyphFontFamily_IsBoundFromTheControlContract()
+    {
+        var stateView = LoadXaml("StateView.xaml");
+        var glyph = stateView.Descendants()
+            .First(element => element.Name.LocalName == "Label" && Attribute(element, "Text")!.Contains("Glyph"));
+
+        Attribute(glyph, "FontFamily").Should().Contain("GlyphFontFamily");
     }
 }

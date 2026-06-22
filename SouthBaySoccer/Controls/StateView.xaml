@@ -18,6 +18,7 @@
                                    IsRunning="False"
                                    Color="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
                 <Label Text="{Binding Glyph, Source={x:Reference Root}}"
+                       FontFamily="{Binding GlyphFontFamily, Source={x:Reference Root}}"
                        Style="{StaticResource TextDisplay}"
                        HorizontalTextAlignment="Center" />
                 <Label Text="{Binding Title, Source={x:Reference Root}}"
