@@ -6,18 +6,14 @@ columns and update the snapshot.
 
 **Status keys:** `To do` · `In progress` · `In review` · `Done` · `Blocked`.
 
-**Parallel agents** (see [`parallel-work-plan.md`](parallel-work-plan.md)): **Claude** owns the sessions
-flow (`SES-6` + `RSVP-8`) on `claude/sessions-flow`; **Codex** owns `PROF-5` + the SQLite `NU1903` chore
-on `codex/profile`. Each agent moves only its own cards; shared files are pre-allocated per the plan.
-
 ## Snapshot (commitment = items 1–5; PROF-5 = stretch)
 
 | Metric | Pts |
 |--------|----:|
 | Committed | 26 |
-| Done | 16 |
+| Done | 13 |
 | In progress | 10 |
-| In review | 0 |
+| In review | 3 |
 | To do | 0 |
 | Stretch (PROF-5) | 3 |
 
@@ -40,7 +36,7 @@ Every story requirement, one line each. `[x]` = Definition of Done met · `[ ]` 
 
 **Sprint 01 — UI foundations & core session flow**
 - [x] **SEED-1** — Seed-data providers (interfaces + immutable fixtures + resettable state) behind the client services. (S1)
-- [x] **NAV-1** — Authenticated Shell + bottom tabs (Sessions/Stats/Profile); sign-in → Shell. (S1)
+- [ ] **NAV-1** — Authenticated Shell + bottom tabs (Sessions/Stats/Profile); sign-in → Shell. (S1)
 - [ ] **SES-6** — Sessions home: upcoming list, dues status, submit-stats prompt. (S1)
 - [ ] **RSVP-8** — Session detail: going + waitlist lists, RSVP/waitlist action. (S1)
 - [ ] **PROF-5** — Player profile: career stat tiles, recent form. (S1 stretch)
@@ -56,8 +52,7 @@ Every story requirement, one line each. `[x]` = Definition of Done met · `[ ]` 
 
 | Card | Story | Pts | Tasks | Depends on | Owner |
 |------|-------|----:|-------|-----------|-------|
-| **Player profile** *(stretch)* | `PROF-5` | 3 | page+model `[ ]` · seed bind `[ ]` · states `[ ]` · tests `[ ]` | SEED-1, M11.0c, NAV-1 | **Codex** |
-| **Chore: SQLite `NU1903`** | — | — | bump pkg `[ ]` · verify builds `[ ]` | — | **Codex** |
+| **Player profile** *(stretch)* | `PROF-5` | 3 | page+model `[ ]` · seed bind `[ ]` · states `[ ]` · tests `[ ]` | SEED-1, M11.0c, NAV-1 | — |
 
 ### In progress
 
@@ -68,7 +63,9 @@ Every story requirement, one line each. `[x]` = Definition of Done met · `[ ]` 
 
 ### In review
 
-_(none)_
+| Card | Story | Pts | Tasks | Remaining |
+|------|-------|----:|-------|-----------|
+| **Authenticated Shell & tabs** | `NAV-1` | 3 | `M11.NAV1.a` `[x]` · `M11.NAV1.b` `[x]` · `M11.NAV1.c` `[~]` | Manual Windows/Android verification: tab switching, root-tab back behavior, screen reader, and light/dark modes. |
 
 ### Done
 
@@ -81,7 +78,6 @@ _(none)_
 | Welcome Back screen | `AUTH-7` (`M11.3a`) | client done; `M11.3d` large-text/narrow visual check carryover |
 | Continue with WhatsApp (client) | `AUTH-8` (`M11.3b`) | client challenge/deep-link done |
 | Pickup Pal actions | `AUTH-9` (`M11.3b/d`) | done |
-| Authenticated Shell & tabs | `NAV-1` | shell + tabs, root-replacement nav (main-thread + async, post-review fix), `StateView` placeholders, Font Awesome icons; routing + structure tests green and Windows/Android device pass done |
 
 ### Blocked / backend-deferred (carryover, not Sprint-01 scope)
 
@@ -97,14 +93,12 @@ Week 1. Screens start once `SEED-1` + `M11.0c` + `NAV-1` are merged.
 
 ## Review evidence and next action
 
-- Verified 2026-06-22: `SouthBaySoccer.Client.Tests` passed in Debug and Release (118/118) — **before** the code-review fixes below.
-- Code review (2026-06-22) found a Critical UI-thread bug: the authenticated shell root swap (`window.Page = …`) ran off the main thread from background continuations, so sign-in→Shell and restore→Shell would throw and be silently swallowed. Fixed by marshalling to the main thread and making `IAuthenticationNavigator` async + `CancellationToken`-aware; added `AppStartupRoutingTests`/`AuthenticationCoordinatorRoutingTests` (7 tests) and a root `.gitattributes`. Re-run the suite (expected ~125) before marking `NAV-1` Done.
+- Verified 2026-06-22: `SouthBaySoccer.Client.Tests` passes in Debug and Release (118/118).
 - Windows Debug/Release and Android Debug builds succeed, with existing `NU1903` high-severity
   vulnerability warnings from `SQLitePCLRaw.lib.e_sqlite3` and its Android package.
-- `NAV-1` is **Done**: suite green after the code-review fix (main-thread navigator + 7 routing tests)
-  and the Windows/Android device pass is complete.
-- Recommended next action: continue the Sprint 01 closure pass on `SES-6` and `RSVP-8`, fix the SQLite
-  `NU1903` warning, then pull in stretch `PROF-5` before Sprint 02 work.
+- Recommended next action: manually verify `NAV-1` on Windows and Android, then continue the
+  Sprint 01 closure pass on `SES-6` and `RSVP-8`. Fix the SQLite warning and close the remaining
+  UI/test gaps before pulling in stretch `PROF-5` or Sprint 02 work.
 
 ## How to keep this current
 

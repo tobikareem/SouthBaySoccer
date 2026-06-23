@@ -4,5 +4,4 @@ public interface IExternalLauncher
 {
     Task<bool> OpenPickupPalBotAsync(CancellationToken cancellationToken);
     Task<bool> OpenPickupPalSignupAsync(CancellationToken cancellationToken);
-    Task<bool> OpenUrlAsync(Uri url);
 }

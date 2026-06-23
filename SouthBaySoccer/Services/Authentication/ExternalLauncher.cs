@@ -10,11 +10,6 @@ public sealed class ExternalLauncher(PickupPalOptions options) : IExternalLaunch
     public Task<bool> OpenPickupPalSignupAsync(CancellationToken cancellationToken) =>
         OpenAsync(options.SignupUri, cancellationToken);
 
-    public async Task<bool> OpenUrlAsync(Uri url)
-    {
-        return await OpenAsync(url, CancellationToken.None);
-    }
-
     private static async Task<bool> OpenAsync(Uri uri, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

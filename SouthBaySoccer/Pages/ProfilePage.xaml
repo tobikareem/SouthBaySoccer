@@ -6,21 +6,12 @@
     xmlns:c="clr-namespace:SouthBaySoccer.Controls"
     xmlns:fonts="clr-namespace:Fonts"
     xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
-    xmlns:profiles="clr-namespace:SouthBaySoccer.Contracts.Profiles;assembly=SouthBaySoccer.Contracts"
-    xmlns:local="clr-namespace:SouthBaySoccer.Utilities"
     xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
     x:Name="ProfilePageName"
     x:DataType="pageModels:ProfilePageModel"
     Shell.NavBarIsVisible="False"
     Style="{StaticResource BrandPage}"
     Title="Profile">
-
-    <ContentPage.Resources>
-        <toolkit:InvertedBoolConverter x:Key="InvertedBool" />
-        <local:MatchResultConverter x:Key="MatchResultConverter" />
-        <local:MatchResultVariantConverter x:Key="MatchResultVariantConverter" />
-        <local:MatchResultDescriptionConverter x:Key="MatchResultDescriptionConverter" />
-    </ContentPage.Resources>
 
     <ContentPage.Behaviors>
         <toolkit:EventToCommandBehavior
@@ -30,32 +21,19 @@
     </ContentPage.Behaviors>
 
     <Grid RowDefinitions="Auto,*">
-        <!-- Brand header with avatar in LeadingContent -->
-        <c:BrandHeader Grid.Row="0">
+        <c:BrandHeader
+            Grid.Row="0"
+            Title="{Binding Profile.DisplayName}"
+            Subtitle="{Binding Profile.Subtitle}">
             <c:BrandHeader.LeadingContent>
                 <c:Avatar
-                    Initials="{Binding Profile.Initials, Source={x:Reference ProfilePageName}}"
-                    Size="54"
+                    Initials="{Binding Profile.Initials}"
+                    Size="{StaticResource AvatarLg}"
                     Variant="OnGreen"
-                    Description="Player avatar" />
+                    Description="{Binding Profile.DisplayName, StringFormat='{0} avatar'}" />
             </c:BrandHeader.LeadingContent>
-
-            <!-- Bind title/subtitle from profile -->
-            <c:BrandHeader.Content>
-                <VerticalStackLayout Spacing="0">
-                    <Label Text="{Binding Profile.DisplayName, Source={x:Reference ProfilePageName}}"
-                           Style="{StaticResource TextH2}"
-                           TextColor="White"
-                           SemanticProperties.HeadingLevel="Level1" />
-                    <Label Text="{Binding Profile.Subtitle, Source={x:Reference ProfilePageName}}"
-                           Style="{StaticResource TextCaption}"
-                           TextColor="White"
-                           Opacity="0.85" />
-                </VerticalStackLayout>
-            </c:BrandHeader.Content>
         </c:BrandHeader>
 
-        <!-- StateView for loading / content / empty / error / offline states -->
         <c:StateView
             Grid.Row="1"
             State="{Binding State}"
@@ -64,144 +42,210 @@
             Glyph="{x:Static fonts:FontAwesomeGlyphs.User}"
             GlyphFontFamily="FontAwesomeSolid"
             RetryCommand="{Binding RefreshCommand}">
-
-            <!-- Scrollable content (profile body) -->
             <ScrollView>
                 <VerticalStackLayout
                     Padding="{StaticResource LayoutPadding}"
                     Spacing="{StaticResource SpaceLg}">
 
-                    <!-- Identity row: WhatsApp badge + Edit on Pickup Pal link -->
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
-                        <c:Badge
-                            Text="Linked via WhatsApp"
-                            Glyph="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
-                            Variant="Success" />
+                    <Grid
+                        x:Name="IdentityRow"
+                        ColumnDefinitions="*"
+                        RowDefinitions="Auto,Auto"
+                        ColumnSpacing="{StaticResource SpaceSm}"
+                        RowSpacing="{StaticResource SpaceXs}">
+                        <HorizontalStackLayout
+                            x:Name="LinkedIdentity"
+                            Grid.Row="0"
+                            Spacing="{StaticResource SpaceXs}"
+                            VerticalOptions="Center">
+                            <Label
+                                Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
+                                FontFamily="FontAwesomeBrands"
+                                FontSize="{StaticResource IconMd}"
+                                TextColor="{StaticResource WhatsApp}"
+                                VerticalTextAlignment="Center"
+                                SemanticProperties.Description="WhatsApp" />
+                            <c:Badge
+                                Text="Linked via WhatsApp"
+                                Variant="Success"
+                                SemanticProperties.Description="Linked via WhatsApp" />
+                        </HorizontalStackLayout>
 
-                        <Button
-                            Grid.Column="1"
-                            Text="Edit on Pickup Pal &#xf35d;"
-                            Command="{Binding EditOnPickupPalCommand}"
-                            Style="{StaticResource LinkButton}"
-                            FontFamily="FontAwesomeSolid"
-                            SemanticProperties.Description="Edit on Pickup Pal, opens external link" />
+                        <Grid
+                            x:Name="EditAction"
+                            Grid.Row="1"
+                            HorizontalOptions="Start">
+                            <Button
+                                Text="Edit on Pickup Pal"
+                                Command="{Binding EditOnPickupPalCommand}"
+                                Style="{StaticResource LinkButton}"
+                                Padding="{StaticResource WelcomeOpenButtonPadding}"
+                                SemanticProperties.Description="Edit on Pickup Pal, opens external link" />
+                            <Label
+                                Text="{x:Static fonts:FontAwesomeGlyphs.ArrowUpRightFromSquare}"
+                                FontFamily="FontAwesomeSolid"
+                                FontSize="{StaticResource FontCaption}"
+                                TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                                HorizontalOptions="Start"
+                                VerticalTextAlignment="Center"
+                                InputTransparent="True"
+                                SemanticProperties.Description="External link" />
+                        </Grid>
+
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="ProfileWidthStates">
+                                <VisualState x:Name="Narrow" />
+                                <VisualState x:Name="Wide">
+                                    <VisualState.StateTriggers>
+                                        <AdaptiveTrigger MinWindowWidth="360" />
+                                    </VisualState.StateTriggers>
+                                    <VisualState.Setters>
+                                        <Setter TargetName="IdentityRow" Property="Grid.ColumnDefinitions" Value="*,Auto" />
+                                        <Setter TargetName="IdentityRow" Property="Grid.RowDefinitions" Value="Auto" />
+                                        <Setter TargetName="EditAction" Property="Grid.Row" Value="0" />
+                                        <Setter TargetName="EditAction" Property="Grid.Column" Value="1" />
+                                        <Setter TargetName="EditAction" Property="HorizontalOptions" Value="End" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
                     </Grid>
 
-                    <!-- Career stats section header -->
-                    <c:SectionHeader
-                        Text="Career stats"
-                        ActionText=""
-                        ActionCommand="{x:Null}" />
+                    <c:SectionHeader Text="Career stats" />
 
-                    <!-- StatTile grid (3 columns) -->
-                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="{StaticResource SpaceMd}" RowSpacing="{StaticResource SpaceMd}">
+                    <Grid
+                        x:Name="StatGrid"
+                        ColumnDefinitions="*,*"
+                        RowDefinitions="Auto,Auto,Auto"
+                        ColumnSpacing="{StaticResource SpaceMd}"
+                        RowSpacing="{StaticResource SpaceMd}">
                         <c:StatTile
-                            Grid.Row="0" Grid.Column="0"
-                            Value="{Binding Profile.CareerStats.Matches, Source={x:Reference ProfilePageName}, StringFormat='{0}'}"
+                            x:Name="MatchesTile"
+                            Grid.Row="0"
+                            Grid.Column="0"
+                            Value="{Binding Profile.CareerStats.Matches, StringFormat='{0}'}"
                             Label="Matches"
-                            Glyph="{x:Static fonts:FontAwesomeGlyphs.Calendar}"
-                            BindingContext="{Binding}" />
-
+                            SemanticProperties.Description="{Binding Profile.CareerStats.Matches, StringFormat='Matches: {0}'}" />
                         <c:StatTile
-                            Grid.Row="0" Grid.Column="1"
-                            Value="{Binding Profile.CareerStats.Goals, Source={x:Reference ProfilePageName}, StringFormat='{0}'}"
+                            x:Name="GoalsTile"
+                            Grid.Row="0"
+                            Grid.Column="1"
+                            Value="{Binding Profile.CareerStats.Goals, StringFormat='{0}'}"
                             Label="Goals"
-                            Glyph="{x:Static fonts:FontAwesomeGlyphs.Futbol}"
-                            BindingContext="{Binding}" />
-
+                            SemanticProperties.Description="{Binding Profile.CareerStats.Goals, StringFormat='Goals: {0}'}" />
                         <c:StatTile
-                            Grid.Row="0" Grid.Column="2"
-                            Value="{Binding Profile.CareerStats.Assists, Source={x:Reference ProfilePageName}, StringFormat='{0}'}"
+                            x:Name="AssistsTile"
+                            Grid.Row="1"
+                            Grid.Column="0"
+                            Value="{Binding Profile.CareerStats.Assists, StringFormat='{0}'}"
                             Label="Assists"
-                            Glyph="{x:Static fonts:FontAwesomeGlyphs.Star}"
-                            BindingContext="{Binding}" />
-
+                            SemanticProperties.Description="{Binding Profile.CareerStats.Assists, StringFormat='Assists: {0}'}" />
                         <c:StatTile
-                            Grid.Row="1" Grid.Column="0"
-                            Value="{Binding Profile.CareerStats.AverageRating, Source={x:Reference ProfilePageName}, StringFormat='{0:F1}'}"
+                            x:Name="RatingTile"
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Value="{Binding Profile.CareerStats.AverageRating, StringFormat='{0:F1}'}"
                             Label="Avg rating"
-                            Glyph="{x:Static fonts:FontAwesomeGlyphs.Star}"
-                            BindingContext="{Binding}" />
-
+                            SemanticProperties.Description="{Binding Profile.CareerStats.AverageRating, StringFormat='Average rating: {0:F1}'}" />
                         <c:StatTile
-                            Grid.Row="1" Grid.Column="1"
-                            Value="{Binding Profile.CareerStats.MvpAwards, Source={x:Reference ProfilePageName}, StringFormat='{0}'}"
+                            x:Name="MvpTile"
+                            Grid.Row="2"
+                            Grid.Column="0"
+                            Value="{Binding Profile.CareerStats.MvpAwards, StringFormat='{0}'}"
                             Label="MVP"
-                            Glyph="{x:Static fonts:FontAwesomeGlyphs.Trophy}"
-                            BindingContext="{Binding}" />
-
+                            SemanticProperties.Description="{Binding Profile.CareerStats.MvpAwards, StringFormat='MVP awards: {0}'}" />
                         <c:StatTile
-                            Grid.Row="1" Grid.Column="2"
-                            Value="{Binding Profile.CareerStats.Likes, Source={x:Reference ProfilePageName}, StringFormat='{0}'}"
+                            x:Name="LikesTile"
+                            Grid.Row="2"
+                            Grid.Column="1"
+                            Value="{Binding Profile.CareerStats.Likes, StringFormat='{0}'}"
                             Label="Likes"
-                            Glyph="{x:Static fonts:FontAwesomeGlyphs.Heart}"
-                            BindingContext="{Binding}" />
+                            SemanticProperties.Description="{Binding Profile.CareerStats.Likes, StringFormat='Likes: {0}'}" />
+
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="StatWidthStates">
+                                <VisualState x:Name="TwoColumns" />
+                                <VisualState x:Name="ThreeColumns">
+                                    <VisualState.StateTriggers>
+                                        <AdaptiveTrigger MinWindowWidth="360" />
+                                    </VisualState.StateTriggers>
+                                    <VisualState.Setters>
+                                        <Setter TargetName="StatGrid" Property="Grid.ColumnDefinitions" Value="*,*,*" />
+                                        <Setter TargetName="StatGrid" Property="Grid.RowDefinitions" Value="Auto,Auto" />
+                                        <Setter TargetName="AssistsTile" Property="Grid.Row" Value="0" />
+                                        <Setter TargetName="AssistsTile" Property="Grid.Column" Value="2" />
+                                        <Setter TargetName="RatingTile" Property="Grid.Row" Value="1" />
+                                        <Setter TargetName="RatingTile" Property="Grid.Column" Value="0" />
+                                        <Setter TargetName="MvpTile" Property="Grid.Row" Value="1" />
+                                        <Setter TargetName="MvpTile" Property="Grid.Column" Value="1" />
+                                        <Setter TargetName="LikesTile" Property="Grid.Row" Value="1" />
+                                        <Setter TargetName="LikesTile" Property="Grid.Column" Value="2" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
                     </Grid>
 
-                    <!-- Recent form card -->
                     <c:BrandCard>
                         <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
                             <Grid ColumnDefinitions="*,Auto">
                                 <Label
                                     Text="Recent form"
-                                    Style="{StaticResource TextBodyStrong}"
-                                    VerticalOptions="Center" />
+                                    Style="{StaticResource TextBodyStrong}" />
                                 <Label
                                     Grid.Column="1"
                                     Text="last 5"
                                     Style="{StaticResource TextCaption}"
-                                    Opacity="0.65"
-                                    VerticalOptions="Center" />
+                                    Opacity="0.65" />
                             </Grid>
-
-                            <!-- Result badges (W/D/L) -->
                             <FlexLayout
+                                BindableLayout.ItemsSource="{Binding RecentForm}"
                                 Direction="Row"
-                                Wrap="NoWrap"
+                                Wrap="Wrap"
                                 JustifyContent="Start"
                                 AlignItems="Center">
-
-                                <!-- Dynamically bind recent form results -->
-                                <CollectionView ItemsSource="{Binding Profile.RecentForm, Source={x:Reference ProfilePageName}}">
-                                    <CollectionView.ItemsLayout>
-                                        <LinearItemsLayout
-                                            Orientation="Horizontal"
-                                            ItemSpacing="{StaticResource SpaceXs}" />
-                                    </CollectionView.ItemsLayout>
-                                    <CollectionView.ItemTemplate>
-                                        <DataTemplate x:DataType="profiles:MatchResult">
-                                            <c:Badge
-                                                Text="{Binding ., Converter={StaticResource MatchResultConverter}}"
-                                                Variant="{Binding ., Converter={StaticResource MatchResultVariantConverter}}"
-                                                SemanticProperties.Description="{Binding ., Converter={StaticResource MatchResultDescriptionConverter}}" />
-                                        </DataTemplate>
-                                    </CollectionView.ItemTemplate>
-                                </CollectionView>
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="pageModels:ProfileFormBadge">
+                                        <c:Badge
+                                            Margin="0,0,4,4"
+                                            Text="{Binding Text}"
+                                            Variant="{Binding Variant}"
+                                            SemanticProperties.Description="{Binding Description}" />
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
                             </FlexLayout>
                         </VerticalStackLayout>
                     </c:BrandCard>
 
-                    <!-- Pending confirmation note (muted, with clock glyph) -->
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceXs}" IsVisible="{Binding PendingNote, Source={x:Reference ProfilePageName}, Converter={StaticResource InvertedBool}, ConverterParameter=String.IsNullOrEmpty}">
+                    <Grid
+                        ColumnDefinitions="Auto,*"
+                        ColumnSpacing="{StaticResource SpaceXs}"
+                        IsVisible="{Binding HasPendingNote}">
                         <Label
-                            Grid.Column="0"
                             Text="{x:Static fonts:FontAwesomeGlyphs.Clock}"
                             FontFamily="FontAwesomeSolid"
                             Style="{StaticResource TextCaption}"
-                            Opacity="0.65"
-                            VerticalOptions="Start" />
+                            TextColor="{AppThemeBinding Light={StaticResource WarningLight}, Dark={StaticResource WarningDark}}"
+                            VerticalOptions="Start"
+                            SemanticProperties.Description="Pending confirmation" />
                         <Label
                             Grid.Column="1"
-                            Text="{Binding PendingNote, Source={x:Reference ProfilePageName}}"
-                            Style="{StaticResource TextCaption}"
-                            Opacity="0.65" />
+                            Text="{Binding PendingNote}"
+                            Style="{StaticResource TextCaption}" />
                     </Grid>
 
-                    <!-- View season leaderboard button -->
+                    <Label
+                        Text="{Binding ActionMessage}"
+                        Style="{StaticResource TextCaption}"
+                        TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                        IsVisible="{Binding HasActionMessage}"
+                        SemanticProperties.Description="{Binding ActionMessage}" />
+
                     <Button
                         Text="View season leaderboard"
                         Command="{Binding OpenLeaderboardCommand}"
-                        Style="{StaticResource GhostButton}" />
+                        Style="{StaticResource GhostButton}"
+                        SemanticProperties.Description="View season leaderboard" />
                 </VerticalStackLayout>
             </ScrollView>
         </c:StateView>

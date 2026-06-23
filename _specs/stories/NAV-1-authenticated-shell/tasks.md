@@ -17,7 +17,7 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done.
   Shell directly, otherwise roots Welcome Back; sign-in success routes into the Shell (Sessions active).
   — Stories: `NAV-1`, `AUTH-8` · Projects: MAUI client · Depends on: M11.NAV1.a.
 
-- [x] **M11.NAV1.c** `Client.Tests`: verified sign-in → Shell (Sessions active); restorable session at
+- [~] **M11.NAV1.c** `Client.Tests`: verified sign-in → Shell (Sessions active); restorable session at
   startup → Shell (no Welcome Back); no session → Welcome Back; tab switch activates the tab and keeps
   the bar; back from a root tab does not reach Welcome Back; unbuilt tab shows the placeholder; tab
   icons are Font Awesome + semantic names with ≥44 dip targets. Build `net10.0-windows10.0.19041.0`.

@@ -33,6 +33,7 @@
     <Compile Include="..\..\SouthBaySoccer\PageModels\WelcomeBackPageModel.cs" Link="Client\PageModels\WelcomeBackPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\SessionsHomePageModel.cs" Link="Client\PageModels\SessionsHomePageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\SessionDetailPageModel.cs" Link="Client\PageModels\SessionDetailPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\ProfilePageModel.cs" Link="Client\PageModels\ProfilePageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\Controls\ControlVariants.cs" Link="Client\Controls\ControlVariants.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationCoordinator.cs" Link="Client\Services\AuthenticationCoordinator.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AppStartupService.cs" Link="Client\Services\AppStartupService.cs" />
@@ -66,5 +67,6 @@
 
   <ItemGroup>
     <None Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationNavigator.cs" Link="Client\Source\AuthenticationNavigator.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Services\Profile\ProfileFeatureServiceCollectionExtensions.cs" Link="Client\Source\ProfileFeatureServiceCollectionExtensions.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
