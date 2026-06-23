@@ -62,6 +62,7 @@
     <None Include="..\..\SouthBaySoccer\Pages\ProfilePage.xaml" Link="Client\Xaml\ProfilePage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Resources\Styles\AppStyles.xaml" Link="Client\Xaml\AppStyles.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\SessionsHomePage.xaml" Link="Client\Xaml\SessionsHomePage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\SessionDetailPage.xaml" Link="Client\Xaml\SessionDetailPage.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

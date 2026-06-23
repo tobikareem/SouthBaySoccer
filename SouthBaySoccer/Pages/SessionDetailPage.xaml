@@ -90,9 +90,9 @@
                         </VerticalStackLayout>
                     </c:BrandCard>
 
-                    <!-- Going roster -->
+                    <!-- Going roster — collapsed to a preview above a "+ N more going" affordance -->
                     <c:SectionHeader Text="{Binding GoingHeading}" />
-                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Going}"
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding GoingPreview}"
                                          Spacing="{StaticResource SpaceXs}">
                         <BindableLayout.ItemTemplate>
                             <DataTemplate x:DataType="pageModels:GoingRow">
@@ -109,6 +109,12 @@
                             </DataTemplate>
                         </BindableLayout.ItemTemplate>
                     </VerticalStackLayout>
+                    <!-- Non-interactive muted row (wireframe parity); its Text is already read by
+                         screen readers, so no extra SemanticProperties.Description is needed. -->
+                    <Label Text="{Binding MoreGoingLabel}"
+                           Style="{StaticResource TextCaption}"
+                           Padding="{StaticResource RowPadding}"
+                           IsVisible="{Binding HasMoreGoing}" />
 
                     <!-- Ordered waitlist -->
                     <c:SectionHeader Text="{Binding WaitlistHeading}"

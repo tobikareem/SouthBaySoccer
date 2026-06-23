@@ -26,6 +26,12 @@ public partial class SessionDetailPageModel(
     /// <summary>Shell query key carrying the session id (Guid string).</summary>
     public const string SessionIdQueryKey = "sessionId";
 
+    /// <summary>
+    /// Number of going players shown inline before the roster collapses behind a
+    /// "+ N more going" affordance, matching the <c>session</c> wireframe.
+    /// </summary>
+    public const int GoingPreviewLimit = 4;
+
     public const string EmptyTitle = "Session not found";
     public const string EmptyMessage = "This pickup game is no longer available.";
     public const string ErrorTitle = "Couldn't load this session";
@@ -69,6 +75,10 @@ public partial class SessionDetailPageModel(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(GoingHeading))]
+    [NotifyPropertyChangedFor(nameof(GoingPreview))]
+    [NotifyPropertyChangedFor(nameof(MoreGoingCount))]
+    [NotifyPropertyChangedFor(nameof(HasMoreGoing))]
+    [NotifyPropertyChangedFor(nameof(MoreGoingLabel))]
     private IReadOnlyList<GoingRow> _going = [];
 
     [ObservableProperty]
@@ -99,6 +109,22 @@ public partial class SessionDetailPageModel(
 
     /// <summary>Going section heading with count, e.g. "Going · 16".</summary>
     public string GoingHeading => $"Going · {Going.Count}";
+
+    /// <summary>
+    /// The first <see cref="GoingPreviewLimit"/> going players shown inline; the remainder collapse
+    /// behind <see cref="MoreGoingLabel"/>. Returns the full list when it fits within the limit.
+    /// </summary>
+    public IReadOnlyList<GoingRow> GoingPreview =>
+        Going.Count > GoingPreviewLimit ? [.. Going.Take(GoingPreviewLimit)] : Going;
+
+    /// <summary>Count of going players hidden behind the "+ N more going" affordance.</summary>
+    public int MoreGoingCount => Math.Max(0, Going.Count - GoingPreviewLimit);
+
+    /// <summary>True when the going roster exceeds the inline preview and needs the affordance.</summary>
+    public bool HasMoreGoing => MoreGoingCount > 0;
+
+    /// <summary>Collapsed-roster affordance label, e.g. "+ 12 more going".</summary>
+    public string MoreGoingLabel => $"+ {MoreGoingCount} more going";
 
     /// <summary>Waitlist section heading with count, e.g. "Waitlist · 3".</summary>
     public string WaitlistHeading => $"Waitlist · {Waitlist.Count}";

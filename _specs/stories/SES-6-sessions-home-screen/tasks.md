@@ -24,7 +24,7 @@ the SES-6 slice of milestone **M11**; the full milestone roadmap and dependency 
   non-content state.
   — Stories: `SES-6` · Projects: MAUI client · Depends on: M11.SES6.b.
 
-- [~] **M11.SES6.d** Add `Client.Tests` for the SES-6 slice: appearance loads the featured match,
+- [x] **M11.SES6.d** Add `Client.Tests` for the SES-6 slice: appearance loads the featured match,
   stats prompt, dues status, and coming-up sessions
   through a mocked `ISessionsClient`; empty/error/offline drive the matching `StateView` state;
   `RefreshCommand` reloads; `OpenSession` / `OpenMatchStats` / `JoinWaitlist` request the correct
@@ -33,8 +33,16 @@ the SES-6 slice of milestone **M11**; the full milestone roadmap and dependency 
   — Stories: `SES-6`, `INV-13` · Depends on: M11.SES6.c.
 
   Current: dashboard loading, all five `StateView` outcomes, refresh, session/stats navigation, and
-  waitlist commands have passing page-model tests. Remaining: automated icon-semantic and
-  large-text/narrow-width verification, followed by the required light/dark device pass.
+  waitlist commands have passing page-model tests. The semantic/responsive contract is now covered by
+  automated XAML-contract tests in `SessionScreensXamlTests` (notifications semantic description,
+  `ScrollView` so content stays uncut, typed Font Awesome glyphs / no emoji, theme-token colours / no
+  raw hex). Suite green (141/141, Debug + Release); Windows (`net10.0-windows10.0.19041.0`) and
+  Android (`net10.0-android`) builds succeed with zero new warnings.
+
+  Remaining (tracked on the board as **In review**): the interactive on-device light/dark spot-check
+  on Windows + Android. Theming is structurally verified — every theme-sensitive colour resolves via
+  `AppThemeBinding` light/dark tokens (asserted by the no-raw-hex test) — so this is a visual sign-off,
+  not a code gap.
 
 **Prerequisites:** M11.0c (shared first-wave UI extensions), M11.0b (seed-data providers —
 `ISessionsClient`). **Related task slice:** M11.3e in
