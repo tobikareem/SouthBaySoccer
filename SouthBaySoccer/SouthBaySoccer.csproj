@@ -28,6 +28,10 @@
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 		<MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>
 
+		<!-- NU1903: SQLitePCLRaw transitive CVE (GHSA-2m69-gcr7-jv3q) not yet patched upstream.
+		     SQLite is used offline-only for seed data, low risk. Suppress warning pending upstream fix. -->
+		<NoWarn>$(NoWarn);NU1903</NoWarn>
+
 		<!-- Display name -->
 		<ApplicationTitle>SouthBaySoccer</ApplicationTitle>
 
@@ -74,7 +78,7 @@
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
 		<PackageReference Include="CommunityToolkit.Maui" Version="12.3.0" />
 		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="8.0.8" />
-		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.10" />
+		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />
 		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.8" />
 	</ItemGroup>
 

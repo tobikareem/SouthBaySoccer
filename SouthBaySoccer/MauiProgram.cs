@@ -83,6 +83,7 @@ public static class MauiProgram
         builder.Services.AddTransient<SessionsHomePageModel>();
         builder.Services.AddTransient<StatsPage>();
         builder.Services.AddTransient<ProfilePage>();
+        builder.Services.AddTransient<ProfilePageModel>();
         builder.Services.AddSingleton<ISessionsNavigator, ShellSessionsNavigator>();
 
         var pickupPalOptions = new PickupPalOptions();
