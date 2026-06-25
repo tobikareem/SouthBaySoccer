@@ -10,17 +10,21 @@
           ColumnDefinitions="Auto,Auto,*,Auto">
         <Button x:Name="BackButton"
                 Grid.Column="0"
-                Text="{x:Static fonts:FontAwesomeGlyphs.ArrowLeft}"
-                FontFamily="FontAwesomeSolid"
                 Command="{Binding BackCommand, Source={x:Reference Root}}"
                 IsVisible="{Binding ShowBack, Source={x:Reference Root}}"
                 BackgroundColor="{StaticResource HeaderOverlay}"
-                TextColor="White"
-                FontSize="{StaticResource IconMd}"
                 CornerRadius="{StaticResource RadiusAction}"
+                Padding="0"
                 HeightRequest="{StaticResource TouchMin}"
                 WidthRequest="{StaticResource TouchMin}"
-                SemanticProperties.Description="Back" />
+                SemanticProperties.Description="Back">
+            <Button.ImageSource>
+                <FontImageSource Glyph="{x:Static fonts:FontAwesomeGlyphs.ArrowLeft}"
+                                 FontFamily="FontAwesomeSolid"
+                                 Size="{StaticResource IconMd}"
+                                 Color="White" />
+            </Button.ImageSource>
+        </Button>
         <ContentView Grid.Column="1"
                      Content="{Binding LeadingContent, Source={x:Reference Root}}"
                      VerticalOptions="Center" />

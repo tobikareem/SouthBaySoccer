@@ -42,6 +42,10 @@ depends on, rather than copying them (so invariants/NFRs never drift).
 | `LEAD-4` | [`LEAD-4-leaderboard-screen/`](LEAD-4-leaderboard-screen/requirements.md) | Leaderboard — Goals/Assists/Rating/MVP segments. |
 | `STAT-7` | [`STAT-7-match-stats-screen/`](STAT-7-match-stats-screen/requirements.md) | Match stats — self-submit goals/assists + captain confirm. |
 | `STAT-8` | [`STAT-8-rate-teammates-screen/`](STAT-8-rate-teammates-screen/requirements.md) | Rate teammates — 0–10 rating, like, single MVP. |
+| `GDAY-1` | [`GDAY-1-game-day-check-in-tab/`](GDAY-1-game-day-check-in-tab/requirements.md) | Game Day tab - player self-check-in from 7:30 PM to 7:45 PM. |
+| `TEAM-4` | [`TEAM-4-captain-assignment-and-draft/`](TEAM-4-captain-assignment-and-draft/requirements.md) | Captain assignment + session-scoped team draft permissions. |
+| `STAT-9` | [`STAT-9-captain-approval-and-results/`](STAT-9-captain-approval-and-results/requirements.md) | Post-game captain approval of goals/assists and team result propagation. |
+| `ADMIN-4` | [`ADMIN-4-create-session-publish/`](ADMIN-4-create-session-publish/requirements.md) | Admin creates a dated/location-based session and publishes it to the team for RSVP. |
 
 ## Recommended execution graph
 
@@ -70,6 +74,11 @@ After `SEED-1`, run these workstreams in parallel:
 3. **Profile/Leaderboard workstream (parallel):** `PROF-5` and `LEAD-4` can be implemented
    independently. Integrate Profile → Leaderboard and Leaderboard → Player Profile routes after
    both pages exist.
+4. **Admin/session setup workstream:** `ADMIN-4` can run before game-day operations; it creates the
+   player-visible session that `SES-6`, `RSVP-8`, and `GDAY-1` consume.
+5. **Game-day operations workstream (sequential after Sessions/Stats):** `GDAY-1` -> `TEAM-4` ->
+   `STAT-9`. Check-in must exist before captain selection, captain/team assignment must lock before
+   result/stat approval, and recent form must derive from locked results.
 
 Cross-workstream Shell tabs and route names are shared integration points. Assign one owner to
 `MauiProgram.cs`, Shell registration, and shared navigation constants to avoid parallel merge

@@ -51,9 +51,9 @@ public class AuthenticatedShellTests
         var contents = ShellContents(LoadXaml("AppShell.xaml"));
 
         contents.Select(content => Attribute(content, "Route"))
-            .Should().Equal("sessions", "stats", "profile");
+            .Should().Equal("sessions", "gameday", "stats", "profile");
         contents.Select(content => Attribute(content, "Title"))
-            .Should().Equal("Sessions", "Stats", "Profile");
+            .Should().Equal("Sessions", "Game Day", "Stats", "Profile");
     }
 
     [Fact]
@@ -65,10 +65,11 @@ public class AuthenticatedShellTests
             .Where(element => element.Name.LocalName == "ShellContent")
             .ToList();
 
-        rootTabs.Should().HaveCount(3);
+        rootTabs.Should().HaveCount(4);
         rootTabs.Select(content => Attribute(content, "ContentTemplate"))
             .Should().Equal(
                 "{DataTemplate pages:SessionsHomePage}",
+                "{DataTemplate pages:GameDayPage}",
                 "{DataTemplate pages:StatsPage}",
                 "{DataTemplate pages:ProfilePage}");
     }
@@ -79,9 +80,9 @@ public class AuthenticatedShellTests
         var contents = ShellContents(LoadXaml("AppShell.xaml"));
 
         contents.Select(content => Attribute(content, "AutomationId"))
-            .Should().Equal("SessionsTab", "StatsTab", "ProfileTab");
+            .Should().Equal("SessionsTab", "GameDayTab", "StatsTab", "ProfileTab");
         contents.Select(content => Attribute(content, "SemanticProperties.Description"))
-            .Should().Equal("Sessions tab", "Stats tab", "Profile tab");
+            .Should().Equal("Sessions tab", "Game Day tab", "Stats tab", "Profile tab");
     }
 
     [Fact]
@@ -137,21 +138,17 @@ public class AuthenticatedShellTests
         touchMinimum.Value.Should().Be("44");
     }
 
-    [Theory]
-    [InlineData("StatsPage.xaml", "Stats are coming soon", "FontAwesomeGlyphs.Trophy")]
-    public void UnbuiltRootTab_ShowsAccessibleStateViewPlaceholder(
-        string fileName,
-        string title,
-        string glyph)
+    [Fact]
+    public void StatsRootTab_RendersImplementedLeaderboardScreen()
     {
-        var page = LoadXaml(fileName);
+        var page = LoadXaml("StatsPage.xaml");
         var stateView = page.Descendants()
             .Single(element => element.Name.LocalName == "StateView");
 
-        Attribute(stateView, "State").Should().Be("Empty");
-        Attribute(stateView, "Title").Should().Be(title);
-        Attribute(stateView, "Message").Should().NotBeNullOrWhiteSpace();
-        Attribute(stateView, "Glyph").Should().Contain(glyph);
+        page.ToString().Should().Contain("Leaderboard");
+        page.Descendants().Should().Contain(element => element.Name.LocalName == "SegmentedControl");
+        Attribute(stateView, "State").Should().Be("{Binding State}");
+        Attribute(stateView, "Glyph").Should().Contain("FontAwesomeGlyphs.Trophy");
         Attribute(stateView, "GlyphFontFamily").Should().Be("FontAwesomeSolid");
     }
 
@@ -218,3 +215,5 @@ public class AuthenticatedShellTests
         Attribute(glyph, "FontFamily").Should().Contain("GlyphFontFamily");
     }
 }
+
+

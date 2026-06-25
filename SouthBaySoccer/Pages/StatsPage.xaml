@@ -1,24 +1,149 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage
     x:Class="SouthBaySoccer.Pages.StatsPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:c="clr-namespace:SouthBaySoccer.Controls"
     xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="StatsPageName"
+    x:DataType="pageModels:LeaderboardPageModel"
     Shell.NavBarIsVisible="False"
     Style="{StaticResource BrandPage}"
     Title="Stats">
 
-    <Grid RowDefinitions="Auto,*">
-        <c:BrandHeader Grid.Row="0"
-                       Title="Stats"
-                       Subtitle="Season 2026" />
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference StatsPageName}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
 
-        <c:StateView Grid.Row="1"
-                     State="Empty"
-                     Title="Stats are coming soon"
-                     Message="Goals, assists, ratings, and league tables will appear here."
-                     Glyph="{x:Static fonts:FontAwesomeGlyphs.Trophy}"
-                     GlyphFontFamily="FontAwesomeSolid" />
+    <Grid>
+        <c:StateView
+            State="{Binding State}"
+            Title="{Binding StateTitle}"
+            Message="{Binding StateMessage}"
+            Glyph="{x:Static fonts:FontAwesomeGlyphs.Trophy}"
+            GlyphFontFamily="FontAwesomeSolid"
+            RetryCommand="{Binding RefreshCommand}">
+            <ScrollView>
+                <VerticalStackLayout
+                    Padding="{StaticResource LayoutPadding}"
+                    Spacing="{StaticResource SpaceLg}">
+
+                    <Grid ColumnDefinitions="*,Auto"
+                          ColumnSpacing="{StaticResource SpaceMd}">
+                        <Label
+                            Text="Leaderboard"
+                            Style="{StaticResource TextH1}"
+                            VerticalTextAlignment="Center" />
+                        <c:Badge
+                            Grid.Column="1"
+                            Text="{Binding Season}"
+                            Glyph="{x:Static fonts:FontAwesomeGlyphs.ChevronRight}"
+                            Variant="Success"
+                            SemanticProperties.Description="{Binding Season, StringFormat='Current season: {0}'}" />
+                    </Grid>
+
+                    <c:SegmentedControl
+                        ItemsSource="{Binding Metrics}"
+                        DisplayMember="Label"
+                        SelectedIndex="{Binding SelectedMetricIndex, Mode=TwoWay}"
+                        IsEnabled="{Binding CanSelectMetric}"
+                        SelectionChangedCommand="{Binding SelectMetricCommand}" />
+
+                    <VerticalStackLayout
+                        BindableLayout.ItemsSource="{Binding Rankings}"
+                        Spacing="{StaticResource SpaceSm}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="pageModels:LeaderboardRowItem">
+                                <Border
+                                    Style="{StaticResource CardSurface}"
+                                    Padding="0"
+                                    MinimumHeightRequest="{StaticResource TouchMin}">
+                                    <Border.Triggers>
+                                        <DataTrigger
+                                            TargetType="Border"
+                                            Binding="{Binding IsLeader}"
+                                            Value="True">
+                                            <Setter
+                                                Property="BackgroundColor"
+                                                Value="{AppThemeBinding Light={StaticResource WarningSurfaceLight}, Dark={StaticResource WarningSurfaceDark}}" />
+                                            <Setter
+                                                Property="Stroke"
+                                                Value="{AppThemeBinding Light={StaticResource WarningLight}, Dark={StaticResource WarningDark}}" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <c:PlayerRow
+                                        Initials="{Binding Initials}"
+                                        Name="{Binding Name}"
+                                        Detail="{Binding Detail}"
+                                        TapCommand="{Binding BindingContext.OpenPlayerCommand, Source={x:Reference StatsPageName}}"
+                                        TapCommandParameter="{Binding PlayerId}">
+                                        <c:PlayerRow.LeadingContent>
+                                            <Label
+                                                Text="{Binding RankIndicator}"
+                                                FontFamily="{Binding RankFontFamily}"
+                                                Style="{StaticResource TextBodyStrong}"
+                                                WidthRequest="28"
+                                                HorizontalTextAlignment="Center"
+                                                VerticalTextAlignment="Center"
+                                                SemanticProperties.Description="{Binding RankDescription}">
+                                                <Label.Triggers>
+                                                    <DataTrigger
+                                                        TargetType="Label"
+                                                        Binding="{Binding IsLeader}"
+                                                        Value="True">
+                                                        <Setter
+                                                            Property="TextColor"
+                                                            Value="{AppThemeBinding Light={StaticResource WarningLight}, Dark={StaticResource WarningDark}}" />
+                                                    </DataTrigger>
+                                                </Label.Triggers>
+                                            </Label>
+                                        </c:PlayerRow.LeadingContent>
+                                        <c:PlayerRow.TrailingContent>
+                                            <Label
+                                                Text="{Binding Value}"
+                                                Style="{StaticResource TextBodyStrong}"
+                                                SemanticProperties.Description="{Binding Value, StringFormat='Metric value {0}'}">
+                                                <Label.Triggers>
+                                                    <DataTrigger
+                                                        TargetType="Label"
+                                                        Binding="{Binding IsLeader}"
+                                                        Value="True">
+                                                        <Setter
+                                                            Property="TextColor"
+                                                            Value="{AppThemeBinding Light={StaticResource WarningLight}, Dark={StaticResource WarningDark}}" />
+                                                    </DataTrigger>
+                                                </Label.Triggers>
+                                            </Label>
+                                        </c:PlayerRow.TrailingContent>
+                                    </c:PlayerRow>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+
+                    <c:BrandCard>
+                        <Grid
+                            ColumnDefinitions="Auto,*"
+                            ColumnSpacing="{StaticResource SpaceSm}">
+                            <Label
+                                Text="{x:Static fonts:FontAwesomeGlyphs.Trophy}"
+                                FontFamily="FontAwesomeSolid"
+                                Style="{StaticResource TextCaption}"
+                                TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                                SemanticProperties.Description="Leaderboard rules" />
+                            <Label
+                                Grid.Column="1"
+                                Text="{Binding Note}"
+                                Style="{StaticResource TextCaption}" />
+                        </Grid>
+                    </c:BrandCard>
+                </VerticalStackLayout>
+            </ScrollView>
+        </c:StateView>
     </Grid>
 </ContentPage>

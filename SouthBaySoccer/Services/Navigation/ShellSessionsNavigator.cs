@@ -19,13 +19,20 @@ public sealed class ShellSessionsNavigator : ISessionsNavigator
         return Shell.Current.GoToAsync($"session?sessionId={sessionId}");
     }
 
-    // Interim: the dedicated match-stats screen is a future ticket. Until it exists, surface the
-    // Stats tab so the dashboard's stats prompt has a safe, sensible destination (matchId carried
-    // forward once that screen lands).
-    public Task GoToMatchStatsAsync(Guid _) =>
-        Shell.Current.GoToAsync("//stats");
+    public Task GoToMatchStatsAsync(Guid matchId)
+    {
+        if (matchId == Guid.Empty)
+        {
+            return Task.CompletedTask;
+        }
+
+        return Shell.Current.GoToAsync($"matchstats?matchId={matchId}");
+    }
 
     // Interim: the full schedule screen is a future ticket; the Sessions tab is the schedule home.
     public Task GoToScheduleAsync() =>
         Shell.Current.GoToAsync("//sessions");
+
+    public Task GoToCreateSessionAsync() =>
+        Shell.Current.GoToAsync("create-session");
 }

@@ -13,6 +13,11 @@ public class FontAwesomeGlyphsTests
             FontAwesomeGlyphs.ShieldHalved,
             FontAwesomeGlyphs.ArrowUpRightFromSquare,
             FontAwesomeGlyphs.ArrowLeft,
+            FontAwesomeGlyphs.ArrowRight,
+            FontAwesomeGlyphs.ChevronRight,
+            FontAwesomeGlyphs.CircleCheck,
+            FontAwesomeGlyphs.CircleInfo,
+            FontAwesomeGlyphs.ShoePrints,
             FontAwesomeGlyphs.Trophy,
             FontAwesomeGlyphs.Bell,
             FontAwesomeGlyphs.ChartColumn,
@@ -21,6 +26,10 @@ public class FontAwesomeGlyphsTests
             FontAwesomeGlyphs.Calendar,
             FontAwesomeGlyphs.Clock,
             FontAwesomeGlyphs.Users,
+            FontAwesomeGlyphs.CirclePlus,
+            FontAwesomeGlyphs.MagnifyingGlass,
+            FontAwesomeGlyphs.PaperPlane,
+            FontAwesomeGlyphs.Lock,
         };
 
     // AUTH-7 / INV-13: every pictogram is a Font Awesome glyph from the BMP Private Use Area

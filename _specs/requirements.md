@@ -556,6 +556,13 @@ Scenario: Confirmed but not checked-in is a no-show
   And the original RSVP intent remains auditable
 ```
 
+
+### GDAY-1 - Game-day check-in tab
+
+> **Per-story spec:** [`stories/GDAY-1-game-day-check-in-tab/`](stories/GDAY-1-game-day-check-in-tab/requirements.md)
+> defines the player Game Day tab, 7:30 PM-7:45 PM check-in window, server-authoritative timestamp,
+> and GameAdmin late override audit.
+
 ---
 
 ## Epic TEAM — Teams & Matches
@@ -586,6 +593,13 @@ Scenario: Record the score line
   Then a MatchResult stores goals for/against and outcome (W/D/L) per MatchTeam
   And scores cannot be negative
 ```
+
+
+### TEAM-4 - Assign captains and draft teams
+
+> **Per-story spec:** [`stories/TEAM-4-captain-assignment-and-draft/`](stories/TEAM-4-captain-assignment-and-draft/requirements.md)
+> defines admin selection of 2, 3, or 4 captains, session-scoped `TeamDraft.PickPlayer` permission, and
+> captain checkbox selection from the confirmed game list.
 
 ---
 
@@ -657,6 +671,13 @@ Scenario: Locked match stats require an audited correction
   Then a StatCorrection audit record is created
   And the raw rows are amended only through that correction, never silently
 ```
+
+
+### STAT-9 - Captain approval and team results
+
+> **Per-story spec:** [`stories/STAT-9-captain-approval-and-results/`](stories/STAT-9-captain-approval-and-results/requirements.md)
+> defines post-game captain approval of submitted goals/assists, conflict review, W/D/L result
+> recording, and recent-form derivation from `TeamAssignment` + `MatchResult`.
 
 ---
 
@@ -747,6 +768,12 @@ Scenario: Assign a role
   When I grant "GameAdmin" to a player
   Then their subsequent tokens carry the role and satisfy the mapped policies
 ```
+
+### ADMIN-4 - Create and publish session
+
+> **Per-story spec:** [`stories/ADMIN-4-create-session-publish/`](stories/ADMIN-4-create-session-publish/requirements.md)
+> defines the admin flow for creating a dated/location-based session and publishing it to the team
+> so players can RSVP.
 
 ---
 

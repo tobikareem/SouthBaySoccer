@@ -87,7 +87,47 @@ public static class SeedFixtures
                 20,
                 true,
                 3,
-                null)));
+                null)),
+        CanManageSessions: true);
+
+    public static IReadOnlyList<VenueDto> Venues { get; } = ReadOnly(
+        new VenueDto(
+            Guid.Parse("50000000-0000-0000-0000-000000000001"),
+            "Marina Field",
+            "South Bay · saved venue",
+            true),
+        new VenueDto(
+            Guid.Parse("50000000-0000-0000-0000-000000000002"),
+            "Stanford Turf",
+            "Palo Alto",
+            false),
+        new VenueDto(
+            Guid.Parse("50000000-0000-0000-0000-000000000003"),
+            "Cuesta Park",
+            "Mountain View",
+            false),
+        new VenueDto(
+            Guid.Parse("50000000-0000-0000-0000-000000000004"),
+            "Mitchell Park",
+            "Palo Alto",
+            false));
+
+    public static CreateSessionDefaultsDto CreateSessionDefaults { get; } = new(
+        CanManageSessions: true,
+        DefaultGameDateLocal: new DateTime(2026, 6, 27, 0, 0, 0, DateTimeKind.Unspecified),
+        DefaultStartTimeLocal: new TimeSpan(19, 40, 0),
+        CheckInLeadMinutes: 10,
+        CheckInCloseOffsetMinutes: 5,
+        Formats: ReadOnly("5v5", "7v7", "9v9"),
+        DefaultFormatIndex: 1,
+        DefaultCapacity: 20,
+        MinimumCapacity: 1,
+        MaximumCapacity: 40,
+        TeamOptions: ReadOnly("2 teams", "3 teams", "4 teams"),
+        DefaultTeamIndex: 0,
+        SavedVenue: Venues[0],
+        FeedLabel: "Team feed",
+        DefaultRsvpDeadlineLocal: new TimeSpan(18, 30, 0));
 
     public static IReadOnlyDictionary<Guid, SessionDetailDto> Sessions { get; } =
         new ReadOnlyDictionary<Guid, SessionDetailDto>(
@@ -146,7 +186,10 @@ public static class SeedFixtures
                         Going(14),
                         Going(15),
                         Going(16)),
-                    ReadOnly<WaitlistEntryDto>()),
+                    ReadOnly(
+                        Waitlisted(4, 1),
+                        Waitlisted(22, 2),
+                        Waitlisted(23, 3))),
                 [StanfordSessionId] = new(
                     StanfordSessionId,
                     ReadOnly(

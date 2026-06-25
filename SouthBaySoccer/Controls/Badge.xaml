@@ -9,14 +9,16 @@
             StrokeThickness="0"
             StrokeShape="{StaticResource ShapePill}"
             HorizontalOptions="Start">
-        <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+        <HorizontalStackLayout Spacing="{StaticResource SpaceXs}" VerticalOptions="Center">
             <Label x:Name="GlyphLabel"
                    Text="{Binding Glyph, Source={x:Reference Root}}"
-                   Style="{StaticResource TextCaption}" />
+                   FontFamily="FontAwesomeSolid"
+                   Style="{StaticResource MutedIconLabel}" />
             <Label x:Name="TextLabel"
                    Text="{Binding Text, Source={x:Reference Root}}"
                    Style="{StaticResource TextBodyStrong}"
-                   FontSize="{StaticResource FontLabel}" />
+                   FontSize="{StaticResource FontLabel}"
+                   VerticalTextAlignment="Center" />
         </HorizontalStackLayout>
     </Border>
 </ContentView>

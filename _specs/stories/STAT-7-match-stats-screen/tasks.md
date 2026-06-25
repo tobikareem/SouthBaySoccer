@@ -4,7 +4,7 @@ Implementation tasks for [`requirements.md`](requirements.md) / [`design.md`](de
 the STAT-7 slice of milestone **M11**; the full milestone roadmap and dependency graph live in
 [`../../tasks.md`](../../tasks.md). Status: `[ ]` todo · `[~]` in progress · `[x]` done.
 
-- [ ] **M11.S7a** Implement `MatchStatsPage` and `MatchStatsPageModel` directly from the `matchstats`
+- [x] **M11.S7a** Implement `MatchStatsPage` and `MatchStatsPageModel` directly from the `matchstats`
   wireframe: branded header with back button, confirmation notice, "Your performance" section, the
   Goals/Assists `CounterStepper` card, the "Submit for confirmation" primary button, the pending
   note, the "Confirm teammates · captain" list, and the "Rate teammates instead" link. Use only
@@ -12,30 +12,30 @@ the STAT-7 slice of milestone **M11**; the full milestone roadmap and dependency
   page code-behind is `InitializeComponent` only.
   — Stories: `STAT-7`, `INV-13` · Projects: MAUI client · Depends on: M11.0, M11.0a, M11.0b.
 
-- [ ] **M11.S7b** Bind the screen to the seed `IStatsClient` (`SouthBaySoccer/SeedData/SeedStatsClient.cs`):
+- [x] **M11.S7b** Bind the screen to the seed `IStatsClient` (`SouthBaySoccer/SeedData/SeedStatsClient.cs`):
   load the player's current Goals/Assists and the teammate submissions (one pre-confirmed row plus
   unconfirmed rows) as deterministic wireframe fixtures. Page model depends on the `IStatsClient`
   abstraction only; registered by DI per `../../design.md` §12.
   — Stories: `STAT-7`, `STAT-2` · Projects: MAUI client · Depends on: M11.0b, M11.S7a.
 
-- [ ] **M11.S7c** Implement the submit → pending behavior: `IncrementGoals/Assists` and
+- [x] **M11.S7c** Implement the submit  pending behavior: `IncrementGoals/Assists` and
   `DecrementGoals/Assists` clamp at zero; `SubmitCommand` calls the seed client, flips `SubmitState`
   to pending, disables resubmission, and locks the steppers; the pending note appears. Coalesce
   repeated taps while busy/pending into one submission.
   — Stories: `STAT-7`, `STAT-1` · Projects: MAUI client · Depends on: M11.S7b.
 
-- [ ] **M11.S7d** Implement the captain confirm action: `ConfirmTeammateCommand` confirms a
+- [x] **M11.S7d** Implement the captain confirm action: `ConfirmTeammateCommand` confirms a
   teammate's submission through the seed client and marks the row confirmed optimistically (the
   "Confirm" ghost action is replaced by the confirmed check glyph). Wire `OpenRateCommand` to the
   Rate teammates screen and `BackCommand` to back navigation.
   — Stories: `STAT-7`, `STAT-6` · Projects: MAUI client · Depends on: M11.S7b.
 
-- [ ] **M11.S7e** Wrap the content in `StateView` and wire loading/empty/error/offline + `RetryCommand`
+- [x] **M11.S7e** Wrap the content in `StateView` and wire loading/empty/error/offline + `RetryCommand`
   to the seed load (entered totals preserved on error).
   — Stories: `STAT-7` · Projects: MAUI client · Depends on: M11.S7b.
 
-- [ ] **M11.S7f** `Client.Tests` (STAT-7 slice): page-model wireframe copy; stepper increment/decrement
-  with the zero floor; submit → pending disables resubmission and calls the seed client once; confirm
+- [x] **M11.S7f** `Client.Tests` (STAT-7 slice): page-model wireframe copy; stepper increment/decrement
+  with the zero floor; submit  pending disables resubmission and calls the seed client once; confirm
   marks a teammate confirmed optimistically; seed-sourced data and loading/empty/error/offline map to
   `StateView`; `OpenRateCommand`/`BackCommand` navigate; icon semantic descriptions; scrollable and
   uncut at large text and the narrowest width. Build `net10.0-windows10.0.19041.0`.

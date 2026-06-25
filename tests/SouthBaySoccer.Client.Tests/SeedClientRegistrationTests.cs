@@ -35,6 +35,7 @@ public class SeedClientRegistrationTests
         provider.GetRequiredService<IAuthenticationClient>()
             .Should().BeOfType<SeedAuthenticationClient>();
         provider.GetRequiredService<ISessionsClient>().Should().BeOfType<SeedSessionsClient>();
+        provider.GetRequiredService<ISessionAdminClient>().Should().BeOfType<SeedSessionAdminClient>();
         provider.GetRequiredService<IRosterClient>().Should().BeOfType<SeedRosterClient>();
         provider.GetRequiredService<IStatsClient>().Should().BeOfType<SeedStatsClient>();
         provider.GetRequiredService<ILeaderboardClient>()
@@ -53,7 +54,7 @@ public class SeedClientRegistrationTests
         var act = () => ClientDataSourceValidator.Validate(options, seedProviderAvailable: true);
 
         act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*IAuthenticationClient*ISessionsClient*IRosterClient*IStatsClient*ILeaderboardClient*IProfileClient*");
+            .WithMessage("*IAuthenticationClient*ISessionsClient*ISessionAdminClient*IRosterClient*IStatsClient*ILeaderboardClient*IProfileClient*");
     }
 
     [Fact]

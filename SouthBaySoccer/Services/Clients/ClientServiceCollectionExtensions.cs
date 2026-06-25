@@ -38,12 +38,15 @@ public static class ClientServiceCollectionExtensions
             "ClientDataSource 'Seed' is unavailable in Release builds.");
 #else
         services.AddSingleton<SeedState>();
+        services.AddSingleton<SeedGameDayState>();
         services.AddSingleton<IAuthenticationClient, SeedAuthenticationClient>();
         services.AddSingleton<ISessionsClient, SeedSessionsClient>();
+        services.AddSingleton<ISessionAdminClient, SeedSessionAdminClient>();
         services.AddSingleton<IRosterClient, SeedRosterClient>();
         services.AddSingleton<IStatsClient, SeedStatsClient>();
         services.AddSingleton<ILeaderboardClient, SeedLeaderboardClient>();
         services.AddSingleton<IProfileClient, SeedProfileClient>();
+        services.AddSingleton<IGameDayClient, SeedGameDayClient>();
         return services;
 #endif
     }
@@ -60,3 +63,4 @@ public static class ClientServiceCollectionExtensions
         }
     }
 }
+

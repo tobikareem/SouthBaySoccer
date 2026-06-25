@@ -1,0 +1,181 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.MatchStatsPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="MatchStatsPageName"
+    x:DataType="pageModels:MatchStatsPageModel"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Match stats">
+
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference MatchStatsPageName}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader
+            Grid.Row="0"
+            Title="{x:Static pageModels:MatchStatsPageModel.HeaderTitle}"
+            Subtitle="{Binding MatchSubtitle}"
+            ShowBack="True"
+            BackCommand="{Binding BackCommand}" />
+
+        <c:StateView
+            Grid.Row="1"
+            State="{Binding State}"
+            Title="{Binding StateTitle}"
+            Message="{Binding StateMessage}"
+            Glyph="{x:Static fonts:FontAwesomeGlyphs.Futbol}"
+            GlyphFontFamily="FontAwesomeSolid"
+            RetryCommand="{Binding RetryCommand}">
+            <ScrollView>
+                <VerticalStackLayout
+                    Padding="{StaticResource LayoutPadding}"
+                    Spacing="{StaticResource SpaceMd}">
+
+                    <Border Style="{StaticResource NoticeSurface}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                            <Label
+                                Text="{x:Static fonts:FontAwesomeGlyphs.CircleInfo}"
+                                FontFamily="FontAwesomeSolid"
+                                Style="{StaticResource TextBodyStrong}"
+                                TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                                SemanticProperties.Description="Confirmation notice" />
+                            <Label
+                                Grid.Column="1"
+                                Text="{x:Static pageModels:MatchStatsPageModel.NoticeText}"
+                                Style="{StaticResource TextCaption}" />
+                        </Grid>
+                    </Border>
+
+                    <c:SectionHeader Text="{x:Static pageModels:MatchStatsPageModel.PerformanceSectionTitle}" />
+
+                    <c:BrandCard>
+                        <VerticalStackLayout Spacing="{StaticResource SpaceMd}">
+                            <c:CounterStepper
+                                Caption="Goals"
+                                Glyph="{x:Static fonts:FontAwesomeGlyphs.Futbol}"
+                                GlyphFontFamily="FontAwesomeSolid"
+                                Minimum="0"
+                                Value="{Binding Goals, Mode=TwoWay}"
+                                IsEnabled="{Binding CanEdit}" />
+                            <c:CounterStepper
+                                Caption="Assists"
+                                Glyph="{x:Static fonts:FontAwesomeGlyphs.ShoePrints}"
+                                GlyphFontFamily="FontAwesomeSolid"
+                                Minimum="0"
+                                Value="{Binding Assists, Mode=TwoWay}"
+                                IsEnabled="{Binding CanEdit}" />
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+
+                    <Button
+                        Text="{Binding SubmitButtonText}"
+                        Command="{Binding SubmitCommand}"
+                        Style="{StaticResource PrimaryButton}"
+                        SemanticProperties.Description="{Binding SubmitButtonText}" />
+
+                    <Grid
+                        ColumnDefinitions="Auto,*"
+                        ColumnSpacing="{StaticResource SpaceXs}"
+                        IsVisible="{Binding IsPendingNoteVisible}">
+                        <Label
+                            Text="{x:Static fonts:FontAwesomeGlyphs.Plug}"
+                            FontFamily="FontAwesomeSolid"
+                            Style="{StaticResource TextCaption}"
+                            TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                            SemanticProperties.Description="Pickup Pal sync status" />
+                        <Label
+                            Grid.Column="1"
+                            Text="{x:Static pageModels:MatchStatsPageModel.PendingNote}"
+                            Style="{StaticResource TextCaption}" />
+                    </Grid>
+
+                    <c:SectionHeader Text="{x:Static pageModels:MatchStatsPageModel.ConfirmSectionTitle}" />
+
+                    <c:BrandCard Padding="{StaticResource CardPadding}">
+                        <Label
+                            Text="{x:Static pageModels:MatchStatsPageModel.EmptyMessage}"
+                            Style="{StaticResource TextCaption}"
+                            IsVisible="True">
+                            <Label.Triggers>
+                                <DataTrigger TargetType="Label" Binding="{Binding HasTeammateSubmissions}" Value="True">
+                                    <Setter Property="IsVisible" Value="False" />
+                                </DataTrigger>
+                            </Label.Triggers>
+                        </Label>
+                        <VerticalStackLayout
+                            BindableLayout.ItemsSource="{Binding TeammateSubmissions}"
+                            Spacing="{StaticResource SpaceXs}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="pageModels:TeammateSubmissionItem">
+                                    <c:PlayerRow
+                                        Initials="{Binding Initials}"
+                                        Name="{Binding Name}"
+                                        Detail="{Binding Detail}">
+                                        <c:PlayerRow.TrailingContent>
+                                            <Grid>
+                                                <Button
+                                                    Text="Confirm"
+                                                    Command="{Binding BindingContext.ConfirmTeammateCommand, Source={x:Reference MatchStatsPageName}}"
+                                                    CommandParameter="{Binding .}"
+                                                    Style="{StaticResource GhostButton}"
+                                                    SemanticProperties.Description="{Binding Name, StringFormat='Confirm {0} stats'}">
+                                                    <Button.Triggers>
+                                                        <DataTrigger TargetType="Button" Binding="{Binding IsConfirmed}" Value="True">
+                                                            <Setter Property="IsVisible" Value="False" />
+                                                        </DataTrigger>
+                                                    </Button.Triggers>
+                                                </Button>
+                                                <Label
+                                                    Text="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}"
+                                                    FontFamily="FontAwesomeSolid"
+                                                    Style="{StaticResource TextH2}"
+                                                    TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                                                    IsVisible="False"
+                                                    HorizontalTextAlignment="Center"
+                                                    VerticalTextAlignment="Center"
+                                                    SemanticProperties.Description="{Binding Name, StringFormat='{0} stats confirmed'}">
+                                                    <Label.Triggers>
+                                                        <DataTrigger TargetType="Label" Binding="{Binding IsConfirmed}" Value="True">
+                                                            <Setter Property="IsVisible" Value="True" />
+                                                        </DataTrigger>
+                                                    </Label.Triggers>
+                                                </Label>
+                                            </Grid>
+                                        </c:PlayerRow.TrailingContent>
+                                    </c:PlayerRow>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+
+                    <HorizontalStackLayout
+                        HorizontalOptions="Center"
+                        Spacing="{StaticResource SpaceXs}">
+                        <Button
+                            Text="{x:Static pageModels:MatchStatsPageModel.RateLinkText}"
+                            Command="{Binding OpenRateCommand}"
+                            Style="{StaticResource LinkButton}"
+                            SemanticProperties.Description="Rate teammates instead" />
+                        <Label
+                            Text="{x:Static fonts:FontAwesomeGlyphs.ChevronRight}"
+                            FontFamily="FontAwesomeSolid"
+                            Style="{StaticResource TextCaption}"
+                            TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                            VerticalTextAlignment="Center"
+                            SemanticProperties.Description="Open rate teammates" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
+        </c:StateView>
+    </Grid>
+</ContentPage>

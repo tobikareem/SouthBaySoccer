@@ -85,25 +85,26 @@ wiring is completed in the backend phase. See `design.md` §12.
 - [ ] **M6.2** `Features/Sessions` CRUD + validation (capacity>0, deadline<start). — Stories: SES-4,5.
 - [ ] **M6.3** Timer trigger for recurring sessions with deterministic occurrence key + unique constraint. — Stories: SES-3.
 - [ ] **M6.4** Endpoints/contracts; cancellation queues notification. — Done when: replayed-timer idempotency test passes.
+- [ ] **M6.5** Admin create/publish session use case with required-field validation, venue-local date/time display, UTC storage, audit fields, and idempotent publish. - Stories: ADMIN-4, SES-1, SES-2.
 
 ## M7 — RSVP & waitlist
 - [ ] **M7.1** `RsvpResponse`, `WaitlistEntry`, `CheckIn`; unique active-RSVP constraint + `rowversion`. — Stories: RSVP-1,3, CHK-1.
 - [ ] **M7.2** `SubmitRsvp`: waiver + payment eligibility gate, then serializable capacity transaction with bounded retry → 409; idempotency key on the endpoint. — Stories: RSVP-1,2, INV-2,3.
 - [ ] **M7.3** `PromoteWaitlist` on cancel; skip-ineligible; `PlayerWaitlistPromoted` via outbox. — Stories: RSVP-4,5.
 - [ ] **M7.4** Deadline lock + admin override (audited). — Stories: RSVP-6,7.
-- [ ] **M7.5** Check-in + no-show. — Stories: CHK-1,2. — Done when: final-slot concurrency + promotion tests pass (§17).
+- [ ] **M7.5** Check-in + no-show. - Stories: CHK-1,2, GDAY-1. - Done when: final-slot concurrency + promotion tests pass (section 17), and the 7:30 PM-7:45 PM venue-local check-in window plus late override audit are covered.
 - [ ] **M7.6** Session-specific guest/drop-in checkout and verified eligibility projection. — Depends on: M5 payment infrastructure, M6 Session. — Stories: PAY-5.
 
 ## M8 — Teams, matches & stats
-- [ ] **M8.1** `Match`, `MatchTeam`, `TeamAssignment` (per-match), `MatchResult`. — Stories: TEAM-1,2,3, INV-9.
-- [ ] **M8.2** `PlayerMatchStats` (row per participant incl. guests); `MatchEvent` (goal/assist/own-goal/cards, ≤1 assist/goal). — Stories: STAT-1,2, INV-7.
+- [ ] **M8.1** `Match`, `MatchTeam`, `TeamAssignment` (per-match), `MatchResult`; admin captain assignment for 2/3/4 teams; session-scoped captain draft permissions. - Stories: TEAM-1,2,3, TEAM-4, INV-9.
+- [ ] **M8.2** `PlayerMatchStats` (row per participant incl. guests); `MatchEvent` (goal/assist/own-goal/cards, <=1 assist/goal); captain approval queue. - Stories: STAT-1,2, STAT-9, INV-7.
 - [ ] **M8.3** `PlayerRatingVote` (0–10, unique `(MatchId,Voter,Rated)`, no self-vote), `PlayerLike`, `MatchAward`. — Stories: STAT-3,4,5, INV-8.
-- [ ] **M8.4** Lock + `StatCorrection` audit. — Stories: STAT-6.
+- [ ] **M8.4** Lock + `StatCorrection` audit and conflict-to-review resolution for captain approvals/results. - Stories: STAT-6, STAT-9.
 - [ ] **M8.5** Endpoints/contracts. — Done when: rating-integrity + aggregation tests pass (§17).
 - [ ] **M8.6** Complete `ProfileMerge` stat reassignment with an audit trail and no duplication. — Depends on: M4.2, M8.2. — Stories: PROF-4.
 
 ## M9 — Leaderboards & queries
-- [ ] **M9.1** `Features/Stats` query handlers: season + career projections from raw rows (`Match→Session→Season`), derived-on-read. — Stories: LEAD-1,2, INV-6,7.
+- [ ] **M9.1** `Features/Stats` query handlers: season + career projections from raw rows (`Match -> Session -> Season`), derived-on-read; profile recent form and rotation W/D/L counters from `TeamAssignment` + `MatchResult`, with `wins + draws + losses <= teamCount - 1` validation. - Stories: LEAD-1,2, STAT-9, INV-6,7.
 - [ ] **M9.2** Tie-breakers (Goals → fewer appearances → Assists); pagination on all stat queries. — Stories: LEAD-3, NFR-Performance.
 - [ ] **M9.3** (Optional) Azure Table Storage projection only if a measured read/scale need appears.
 
@@ -164,6 +165,7 @@ wiring is completed in the backend phase. See `design.md` §12.
   — Stories: PROF-5, SES-6, RSVP-8, LEAD-4, STAT-7, STAT-8 · Depends on: M11.0b, M11.0c.
 - [ ] **M11.4** Offline live-stats with idempotency-keyed queue + sync. — Stories: ADMIN-2.
 - [ ] **M11.5** Move `SouthBaySoccer/` → `src/SouthBaySoccer.Client/` as a dedicated change (no feature work mixed in). — architecture §5/§18.
+- [ ] **M11.6** Admin create-session screen against seed state, publishing into the Sessions feed for RSVP. - Stories: ADMIN-4.
 
 ## M12 — Hardening & deploy
 - [ ] **M12.1** Application Insights traces/metrics; correlation across client/Functions/providers. — NFR-Observability.

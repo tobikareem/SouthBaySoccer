@@ -39,7 +39,7 @@ public partial class App : Application
             Application.Current?.Dispatcher.Dispatch(() =>
             {
                 Application.Current?.Windows.FirstOrDefault()?.Page
-                    ?.DisplayAlert("Error", ex.Message, "OK")
+                    ?.DisplayAlertAsync("Error", ex.Message, "OK")
                     .FireAndForgetSafeAsync();
             });
         }

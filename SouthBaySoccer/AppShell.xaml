@@ -24,6 +24,15 @@
             SemanticProperties.Description="Sessions tab" />
 
         <ShellContent
+            x:Name="GameDayTab"
+            Title="Game Day"
+            Icon="{StaticResource IconStats}"
+            ContentTemplate="{DataTemplate pages:GameDayPage}"
+            Route="gameday"
+            AutomationId="GameDayTab"
+            SemanticProperties.Description="Game Day tab" />
+
+        <ShellContent
             x:Name="StatsTab"
             Title="Stats"
             Icon="{StaticResource IconStats}"
@@ -43,3 +52,4 @@
     </TabBar>
 
 </Shell>
+

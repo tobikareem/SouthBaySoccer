@@ -76,9 +76,15 @@
                     <c:BrandCard>
                         <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
                             <Grid ColumnDefinitions="*,Auto">
-                                <Label Text="{Binding GoingCount, StringFormat='{0} going'}"
-                                       Style="{StaticResource TextBodyStrong}"
-                                       VerticalOptions="Center" />
+                                <Label Style="{StaticResource TextBodyStrong}"
+                                       VerticalOptions="Center">
+                                    <Label.Text>
+                                        <MultiBinding StringFormat="{}{0} / {1} going">
+                                            <Binding Path="GoingCount" />
+                                            <Binding Path="Capacity" />
+                                        </MultiBinding>
+                                    </Label.Text>
+                                </Label>
                                 <c:Badge Grid.Column="1"
                                          Text="{Binding DeadlineLabel}"
                                          Glyph="{x:Static fonts:FontAwesomeGlyphs.Clock}"

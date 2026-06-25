@@ -95,6 +95,19 @@ public class SessionScreensXamlTests
     }
 
     [Fact]
+    public void SessionsHomePage_RendersWireframeClickAffordances()
+    {
+        var xaml = ReadXaml(HomePage);
+
+        xaml.Should().Contain("FontAwesomeGlyphs.CircleCheck");
+        xaml.Should().Contain("FontAwesomeGlyphs.Bell");
+        xaml.Should().Contain("View details");
+        xaml.Should().Contain("FontAwesomeGlyphs.ArrowRight");
+        xaml.Should().Contain("FontAwesomeGlyphs.ChartColumn");
+        xaml.Should().Contain("FontAwesomeGlyphs.ChevronRight");
+    }
+
+    [Fact]
     public void SessionDetailPage_InformationalIconsExposeSemanticDescriptions()
     {
         var xaml = ReadXaml(DetailPage);

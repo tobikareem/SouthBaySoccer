@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -23,6 +24,9 @@ public partial class ProfilePageModel(
     public const string OfflineTitle = "You're offline";
     public const string OfflineMessage = "Reconnect to load your profile.";
     public const string ExternalLaunchError = "Pickup Pal could not be opened. Please try again.";
+    public const string PlayerIdQueryKey = "playerId";
+
+    private Guid? requestedPlayerId;
 
     [ObservableProperty]
     private ViewState _state = ViewState.Loading;
@@ -53,7 +57,46 @@ public partial class ProfilePageModel(
 
     public bool HasActionMessage => !string.IsNullOrWhiteSpace(ActionMessage);
 
+    public bool CanEditProfile => requestedPlayerId is null;
+
+    public string MatchesText => Profile?.CareerStats.Matches.ToString(CultureInfo.InvariantCulture) ?? "0";
+
+    public string GoalsText => Profile?.CareerStats.Goals.ToString(CultureInfo.InvariantCulture) ?? "0";
+
+    public string AssistsText => Profile?.CareerStats.Assists.ToString(CultureInfo.InvariantCulture) ?? "0";
+
+    public string AverageRatingText =>
+        Profile?.CareerStats.AverageRating.ToString("0.0", CultureInfo.InvariantCulture) ?? "0.0";
+
+    public string MvpAwardsText => Profile?.CareerStats.MvpAwards.ToString(CultureInfo.InvariantCulture) ?? "0";
+
+    public string LikesText => Profile?.CareerStats.Likes.ToString(CultureInfo.InvariantCulture) ?? "0";
+
+    partial void OnProfileChanged(PlayerProfileDto? value)
+    {
+        OnPropertyChanged(nameof(MatchesText));
+        OnPropertyChanged(nameof(GoalsText));
+        OnPropertyChanged(nameof(AssistsText));
+        OnPropertyChanged(nameof(AverageRatingText));
+        OnPropertyChanged(nameof(MvpAwardsText));
+        OnPropertyChanged(nameof(LikesText));
+    }
+
     partial void OnActionMessageChanged(string value) => OnPropertyChanged(nameof(HasActionMessage));
+
+    public void ApplyQueryAttributes(IDictionary<string, object> query)
+    {
+        requestedPlayerId = null;
+
+        if (query.TryGetValue(PlayerIdQueryKey, out var value)
+            && Guid.TryParse(value?.ToString(), out var parsedPlayerId)
+            && parsedPlayerId != Guid.Empty)
+        {
+            requestedPlayerId = parsedPlayerId;
+        }
+
+        OnPropertyChanged(nameof(CanEditProfile));
+    }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private Task Appearing(CancellationToken cancellationToken) => LoadProfileAsync(cancellationToken);
@@ -94,7 +137,9 @@ public partial class ProfilePageModel(
 
         try
         {
-            var profile = await profileClient.GetCurrentProfileAsync(cancellationToken);
+            var profile = requestedPlayerId is Guid playerId
+                ? await profileClient.GetProfileAsync(playerId, cancellationToken)
+                : await profileClient.GetCurrentProfileAsync(cancellationToken);
 
             if (profile is null)
             {
@@ -154,3 +199,13 @@ public sealed record ProfileFormBadge(string Text, BadgeVariant Variant, string 
             _ => throw new ArgumentOutOfRangeException(nameof(result), result, "Unsupported match result.")
         };
 }
+
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+public partial class ProfilePageModel : IQueryAttributable
+{
+    void IQueryAttributable.ApplyQueryAttributes(IDictionary<string, object> query)
+    {
+        ApplyQueryAttributes(query);
+    }
+}
+#endif

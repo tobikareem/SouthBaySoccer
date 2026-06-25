@@ -1,0 +1,51 @@
+# ADMIN-4 - Create and publish session
+
+**Epic:** ADMIN - Admin & Live Game / SES - Seasons, Venues & Sessions  
+**Milestone:** M11 client first, then M6 backend  
+**Visual source:** the `adminsession` screen in [`../../../documentation/mobile-wireframes.html`](../../../documentation/mobile-wireframes.html).
+
+## User story
+
+*As an* Admin or GameAdmin, *I want* to create a pickup session with game date, time, location, capacity,
+and team format, then publish it to the team, *so that* players can RSVP from the Sessions screen.
+
+## Acceptance criteria
+
+```gherkin
+Scenario: Admin creates a game session draft
+  Given I have CanManageSessions
+  When I enter a game date, start time, check-in window, venue, format, and capacity
+  Then a session draft is created with audit fields
+  And it is not visible to players until published
+
+Scenario: Admin publishes the session to the team
+  Given a valid session draft exists
+  When I publish the session
+  Then the session appears in the team Sessions feed
+  And eligible players can RSVP Going or join the waitlist
+  And a notification or feed update is queued for the team
+
+Scenario: Required fields are validated
+  Given I am creating a session
+  When game date, start time, location, capacity, or format is missing
+  Then publishing is blocked
+  And the screen shows the missing fields without creating a player-visible session
+
+Scenario: Capacity and time values are valid
+  Given I am creating a session
+  When capacity is less than 1 or check-in close is before check-in open
+  Then the request is rejected
+  And no session is published
+
+Scenario: Unauthorized user cannot create a session
+  Given I do not have CanManageSessions
+  When I attempt to open or submit session creation
+  Then access is denied server-side
+  And the client does not rely on hidden buttons as authority
+```
+
+## Notes
+
+- Publishing creates the player-facing session card used by `SES-6` and `RSVP-8`.
+- Check-in defaults can be generated from start time, but admins can adjust them before publish.
+- The backend stores UTC timestamps; the UI displays venue-local date/time.

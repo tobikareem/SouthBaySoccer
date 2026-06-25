@@ -19,7 +19,7 @@ public partial class StateView
             nameof(GlyphFontFamily),
             typeof(string),
             typeof(StateView),
-            "OpenSansRegular");
+            "InterRegular");
     public static readonly BindableProperty RetryCommandProperty =
         BindableProperty.Create(nameof(RetryCommand), typeof(ICommand), typeof(StateView), null,
             propertyChanged: static (bindable, _, _) => ((StateView)bindable).Refresh());

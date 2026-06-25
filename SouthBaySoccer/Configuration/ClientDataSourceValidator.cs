@@ -8,6 +8,7 @@ public static class ClientDataSourceValidator
     [
         "IAuthenticationClient",
         nameof(ISessionsClient),
+        nameof(ISessionAdminClient),
         nameof(IRosterClient),
         nameof(IStatsClient),
         nameof(ILeaderboardClient),

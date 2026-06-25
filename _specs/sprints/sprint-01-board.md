@@ -14,11 +14,13 @@ columns and update the snapshot.
 | Done | 13 |
 | In progress | 0 |
 | In review | 13 |
-| To do | 0 |
+| To do | 26 |
 | Stretch (PROF-5) | 3 |
+| Planned Sprint 03 | 26 |
 
 _Entry-state foundations (`M11.0`, `M11.0a`) and the AUTH sign-in client slices are already done and
-are listed under Done for context; they are not counted in the 26-pt commitment._
+are listed under Done for context; they are not counted in the 26-pt commitment. Sprint 03 items are
+newly planned and also not counted in the Sprint 01 commitment._
 
 ## Stories — requirements checklist
 
@@ -42,15 +44,26 @@ Every story requirement, one line each. `[x]` = Definition of Done met · `[ ]` 
 - [ ] **PROF-5** — Player profile: career stat tiles, recent form. (S1 stretch) _(client + automated semantic/responsive checks done; light/dark device sign-off pending — In review)_
 
 **Sprint 02 — stats wave**
-- [ ] **LEAD-4** — Leaderboard: Goals/Assists/Rating/MVP segments. (S2)
-- [ ] **STAT-7** — Match stats: self-submit goals/assists + captain confirm. (S2)
-- [ ] **STAT-8** — Rate teammates: 0–10 rating, like, single MVP. (S2)
+- [x] **LEAD-4** — Leaderboard: Goals/Assists/Rating/MVP segments. (S2)
+- [x] **STAT-7** — Match stats: self-submit goals/assists + captain confirm. (S2)
+- [x] **STAT-8** — Rate teammates: 0–10 rating, like, single MVP. (S2)
+
+**Sprint 03 - admin setup and game-day operations**
+- [ ] **ADMIN-4** - Create session: admin enters game date, time, location, setup, then publishes to team RSVP feed. (S3)
+- [ ] **GDAY-1** - Game Day tab: player self-check-in between 7:30 PM and 7:45 PM, closed/override states. (S3)
+- [ ] **TEAM-4** - Captain assignment + team draft: admin selects 2, 3, or 4 captains; captains get session-scoped pick permissions. (S3)
+- [ ] **STAT-9** - Post-game captain approval/results: approve goals/assists, record W/D/L, derive recent form for teammates. (S3)
 
 ## Board
 
 ### To do
 
-_(none)_
+| Card | Story | Pts | Tasks | Notes |
+|------|-------|----:|-------|-------|
+| **Create and publish session** | `ADMIN-4` | 5 | page+model `[ ]` / seed publish `[ ]` / backend validation `[ ]` / tests `[ ]` | Admin creates a game date/time/location/setup and publishes it into the player RSVP feed. |
+| **Game Day check-in tab** | `GDAY-1` | 5 | page+model `[ ]` / seed state `[ ]` / backend window `[ ]` / tests `[ ]` | Player check-in from 7:30 PM-7:45 PM; RSVP remains intent; late override is GameAdmin-only and audited. |
+| **Captain assignment + team draft** | `TEAM-4` | 8 | admin assign `[ ]` / scoped permission `[ ]` / draft UI `[ ]` / lock `[ ]` / tests `[ ]` | Admin chooses 2, 3, or 4 captains from checked-in players only; selection max follows the chosen tab; assigned captains pick teams from searchable checked-in list. |
+| **Post-game captain approval + results** | `STAT-9` | 8 | approval queue `[ ]` / result entry `[ ]` / projection `[ ]` / conflict review `[ ]` / tests `[ ]` | Captains approve goals/assists after play; team W/D/L and validated rotation counters persist through MatchResult and derived profile recent form. |
 
 ### In progress
 
@@ -76,6 +89,9 @@ _(none)_
 | Welcome Back screen | `AUTH-7` (`M11.3a`) | client done; `M11.3d` large-text/narrow visual check carryover |
 | Continue with WhatsApp (client) | `AUTH-8` (`M11.3b`) | client challenge/deep-link done |
 | Pickup Pal actions | `AUTH-9` (`M11.3b/d`) | done |
+| Leaderboard screen | LEAD-4 | Goals/Assists/Rating/MVP segments, seed-backed metric switching, tests, and Windows/Android builds clean. |
+| Match stats screen | STAT-7 | Self-submit goals/assists, pending lock, captain confirm, Rate teammates route, tests, and Windows/Android builds clean. |
+| Rate teammates screen | STAT-8 | 0-10 ratings, likes, single MVP, rater exclusion, submit flow, tests, and Windows/Android builds clean. |
 
 ### Blocked / backend-deferred (carryover, not Sprint-01 scope)
 
@@ -83,6 +99,7 @@ _(none)_
 |------|-------|-----|
 | Typed API pipeline | `M11.1` (`[~]`) | swaps seeds for the real API later; not needed in the UI phase |
 | Challenge verify/exchange + Functions tests | `AUTH-8` (`M11.3c/3d` `[~]`) | server endpoints blocked on backend `M3`; client uses the seed challenge now |
+| 4-captain topology decision | `TEAM-4` | resolved: 3 captains means 3 teams and 4 captains means 4 teams; backend/team-draft design should model two-, three-, and four-team rotation formats |
 
 ## Critical path
 
@@ -111,13 +128,15 @@ Week 1. Screens start once `SEED-1` + `M11.0c` + `NAV-1` are merged.
 - Remaining for `SES-6` / `RSVP-8` Done: the interactive on-device light/dark visual spot-check on
   Windows + Android. Theming is structurally verified (all theme-sensitive colours resolve via
   `AppThemeBinding` light/dark tokens, asserted by the no-raw-hex test), so this is a visual sign-off.
+- Verified 2026-06-25 (`codex/stats-wave`): `SouthBaySoccer.Client.Tests` passes (197/197), and both `net10.0-windows10.0.19041.0` and `net10.0-android` MAUI builds succeed with zero warnings after LEAD-4, STAT-7, and STAT-8 integration.
 - Recommended next action: visual light/dark sign-off on `NAV-1` / `SES-6` / `RSVP-8` / `PROF-5`.
 
 ## How to keep this current
 
 1. As a task flips `[ ]`→`[~]`→`[x]` in a story's `tasks.md`, move that card to **In progress** /
-   **Done** here and tick its task box (☐→☑).
+   **Done** here and tick its task box (`[ ]` to `[x]`).
 2. Recompute the snapshot points (Done / In progress / To do).
 3. A card is **Done** only when its story's Definition of Done in `tasks.md` is met
    (builds, seed-backed `Client.Tests` green, wireframe match, no emoji/raw hex, accessibility + light/dark).
 4. Note new blockers under **Blocked** with the reason.
+

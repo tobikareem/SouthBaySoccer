@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.CaptainAssignmentPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="CaptainsPage"
+    x:DataType="pageModels:CaptainAssignmentPageModel"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Assign captains">
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior BindingContext="{Binding Path=BindingContext, Source={x:Reference CaptainsPage}, x:DataType=ContentPage}" EventName="Appearing" Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader Title="Assign captains" Subtitle="Admin only" ShowBack="True" BackCommand="{Binding BackCommand}" />
+        <c:StateView Grid.Row="1" State="{Binding State}" Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}" GlyphFontFamily="FontAwesomeSolid">
+            <ScrollView>
+                <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">
+                    <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
+                        <Button Text="2 captains" Command="{Binding SelectCaptainCountCommand}" CommandParameter="2" Style="{StaticResource GhostButton}" />
+                        <Button Text="3 captains" Command="{Binding SelectCaptainCountCommand}" CommandParameter="3" Style="{StaticResource GhostButton}" />
+                        <Button Text="4 captains" Command="{Binding SelectCaptainCountCommand}" CommandParameter="4" Style="{StaticResource GhostButton}" />
+                    </HorizontalStackLayout>
+                    <Border Style="{StaticResource NoticeSurface}">
+                        <Label Text="Captains must be selected from checked-in players only. Selection max follows the active tab." Style="{StaticResource TextCaption}" />
+                    </Border>
+                    <Entry Text="{Binding SearchText}" Placeholder="Search checked-in players" Style="{StaticResource BrandEntry}" />
+                    <c:SectionHeader Text="Checked-in players" />
+                    <c:BrandCard>
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding Players}" Spacing="{StaticResource SpaceXs}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="pageModels:CaptainPlayerItem">
+                                    <c:PlayerRow Initials="{Binding Initials}" Name="{Binding Name}" Detail="{Binding Detail}" TapCommand="{Binding BindingContext.ToggleCaptainCommand, Source={x:Reference CaptainsPage}}" TapCommandParameter="{Binding .}" IsVisible="{Binding IsVisible}">
+                                        <c:PlayerRow.TrailingContent>
+                                            <CheckBox IsChecked="{Binding IsSelected}" InputTransparent="True" />
+                                        </c:PlayerRow.TrailingContent>
+                                    </c:PlayerRow>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+                    <Label Text="{Binding SelectedCountText}" Style="{StaticResource TextCaption}" HorizontalTextAlignment="Center" />
+                    <Button Text="Grant captain permissions" Command="{Binding GrantCommand}" Style="{StaticResource PrimaryButton}" />
+                </VerticalStackLayout>
+            </ScrollView>
+        </c:StateView>
+    </Grid>
+</ContentPage>

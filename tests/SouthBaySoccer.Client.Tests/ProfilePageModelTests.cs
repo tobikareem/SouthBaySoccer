@@ -23,10 +23,51 @@ public class ProfilePageModelTests
         pageModel.State.Should().Be(ViewState.Content);
         pageModel.Profile.Should().Be(SeedFixtures.Profile);
         pageModel.Profile!.CareerStats.Should().Be(new CareerStatsDto(24, 12, 9, 7.8m, 3, 41));
+        pageModel.MatchesText.Should().Be("24");
+        pageModel.GoalsText.Should().Be("12");
+        pageModel.AssistsText.Should().Be("9");
+        pageModel.AverageRatingText.Should().Be("7.8");
+        pageModel.MvpAwardsText.Should().Be("3");
+        pageModel.LikesText.Should().Be("41");
         pageModel.RecentForm.Select(item => item.Text).Should().Equal("W", "W", "D", "W", "L");
         pageModel.PendingNote.Should().Be("2 goals from Sat awaiting confirmation");
         pageModel.HasPendingNote.Should().BeTrue();
         pageModel.IsBusy.Should().BeFalse();
+    }
+
+
+    [Fact]
+    public async Task Appearing_PlayerIdRoute_LoadsRequestedPlayerProfileAndHidesEditAction()
+    {
+        var player = SeedFixtures.Players[1];
+        var routedProfile = new PlayerProfileDto(
+            player.Id,
+            player.DisplayName,
+            "Forward \u00B7 #2",
+            player.Initials,
+            new CareerStatsDto(23, 13, 10, 8.3m, 4, 42),
+            [MatchResult.Win, MatchResult.Draw],
+            null);
+        var profileClient = new Mock<IProfileClient>(MockBehavior.Strict);
+        profileClient
+            .Setup(client => client.GetProfileAsync(player.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(routedProfile);
+        var pageModel = CreatePageModel(profileClient);
+        pageModel.ApplyQueryAttributes(new Dictionary<string, object>
+        {
+            [ProfilePageModel.PlayerIdQueryKey] = player.Id.ToString()
+        });
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.Profile.Should().Be(routedProfile);
+        pageModel.GoalsText.Should().Be("13");
+        pageModel.AverageRatingText.Should().Be("8.3");
+        pageModel.CanEditProfile.Should().BeFalse();
+        profileClient.Verify(
+            client => client.GetCurrentProfileAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -238,29 +279,48 @@ public class ProfilePageModelTests
     }
 
     [Fact]
-    public void ProfilePageXaml_NarrowAndWideStates_ReflowIdentityAndStatTiles()
+    public void ProfilePageXaml_AndroidSafeLayout_UsesStableThreeColumnStatGrid()
     {
         var page = LoadXaml("ProfilePage.xaml");
-        var adaptiveTriggers = page.Descendants()
-            .Where(element => element.Name.LocalName == "AdaptiveTrigger")
+        var statTiles = page.Descendants()
+            .Where(element => element.Name.LocalName == "StatTile")
             .ToList();
-        var setters = page.Descendants()
-            .Where(element => element.Name.LocalName == "Setter")
-            .ToList();
+        var statGrid = statTiles[0].Parent!;
 
-        adaptiveTriggers.Should().HaveCountGreaterThanOrEqualTo(2);
-        adaptiveTriggers.Should().OnlyContain(
-            trigger => Attribute(trigger, "MinWindowWidth") == "360");
-        setters.Should().Contain(
-            setter =>
-                Attribute(setter, "TargetName") == "StatGrid" &&
-                Attribute(setter, "Property") == "Grid.ColumnDefinitions" &&
-                Attribute(setter, "Value") == "*,*,*");
-        setters.Should().Contain(
-            setter =>
-                Attribute(setter, "TargetName") == "EditAction" &&
-                Attribute(setter, "Property") == "Grid.Column" &&
-                Attribute(setter, "Value") == "1");
+        statTiles.Should().HaveCount(6);
+        Attribute(statGrid, "ColumnDefinitions").Should().Be("*,*,*");
+        Attribute(statGrid, "RowDefinitions").Should().Be("Auto,Auto");
+        page.Descendants().Should().NotContain(
+            element => element.Name.LocalName == "AdaptiveTrigger",
+            "cross-element visual-state targets throw XamlParseException when the Android Shell creates the tab");
+        page.Descendants().Should().NotContain(
+            element => element.Name.LocalName == "Setter" && Attribute(element, "TargetName") != null);
+        statTiles.Select(tile => Attribute(tile, "Value"))
+            .Should().Equal(
+                "{Binding MatchesText}",
+                "{Binding GoalsText}",
+                "{Binding AssistsText}",
+                "{Binding AverageRatingText}",
+                "{Binding MvpAwardsText}",
+                "{Binding LikesText}");
+    }
+
+    [Fact]
+    public void ProfilePageXaml_IdentityActions_ShareOneSpaceBetweenRow()
+    {
+        var page = LoadXaml("ProfilePage.xaml");
+        var linkedIdentity = page.Descendants()
+            .Single(element =>
+                element.Name.LocalName == "HorizontalStackLayout" &&
+                element.Attributes().Any(attribute => attribute.Name.LocalName == "Name" && attribute.Value == "LinkedIdentity"));
+        var identityRow = linkedIdentity.Parent!;
+        var editAction = identityRow.Elements()
+            .Single(element => element.Name.LocalName == "Grid" && Attribute(element, "Grid.Column") == "1");
+
+        Attribute(identityRow, "ColumnDefinitions").Should().Be("*,Auto");
+        Attribute(identityRow, "RowDefinitions").Should().BeNull();
+        Attribute(linkedIdentity, "Grid.Column").Should().Be("0");
+        Attribute(editAction, "HorizontalOptions").Should().Be("End");
     }
 
     [Fact]
@@ -277,6 +337,15 @@ public class ProfilePageModelTests
                 "{StaticResource LinkButton}",
                 "{StaticResource GhostButton}");
         page.Descendants().Should().Contain(element => element.Name.LocalName == "ScrollView");
+    }
+
+    [Fact]
+    public void ProfilePageXaml_EditAction_BindsToCurrentProfileOnly()
+    {
+        var page = LoadXaml("ProfilePage.xaml");
+        page.Descendants().Should().Contain(element =>
+            element.Name.LocalName == "Grid" &&
+            Attribute(element, "IsVisible") == "{Binding CanEditProfile}");
     }
 
     [Fact]
@@ -299,6 +368,9 @@ public class ProfilePageModelTests
         var client = new Mock<IProfileClient>();
         client
             .Setup(service => service.GetCurrentProfileAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(profile);
+        client
+            .Setup(service => service.GetProfileAsync(profile.PlayerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(profile);
         return client;
     }

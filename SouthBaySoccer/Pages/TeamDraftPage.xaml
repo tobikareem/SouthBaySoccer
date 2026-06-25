@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.TeamDraftPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="DraftPage"
+    x:DataType="pageModels:TeamDraftPageModel"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Pick team">
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior BindingContext="{Binding Path=BindingContext, Source={x:Reference DraftPage}, x:DataType=ContentPage}" EventName="Appearing" Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader Title="Pick team" Subtitle="{Binding CaptainName, StringFormat='Captain - {0}'}" ShowBack="True" BackCommand="{Binding BackCommand}" />
+        <c:StateView Grid.Row="1" State="{Binding State}" Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}" GlyphFontFamily="FontAwesomeSolid">
+            <ScrollView>
+                <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">
+                    <c:BrandCard>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout>
+                                <Label Text="{Binding TeamName}" Style="{StaticResource TextBodyStrong}" />
+                                <Label Text="{Binding Summary}" Style="{StaticResource TextCaption}" />
+                            </VerticalStackLayout>
+                            <c:Badge Grid.Column="1" Text="TeamDraft.PickPlayer" Glyph="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}" Variant="Success" />
+                        </Grid>
+                    </c:BrandCard>
+                    <Entry Text="{Binding SearchText}" Placeholder="Search checked-in roster" Style="{StaticResource BrandEntry}" />
+                    <c:SectionHeader Text="Checked-in roster" />
+                    <c:BrandCard>
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding Players}" Spacing="{StaticResource SpaceXs}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="pageModels:DraftPlayerItem">
+                                    <c:PlayerRow Initials="{Binding Initials}" Name="{Binding Name}" Detail="{Binding Detail}" TapCommand="{Binding BindingContext.TogglePickCommand, Source={x:Reference DraftPage}}" TapCommandParameter="{Binding .}" IsEnabled="{Binding CanPick}" IsVisible="{Binding IsVisible}">
+                                        <c:PlayerRow.TrailingContent>
+                                            <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanPick}" InputTransparent="True" />
+                                        </c:PlayerRow.TrailingContent>
+                                    </c:PlayerRow>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+                    <Button Text="Save team picks" Command="{Binding SaveCommand}" Style="{StaticResource PrimaryButton}" />
+                    <Label Text="Permission expires when teams lock." Style="{StaticResource TextCaption}" HorizontalTextAlignment="Center" />
+                </VerticalStackLayout>
+            </ScrollView>
+        </c:StateView>
+    </Grid>
+</ContentPage>
