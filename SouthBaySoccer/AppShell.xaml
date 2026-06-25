@@ -42,6 +42,14 @@
             SemanticProperties.Description="Stats tab" />
 
         <ShellContent
+            x:Name="PlayersTab"
+            Title="Players"
+            Icon="{StaticResource IconPlayers}"
+            ContentTemplate="{DataTemplate pages:PlayersPage}"
+            Route="players"
+            AutomationId="PlayersTab"
+            SemanticProperties.Description="Players tab" />
+        <ShellContent
             x:Name="ProfileTab"
             Title="Profile"
             Icon="{StaticResource IconProfile}"
@@ -52,4 +60,3 @@
     </TabBar>
 
 </Shell>
-

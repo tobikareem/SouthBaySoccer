@@ -26,6 +26,26 @@ public class GameDayPageModelTests
         pageModel.StatusLabel.Should().Be("Open");
         pageModel.CanCheckIn.Should().BeTrue();
         pageModel.PrimaryActionText.Should().Be("Check in at field");
+        pageModel.CanDraftTeam.Should().BeTrue();
+        pageModel.CanApprovePostGame.Should().BeTrue();
+        pageModel.HasBlockReason.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GameDayActions_OpenDraftAndPostGameRoutes()
+    {
+        var navigator = Navigator();
+        var pageModel = new GameDayPageModel(
+            new SeedGameDayClient(new SeedGameDayState()),
+            navigator.Object,
+            new GameDayOptions { VenueLocalNow = new DateTime(2026, 6, 20, 19, 35, 0) });
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.OpenTeamDraftCommand.ExecuteAsync(null);
+        await pageModel.OpenPostGameApprovalCommand.ExecuteAsync(null);
+
+        navigator.Verify(service => service.OpenTeamDraftAsync(SeedFixtures.MarinaSessionId), Times.Once);
+        navigator.Verify(service => service.OpenPostGameApprovalAsync(SeedFixtures.MarinaSessionId), Times.Once);
     }
 
     [Fact]
@@ -81,6 +101,18 @@ public class GameDayPageModelTests
     }
 
     [Fact]
+    public async Task CaptainAssignment_SelectCaptainCount_WhenXamlPassesString_UpdatesCount()
+    {
+        var pageModel = new CaptainAssignmentPageModel(new SeedGameDayClient(new SeedGameDayState()), Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        pageModel.SelectCaptainCountCommand.Execute("4");
+
+        pageModel.CaptainCount.Should().Be(4);
+        pageModel.SelectedCountText.Should().Contain("max 4");
+    }
+
+    [Fact]
     public async Task TeamDraft_AssignedElsewhereRow_IsUnavailable()
     {
         var pageModel = new TeamDraftPageModel(new SeedGameDayClient(new SeedGameDayState()), Navigator().Object);
@@ -90,6 +122,22 @@ public class GameDayPageModelTests
         pageModel.Players.Should().Contain(item =>
             item.Detail.Contains("Already picked", StringComparison.Ordinal)
             && !item.CanPick);
+    }
+
+    [Fact]
+    public async Task TeamDraft_SaveTeamPicks_PersistsSessionScopedAssignment()
+    {
+        var state = new SeedGameDayState();
+        var pageModel = new TeamDraftPageModel(new SeedGameDayClient(state), Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        var openPlayer = pageModel.Players.First(item => item.CanPick && !item.IsSelected);
+        pageModel.TogglePickCommand.Execute(openPlayer);
+        await pageModel.SaveCommand.ExecuteAsync(null);
+
+        var draft = state.GetTeamDraft(SeedFixtures.MarinaSessionId);
+        var team = draft.Teams.First(item => item.TeamId == draft.TeamId);
+        team.PlayerIds.Should().Contain(openPlayer.PlayerId);
     }
 
     [Fact]
@@ -111,13 +159,18 @@ public class GameDayPageModelTests
         var draft = state.GetTeamDraft(SeedFixtures.MarinaSessionId);
         var team = draft.Teams.First();
         state.SaveTeamResult(new TeamResultUpdateDto(team.TeamId, 1, 0, 0)).Should().Be(ClientCommandResult.Success);
-        state.ApproveStat(state.GetPostGameApproval(SeedFixtures.MarinaSessionId).PendingApprovals[0].SubmissionId);
-        state.ApproveStat(state.GetPostGameApproval(SeedFixtures.MarinaSessionId).PendingApprovals[1].SubmissionId);
+        foreach (var approval in state.GetPostGameApproval(SeedFixtures.MarinaSessionId).PendingApprovals)
+        {
+            state.ApproveStat(approval.SubmissionId).Should().Be(ClientCommandResult.Success);
+        }
 
-        state.Publish().IsSuccess.Should().BeFalse("the disputed stat still needs review");
-        var form = state.RecentFormFor(team.PlayerIds[0], [SouthBaySoccer.Contracts.Profiles.MatchResult.Loss]);
+        state.Publish().Should().Be(ClientCommandResult.Success);
+        var assignedForm = state.RecentFormFor(team.PlayerIds[0], [SouthBaySoccer.Contracts.Profiles.MatchResult.Loss]);
+        var unassigned = draft.CheckedInPlayers.First(player => draft.Teams.All(matchTeam => !matchTeam.PlayerIds.Contains(player.Player.Id)));
+        var unassignedForm = state.RecentFormFor(unassigned.Player.Id, [SouthBaySoccer.Contracts.Profiles.MatchResult.Loss]);
 
-        form.Should().Equal(SouthBaySoccer.Contracts.Profiles.MatchResult.Loss);
+        assignedForm.First().Should().Be(SouthBaySoccer.Contracts.Profiles.MatchResult.Win);
+        unassignedForm.Should().Equal(SouthBaySoccer.Contracts.Profiles.MatchResult.Loss);
     }
 
     [Fact]

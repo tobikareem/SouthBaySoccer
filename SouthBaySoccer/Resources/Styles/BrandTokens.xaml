@@ -50,6 +50,7 @@
     <Thickness x:Key="StatTilePadding">8,12</Thickness>
     <Thickness x:Key="NoticePadding">12,11</Thickness>
     <Thickness x:Key="ChipPadding">8,6</Thickness>
+    <Thickness x:Key="SearchInputPadding">12,4,13,4</Thickness>
     <Thickness x:Key="LinkButtonPadding">8,0</Thickness>
     <Thickness x:Key="WelcomeHeaderPadding">16,34,16,30</Thickness>
     <Thickness x:Key="WelcomeHeaderTextMargin">9,0,0,0</Thickness>

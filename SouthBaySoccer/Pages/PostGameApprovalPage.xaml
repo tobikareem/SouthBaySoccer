@@ -42,6 +42,12 @@
                             </DataTemplate>
                         </BindableLayout.ItemTemplate>
                     </VerticalStackLayout>
+                    <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding NeedsReview}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleInfo}" FontFamily="FontAwesomeSolid" Style="{StaticResource BrandIconLabel}" />
+                            <Label Grid.Column="1" Text="Review items must be resolved by a GameAdmin before publishing." Style="{StaticResource TextCaption}" />
+                        </Grid>
+                    </Border>
                     <c:SectionHeader Text="Pending goals and assists" />
                     <c:BrandCard>
                         <VerticalStackLayout BindableLayout.ItemsSource="{Binding Approvals}" Spacing="{StaticResource SpaceXs}">
@@ -49,16 +55,7 @@
                                 <DataTemplate x:DataType="pageModels:StatApprovalItem">
                                     <c:PlayerRow Initials="{Binding Initials}" Name="{Binding Name}" Detail="{Binding Detail}">
                                         <c:PlayerRow.TrailingContent>
-                                            <Grid>
-                                                <Button Text="Approve" Command="{Binding BindingContext.ApproveStatCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" Style="{StaticResource GhostButton}" IsVisible="{Binding CanApprove}" />
-                                                <c:Badge Text="Needs review" Variant="Warning" IsVisible="False">
-                                                    <c:Badge.Triggers>
-                                                        <DataTrigger TargetType="c:Badge" Binding="{Binding Status}" Value="{x:Static gameDay:StatApprovalStatus.NeedsReview}">
-                                                            <Setter Property="IsVisible" Value="True" />
-                                                        </DataTrigger>
-                                                    </c:Badge.Triggers>
-                                                </c:Badge>
-                                            </Grid>
+                                            <Button Text="{Binding ApprovalActionText}" Command="{Binding BindingContext.ApproveStatCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" Style="{StaticResource GhostButton}" IsVisible="{Binding CanApprove}" />
                                         </c:PlayerRow.TrailingContent>
                                     </c:PlayerRow>
                                 </DataTemplate>
@@ -71,4 +68,5 @@
         </c:StateView>
     </Grid>
 </ContentPage>
+
 
