@@ -15,4 +15,7 @@ public interface ISessionsNavigator
 
     /// <summary>Opens the upcoming-session schedule screen.</summary>
     Task GoToScheduleAsync();
+
+    /// <summary>Opens the admin "Create session" screen (ADMIN-4).</summary>
+    Task GoToCreateSessionAsync();
 }

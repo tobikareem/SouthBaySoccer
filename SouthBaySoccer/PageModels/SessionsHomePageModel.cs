@@ -58,6 +58,9 @@ public partial class SessionsHomePageModel(
     [ObservableProperty]
     private IReadOnlyList<SessionSummaryDto> _comingUpSessions = [];
 
+    [ObservableProperty]
+    private bool _canManageSessions;
+
     [RelayCommand(AllowConcurrentExecutions = false)]
     private Task Appearing(CancellationToken cancellationToken) => LoadDashboardAsync(cancellationToken);
 
@@ -72,6 +75,9 @@ public partial class SessionsHomePageModel(
 
     [RelayCommand]
     private Task ViewSchedule() => navigator.GoToScheduleAsync();
+
+    [RelayCommand]
+    private Task CreateSession() => navigator.GoToCreateSessionAsync();
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task JoinWaitlist(Guid sessionId, CancellationToken cancellationToken)
@@ -131,6 +137,7 @@ public partial class SessionsHomePageModel(
         ComingUpLabel = dashboard.ComingUpLabel;
         ScheduleActionLabel = dashboard.ScheduleActionLabel;
         ComingUpSessions = dashboard.ComingUpSessions;
+        CanManageSessions = dashboard.CanManageSessions;
 
         if (dashboard.FeaturedSession is null && dashboard.ComingUpSessions.Count == 0)
         {

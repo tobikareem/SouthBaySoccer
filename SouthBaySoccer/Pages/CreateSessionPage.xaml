@@ -1,0 +1,357 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.CreateSessionPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:sessions="clr-namespace:SouthBaySoccer.Contracts.Sessions;assembly=SouthBaySoccer.Contracts"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="CreateSession"
+    x:DataType="pageModels:CreateSessionPageModel"
+    Shell.FlyoutBehavior="Disabled"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}">
+
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference CreateSession}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding LoadCommand}" />
+    </ContentPage.Behaviors>
+
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader Grid.Row="0"
+                       Title="Create session"
+                       Subtitle="Admin only"
+                       ShowBack="True"
+                       BackCommand="{Binding GoBackCommand}" />
+
+        <c:StateView Grid.Row="1"
+                     State="{Binding State}"
+                     Title="{Binding StateTitle}"
+                     Message="{Binding StateMessage}"
+                     Glyph="{x:Static fonts:FontAwesomeGlyphs.CirclePlus}"
+                     GlyphFontFamily="FontAwesomeSolid"
+                     RetryCommand="{Binding LoadCommand}">
+            <ScrollView>
+                <VerticalStackLayout Padding="{StaticResource WelcomeContentPadding}"
+                                     Spacing="{StaticResource SpaceMd}">
+
+                    <!-- Intro notice -->
+                    <Border Style="{StaticResource NoticeSurface}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceMd}">
+                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}"
+                                   FontFamily="FontAwesomeSolid"
+                                   FontSize="{StaticResource IconMd}"
+                                   TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
+                                   VerticalTextAlignment="Center" />
+                            <Label Grid.Column="1"
+                                   Text="Create a session, preview it, then publish it to the team so players can RSVP."
+                                   Style="{StaticResource TextCaption}"
+                                   VerticalTextAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Game date and time -->
+                    <Label Text="GAME DATE AND TIME" Style="{StaticResource TextLabel}" />
+                    <c:BrandCard>
+                        <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                            <Grid ColumnDefinitions="Auto,*"
+                                  ColumnSpacing="{StaticResource SpaceMd}">
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.Calendar}"
+                                       FontFamily="FontAwesomeSolid"
+                                       FontSize="{StaticResource IconMd}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
+                                       VerticalTextAlignment="Center"
+                                       SemanticProperties.Description="Game date" />
+                                <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
+                                    <Label Text="GAME DATE" Style="{StaticResource TextLabel}" />
+                                    <DatePicker Date="{Binding GameDate}"
+                                                MinimumHeightRequest="{StaticResource TouchMin}"
+                                                SemanticProperties.Description="Game date" />
+                                </VerticalStackLayout>
+                            </Grid>
+
+                            <Grid ColumnDefinitions="Auto,*"
+                                  ColumnSpacing="{StaticResource SpaceMd}">
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}"
+                                       FontFamily="FontAwesomeSolid"
+                                       FontSize="{StaticResource IconMd}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
+                                       VerticalTextAlignment="Center"
+                                       SemanticProperties.Description="Start time" />
+                                <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
+                                    <Label Text="START TIME" Style="{StaticResource TextLabel}" />
+                                    <TimePicker Time="{Binding StartTime}"
+                                                MinimumHeightRequest="{StaticResource TouchMin}"
+                                                SemanticProperties.Description="Start time" />
+                                </VerticalStackLayout>
+                            </Grid>
+
+                            <Grid ColumnDefinitions="Auto,*"
+                                  ColumnSpacing="{StaticResource SpaceMd}">
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.Lock}"
+                                       FontFamily="FontAwesomeSolid"
+                                       FontSize="{StaticResource IconMd}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
+                                       VerticalTextAlignment="Center"
+                                       SemanticProperties.Description="RSVP close" />
+                                <Grid Grid.Column="1"
+                                      ColumnDefinitions="*,*"
+                                      ColumnSpacing="{StaticResource SpaceSm}">
+                                    <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                                        <Label Text="RSVP CLOSE DATE" Style="{StaticResource TextLabel}" />
+                                        <DatePicker Date="{Binding RsvpCloseDate}"
+                                                    MinimumHeightRequest="{StaticResource TouchMin}"
+                                                    SemanticProperties.Description="RSVP close date" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
+                                        <Label Text="RSVP CLOSE TIME" Style="{StaticResource TextLabel}" />
+                                        <TimePicker Time="{Binding RsvpCloseTime}"
+                                                    MinimumHeightRequest="{StaticResource TouchMin}"
+                                                    SemanticProperties.Description="RSVP close time" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </Grid>
+
+                            <Grid ColumnDefinitions="Auto,*"
+                                  ColumnSpacing="{StaticResource SpaceMd}">
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}"
+                                       FontFamily="FontAwesomeSolid"
+                                       FontSize="{StaticResource IconMd}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
+                                       VerticalTextAlignment="Center"
+                                       SemanticProperties.Description="Check-in window" />
+                                <Grid Grid.Column="1"
+                                      ColumnDefinitions="*,*"
+                                      ColumnSpacing="{StaticResource SpaceSm}">
+                                    <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                                        <Label Text="CHECK-IN OPENS" Style="{StaticResource TextLabel}" />
+                                        <TimePicker Time="{Binding CheckInOpen}"
+                                                    MinimumHeightRequest="{StaticResource TouchMin}"
+                                                    SemanticProperties.Description="Check-in opens" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
+                                        <Label Text="CHECK-IN CLOSES" Style="{StaticResource TextLabel}" />
+                                        <TimePicker Time="{Binding CheckInClose}"
+                                                    MinimumHeightRequest="{StaticResource TouchMin}"
+                                                    SemanticProperties.Description="Check-in closes" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </Grid>
+
+                            <Border Style="{StaticResource MetadataChip}" HorizontalOptions="Start">
+                                <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}"
+                                           FontFamily="FontAwesomeSolid"
+                                           Style="{StaticResource TextCaption}" />
+                                    <Label Text="{Binding CheckInPreviewLabel}"
+                                           Style="{StaticResource TextCaption}"
+                                           SemanticProperties.Description="Check-in window preview" />
+                                </HorizontalStackLayout>
+                            </Border>
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+
+                    <!-- Location -->
+                    <Label Text="LOCATION" Style="{StaticResource TextLabel}" />
+                    <c:BrandCard>
+                        <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                            <Grid ColumnDefinitions="Auto,*"
+                                  ColumnSpacing="{StaticResource SpaceSm}">
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.MagnifyingGlass}"
+                                       FontFamily="FontAwesomeSolid"
+                                       FontSize="{StaticResource IconMd}"
+                                       TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+                                       VerticalTextAlignment="Center"
+                                       SemanticProperties.Description="Search venues" />
+                                <Entry Grid.Column="1"
+                                       Text="{Binding VenueQuery}"
+                                       Placeholder="Search venues"
+                                       Style="{StaticResource BrandEntry}"
+                                       MinimumHeightRequest="{StaticResource TouchMin}"
+                                       SemanticProperties.Description="Search venues">
+                                    <Entry.Behaviors>
+                                        <toolkit:EventToCommandBehavior
+                                            EventName="TextChanged"
+                                            Command="{Binding SearchVenuesCommand}" />
+                                    </Entry.Behaviors>
+                                </Entry>
+                            </Grid>
+
+                            <!-- Venue search results -->
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding VenueResults}"
+                                                 IsVisible="{Binding HasVenueResults}"
+                                                 Spacing="{StaticResource SpaceXs}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="sessions:VenueDto">
+                                        <Grid Padding="{StaticResource RowPadding}"
+                                              ColumnDefinitions="*,Auto"
+                                              ColumnSpacing="{StaticResource SpaceSm}"
+                                              MinimumHeightRequest="{StaticResource TouchMin}"
+                                              SemanticProperties.Description="{Binding Name}">
+                                            <Grid.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={x:Reference CreateSession}, Path=BindingContext.SelectVenueCommand, x:DataType=ContentPage}"
+                                                    CommandParameter="{Binding .}" />
+                                            </Grid.GestureRecognizers>
+                                            <VerticalStackLayout Spacing="{StaticResource SpaceXs}"
+                                                                 VerticalOptions="Center">
+                                                <Label Text="{Binding Name}" Style="{StaticResource TextBodyStrong}" />
+                                                <Label Text="{Binding Locality}" Style="{StaticResource TextCaption}" />
+                                            </VerticalStackLayout>
+                                            <c:Badge Grid.Column="1"
+                                                     Text="Saved"
+                                                     Variant="Success"
+                                                     IsVisible="{Binding IsSaved}"
+                                                     VerticalOptions="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+
+                            <!-- Selected venue confirmation -->
+                            <Grid ColumnDefinitions="*,Auto"
+                                  ColumnSpacing="{StaticResource SpaceSm}"
+                                  IsVisible="{Binding HasSelectedVenue}">
+                                <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                                    <Label Text="{Binding SelectedVenue.Name}" Style="{StaticResource TextBodyStrong}" />
+                                    <Label Text="{Binding SavedVenueHint}" Style="{StaticResource TextCaption}" />
+                                </VerticalStackLayout>
+                                <Button Grid.Column="1"
+                                        Text="Map"
+                                        Style="{StaticResource LinkButton}"
+                                        ContentLayout="Left,6"
+                                        SemanticProperties.Description="Open venue map"
+                                        VerticalOptions="Center">
+                                    <Button.ImageSource>
+                                        <FontImageSource Glyph="{x:Static fonts:FontAwesomeGlyphs.LocationDot}"
+                                                         FontFamily="FontAwesomeSolid"
+                                                         Size="{StaticResource IconMd}"
+                                                         Color="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}" />
+                                    </Button.ImageSource>
+                                </Button>
+                            </Grid>
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+
+                    <!-- Game setup -->
+                    <Label Text="GAME SETUP" Style="{StaticResource TextLabel}" />
+                    <c:BrandCard>
+                        <VerticalStackLayout Spacing="{StaticResource SpaceMd}">
+                            <c:SegmentedControl ItemsSource="{Binding Formats}"
+                                                SelectedIndex="{Binding SelectedFormatIndex, Mode=TwoWay}"
+                                                SemanticProperties.Description="Game format" />
+
+                            <c:CounterStepper Caption="Capacity"
+                                              Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
+                                              GlyphFontFamily="FontAwesomeSolid"
+                                              Value="{Binding Capacity, Mode=TwoWay}"
+                                              Minimum="{Binding MinimumCapacity}"
+                                              Maximum="{Binding MaximumCapacity}" />
+
+                            <c:SegmentedControl ItemsSource="{Binding TeamOptions}"
+                                                SelectedIndex="{Binding SelectedTeamIndex, Mode=TwoWay}"
+                                                SemanticProperties.Description="Team setup" />
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+
+                    <!-- Player preview -->
+                    <Label Text="PLAYER PREVIEW" Style="{StaticResource TextLabel}" />
+                    <c:BrandCard IsHero="True">
+                        <VerticalStackLayout Spacing="{StaticResource SpaceSm}"
+                                             SemanticProperties.Description="Player preview">
+                            <Label Text="New session"
+                                   Style="{StaticResource TextLabel}"
+                                   TextColor="White"
+                                   Opacity="0.85" />
+                            <Label Text="{Binding PreviewTitle}"
+                                   Style="{StaticResource TextH2}"
+                                   TextColor="White"
+                                   SemanticProperties.HeadingLevel="Level2" />
+                            <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
+                                <Border Style="{StaticResource MetadataChip}"
+                                        BackgroundColor="{StaticResource HeaderOverlay}">
+                                    <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.Calendar}"
+                                               FontFamily="FontAwesomeSolid"
+                                               Style="{StaticResource TextCaption}"
+                                               TextColor="White" />
+                                        <Label Text="{Binding PreviewDateLabel}"
+                                               Style="{StaticResource TextCaption}"
+                                               TextColor="White" />
+                                    </HorizontalStackLayout>
+                                </Border>
+                                <Border Style="{StaticResource MetadataChip}"
+                                        BackgroundColor="{StaticResource HeaderOverlay}">
+                                    <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}"
+                                               FontFamily="FontAwesomeSolid"
+                                               Style="{StaticResource TextCaption}"
+                                               TextColor="White" />
+                                        <Label Text="{Binding PreviewTimeLabel}"
+                                               Style="{StaticResource TextCaption}"
+                                               TextColor="White" />
+                                    </HorizontalStackLayout>
+                                </Border>
+                                <Border Style="{StaticResource MetadataChip}"
+                                        BackgroundColor="{StaticResource HeaderOverlay}">
+                                    <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.Users}"
+                                               FontFamily="FontAwesomeSolid"
+                                               Style="{StaticResource TextCaption}"
+                                               TextColor="White" />
+                                        <Label Text="{Binding PreviewFormatLabel}"
+                                               Style="{StaticResource TextCaption}"
+                                               TextColor="White" />
+                                    </HorizontalStackLayout>
+                                </Border>
+                            </HorizontalStackLayout>
+                            <Grid ColumnDefinitions="Auto,*,Auto"
+                                  ColumnSpacing="{StaticResource SpaceSm}">
+                                <Border Style="{StaticResource MetadataChip}"
+                                        BackgroundColor="White"
+                                        HorizontalOptions="Start">
+                                    <Label Text="Ready for RSVP"
+                                           Style="{StaticResource TextBodyStrong}"
+                                           FontSize="{StaticResource FontLabel}"
+                                           TextColor="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandGreenDepthDark}}"
+                                           VerticalTextAlignment="Center" />
+                                </Border>
+                                <Label Grid.Column="2"
+                                       Text="{Binding FeedLabel}"
+                                       Style="{StaticResource TextBodyStrong}"
+                                       FontSize="{StaticResource FontLabel}"
+                                       TextColor="White"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+
+                    <!-- Validation message -->
+                    <Label Text="{Binding ValidationMessage}"
+                           IsVisible="{Binding HasValidationMessage}"
+                           Style="{StaticResource TextCaption}"
+                           TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}" />
+
+                    <!-- Publish -->
+                    <Button Text="Publish to team"
+                            Command="{Binding PublishToTeamCommand}"
+                            IsEnabled="{Binding CanPublish}"
+                            Style="{StaticResource PrimaryButton}"
+                            ContentLayout="Left,8"
+                            SemanticProperties.Description="Publish to team">
+                        <Button.ImageSource>
+                            <FontImageSource Glyph="{x:Static fonts:FontAwesomeGlyphs.PaperPlane}"
+                                             FontFamily="FontAwesomeSolid"
+                                             Size="{StaticResource IconMd}"
+                                             Color="White" />
+                        </Button.ImageSource>
+                    </Button>
+                </VerticalStackLayout>
+            </ScrollView>
+        </c:StateView>
+    </Grid>
+</ContentPage>

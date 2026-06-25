@@ -1,3 +1,4 @@
+using System.Globalization;
 using SouthBaySoccer.Contracts.Common;
 using SouthBaySoccer.Contracts.Rosters;
 using SouthBaySoccer.Contracts.Sessions;
@@ -11,6 +12,13 @@ public sealed class SeedState
     private Dictionary<Guid, RosterDto> rosters = [];
     private MatchStatsDto matchStats = SeedFixtures.MatchStats;
     private IReadOnlyList<RateableTeammateDto> rateableTeammates = [];
+
+    // ADMIN-4: drafts created on this device and the sessions published from them. Published sessions
+    // are surfaced in the dashboard "Coming up" feed and openable for RSVP, all cleared by Reset().
+    private Dictionary<Guid, CreateSessionCommand> drafts = [];
+    private Dictionary<Guid, Guid> publishedSessionByDraft = [];
+    private Dictionary<Guid, SessionSummaryDto> publishedSummaries = [];
+    private Dictionary<Guid, SessionDetailDto> publishedDetails = [];
 
     public SeedState()
     {
@@ -26,6 +34,10 @@ public sealed class SeedState
                 pair => CopyRoster(pair.Value));
             matchStats = CopyMatchStats(SeedFixtures.MatchStats);
             rateableTeammates = CopyRateableTeammates(SeedFixtures.RateableTeammates);
+            drafts = [];
+            publishedSessionByDraft = [];
+            publishedSummaries = [];
+            publishedDetails = [];
         }
     }
 
@@ -35,6 +47,7 @@ public sealed class SeedState
         {
             var featured = ApplyRosterState(SeedFixtures.Dashboard.FeaturedSession);
             var comingUp = SeedFixtures.Dashboard.ComingUpSessions
+                .Concat(publishedSummaries.Values)
                 .Select(ApplyRosterState)
                 .ToArray();
 
@@ -50,7 +63,8 @@ public sealed class SeedState
     {
         lock (syncRoot)
         {
-            if (!SeedFixtures.Sessions.TryGetValue(sessionId, out var session))
+            if (!SeedFixtures.Sessions.TryGetValue(sessionId, out var session)
+                && !publishedDetails.TryGetValue(sessionId, out session))
             {
                 return null;
             }
@@ -81,7 +95,7 @@ public sealed class SeedState
         lock (syncRoot)
         {
             if (!rosters.TryGetValue(sessionId, out var roster)
-                || !SeedFixtures.Sessions.TryGetValue(sessionId, out var session))
+                || !TryGetCapacity(sessionId, out var capacity))
             {
                 return ClientCommandResult.Failure("session_not_found", "The session was not found.");
             }
@@ -98,7 +112,7 @@ public sealed class SeedState
                     return ClientCommandResult.Success;
                 }
 
-                if (going.Count >= session.Capacity)
+                if (going.Count >= capacity)
                 {
                     return ClientCommandResult.Failure(
                         "session_full",
@@ -127,12 +141,12 @@ public sealed class SeedState
         lock (syncRoot)
         {
             if (!rosters.TryGetValue(sessionId, out var roster)
-                || !SeedFixtures.Sessions.TryGetValue(sessionId, out var session))
+                || !TryGetCapacity(sessionId, out var capacity))
             {
                 return ClientCommandResult.Failure("session_not_found", "The session was not found.");
             }
 
-            if (roster.Going.Count < session.Capacity)
+            if (roster.Going.Count < capacity)
             {
                 return ClientCommandResult.Failure(
                     "session_not_full",
@@ -273,6 +287,197 @@ public sealed class SeedState
         }
     }
 
+    // --- ADMIN-4: create and publish session ------------------------------------------------
+
+    public CreateSessionDefaultsDto GetCreateSessionDefaults() => SeedFixtures.CreateSessionDefaults;
+
+    public IReadOnlyList<VenueDto> SearchVenues(string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return SeedFixtures.Venues;
+        }
+
+        var trimmed = query.Trim();
+        return Array.AsReadOnly(
+            SeedFixtures.Venues
+                .Where(venue =>
+                    venue.Name.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+                    || venue.Locality.Contains(trimmed, StringComparison.OrdinalIgnoreCase))
+                .ToArray());
+    }
+
+    public CreateSessionResult CreateDraft(CreateSessionCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        var validation = ValidateCommand(command);
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        lock (syncRoot)
+        {
+            var draftId = Guid.NewGuid();
+            drafts[draftId] = command;
+            return CreateSessionResult.Success(draftId);
+        }
+    }
+
+    public CreateSessionResult Publish(Guid draftId)
+    {
+        lock (syncRoot)
+        {
+            // Idempotent: re-publishing the same draft returns the original session, never a duplicate.
+            if (publishedSessionByDraft.TryGetValue(draftId, out var existingSessionId))
+            {
+                return CreateSessionResult.Success(existingSessionId);
+            }
+
+            if (!drafts.TryGetValue(draftId, out var command))
+            {
+                return CreateSessionResult.Failure("draft_not_found", "The session draft was not found.");
+            }
+
+            var sessionId = Guid.NewGuid();
+            publishedSummaries[sessionId] = BuildSummary(sessionId, command);
+            publishedDetails[sessionId] = BuildDetail(sessionId, command);
+            rosters[sessionId] = new RosterDto(sessionId, [], []);
+            publishedSessionByDraft[draftId] = sessionId;
+
+            return CreateSessionResult.Success(sessionId);
+        }
+    }
+
+    private static CreateSessionResult? ValidateCommand(CreateSessionCommand command)
+    {
+        if (command.GameDateLocal.Date == DateTime.MinValue.Date)
+        {
+            return CreateSessionResult.Failure("date_required", "Choose a game date before publishing.");
+        }
+
+        if (!IsTimeWithinDay(command.StartTimeLocal) || command.StartTimeLocal == TimeSpan.Zero)
+        {
+            return CreateSessionResult.Failure("start_time_required", "Choose a start time before publishing.");
+        }
+
+        if (string.IsNullOrWhiteSpace(command.VenueName))
+        {
+            return CreateSessionResult.Failure("venue_required", "Choose a venue before publishing.");
+        }
+
+        if (string.IsNullOrWhiteSpace(command.Format))
+        {
+            return CreateSessionResult.Failure("format_required", "Select a game format before publishing.");
+        }
+
+        if (command.Capacity < 1)
+        {
+            return CreateSessionResult.Failure("capacity_invalid", "Capacity must be at least 1.");
+        }
+
+        if (command.TeamCount is < 2 or > 4)
+        {
+            return CreateSessionResult.Failure("team_count_invalid", "Choose 2, 3, or 4 teams before publishing.");
+        }
+
+        if (!IsTimeWithinDay(command.CheckInOpenLocal)
+            || !IsTimeWithinDay(command.CheckInCloseLocal)
+            || command.CheckInOpenLocal >= command.CheckInCloseLocal)
+        {
+            return CreateSessionResult.Failure(
+                "checkin_window_invalid",
+                "Check-in must open before it closes.");
+        }
+
+        if (command.RsvpDeadlineLocal is null)
+        {
+            return CreateSessionResult.Failure(
+                "rsvp_deadline_required",
+                "Choose an RSVP deadline before publishing.");
+        }
+
+        if (!IsTimeWithinDay(command.RsvpDeadlineLocal.Value))
+        {
+            return CreateSessionResult.Failure(
+                "rsvp_deadline_invalid",
+                "RSVP deadline must be a valid venue-local time.");
+        }
+
+        if (command.RsvpDeadlineLocal.Value > command.StartTimeLocal)
+        {
+            return CreateSessionResult.Failure(
+                "rsvp_deadline_after_start",
+                "RSVP deadline cannot be after session start.");
+        }
+
+        return null;
+    }
+
+    private static SessionSummaryDto BuildSummary(Guid sessionId, CreateSessionCommand command) =>
+        new(
+            sessionId,
+            $"{command.VenueName} · {command.Format}",
+            command.VenueName,
+            command.Format,
+            ToStartUtc(command),
+            FormatDateLabel(command.GameDateLocal),
+            FormatTimeLabel(command.StartTimeLocal),
+            "Open",
+            0,
+            command.Capacity,
+            false,
+            0,
+            $"RSVP closes {FormatTimeLabel(command.RsvpDeadlineLocal!.Value)}");
+
+    private static SessionDetailDto BuildDetail(Guid sessionId, CreateSessionCommand command) =>
+        new(
+            sessionId,
+            "Saturday pickup",
+            command.VenueName,
+            $"{command.VenueName} · {command.Format}",
+            command.Format,
+            ToStartUtc(command),
+            $"{FormatDateLabel(command.GameDateLocal)} · {FormatTimeLabel(command.StartTimeLocal)}",
+            0,
+            command.Capacity,
+            $"closes {FormatTimeLabel(command.RsvpDeadlineLocal!.Value)}",
+            false,
+            true,
+            false);
+
+    private static bool IsTimeWithinDay(TimeSpan time) =>
+        time >= TimeSpan.Zero && time < TimeSpan.FromDays(1);
+    private bool TryGetCapacity(Guid sessionId, out int capacity)
+    {
+        if (SeedFixtures.Sessions.TryGetValue(sessionId, out var session))
+        {
+            capacity = session.Capacity;
+            return true;
+        }
+
+        if (publishedDetails.TryGetValue(sessionId, out var published))
+        {
+            capacity = published.Capacity;
+            return true;
+        }
+
+        capacity = 0;
+        return false;
+    }
+
+    // Seed only: labels off the venue-local fields, so this just tags the local clock as UTC for the
+    // StartsAtUtc slot. The real backend must perform a genuine venue-local -> UTC conversion here.
+    private static DateTime ToStartUtc(CreateSessionCommand command) =>
+        DateTime.SpecifyKind(command.GameDateLocal.Date.Add(command.StartTimeLocal), DateTimeKind.Utc);
+
+    private static string FormatDateLabel(DateTime date) =>
+        date.ToString("MMM d", CultureInfo.InvariantCulture);
+
+    private static string FormatTimeLabel(TimeSpan time) =>
+        (DateTime.MinValue + time).ToString("h:mm tt", CultureInfo.InvariantCulture);
+
     private SessionSummaryDto ApplyRosterState(SessionSummaryDto session)
     {
         var roster = rosters[session.Id];
@@ -313,3 +518,6 @@ public sealed class SeedState
         IEnumerable<RateableTeammateDto> teammates) =>
         Array.AsReadOnly(teammates.ToArray());
 }
+
+
+

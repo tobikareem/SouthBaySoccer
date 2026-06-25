@@ -35,6 +35,41 @@ public class ProfilePageModelTests
         pageModel.IsBusy.Should().BeFalse();
     }
 
+
+    [Fact]
+    public async Task Appearing_PlayerIdRoute_LoadsRequestedPlayerProfileAndHidesEditAction()
+    {
+        var player = SeedFixtures.Players[1];
+        var routedProfile = new PlayerProfileDto(
+            player.Id,
+            player.DisplayName,
+            "Forward \u00B7 #2",
+            player.Initials,
+            new CareerStatsDto(23, 13, 10, 8.3m, 4, 42),
+            [MatchResult.Win, MatchResult.Draw],
+            null);
+        var profileClient = new Mock<IProfileClient>(MockBehavior.Strict);
+        profileClient
+            .Setup(client => client.GetProfileAsync(player.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(routedProfile);
+        var pageModel = CreatePageModel(profileClient);
+        pageModel.ApplyQueryAttributes(new Dictionary<string, object>
+        {
+            [ProfilePageModel.PlayerIdQueryKey] = player.Id.ToString()
+        });
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.Profile.Should().Be(routedProfile);
+        pageModel.GoalsText.Should().Be("13");
+        pageModel.AverageRatingText.Should().Be("8.3");
+        pageModel.CanEditProfile.Should().BeFalse();
+        profileClient.Verify(
+            client => client.GetCurrentProfileAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     [Fact]
     public async Task Appearing_RequestInFlight_ShowsLoadingState()
     {
@@ -305,6 +340,15 @@ public class ProfilePageModelTests
     }
 
     [Fact]
+    public void ProfilePageXaml_EditAction_BindsToCurrentProfileOnly()
+    {
+        var page = LoadXaml("ProfilePage.xaml");
+        page.Descendants().Should().Contain(element =>
+            element.Name.LocalName == "Grid" &&
+            Attribute(element, "IsVisible") == "{Binding CanEditProfile}");
+    }
+
+    [Fact]
     public void ProfileNavigator_LeaderboardDestination_UsesExistingStatsRootRoute()
     {
         var shell = LoadXaml("AppShell.xaml");
@@ -324,6 +368,9 @@ public class ProfilePageModelTests
         var client = new Mock<IProfileClient>();
         client
             .Setup(service => service.GetCurrentProfileAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(profile);
+        client
+            .Setup(service => service.GetProfileAsync(profile.PlayerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(profile);
         return client;
     }

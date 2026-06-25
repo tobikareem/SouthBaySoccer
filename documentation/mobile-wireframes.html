@@ -70,7 +70,7 @@
   .bar > i{display:block;height:100%;background:var(--g)}
   .avatar{border-radius:50%;background:var(--mist);color:var(--gd);display:flex;align-items:center;justify-content:center;font-weight:500;flex:0 0 auto}
   .tab{display:flex;border-top:1px solid var(--line);background:rgba(255,255,255,.96);padding:5px 7px 7px}
-  .tab a{flex:1;text-align:center;min-height:48px;padding:6px 0 5px;color:var(--sage);font-size:10px;font-weight:600;cursor:pointer;text-decoration:none;border-radius:12px}
+  .tab a{flex:1;text-align:center;min-height:48px;padding:6px 0 5px;color:var(--sage);font-size:9.5px;font-weight:600;cursor:pointer;text-decoration:none;border-radius:12px}
   .tab a i{display:block;font-size:21px;margin-bottom:2px}
   .tab a.active{color:var(--g);background:var(--mist)}
   .row{display:flex;align-items:center;gap:11px}
@@ -107,6 +107,9 @@
   .section-row{display:flex;align-items:center;justify-content:space-between;margin-top:14px}
   .notice{display:flex;align-items:flex-start;gap:10px;background:var(--mist);border:1px solid #D7EBDF;border-radius:13px;padding:11px 12px;color:var(--gd);font-size:12px;line-height:1.4}
   .notice i{font-size:18px;margin-top:1px}
+  .checkrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .checkrow input{width:18px;height:18px;accent-color:var(--g)}
+  .team-chip{display:inline-flex;align-items:center;gap:5px;padding:6px 8px;border-radius:9px;background:var(--mist);color:var(--gd);font-size:11px;font-weight:700}
   .rank-value{font-size:18px;font-weight:700;color:var(--gd)}
   @media(max-width:720px){
     body{padding:22px 12px 40px}
@@ -121,7 +124,7 @@
     <div>
       <div class="eyebrow">Product design benchmark</div>
       <h1>SouthBaySoccer mobile experience</h1>
-      <p class="sub">Clickable wireframes for sign-in, session RSVP, player stats, confirmation, ratings, and leaderboards. The design follows the reusable MAUI control system and the green-and-white Pickup Soccer brand.</p>
+      <p class="sub">Clickable wireframes for sign-in, session RSVP, game-day check-in, captain team selection, player stats, confirmation, ratings, and leaderboards. The design follows the reusable MAUI control system and the green-and-white Pickup Soccer brand.</p>
     </div>
     <div class="controls" aria-label="Wireframe view">
       <button class="ctl active" id="c-flow" aria-pressed="true" onclick="setView('flow')"><i class="ti ti-device-mobile"></i> Interactive</button>
@@ -173,6 +176,7 @@
         <div class="card interactive" style="cursor:pointer;padding:12px 14px" onclick="show('matchstats')">
           <div class="row"><span class="mini-action" style="background:var(--g);color:#fff"><i class="ti ti-chart-bar"></i></span><div style="flex:1"><div style="font-size:14px;font-weight:700">Submit your latest stats</div><div class="muted">2 goals entered · captain confirmation pending</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div>
         </div>
+        <div class="section-row"><div class="label">Admin</div><span class="link" onclick="show('adminsession')"><i class="ti ti-plus"></i> Create session</span></div>
         <div class="section-row"><div class="label">Coming up</div><span class="link">See schedule</span></div>
         <div class="card interactive" onclick="show('session')" style="cursor:pointer">
           <div class="row" style="justify-content:space-between"><div style="font-weight:700">Stanford Turf · 5v5</div><span class="pill full">Full</span></div>
@@ -181,7 +185,7 @@
           <div class="row" style="justify-content:space-between;margin-top:9px"><span class="muted">20 / 20 · waitlist 3</span><span class="pill warn">Join waitlist <i class="ti ti-chevron-right"></i></span></div>
         </div>
       </div>
-      <nav class="tab"><a class="active" onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('profile')"><i class="ti ti-user"></i>Profile</a></nav>
+      <nav class="tab"><a class="active" onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a onclick="show('gameday')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
     </section>
 
     <!-- SESSION DETAIL — going + waitlist lists, Pickup Pal API -->
@@ -213,26 +217,138 @@
       </div>
     </section>
 
-    <!-- PROFILE -->
+
+
+    <!-- ADMIN CREATE SESSION - publish to team RSVP feed -->
+    <section class="screen" data-s="adminsession">
+      <div class="ghdr"><span class="flag"></span><div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Admin only</div><div style="font-size:17px;font-weight:500">Create session</div></div></div></div>
+      <div class="scroll">
+        <div class="notice"><i class="ti ti-shield-check"></i><div>Create a session, preview it, then publish it to the team so players can RSVP.</div></div>
+        <div class="label" style="margin-top:14px">Game date and time</div>
+        <div class="card">
+          <div class="row" style="gap:10px"><span class="mini-action"><i class="ti ti-calendar"></i></span><div style="flex:1"><div class="label">Game date</div><div class="input" style="margin-top:5px">Sat Jun 27, 2026</div></div></div>
+          <div class="row" style="gap:10px;margin-top:10px"><span class="mini-action"><i class="ti ti-clock"></i></span><div style="flex:1"><div class="label">Start time</div><div class="input" style="margin-top:5px">7:40 PM</div></div></div>
+          <div class="meta-row"><span class="meta-chip"><i class="ti ti-login"></i> Check-in 7:30 PM</span><span class="meta-chip"><i class="ti ti-lock"></i> closes 7:45 PM</span></div>
+        </div>
+        <div class="label">Location</div>
+        <div class="card">
+          <div class="input" style="display:flex;align-items:center;gap:8px;background:#fbfcfb"><i class="ti ti-search" style="color:var(--sage)"></i><span>Marina Field</span></div>
+          <div class="row" style="justify-content:space-between;margin-top:10px"><div><div style="font-weight:700">Marina Field</div><div class="muted">South Bay ? saved venue</div></div><span class="link">Map</span></div>
+        </div>
+        <div class="label">Game setup</div>
+        <div class="card">
+          <div class="seg"><a>5v5</a><a class="active">7v7</a><a>9v9</a></div>
+          <div class="row" style="justify-content:space-between;margin-top:10px"><span style="font-weight:600">Capacity</span><span class="step"><i class="ti ti-minus" onclick="step(this,-1)"></i><b>20</b><i class="ti ti-plus" onclick="step(this,1)"></i></span></div>
+          <div class="seg"><a class="active">2 teams</a><a>3 teams</a><a>4 teams</a></div>
+        </div>
+        <div class="label">Player preview</div>
+        <div class="card hero-card" style="margin-top:8px">
+          <div class="hero-kicker">New session</div><div class="hero-title">Marina Field ? Saturday pickup</div>
+          <div class="meta-row"><span class="meta-chip"><i class="ti ti-calendar"></i> Jun 27</span><span class="meta-chip"><i class="ti ti-clock"></i> 7:40 PM</span><span class="meta-chip"><i class="ti ti-users"></i> 7v7 ? 20 spots</span></div>
+          <div class="row" style="justify-content:space-between;position:relative;z-index:1"><span class="pill" style="background:#fff;color:var(--gd)">Ready for RSVP</span><span style="font-size:12px;font-weight:700">Team feed</span></div>
+        </div>
+        <button class="btn primary" onclick="publishSession(this)"><i class="ti ti-send"></i> Publish to team</button>
+      </div>
+    </section>
+
+    <!-- GAME DAY - timed check-in, admin/captain entry points -->
+    <section class="screen" data-s="gameday">
+      <div class="scroll">
+        <div class="row" style="justify-content:space-between;margin:6px 0 2px"><div><div class="muted">Today - Marina Field</div><div class="h" style="margin:0">Game Day</div></div><span class="pill ok"><i class="ti ti-clock-check"></i> Open</span></div>
+        <div class="card hero-card">
+          <div class="hero-kicker">Check-in window</div>
+          <div class="hero-title">7:30 PM - 7:45 PM</div>
+          <div class="meta-row"><span class="meta-chip"><i class="ti ti-clock"></i> Game starts 7:40 PM</span><span class="meta-chip"><i class="ti ti-lock"></i> closes 7:45 PM</span></div>
+          <button class="btn" id="checkBtn" onclick="checkIn()" style="background:#fff;color:var(--gd);position:relative;z-index:1"><i class="ti ti-map-pin-check"></i> Check in at field</button>
+        </div>
+        <div class="statgrid" style="grid-template-columns:1fr 1fr 1fr;margin:12px 0">
+          <div class="stat"><b>16</b><span>Going</span></div><div class="stat"><b id="checkedCount">11</b><span>Checked in</span></div><div class="stat"><b>0</b><span>Late</span></div>
+        </div>
+        <div class="notice"><i class="ti ti-info-circle"></i><div>RSVP is attendance intent. Game Day check-in records who is actually at the field.</div></div>
+        <div class="label" style="margin-top:14px">Game-day actions</div>
+        <div class="card interactive" onclick="show('captains')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-users-group"></i></span><div style="flex:1"><div style="font-weight:700">Assign captains</div><div class="muted">2, 3, or 4 captains = 2, 3, or 4 teams</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
+        <div class="card interactive" onclick="show('draft')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-list-check"></i></span><div style="flex:1"><div style="font-weight:700">Pick your team</div><div class="muted">Captain permission - session scoped</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
+        <div class="card interactive" onclick="show('postgame')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-shield-check"></i></span><div style="flex:1"><div style="font-weight:700">Approve stats and result</div><div class="muted">After game - captains only</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
+      </div>
+      <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a class="active" onclick="show('gameday')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
+    </section>
+
+    <!-- ADMIN CAPTAINS - choose 2, 3, or 4 captains -->
+    <section class="screen" data-s="captains">
+      <div class="ghdr"><span class="flag"></span><div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Admin only</div><div style="font-size:17px;font-weight:500">Assign captains</div></div></div></div>
+      <div class="scroll">
+        <div class="seg"><a class="active" onclick="captainMode(this,2)">2 captains</a><a onclick="captainMode(this,3)">3 captains</a><a onclick="captainMode(this,4)">4 captains</a></div>
+        <div class="card"><div class="row" style="justify-content:space-between"><span style="font-weight:700">Team captains</span><span class="pill ok"><i class="ti ti-key"></i> one team each</span></div><div class="meta-row"><span class="team-chip">Team 1 - TK</span><span class="team-chip">Team 2 - KT</span><span class="team-chip cap3" style="display:none">Team 3 - JD</span><span class="team-chip cap4" style="display:none">Team 4 - SM</span></div></div>
+        <div class="notice"><i class="ti ti-alert-circle"></i><div>Captains must be selected from checked-in players only. Selection max follows the active tab.</div></div>
+        <div class="input" style="display:flex;align-items:center;gap:8px;margin:12px 0;background:#fbfcfb"><i class="ti ti-search" style="color:var(--sage)"></i><input aria-label="Search checked-in players" placeholder="Search checked-in players" oninput="filterRows(this,'captain-list')" style="border:0;outline:0;background:transparent;width:100%;font-size:15px;color:var(--ink)" /></div>
+        <div class="label" style="margin-top:14px">Checked-in players</div>
+        <div class="card captain-list" style="padding:6px 14px">
+          <label class="checkrow"><input type="checkbox" checked onchange="capCheck(this)"><span class="avatar" style="width:30px;height:30px;font-size:11px">TK</span><div style="flex:1"><div style="font-weight:600">Tobi Kareem</div><div class="muted">checked in - midfielder</div></div><span class="pill ok">Captain</span></label>
+          <label class="checkrow"><input type="checkbox" checked onchange="capCheck(this)"><span class="avatar" style="width:30px;height:30px;font-size:11px">KT</span><div style="flex:1"><div style="font-weight:600">Kola T.</div><div class="muted">checked in - forward</div></div><span class="pill ok">Captain</span></label>
+          <label class="checkrow"><input type="checkbox" onchange="capCheck(this)"><span class="avatar" style="width:30px;height:30px;font-size:11px">JD</span><div style="flex:1"><div style="font-weight:600">Jide D.</div><div class="muted">checked in - midfielder</div></div></label>
+          <label class="checkrow" style="border:none"><input type="checkbox" onchange="capCheck(this)"><span class="avatar" style="width:30px;height:30px;font-size:11px">SM</span><div style="flex:1"><div style="font-weight:600">Sade M.</div><div class="muted">checked in - goalkeeper</div></div></label>
+        </div>
+        <div class="muted" style="text-align:center;margin:-2px 0 10px"><span id="capCount">2</span> selected / max <span id="capMax">2</span></div>
+        <button class="btn primary"><i class="ti ti-key"></i> Grant captain permissions</button>
+      </div>
+    </section>
+
+    <!-- CAPTAIN DRAFT - checkbox players into a team -->
+    <section class="screen" data-s="draft">
+      <div class="ghdr"><span class="flag"></span><div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Captain - Tobi</div><div style="font-size:17px;font-weight:500">Pick team</div></div></div></div>
+      <div class="scroll">
+        <div class="card"><div class="row" style="justify-content:space-between"><div><div style="font-weight:700">Team Green</div><div class="muted"><span id="pickCount">4</span> picked - 8 unassigned</div></div><span class="pill ok"><i class="ti ti-key"></i> TeamDraft.PickPlayer</span></div></div>
+        <div class="input" style="display:flex;align-items:center;gap:8px;margin:12px 0;background:#fbfcfb"><i class="ti ti-search" style="color:var(--sage)"></i><input aria-label="Search checked-in roster" placeholder="Search checked-in roster" oninput="filterRows(this,'draft-list')" style="border:0;outline:0;background:transparent;width:100%;font-size:15px;color:var(--ink)" /></div>
+        <div class="label">Checked-in roster</div>
+        <div class="card draft-list" style="padding:6px 14px">
+          <label class="checkrow"><input type="checkbox" checked onchange="draftToggle(this)"><span class="avatar" style="width:30px;height:30px;font-size:11px">KT</span><div style="flex:1"><div style="font-weight:600">Kola T.</div><div class="muted">Forward - checked in</div></div></label>
+          <label class="checkrow"><input type="checkbox" checked onchange="draftToggle(this)"><span class="avatar" style="width:30px;height:30px;font-size:11px">JD</span><div style="flex:1"><div style="font-weight:600">Jide D.</div><div class="muted">Midfielder - checked in</div></div></label>
+          <label class="checkrow"><input type="checkbox" onchange="draftToggle(this)"><span class="avatar" style="width:30px;height:30px;font-size:11px">SM</span><div style="flex:1"><div style="font-weight:600">Sade M.</div><div class="muted">Goalkeeper - checked in</div></div></label>
+          <label class="checkrow" style="border:none;opacity:.55"><input type="checkbox" disabled><span class="avatar" style="width:30px;height:30px;font-size:11px">FO</span><div style="flex:1"><div style="font-weight:600">Femi O.</div><div class="muted">Already picked - Team White</div></div><i class="ti ti-lock" style="color:var(--sage)"></i></label>
+        </div>
+        <button class="btn primary"><i class="ti ti-device-floppy"></i> Save team picks</button>
+        <p class="muted" style="text-align:center">Permission expires when teams lock.</p>
+      </div>
+    </section>
+
+    <!-- POST GAME - captain stat approval + result -->
+    <section class="screen" data-s="postgame">
+      <div class="ghdr"><span class="flag"></span><div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Captain review</div><div style="font-size:17px;font-weight:500">Approve stats</div></div></div></div>
+      <div class="scroll">
+        <div class="card" data-team-count="3"><div class="row" style="justify-content:space-between"><div><div style="font-weight:700">Rotation counters</div><div class="muted">Team Green vs 2 other teams</div></div><span class="pill warn"><i class="ti ti-clock-hour-4"></i> max <span data-rot-max>2</span></span></div><div style="margin-top:10px"><div class="row" style="justify-content:space-between;margin:8px 0"><span style="font-weight:600">Wins</span><span class="step"><i class="ti ti-minus" onclick="rotStep(this,'w',-1)"></i><b data-rot="w">1</b><i class="ti ti-plus" onclick="rotStep(this,'w',1)"></i></span></div><div class="row" style="justify-content:space-between;margin:8px 0"><span style="font-weight:600">Draws</span><span class="step"><i class="ti ti-minus" onclick="rotStep(this,'d',-1)"></i><b data-rot="d">1</b><i class="ti ti-plus" onclick="rotStep(this,'d',1)"></i></span></div><div class="row" style="justify-content:space-between;margin:8px 0"><span style="font-weight:600">Losses</span><span class="step"><i class="ti ti-minus" onclick="rotStep(this,'l',-1)"></i><b data-rot="l">0</b><i class="ti ti-plus" onclick="rotStep(this,'l',1)"></i></span></div></div><div class="notice" data-rot-note style="margin-top:10px"><i class="ti ti-shield-check"></i><div>2 of 2 results recorded. Combined W/D/L cannot exceed teams minus 1.</div></div><div class="row" style="gap:6px;margin-top:10px"><span class="pill ok">persists result</span><span class="muted">applies to assigned teammates</span></div></div>
+        <div class="label">Pending goals and assists</div>
+        <div class="card" style="padding:6px 14px">
+          <div class="listrow"><span class="avatar" style="width:30px;height:30px;font-size:11px">KT</span><div style="flex:1"><div style="font-weight:600">Kola T.</div><div class="muted">2 goals - 1 assist</div></div><button class="btn ghost" style="width:auto;padding:6px 12px;font-size:12px" onclick="approveStat(this)">Approve</button></div>
+          <div class="listrow"><span class="avatar" style="width:30px;height:30px;font-size:11px">JD</span><div style="flex:1"><div style="font-weight:600">Jide D.</div><div class="muted">1 goal - 2 assists</div></div><button class="btn ghost" style="width:auto;padding:6px 12px;font-size:12px" onclick="approveStat(this)">Approve</button></div>
+          <div class="listrow" style="border:none"><span class="avatar" style="width:30px;height:30px;font-size:11px">SM</span><div style="flex:1"><div style="font-weight:600">Sade M.</div><div class="muted">assist disputed</div></div><span class="pill warn">Needs review</span></div>
+        </div>
+        <button class="btn primary"><i class="ti ti-lock-check"></i> Publish approved match</button>
+      </div>
+    </section>
+
+    <!-- PROFILE / PLAYER DETAIL -->
     <section class="screen" data-s="profile">
       <div class="ghdr" style="padding:18px 16px 22px"><span class="flag"></span>
-        <div class="row" style="gap:12px"><div class="avatar" style="width:54px;height:54px;font-size:18px;background:rgba(255,255,255,.16);color:#fff">TK</div>
-          <div><div style="font-size:18px;font-weight:500">Tobi Kareem</div><div style="font-size:12px;opacity:.85">"Captain" · #8</div></div></div>
+        <div class="row" style="gap:12px"><div class="avatar" data-profile="initials" style="width:54px;height:54px;font-size:18px;background:rgba(255,255,255,.16);color:#fff">TK</div>
+          <div><div data-profile="name" style="font-size:18px;font-weight:500">Tobi Kareem</div><div data-profile="subtitle" style="font-size:12px;opacity:.85">Captain · #8</div></div></div>
       </div>
       <div class="scroll">
-        <div class="row" style="justify-content:space-between;margin:4px 0 12px"><span class="pill ok"><i class="ti ti-brand-whatsapp"></i> Linked via WhatsApp</span><span class="link">Edit on Pickup Pal</span></div>
+        <div class="row" style="justify-content:space-between;margin:4px 0 12px">
+          <span class="pill ok" data-profile="status"><i class="ti ti-brand-whatsapp"></i> Linked via WhatsApp</span>
+          <span class="link" data-profile-edit>Edit on Pickup Pal</span>
+        </div>
         <div class="label">Career stats</div>
         <div class="statgrid" style="margin-top:9px">
-          <div class="stat"><b>24</b><span>Matches</span></div><div class="stat"><b>12</b><span>Goals</span></div><div class="stat"><b>9</b><span>Assists</span></div>
-          <div class="stat"><b>7.8</b><span>Avg rating</span></div><div class="stat"><b>3</b><span>MVP</span></div><div class="stat"><b>41</b><span>Likes</span></div>
+          <div class="stat"><b data-stat="matches">24</b><span>Matches</span></div><div class="stat"><b data-stat="goals">12</b><span>Goals</span></div><div class="stat"><b data-stat="assists">9</b><span>Assists</span></div>
+          <div class="stat"><b data-stat="rating">7.8</b><span>Avg rating</span></div><div class="stat"><b data-stat="mvp">3</b><span>MVP</span></div><div class="stat"><b data-stat="likes">41</b><span>Likes</span></div>
         </div>
-        <div class="card" style="margin-top:14px"><div class="row" style="justify-content:space-between"><span style="font-weight:500">Recent form</span><span class="muted">last 5</span></div>
-          <div class="row" style="gap:6px;margin-top:10px"><span class="pill ok">W</span><span class="pill ok">W</span><span class="pill warn">D</span><span class="pill ok">W</span><span class="pill full">L</span></div>
+        <div class="card" style="margin-top:14px"><div class="row" style="justify-content:space-between"><span style="font-weight:500">Recent form</span><span class="muted">from confirmed results</span></div>
+          <div class="row" data-profile="form" style="gap:6px;margin-top:10px"><span class="pill ok">W</span><span class="pill ok">W</span><span class="pill warn">D</span><span class="pill ok">W</span><span class="pill full">L</span></div>
         </div>
-        <div class="muted" style="margin:2px 0 10px"><i class="ti ti-clock-hour-4" style="color:var(--amber)"></i> 2 goals from Sat awaiting confirmation</div>
+        <div class="muted" data-profile-note style="margin:2px 0 10px"><i class="ti ti-clock-hour-4" style="color:var(--amber)"></i> 2 goals from Sat awaiting confirmation</div>
         <button class="btn ghost" onclick="show('leaderboard')">View season leaderboard</button>
       </div>
-      <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a class="active" onclick="show('profile')"><i class="ti ti-user"></i>Profile</a></nav>
+      <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a onclick="show('gameday')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a class="active" onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
     </section>
 
     <!-- LEADERBOARD — clickable, data-driven segments -->
@@ -248,7 +364,19 @@
         <div class="lead-list"></div>
         <p class="muted lead-note" style="margin-top:10px"></p>
       </div>
-      <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a class="active" onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('profile')"><i class="ti ti-user"></i>Profile</a></nav>
+      <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a onclick="show('gameday')"><i class="ti ti-ball-football"></i>Game Day</a><a class="active" onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
+    </section>
+
+
+    <!-- PLAYERS — searchable player directory reusing profile route -->
+    <section class="screen" data-s="players">
+      <div class="scroll">
+        <div class="row" style="justify-content:space-between;margin:6px 0 2px"><div><div class="h" style="margin:0">Players</div><div class="muted">Search the crew and open career stats.</div></div><span class="pill ok"><i class="ti ti-users"></i> 24</span></div>
+        <div class="input" style="display:flex;align-items:center;gap:8px;margin:12px 0;background:#fbfcfb"><i class="ti ti-search" style="color:var(--sage)"></i><input aria-label="Search players" placeholder="Search players" oninput="filterPlayers(this.value)" style="border:0;outline:0;background:transparent;width:100%;font-size:15px;color:var(--ink)" /></div>
+        <div class="label">All players</div>
+        <div class="players-list"></div>
+      </div>
+      <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a onclick="show('gameday')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a class="active" onclick="show('players')"><i class="ti ti-users"></i>Players</a><a onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
     </section>
 
     <!-- MATCH STATS — self submit + captain/admin confirm -->
@@ -303,6 +431,16 @@
 </template>
 
 <script>
+  var selectedPlayer='TK';
+  var PLAYERS={
+    TK:{name:'Tobi Kareem',subtitle:'Captain · #8',initials:'TK',status:'Linked via WhatsApp',stats:['24','12','9','7.8','3','41'],form:['W','W','D','W','L'],note:'2 goals from Sat awaiting confirmation'},
+    KT:{name:'Kola T.',subtitle:'Forward · #2',initials:'KT',status:'Player profile',stats:['23','14','10','8.3','4','42'],form:['D','W','L','W','D'],note:''},
+    JD:{name:'Jide D.',subtitle:'Midfielder · #3',initials:'JD',status:'Player profile',stats:['22','13','10','8.2','4','40'],form:['L','W','W','D','W'],note:''},
+    SM:{name:'Sade M.',subtitle:'Goalkeeper · #4',initials:'SM',status:'Player profile',stats:['21','13','9','8.2','4','38'],form:['W','D','W','W','L'],note:''},
+    TB:{name:'Tunde B.',subtitle:'Guest · #5',initials:'TB',status:'Guest profile',stats:['20','12','9','8.1','3','36'],form:['D','W','L','W','D'],note:''},
+    MA:{name:'Mike A.',subtitle:'Midfielder · #12',initials:'MA',status:'Player profile',stats:['12','5','5','7.1','1','18'],form:['W','D','D','L','W'],note:''},
+    FO:{name:'Femi O.',subtitle:'Defender · #14',initials:'FO',status:'Player profile',stats:['14','3','4','6.9','0','16'],form:['L','W','D','W','D'],note:''}
+  };
   var LEAD={
     goals:{note:'Only captain/admin-confirmed goals count. Ties break by fewer appearances, then assists.',rows:[
       ['KT','Kola T.','Forward · 18 apps','15'],['TK','Tobi Kareem','Captain · 24 apps','12'],['JD','Jide D.','Forward · 20 apps','11'],['SM','Sade M.','Winger · 16 apps','8'],['TB','Tunde B.','Guest · 6 apps','5']]},
@@ -315,7 +453,7 @@
   };
   function leadRow(r,i){
     var top=i===0;
-    return '<div class="lead'+(top?' top':'')+'" onclick="show(\'profile\')">'+
+    return '<div class="lead'+(top?' top':'')+'" onclick="showPlayer(\''+r[0]+'\')">'+
       '<span class="rk">'+(top?'<i class="ti ti-trophy"></i>':(i+1))+'</span>'+
       '<span class="avatar" style="width:34px;height:34px;font-size:12px">'+r[0]+'</span>'+
       '<div style="flex:1"><div style="font-weight:500">'+r[1]+'</div><div class="muted">'+r[2]+'</div></div>'+
@@ -329,6 +467,24 @@
     scr.querySelector('.lead-note').textContent=d.note;
   }
   function leadTab(el){ renderLead(el.closest('.screen'), el.dataset.k); }
+  function renderPlayers(phone,term){
+    var list=phone.querySelector('.players-list'); if(!list) return;
+    var q=(term||'').toLowerCase();
+    list.innerHTML=Object.keys(PLAYERS).filter(function(id){ var p=PLAYERS[id]; return !q || p.name.toLowerCase().includes(q) || p.subtitle.toLowerCase().includes(q); }).map(function(id){ var p=PLAYERS[id]; return '<div class="card interactive" style="padding:11px 13px;cursor:pointer" onclick="showPlayer(\''+id+'\')"><div class="row"><span class="avatar" style="width:38px;height:38px;font-size:12px">'+p.initials+'</span><div style="flex:1"><div style="font-weight:700">'+p.name+'</div><div class="muted">'+p.subtitle+' - '+p.stats[0]+' matches</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>'; }).join('');
+  }
+  function filterPlayers(term){ var ph=document.querySelector('#stage .phone'); if(ph) renderPlayers(ph,term); }
+  function updateProfile(phone){
+    var p=PLAYERS[selectedPlayer]||PLAYERS.TK;
+    phone.querySelectorAll('[data-profile="initials"]').forEach(function(el){ el.textContent=p.initials; });
+    phone.querySelectorAll('[data-profile="name"]').forEach(function(el){ el.textContent=p.name; });
+    phone.querySelectorAll('[data-profile="subtitle"]').forEach(function(el){ el.textContent=p.subtitle; });
+    phone.querySelectorAll('[data-profile="status"]').forEach(function(el){ el.innerHTML=(selectedPlayer==='TK'?'<i class="ti ti-brand-whatsapp"></i> ':'<i class="ti ti-id"></i> ')+p.status; });
+    phone.querySelectorAll('[data-profile-edit]').forEach(function(el){ el.style.display=selectedPlayer==='TK'?'inline':'none'; });
+    ['matches','goals','assists','rating','mvp','likes'].forEach(function(k,i){ phone.querySelectorAll('[data-stat="'+k+'"]').forEach(function(el){ el.textContent=p.stats[i]; }); });
+    phone.querySelectorAll('[data-profile="form"]').forEach(function(el){ el.innerHTML=p.form.map(function(v){ return '<span class="pill '+(v==='W'?'ok':v==='D'?'warn':'full')+'">'+v+'</span>'; }).join(''); });
+    phone.querySelectorAll('[data-profile-note]').forEach(function(el){ el.style.display=p.note?'block':'none'; el.innerHTML=p.note?'<i class="ti ti-clock-hour-4" style="color:var(--amber)"></i> '+p.note:''; });
+  }
+  function showPlayer(id){ selectedPlayer=id||'TK'; show('profile'); }
 
   function build(active){
     var node=document.getElementById('tpl').content.cloneNode(true);
@@ -349,6 +505,8 @@
     phone.querySelectorAll('.ic-btn.lk').forEach(function(el){ el.setAttribute('aria-label','Like player'); });
     phone.querySelectorAll('.ic-btn.mvp').forEach(function(el){ el.setAttribute('aria-label','Select match MVP'); });
     renderLead(phone.querySelector('.screen[data-s=leaderboard]'),'goals');
+    renderPlayers(phone,'');
+    updateProfile(phone);
     return phone;
   }
   function activeScreen(){ return document.querySelector('#stage .phone .screen.on'); }
@@ -358,6 +516,8 @@
     if(stage.dataset.view==='gallery'){ setView('flow'); }
     var ph=document.querySelector('#stage .phone');
     ph.querySelectorAll('.screen').forEach(function(s){ s.classList.toggle('on', s.dataset.s===id); });
+    updateProfile(ph);
+    renderPlayers(ph,'');
     var sc=ph.querySelector('.screen.on .scroll'); if(sc) sc.scrollTop=0;
   }
   function show(id){ var cur=activeScreen(); if(cur && cur.dataset.s!==id) hist.push(cur.dataset.s); go(id); }
@@ -371,8 +531,16 @@
   function submitStats(){ var b=activeScreen().querySelector('#subBtn'); b.disabled=true; b.className='btn ghost'; b.disabled=true; b.innerHTML="<i class='ti ti-clock-hour-4'></i> Pending captain confirmation"; }
   function confirmRow(btn){ var s=document.createElement('i'); s.className='ti ti-circle-check'; s.style.cssText='color:var(--g);font-size:22px'; btn.replaceWith(s); }
   function pickMvp(el){ el.closest('.scroll').querySelectorAll('.mvp').forEach(function(m){ if(m!==el) m.classList.remove('on'); }); el.classList.toggle('on'); }
+  function publishSession(btn){ btn.className='btn ghost'; btn.innerHTML="<i class='ti ti-circle-check'></i> Published to team feed"; }
+  function checkIn(){ var b=activeScreen().querySelector('#checkBtn'); if(!b) return; b.className='btn ghost'; b.innerHTML="<i class='ti ti-circle-check'></i> Checked in at field"; var c=activeScreen().querySelector('#checkedCount'); if(c) c.textContent='12'; }
+  function captainMode(el,count){ el.closest('.seg').querySelectorAll('a').forEach(function(a){ a.classList.toggle('active', a===el); }); activeScreen().dataset.capMax=count; activeScreen().querySelectorAll('.cap3').forEach(function(c){ c.style.display=count>=3?'inline-flex':'none'; }); activeScreen().querySelectorAll('.cap4').forEach(function(c){ c.style.display=count===4?'inline-flex':'none'; }); capCheck(null); }
+  function capCheck(input){ var s=activeScreen(); var max=parseInt(s.dataset.capMax||'2',10); var boxes=[].slice.call(s.querySelectorAll('.captain-list input[type=checkbox]')); var checked=boxes.filter(function(b){ return b.checked; }); if(input && checked.length>max){ input.checked=false; checked=boxes.filter(function(b){ return b.checked; }); } boxes.forEach(function(b){ b.disabled=!b.checked && checked.length>=max; }); var c=s.querySelector('#capCount'); var m=s.querySelector('#capMax'); if(c) c.textContent=checked.length; if(m) m.textContent=max; }
+  function filterRows(input,cls){ var q=(input.value||'').toLowerCase(); input.closest('.scroll').querySelectorAll('.'+cls+' .checkrow').forEach(function(r){ r.style.display=r.textContent.toLowerCase().indexOf(q)>=0?'flex':'none'; }); }
+  function draftToggle(input){ var n=activeScreen().querySelector('#pickCount'); if(!n) return; n.textContent=activeScreen().querySelectorAll('.checkrow input:checked').length; }
+  function rotStep(el,key,d){ var card=el.closest('[data-team-count]'); var max=parseInt(card.dataset.teamCount,10)-1; var box=card.querySelector('[data-rot="'+key+'"]'); var vals={w:0,d:0,l:0}; ['w','d','l'].forEach(function(k){ vals[k]=parseInt(card.querySelector('[data-rot="'+k+'"]').textContent,10); }); var next=Math.max(0,vals[key]+d); var total=vals.w+vals.d+vals.l-vals[key]+next; if(total>max) return; box.textContent=next; total=vals.w+vals.d+vals.l-vals[key]+next; var note=card.querySelector('[data-rot-note] div'); if(note) note.textContent=total+' of '+max+' results recorded. Combined W/D/L cannot exceed teams minus 1.'; }
+  function approveStat(btn){ var s=document.createElement('i'); s.className='ti ti-circle-check'; s.style.cssText='color:var(--g);font-size:22px'; btn.replaceWith(s); }
 
-  var order=['signin','home','session','profile','leaderboard','matchstats','rate'];
+  var order=['signin','home','session','adminsession','gameday','captains','draft','postgame','leaderboard','players','profile','matchstats','rate'];
   function setView(v){
     var stage=document.getElementById('stage'); stage.dataset.view=v; hist=[];
     document.getElementById('c-flow').classList.toggle('active', v==='flow');

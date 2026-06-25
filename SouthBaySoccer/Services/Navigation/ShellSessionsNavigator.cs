@@ -32,4 +32,7 @@ public sealed class ShellSessionsNavigator : ISessionsNavigator
     // Interim: the full schedule screen is a future ticket; the Sessions tab is the schedule home.
     public Task GoToScheduleAsync() =>
         Shell.Current.GoToAsync("//sessions");
+
+    public Task GoToCreateSessionAsync() =>
+        Shell.Current.GoToAsync("create-session");
 }

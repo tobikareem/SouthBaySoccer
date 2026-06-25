@@ -69,7 +69,8 @@
 
                         <Grid
                             Grid.Column="1"
-                            HorizontalOptions="End">
+                            HorizontalOptions="End"
+                            IsVisible="{Binding CanEditProfile}">
                             <Button
                                 Text="Edit on Pickup Pal"
                                 Command="{Binding EditOnPickupPalCommand}"

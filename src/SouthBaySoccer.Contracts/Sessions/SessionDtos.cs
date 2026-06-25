@@ -8,7 +8,8 @@ public sealed record SessionsDashboardDto(
     StatsPromptDto StatsPrompt,
     string ComingUpLabel,
     string ScheduleActionLabel,
-    IReadOnlyList<SessionSummaryDto> ComingUpSessions);
+    IReadOnlyList<SessionSummaryDto> ComingUpSessions,
+    bool CanManageSessions = false);
 
 public sealed record SessionSummaryDto(
     Guid Id,

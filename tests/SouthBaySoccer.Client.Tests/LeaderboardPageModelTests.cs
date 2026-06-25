@@ -29,6 +29,7 @@ public class LeaderboardPageModelTests
         pageModel.Rankings[0].IsLeader.Should().BeTrue();
         pageModel.Rankings[0].RankIndicator.Should().Be(Fonts.FontAwesomeGlyphs.Trophy);
         pageModel.Rankings[0].RankFontFamily.Should().Be("FontAwesomeSolid");
+        pageModel.Rankings[1].RankFontFamily.Should().Be("InterSemibold");
         pageModel.Note.Should().Contain("ties use fewer appearances");
     }
 

@@ -51,9 +51,9 @@ public class AuthenticatedShellTests
         var contents = ShellContents(LoadXaml("AppShell.xaml"));
 
         contents.Select(content => Attribute(content, "Route"))
-            .Should().Equal("sessions", "stats", "profile");
+            .Should().Equal("sessions", "gameday", "stats", "profile");
         contents.Select(content => Attribute(content, "Title"))
-            .Should().Equal("Sessions", "Stats", "Profile");
+            .Should().Equal("Sessions", "Game Day", "Stats", "Profile");
     }
 
     [Fact]
@@ -65,10 +65,11 @@ public class AuthenticatedShellTests
             .Where(element => element.Name.LocalName == "ShellContent")
             .ToList();
 
-        rootTabs.Should().HaveCount(3);
+        rootTabs.Should().HaveCount(4);
         rootTabs.Select(content => Attribute(content, "ContentTemplate"))
             .Should().Equal(
                 "{DataTemplate pages:SessionsHomePage}",
+                "{DataTemplate pages:GameDayPage}",
                 "{DataTemplate pages:StatsPage}",
                 "{DataTemplate pages:ProfilePage}");
     }
@@ -79,9 +80,9 @@ public class AuthenticatedShellTests
         var contents = ShellContents(LoadXaml("AppShell.xaml"));
 
         contents.Select(content => Attribute(content, "AutomationId"))
-            .Should().Equal("SessionsTab", "StatsTab", "ProfileTab");
+            .Should().Equal("SessionsTab", "GameDayTab", "StatsTab", "ProfileTab");
         contents.Select(content => Attribute(content, "SemanticProperties.Description"))
-            .Should().Equal("Sessions tab", "Stats tab", "Profile tab");
+            .Should().Equal("Sessions tab", "Game Day tab", "Stats tab", "Profile tab");
     }
 
     [Fact]
@@ -214,3 +215,5 @@ public class AuthenticatedShellTests
         Attribute(glyph, "FontFamily").Should().Contain("GlyphFontFamily");
     }
 }
+
+

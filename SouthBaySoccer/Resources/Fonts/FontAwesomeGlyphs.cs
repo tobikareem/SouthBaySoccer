@@ -28,4 +28,10 @@ public static class FontAwesomeGlyphs
     // RSVP-8 session-detail glyphs (Font Awesome 6 Free Solid).
     public const string LocationDot = "\uf3c5";
     public const string Plug = "\uf1e6";
+
+    // ADMIN-4 create-session glyphs (Font Awesome 6 Free Solid).
+    public const string CirclePlus = "\uf055";
+    public const string MagnifyingGlass = "\uf002";
+    public const string PaperPlane = "\uf1d8";
+    public const string Lock = "\uf023";
 }

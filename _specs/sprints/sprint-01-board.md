@@ -14,11 +14,13 @@ columns and update the snapshot.
 | Done | 13 |
 | In progress | 0 |
 | In review | 13 |
-| To do | 0 |
+| To do | 26 |
 | Stretch (PROF-5) | 3 |
+| Planned Sprint 03 | 26 |
 
 _Entry-state foundations (`M11.0`, `M11.0a`) and the AUTH sign-in client slices are already done and
-are listed under Done for context; they are not counted in the 26-pt commitment._
+are listed under Done for context; they are not counted in the 26-pt commitment. Sprint 03 items are
+newly planned and also not counted in the Sprint 01 commitment._
 
 ## Stories — requirements checklist
 
@@ -46,11 +48,22 @@ Every story requirement, one line each. `[x]` = Definition of Done met · `[ ]` 
 - [x] **STAT-7** — Match stats: self-submit goals/assists + captain confirm. (S2)
 - [x] **STAT-8** — Rate teammates: 0–10 rating, like, single MVP. (S2)
 
+**Sprint 03 - admin setup and game-day operations**
+- [ ] **ADMIN-4** - Create session: admin enters game date, time, location, setup, then publishes to team RSVP feed. (S3)
+- [ ] **GDAY-1** - Game Day tab: player self-check-in between 7:30 PM and 7:45 PM, closed/override states. (S3)
+- [ ] **TEAM-4** - Captain assignment + team draft: admin selects 2, 3, or 4 captains; captains get session-scoped pick permissions. (S3)
+- [ ] **STAT-9** - Post-game captain approval/results: approve goals/assists, record W/D/L, derive recent form for teammates. (S3)
+
 ## Board
 
 ### To do
 
-_(none)_
+| Card | Story | Pts | Tasks | Notes |
+|------|-------|----:|-------|-------|
+| **Create and publish session** | `ADMIN-4` | 5 | page+model `[ ]` / seed publish `[ ]` / backend validation `[ ]` / tests `[ ]` | Admin creates a game date/time/location/setup and publishes it into the player RSVP feed. |
+| **Game Day check-in tab** | `GDAY-1` | 5 | page+model `[ ]` / seed state `[ ]` / backend window `[ ]` / tests `[ ]` | Player check-in from 7:30 PM-7:45 PM; RSVP remains intent; late override is GameAdmin-only and audited. |
+| **Captain assignment + team draft** | `TEAM-4` | 8 | admin assign `[ ]` / scoped permission `[ ]` / draft UI `[ ]` / lock `[ ]` / tests `[ ]` | Admin chooses 2, 3, or 4 captains from checked-in players only; selection max follows the chosen tab; assigned captains pick teams from searchable checked-in list. |
+| **Post-game captain approval + results** | `STAT-9` | 8 | approval queue `[ ]` / result entry `[ ]` / projection `[ ]` / conflict review `[ ]` / tests `[ ]` | Captains approve goals/assists after play; team W/D/L and validated rotation counters persist through MatchResult and derived profile recent form. |
 
 ### In progress
 
@@ -86,6 +99,7 @@ _(none)_
 |------|-------|-----|
 | Typed API pipeline | `M11.1` (`[~]`) | swaps seeds for the real API later; not needed in the UI phase |
 | Challenge verify/exchange + Functions tests | `AUTH-8` (`M11.3c/3d` `[~]`) | server endpoints blocked on backend `M3`; client uses the seed challenge now |
+| 4-captain topology decision | `TEAM-4` | resolved: 3 captains means 3 teams and 4 captains means 4 teams; backend/team-draft design should model two-, three-, and four-team rotation formats |
 
 ## Critical path
 

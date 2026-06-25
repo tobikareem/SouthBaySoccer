@@ -9,8 +9,12 @@ public sealed class ShellLeaderboardNavigator : ILeaderboardNavigator
 {
     public Task OpenPlayerProfileAsync(Guid playerId)
     {
-        _ = playerId;
-        return Shell.Current.GoToAsync("//profile");
+        if (playerId == Guid.Empty)
+        {
+            return Shell.Current.GoToAsync("//profile");
+        }
+
+        return Shell.Current.GoToAsync($"//profile?playerId={playerId}");
     }
 }
 

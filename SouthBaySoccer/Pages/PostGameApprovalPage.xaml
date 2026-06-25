@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.PostGameApprovalPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:gameDay="clr-namespace:SouthBaySoccer.Contracts.GameDay;assembly=SouthBaySoccer.Contracts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="PostGamePage"
+    x:DataType="pageModels:PostGameApprovalPageModel"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Approve stats">
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior BindingContext="{Binding Path=BindingContext, Source={x:Reference PostGamePage}, x:DataType=ContentPage}" EventName="Appearing" Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader Title="Approve stats" Subtitle="Captain review" ShowBack="True" BackCommand="{Binding BackCommand}" />
+        <c:StateView Grid.Row="1" State="{Binding State}" Glyph="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}" GlyphFontFamily="FontAwesomeSolid">
+            <ScrollView>
+                <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding TeamResults}" Spacing="{StaticResource SpaceMd}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="pageModels:TeamResultItem">
+                                <c:BrandCard>
+                                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <VerticalStackLayout>
+                                                <Label Text="{Binding TeamName}" Style="{StaticResource TextBodyStrong}" />
+                                                <Label Text="{Binding Detail}" Style="{StaticResource TextCaption}" />
+                                            </VerticalStackLayout>
+                                            <c:Badge Grid.Column="1" Text="{Binding MaxResults, StringFormat='max {0}'}" Variant="Warning" />
+                                        </Grid>
+                                        <c:CounterStepper Caption="Wins" Value="{Binding Wins}" Minimum="0" Maximum="{Binding MaxResults}" />
+                                        <c:CounterStepper Caption="Draws" Value="{Binding Draws}" Minimum="0" Maximum="{Binding MaxResults}" />
+                                        <c:CounterStepper Caption="Losses" Value="{Binding Losses}" Minimum="0" Maximum="{Binding MaxResults}" />
+                                        <Button Text="Save result" Command="{Binding BindingContext.SaveResultCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" Style="{StaticResource GhostButton}" />
+                                    </VerticalStackLayout>
+                                </c:BrandCard>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                    <c:SectionHeader Text="Pending goals and assists" />
+                    <c:BrandCard>
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding Approvals}" Spacing="{StaticResource SpaceXs}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="pageModels:StatApprovalItem">
+                                    <c:PlayerRow Initials="{Binding Initials}" Name="{Binding Name}" Detail="{Binding Detail}">
+                                        <c:PlayerRow.TrailingContent>
+                                            <Grid>
+                                                <Button Text="Approve" Command="{Binding BindingContext.ApproveStatCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" Style="{StaticResource GhostButton}" IsVisible="{Binding CanApprove}" />
+                                                <c:Badge Text="Needs review" Variant="Warning" IsVisible="False">
+                                                    <c:Badge.Triggers>
+                                                        <DataTrigger TargetType="c:Badge" Binding="{Binding Status}" Value="{x:Static gameDay:StatApprovalStatus.NeedsReview}">
+                                                            <Setter Property="IsVisible" Value="True" />
+                                                        </DataTrigger>
+                                                    </c:Badge.Triggers>
+                                                </c:Badge>
+                                            </Grid>
+                                        </c:PlayerRow.TrailingContent>
+                                    </c:PlayerRow>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+                    <Button Text="Publish approved match" Command="{Binding PublishCommand}" Style="{StaticResource PrimaryButton}" />
+                </VerticalStackLayout>
+            </ScrollView>
+        </c:StateView>
+    </Grid>
+</ContentPage>
+

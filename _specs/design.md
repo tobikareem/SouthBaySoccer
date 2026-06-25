@@ -143,6 +143,8 @@ first-class acceptance tests, traced to the story IDs in `requirements.md`.
   later swapped for the typed API client (M11.1) with no page/page-model change. See §12.
 - Whether SMS (Twilio) ships in v1 or later (cost + A2P 10DLC registration).
 - Team-balancing algorithm for TEAM-2 (manual vs. rating-weighted auto-balance).
+- **Resolved - 4-captain topology:** three captains means three separate teams and four captains means four separate teams. Two-captain nights
+  create two teams; three- and four-captain nights create rotating team formats for the game day.
 - Minimum minutes threshold for a goalkeeper clean sheet, scaled to session length.
 
 ## 11. First screen — Welcome Back

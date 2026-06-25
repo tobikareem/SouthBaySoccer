@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SouthBaySoccer.Contracts.Leaderboards;
 using SouthBaySoccer.Contracts.Profiles;
 using SouthBaySoccer.SeedData;
@@ -32,6 +32,22 @@ public class SeedLeaderboardAndProfileClientTests
             item => item.Rows.Select(row => row.Rank).SequenceEqual(new[] { 1, 2, 3, 4, 5 }));
     }
 
+
+    [Fact]
+    public async Task GetProfileAsync_LeaderboardPlayer_ReturnsInspectableCareerStats()
+    {
+        var client = new SeedProfileClient();
+        var player = SeedFixtures.Players[1];
+
+        var profile = await client.GetProfileAsync(player.Id, CancellationToken.None);
+
+        profile.Should().NotBeNull();
+        profile!.PlayerId.Should().Be(player.Id);
+        profile.DisplayName.Should().Be(player.DisplayName);
+        profile.CareerStats.Matches.Should().BeGreaterThan(0);
+        profile.CareerStats.AverageRating.Should().BeGreaterThan(0);
+    }
+
     [Fact]
     public async Task GetProfileAsync_CurrentPlayer_ReturnsCompleteWireframeProfile()
     {
@@ -55,3 +71,4 @@ public class SeedLeaderboardAndProfileClientTests
             .Be("2 goals from Sat awaiting confirmation");
     }
 }
+

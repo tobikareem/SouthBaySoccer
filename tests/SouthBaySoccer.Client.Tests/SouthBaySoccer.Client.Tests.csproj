@@ -33,10 +33,12 @@
     <Compile Include="..\..\SouthBaySoccer\PageModels\WelcomeBackPageModel.cs" Link="Client\PageModels\WelcomeBackPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\SessionsHomePageModel.cs" Link="Client\PageModels\SessionsHomePageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\SessionDetailPageModel.cs" Link="Client\PageModels\SessionDetailPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\CreateSessionPageModel.cs" Link="Client\PageModels\CreateSessionPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\ProfilePageModel.cs" Link="Client\PageModels\ProfilePageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\LeaderboardPageModel.cs" Link="Client\PageModels\LeaderboardPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\MatchStatsPageModel.cs" Link="Client\PageModels\MatchStatsPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\RateTeammatesPageModel.cs" Link="Client\PageModels\RateTeammatesPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\GameDayPageModels.cs" Link="Client\PageModels\GameDayPageModels.cs" />
     <Compile Include="..\..\SouthBaySoccer\Controls\ControlVariants.cs" Link="Client\Controls\ControlVariants.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationCoordinator.cs" Link="Client\Services\AuthenticationCoordinator.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AppStartupService.cs" Link="Client\Services\AppStartupService.cs" />
@@ -69,6 +71,11 @@
     <None Include="..\..\SouthBaySoccer\Resources\Styles\AppStyles.xaml" Link="Client\Xaml\AppStyles.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\SessionsHomePage.xaml" Link="Client\Xaml\SessionsHomePage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\SessionDetailPage.xaml" Link="Client\Xaml\SessionDetailPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\CreateSessionPage.xaml" Link="Client\Xaml\CreateSessionPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\GameDayPage.xaml" Link="Client\Xaml\GameDayPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\CaptainAssignmentPage.xaml" Link="Client\Xaml\CaptainAssignmentPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\TeamDraftPage.xaml" Link="Client\Xaml\TeamDraftPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\PostGameApprovalPage.xaml" Link="Client\Xaml\PostGameApprovalPage.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -76,3 +83,5 @@
     <None Include="..\..\SouthBaySoccer\Services\Profile\ProfileFeatureServiceCollectionExtensions.cs" Link="Client\Source\ProfileFeatureServiceCollectionExtensions.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
+
+

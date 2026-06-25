@@ -35,6 +35,22 @@ public class SessionsHomePageModelTests
         comingUp.Title.Should().Be("Stanford Turf · 5v5");
         comingUp.IsFull.Should().BeTrue();
         comingUp.WaitlistCount.Should().Be(3);
+        pageModel.CanManageSessions.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task CreateSession_Invoked_NavigatesToCreateSessionScreen()
+    {
+        var sessionsClient = new Mock<ISessionsClient>(MockBehavior.Strict);
+        var navigator = new Mock<ISessionsNavigator>();
+        navigator
+            .Setup(item => item.GoToCreateSessionAsync())
+            .Returns(Task.CompletedTask);
+        var pageModel = new SessionsHomePageModel(sessionsClient.Object, navigator.Object);
+
+        await pageModel.CreateSessionCommand.ExecuteAsync(null);
+
+        navigator.Verify(item => item.GoToCreateSessionAsync(), Times.Once);
     }
 
     [Fact]

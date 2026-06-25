@@ -210,6 +210,13 @@
                         </Grid>
                     </controls:BrandCard>
 
+                    <!-- Admin: create-session entry, gated by the seed CanManageSessions flag -->
+                    <controls:SectionHeader
+                        Text="Admin"
+                        ActionText="Create session"
+                        ActionCommand="{Binding CreateSessionCommand}"
+                        IsVisible="{Binding CanManageSessions}" />
+
                     <!-- Coming up section -->
                     <controls:SectionHeader
                         Text="{Binding ComingUpLabel}"
