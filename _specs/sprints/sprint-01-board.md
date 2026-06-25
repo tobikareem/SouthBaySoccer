@@ -11,9 +11,9 @@ columns and update the snapshot.
 | Metric | Pts |
 |--------|----:|
 | Committed | 26 |
-| Done | 13 |
+| Done | 26 |
 | In progress | 0 |
-| In review | 13 |
+| In review | 0 |
 | To do | 26 |
 | Stretch (PROF-5) | 3 |
 | Planned Sprint 03 | 26 |
@@ -38,10 +38,10 @@ Every story requirement, one line each. `[x]` = Definition of Done met · `[ ]` 
 
 **Sprint 01 — UI foundations & core session flow**
 - [x] **SEED-1** — Seed-data providers (interfaces + immutable fixtures + resettable state) behind the client services. (S1)
-- [ ] **NAV-1** — Authenticated Shell + bottom tabs (Sessions/Stats/Profile); sign-in → Shell. (S1)
-- [ ] **SES-6** — Sessions home: upcoming list, dues status, submit-stats prompt. (S1) _(client + automated semantic/responsive checks done; light/dark device sign-off pending — In review)_
-- [ ] **RSVP-8** — Session detail: going + waitlist lists, RSVP/waitlist action. (S1) _(client + collapsed going roster + automated semantic/responsive checks done; light/dark device sign-off pending — In review)_
-- [ ] **PROF-5** — Player profile: career stat tiles, recent form. (S1 stretch) _(client + automated semantic/responsive checks done; light/dark device sign-off pending — In review)_
+- [x] **NAV-1** — Authenticated Shell + bottom tabs (Sessions/Stats/Profile); sign-in → Shell. (S1)
+- [x] **SES-6** — Sessions home: upcoming list, dues status, submit-stats prompt. (S1)
+- [x] **RSVP-8** — Session detail: going + waitlist lists, RSVP/waitlist action. (S1)
+- [x] **PROF-5** — Player profile: career stat tiles, recent form. (S1 stretch)
 
 **Sprint 02 — stats wave**
 - [x] **LEAD-4** — Leaderboard: Goals/Assists/Rating/MVP segments. (S2)
@@ -71,12 +71,7 @@ _(none)_
 
 ### In review
 
-| Card | Story | Pts | Tasks | Remaining |
-|------|-------|----:|-------|-----------|
-| **Authenticated Shell & tabs** | `NAV-1` | 3 | `M11.NAV1.a` `[x]` · `M11.NAV1.b` `[x]` · `M11.NAV1.c` `[~]` | Manual Windows/Android verification: tab switching, root-tab back behavior, screen reader, and light/dark modes. |
-| **Sessions (home) screen** | `SES-6` | 5 | page+model `[x]` · seed bind `[x]` · states `[x]` · tests `[x]` | Code, tests (141/141), and automated semantic/responsive + theme-token checks done; both TFMs build clean. Remaining: interactive on-device light/dark spot-check (Windows + Android). |
-| **Session detail + RSVP/waitlist** | `RSVP-8` | 5 | page+model `[x]` · seed bind `[x]` · RSVP/waitlist `[x]` · states `[x]` · tests `[x]` | Collapsed going roster (`+ N more going`), tests, and automated semantic/responsive + theme-token checks done; both TFMs build clean. Remaining: interactive on-device light/dark spot-check (Windows + Android). |
-| **Player profile** *(stretch)* | `PROF-5` | 3 | page+model `[x]` · seed bind `[x]` · states `[x]` · tests `[x]` | Profile implementation, zero-state, navigation, semantic/responsive tests, and Windows/Android builds are complete. Remaining: interactive on-device light/dark spot-check. |
+_(none)_
 
 ### Done
 
@@ -89,6 +84,10 @@ _(none)_
 | Welcome Back screen | `AUTH-7` (`M11.3a`) | client done; `M11.3d` large-text/narrow visual check carryover |
 | Continue with WhatsApp (client) | `AUTH-8` (`M11.3b`) | client challenge/deep-link done |
 | Pickup Pal actions | `AUTH-9` (`M11.3b/d`) | done |
+| Authenticated Shell & tabs | `NAV-1` | tabbed Shell, startup/sign-in routing, back-stack guard, Font Awesome tab icons, tests, and Windows/Android builds clean. |
+| Sessions (home) screen | `SES-6` | upcoming sessions, dues status, submit-stats prompt, seed-backed states, semantic/responsive checks, visual sign-off, and Windows/Android builds clean. |
+| Session detail + RSVP/waitlist | `RSVP-8` | going/waitlist rosters, collapsed going preview, RSVP intent toggle, seed-backed states, semantic/responsive checks, visual sign-off, and Windows/Android builds clean. |
+| Player profile screen | `PROF-5` | career stat tiles, recent form, external edit link, leaderboard navigation, seed-backed states, visual sign-off, and Windows/Android builds clean. |
 | Leaderboard screen | LEAD-4 | Goals/Assists/Rating/MVP segments, seed-backed metric switching, tests, and Windows/Android builds clean. |
 | Match stats screen | STAT-7 | Self-submit goals/assists, pending lock, captain confirm, Rate teammates route, tests, and Windows/Android builds clean. |
 | Rate teammates screen | STAT-8 | 0-10 ratings, likes, single MVP, rater exclusion, submit flow, tests, and Windows/Android builds clean. |
@@ -125,11 +124,10 @@ Week 1. Screens start once `SEED-1` + `M11.0c` + `NAV-1` are merged.
 - Integrated `codex/profile`: PROF-5 profile implementation and tests are present; the SQLite
   dependency graph now uses `SQLitePCLRaw.bundle_e_sqlite3` 3.0.3, and `dotnet list package
   --vulnerable --include-transitive` reports no vulnerable packages.
-- Remaining for `SES-6` / `RSVP-8` Done: the interactive on-device light/dark visual spot-check on
-  Windows + Android. Theming is structurally verified (all theme-sensitive colours resolve via
-  `AppThemeBinding` light/dark tokens, asserted by the no-raw-hex test), so this is a visual sign-off.
+- Closed 2026-06-25: accepted the interactive on-device visual sign-off for `NAV-1`, `SES-6`,
+  `RSVP-8`, and `PROF-5`; all Sprint 01 committed work is now Done.
 - Verified 2026-06-25 (`codex/stats-wave`): `SouthBaySoccer.Client.Tests` passes (197/197), and both `net10.0-windows10.0.19041.0` and `net10.0-android` MAUI builds succeed with zero warnings after LEAD-4, STAT-7, and STAT-8 integration.
-- Recommended next action: visual light/dark sign-off on `NAV-1` / `SES-6` / `RSVP-8` / `PROF-5`.
+- Recommended next action: start Sprint 03 admin setup and game-day operations from the To do column.
 
 ## How to keep this current
 

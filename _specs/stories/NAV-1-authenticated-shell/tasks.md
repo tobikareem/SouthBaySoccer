@@ -17,17 +17,13 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done.
   Shell directly, otherwise roots Welcome Back; sign-in success routes into the Shell (Sessions active).
   — Stories: `NAV-1`, `AUTH-8` · Projects: MAUI client · Depends on: M11.NAV1.a.
 
-- [~] **M11.NAV1.c** `Client.Tests`: verified sign-in → Shell (Sessions active); restorable session at
+- [x] **M11.NAV1.c** `Client.Tests`: verified sign-in → Shell (Sessions active); restorable session at
   startup → Shell (no Welcome Back); no session → Welcome Back; tab switch activates the tab and keeps
   the bar; back from a root tab does not reach Welcome Back; unbuilt tab shows the placeholder; tab
   icons are Font Awesome + semantic names with ≥44 dip targets. Build `net10.0-windows10.0.19041.0`.
   — Stories: `NAV-1` · Depends on: M11.NAV1.b.
 
-  Current: implementation and automated coverage are complete. The authenticated root uses one
-  native `TabBar`; Stats and Profile render `StateView` placeholders; tab icons use typed Font
-  Awesome resources with semantic names; and the navigator replaces the window root. Client tests
-  pass (118/118), and Windows/Android builds succeed. Remaining before story DoD: manual device
-  verification of tab switching, root-tab back behavior, screen-reader output, and light/dark modes.
+  Current: implementation, automated coverage, and manual Sprint 01 closeout sign-off are complete. The authenticated root uses one native `TabBar`; Stats and Profile render `StateView` placeholders; tab icons use typed Font Awesome resources with semantic names; and the navigator replaces the window root. Client tests pass, Windows/Android builds succeed, and tab switching, root-tab back behavior, screen-reader output, and light/dark modes are accepted for Sprint 01.
 
 **Prerequisites:** M11.0 (UI foundation, done), M11.0a (Font Awesome, done), AUTH-8 challenge flow
 (`M11.3c`). **Tab destinations:** `SES-6` (Sessions) and `PROF-5` (Profile) this sprint; `LEAD-4`

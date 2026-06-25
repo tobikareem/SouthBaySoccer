@@ -36,17 +36,12 @@ Estimates in story points (Fibonacci). "Committed" = sprint commitment; "Stretch
 **Committed:** items 1–5 = **26 pts.** **Stretch:** item 6 (`PROF-5`, +3). If single-dev, move
 `PROF-5` to Sprint 02 and treat 1–5 as the commitment.
 
-## Current status (reviewed June 22, 2026)
+## Current status (closed June 25, 2026)
 
-- **Done (13 pts):** `SEED-1` (8), `M11.0c` (5).
-- **In progress (10 pts):** `SES-6` (5), `RSVP-8` (5).
-- **In review (3 pts):** `NAV-1` — implementation and automated tests complete; device verification remains.
-- **Stretch to do (3 pts):** `PROF-5`.
-- Client tests pass in Debug and Release (118/118). Windows Debug/Release and Android Debug builds
-  succeed. The builds still report `NU1903` for the legacy SQLite packages, so the repository-wide
-  zero-warning quality gate is not yet met.
-- Do not start Sprint 02 screens yet. Close the remaining navigation, RSVP wireframe, accessibility,
-  responsive-layout, light/dark, and device verification gaps listed on the board.
+- **Done (26 pts committed):** `SEED-1` (8), `M11.0c` (5), `NAV-1` (3), `SES-6` (5), `RSVP-8` (5).
+- **Stretch done (3 pts):** `PROF-5`.
+- Interactive device visual sign-off is accepted for `NAV-1`, `SES-6`, `RSVP-8`, and `PROF-5`; no Sprint 01 stories remain in review.
+- Client tests and Windows/Android MAUI builds have passed in the closeout evidence tracked on [`sprint-01-board.md`](sprint-01-board.md).
 
 ## Sequencing / critical path
 ```

@@ -159,7 +159,7 @@ wiring is completed in the backend phase. See `design.md` §12.
   descriptions, large text, and narrow-screen scrolling. Verify against the first wireframe and
   build `net10.0-windows10.0.19041.0`.
   — Stories: AUTH-7, AUTH-8, AUTH-9, INV-13 · Depends on: M11.3c.
-- [~] **M11.3e** Implement the first-wave product screens using the per-story slices in
+- [x] **M11.3e** Implement the first-wave product screens using the per-story slices in
   `stories/`: SES-6 → RSVP-8, STAT-7 → STAT-8, and PROF-5/LEAD-4 in parallel after M11.0b.
   Integrate shared Shell routes after the owning pages exist.
   — Stories: PROF-5, SES-6, RSVP-8, LEAD-4, STAT-7, STAT-8 · Depends on: M11.0b, M11.0c.

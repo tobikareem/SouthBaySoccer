@@ -48,9 +48,7 @@ the RSVP-8 slice of milestone **M11**; the full milestone roadmap and dependency
   glyphs / no emoji, theme-token colours / no raw hex, and the collapsed-roster bindings). Suite green
   (141/141, Debug + Release); Windows and Android builds succeed with zero new warnings.
 
-  Remaining (tracked on the board as **In review**): the interactive on-device light/dark spot-check on
-  Windows + Android. Theming is structurally verified via `AppThemeBinding` light/dark tokens (no raw
-  hex, asserted by test), so this is a visual sign-off, not a code gap.
+  Sprint 01 closeout: interactive on-device light/dark visual sign-off is accepted for Windows + Android; no RSVP-8 work remains in review.
 
 **Prerequisites:** M11.0 (reusable UI foundation), M11.0a (Font Awesome glyph catalog), M11.0b (seed
 client interfaces + `IRosterClient` / `ISessionsClient` fixtures — see
