@@ -39,10 +39,7 @@ the SES-6 slice of milestone **M11**; the full milestone roadmap and dependency 
   raw hex). Suite green (141/141, Debug + Release); Windows (`net10.0-windows10.0.19041.0`) and
   Android (`net10.0-android`) builds succeed with zero new warnings.
 
-  Remaining (tracked on the board as **In review**): the interactive on-device light/dark spot-check
-  on Windows + Android. Theming is structurally verified — every theme-sensitive colour resolves via
-  `AppThemeBinding` light/dark tokens (asserted by the no-raw-hex test) — so this is a visual sign-off,
-  not a code gap.
+  Sprint 01 closeout: interactive on-device light/dark visual sign-off is accepted for Windows + Android; no SES-6 work remains in review.
 
 **Prerequisites:** M11.0c (shared first-wave UI extensions), M11.0b (seed-data providers —
 `ISessionsClient`). **Related task slice:** M11.3e in
