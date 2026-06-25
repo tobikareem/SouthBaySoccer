@@ -4,7 +4,7 @@ Implementation tasks for [`requirements.md`](requirements.md) / [`design.md`](de
 the PROF-5 slice of milestone **M11**; the full milestone roadmap and dependency graph live in
 [`../../tasks.md`](../../tasks.md). Status: `[ ]` todo · `[~]` in progress · `[x]` done.
 
-- [ ] **M11.PROF5.a** Implement `ProfilePage` and `ProfilePageModel` directly from the `profile`
+- [x] **M11.PROF5.a** Implement `ProfilePage` and `ProfilePageModel` directly from the `profile`
   wireframe using the SEED-1 `IProfileClient`: `BrandHeader` (54-dip avatar, name,
   `"Captain" · #8`), the "Linked via WhatsApp" badge +
   "Edit on Pickup Pal" link, `SectionHeader` "Career stats", the three-column `StatTile` grid, the
@@ -13,13 +13,13 @@ the PROF-5 slice of milestone **M11**; the full milestone roadmap and dependency
   and Font Awesome glyphs (no emoji or page-local hex); code-behind is `InitializeComponent` only.
   — Stories: `PROF-5`, `INV-13` · Projects: MAUI client · Depends on: M11.0c, M11.0b.
 
-- [ ] **M11.PROF5.b** Wire `ProfilePageModel` commands: `EditOnPickupPalCommand` (external launcher to the
+- [x] **M11.PROF5.b** Wire `ProfilePageModel` commands: `EditOnPickupPalCommand` (external launcher to the
   configured Pickup Pal account URI; no in-app edit, no stat mutation), `OpenLeaderboardCommand`
   (navigate to the Leaderboard route), and `RefreshCommand`. Drive the `StateView` loading / empty /
   error / offline states and collapse the pending note when absent. External URI via typed config.
   — Stories: `PROF-5` · Projects: MAUI client · Depends on: M11.PROF5.a.
 
-- [ ] **M11.PROF5.c** (PROF-5 slice) `Client.Tests`: the page model loads identity / career stats /
+- [x] **M11.PROF5.c** (PROF-5 slice) `Client.Tests`: the page model loads identity / career stats /
   recent form / pending note from `IProfileClient`; the pending note shows only when reported and is
   hidden otherwise; `EditOnPickupPalCommand` launches the external account URI without an in-app edit
   or stat change; `OpenLeaderboardCommand` navigates to the Leaderboard; loading / empty / error /

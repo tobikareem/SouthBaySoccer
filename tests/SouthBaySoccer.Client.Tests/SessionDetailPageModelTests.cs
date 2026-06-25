@@ -38,6 +38,45 @@ public class SessionDetailPageModelTests
     }
 
     [Fact]
+    public async Task Load_SeededMarinaSession_CollapsesGoingRosterToPreviewWithMoreAffordance()
+    {
+        var pageModel = new SessionDetailPageModel(
+            new SeedSessionsClient(new SeedState()),
+            new SeedRosterClient(new SeedState()));
+
+        ApplyQuery(pageModel, SeedFixtures.MarinaSessionId);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        // The wireframe shows four going players above a "+ 12 more going" affordance, while the
+        // section heading still reflects the full count.
+        pageModel.GoingHeading.Should().Be("Going · 16");
+        pageModel.GoingPreview.Should().HaveCount(SessionDetailPageModel.GoingPreviewLimit);
+        pageModel.GoingPreview[0].Name.Should().Be("Tobi Kareem");
+        pageModel.HasMoreGoing.Should().BeTrue();
+        pageModel.MoreGoingCount.Should().Be(12);
+        pageModel.MoreGoingLabel.Should().Be("+ 12 more going");
+    }
+
+    [Fact]
+    public async Task Load_GoingRosterWithinPreviewLimit_ShowsAllGoingAndNoMoreAffordance()
+    {
+        var sessions = SessionsReturning(Detail(rsvpAvailable: true, isGoing: false));
+        var roster = new Mock<IRosterClient>();
+        roster
+            .Setup(client => client.GetRosterAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RosterWithGoing(3));
+        var pageModel = new SessionDetailPageModel(sessions.Object, roster.Object);
+        ApplyQuery(pageModel, SeedFixtures.MarinaSessionId);
+
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        pageModel.GoingPreview.Should().HaveCount(3);
+        pageModel.GoingPreview.Should().BeSameAs(pageModel.Going);
+        pageModel.HasMoreGoing.Should().BeFalse();
+        pageModel.MoreGoingCount.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Load_SeededStanfordSession_OrdersWaitlistAndFlagsGuestNextUp()
     {
         var pageModel = new SessionDetailPageModel(
@@ -225,6 +264,15 @@ public class SessionDetailPageModelTests
 
     private static RosterDto EmptyRoster =>
         new(SeedFixtures.MarinaSessionId, [], []);
+
+    private static RosterDto RosterWithGoing(int count) =>
+        new(
+            SeedFixtures.MarinaSessionId,
+            [.. Enumerable.Range(0, count).Select(index => new RosterEntryDto(
+                new PlayerSummaryDto(
+                    Guid.NewGuid(), $"Player {index}", "P", "Midfielder", false, null),
+                index == 0))],
+            []);
 
     private static void ApplyQuery(SessionDetailPageModel pageModel, Guid sessionId) =>
         pageModel.ApplyQueryAttributes(new Dictionary<string, object>

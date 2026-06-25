@@ -12,8 +12,8 @@ columns and update the snapshot.
 |--------|----:|
 | Committed | 26 |
 | Done | 13 |
-| In progress | 10 |
-| In review | 3 |
+| In progress | 0 |
+| In review | 13 |
 | To do | 0 |
 | Stretch (PROF-5) | 3 |
 
@@ -37,9 +37,9 @@ Every story requirement, one line each. `[x]` = Definition of Done met · `[ ]` 
 **Sprint 01 — UI foundations & core session flow**
 - [x] **SEED-1** — Seed-data providers (interfaces + immutable fixtures + resettable state) behind the client services. (S1)
 - [ ] **NAV-1** — Authenticated Shell + bottom tabs (Sessions/Stats/Profile); sign-in → Shell. (S1)
-- [ ] **SES-6** — Sessions home: upcoming list, dues status, submit-stats prompt. (S1)
-- [ ] **RSVP-8** — Session detail: going + waitlist lists, RSVP/waitlist action. (S1)
-- [ ] **PROF-5** — Player profile: career stat tiles, recent form. (S1 stretch)
+- [ ] **SES-6** — Sessions home: upcoming list, dues status, submit-stats prompt. (S1) _(client + automated semantic/responsive checks done; light/dark device sign-off pending — In review)_
+- [ ] **RSVP-8** — Session detail: going + waitlist lists, RSVP/waitlist action. (S1) _(client + collapsed going roster + automated semantic/responsive checks done; light/dark device sign-off pending — In review)_
+- [ ] **PROF-5** — Player profile: career stat tiles, recent form. (S1 stretch) _(client + automated semantic/responsive checks done; light/dark device sign-off pending — In review)_
 
 **Sprint 02 — stats wave**
 - [ ] **LEAD-4** — Leaderboard: Goals/Assists/Rating/MVP segments. (S2)
@@ -50,22 +50,20 @@ Every story requirement, one line each. `[x]` = Definition of Done met · `[ ]` 
 
 ### To do
 
-| Card | Story | Pts | Tasks | Depends on | Owner |
-|------|-------|----:|-------|-----------|-------|
-| **Player profile** *(stretch)* | `PROF-5` | 3 | page+model `[ ]` · seed bind `[ ]` · states `[ ]` · tests `[ ]` | SEED-1, M11.0c, NAV-1 | — |
+_(none)_
 
 ### In progress
 
-| Card | Story | Pts | Tasks | Remaining |
-|------|-------|----:|-------|-----------|
-| **Sessions (home) screen** | `SES-6` | 5 | page+model `[x]` · seed bind `[x]` · states `[x]` · tests `[~]` | Add semantic/responsive automated checks and complete light/dark Windows + Android verification. |
-| **Session detail + RSVP/waitlist** | `RSVP-8` | 5 | page+model `[~]` · seed bind `[~]` · RSVP/waitlist `[x]` · states `[x]` · tests `[~]` | Add the wireframe's collapsed going roster / `+ 12 more going`, then semantic/responsive and light/dark device verification. |
+_(none)_
 
 ### In review
 
 | Card | Story | Pts | Tasks | Remaining |
 |------|-------|----:|-------|-----------|
 | **Authenticated Shell & tabs** | `NAV-1` | 3 | `M11.NAV1.a` `[x]` · `M11.NAV1.b` `[x]` · `M11.NAV1.c` `[~]` | Manual Windows/Android verification: tab switching, root-tab back behavior, screen reader, and light/dark modes. |
+| **Sessions (home) screen** | `SES-6` | 5 | page+model `[x]` · seed bind `[x]` · states `[x]` · tests `[x]` | Code, tests (141/141), and automated semantic/responsive + theme-token checks done; both TFMs build clean. Remaining: interactive on-device light/dark spot-check (Windows + Android). |
+| **Session detail + RSVP/waitlist** | `RSVP-8` | 5 | page+model `[x]` · seed bind `[x]` · RSVP/waitlist `[x]` · states `[x]` · tests `[x]` | Collapsed going roster (`+ N more going`), tests, and automated semantic/responsive + theme-token checks done; both TFMs build clean. Remaining: interactive on-device light/dark spot-check (Windows + Android). |
+| **Player profile** *(stretch)* | `PROF-5` | 3 | page+model `[x]` · seed bind `[x]` · states `[x]` · tests `[x]` | Profile implementation, zero-state, navigation, semantic/responsive tests, and Windows/Android builds are complete. Remaining: interactive on-device light/dark spot-check. |
 
 ### Done
 
@@ -93,12 +91,27 @@ Week 1. Screens start once `SEED-1` + `M11.0c` + `NAV-1` are merged.
 
 ## Review evidence and next action
 
-- Verified 2026-06-22: `SouthBaySoccer.Client.Tests` passes in Debug and Release (118/118).
-- Windows Debug/Release and Android Debug builds succeed, with existing `NU1903` high-severity
-  vulnerability warnings from `SQLitePCLRaw.lib.e_sqlite3` and its Android package.
-- Recommended next action: manually verify `NAV-1` on Windows and Android, then continue the
-  Sprint 01 closure pass on `SES-6` and `RSVP-8`. Fix the SQLite warning and close the remaining
-  UI/test gaps before pulling in stretch `PROF-5` or Sprint 02 work.
+- Verified 2026-06-22 (`claude/sessions-flow`): `SouthBaySoccer.Client.Tests` passes in Debug and
+  Release (141/141) after the `SES-6` + `RSVP-8` closure pass.
+- `RSVP-8`: added the wireframe's collapsed going roster — a four-row preview above a "+ N more going"
+  affordance (`GoingPreview` / `MoreGoingCount` / `HasMoreGoing` / `MoreGoingLabel`), with `GoingHeading`
+  keeping the full count — plus page-model tests for both the collapsed and within-limit cases.
+- `SES-6` + `RSVP-8`: added `SessionScreensXamlTests` automated semantic/responsive contract over the
+  shipped page XAML (informational/interactive icon semantic descriptions, `ScrollView` so content is
+  uncut at large text, typed Font Awesome glyphs + no Unicode emoji per `INV-13`, and theme-token
+  colours / no raw hex). `/code-review` pass run (dotnet + maui-xaml reviewers); one accessibility nit
+  applied (removed a redundant `SemanticProperties.Description` on the non-interactive "+ N more going"
+  row).
+- Windows (`net10.0-windows10.0.19041.0`) and Android (`net10.0-android`) builds succeed with **zero
+  new warnings** — only the pre-existing `CS0618` `DisplayAlert` obsoletion in `App.xaml.cs`
+  remains (untouched).
+- Integrated `codex/profile`: PROF-5 profile implementation and tests are present; the SQLite
+  dependency graph now uses `SQLitePCLRaw.bundle_e_sqlite3` 3.0.3, and `dotnet list package
+  --vulnerable --include-transitive` reports no vulnerable packages.
+- Remaining for `SES-6` / `RSVP-8` Done: the interactive on-device light/dark visual spot-check on
+  Windows + Android. Theming is structurally verified (all theme-sensitive colours resolve via
+  `AppThemeBinding` light/dark tokens, asserted by the no-raw-hex test), so this is a visual sign-off.
+- Recommended next action: visual light/dark sign-off on `NAV-1` / `SES-6` / `RSVP-8` / `PROF-5`.
 
 ## How to keep this current
 

@@ -139,7 +139,6 @@ public class AuthenticatedShellTests
 
     [Theory]
     [InlineData("StatsPage.xaml", "Stats are coming soon", "FontAwesomeGlyphs.Trophy")]
-    [InlineData("ProfilePage.xaml", "Your profile is coming soon", "FontAwesomeGlyphs.User")]
     public void UnbuiltRootTab_ShowsAccessibleStateViewPlaceholder(
         string fileName,
         string title,

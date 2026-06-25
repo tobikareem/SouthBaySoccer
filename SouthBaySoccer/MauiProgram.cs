@@ -5,6 +5,7 @@ using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
 using SouthBaySoccer.Services.Navigation;
+using SouthBaySoccer.Services.Profile;
 using Syncfusion.Maui.Toolkit.Hosting;
 
 namespace SouthBaySoccer;
@@ -82,7 +83,7 @@ public static class MauiProgram
         builder.Services.AddTransient<SessionsHomePage>();
         builder.Services.AddTransient<SessionsHomePageModel>();
         builder.Services.AddTransient<StatsPage>();
-        builder.Services.AddTransient<ProfilePage>();
+        builder.Services.AddProfileFeature();
         builder.Services.AddSingleton<ISessionsNavigator, ShellSessionsNavigator>();
 
         var pickupPalOptions = new PickupPalOptions();

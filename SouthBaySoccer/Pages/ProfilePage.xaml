@@ -5,20 +5,249 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:c="clr-namespace:SouthBaySoccer.Controls"
     xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="ProfilePageName"
+    x:DataType="pageModels:ProfilePageModel"
     Shell.NavBarIsVisible="False"
     Style="{StaticResource BrandPage}"
     Title="Profile">
 
-    <Grid RowDefinitions="Auto,*">
-        <c:BrandHeader Grid.Row="0"
-                       Title="Profile"
-                       Subtitle="Your account" />
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference ProfilePageName}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
 
-        <c:StateView Grid.Row="1"
-                     State="Empty"
-                     Title="Your profile is coming soon"
-                     Message="Career stats, recent form, payments, and waivers will appear here."
-                     Glyph="{x:Static fonts:FontAwesomeGlyphs.User}"
-                     GlyphFontFamily="FontAwesomeSolid" />
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader
+            Grid.Row="0"
+            Title="{Binding Profile.DisplayName}"
+            Subtitle="{Binding Profile.Subtitle}">
+            <c:BrandHeader.LeadingContent>
+                <c:Avatar
+                    Initials="{Binding Profile.Initials}"
+                    Size="{StaticResource AvatarLg}"
+                    Variant="OnGreen"
+                    Description="{Binding Profile.DisplayName, StringFormat='{0} avatar'}" />
+            </c:BrandHeader.LeadingContent>
+        </c:BrandHeader>
+
+        <c:StateView
+            Grid.Row="1"
+            State="{Binding State}"
+            Title="{Binding StateTitle}"
+            Message="{Binding StateMessage}"
+            Glyph="{x:Static fonts:FontAwesomeGlyphs.User}"
+            GlyphFontFamily="FontAwesomeSolid"
+            RetryCommand="{Binding RefreshCommand}">
+            <ScrollView>
+                <VerticalStackLayout
+                    Padding="{StaticResource LayoutPadding}"
+                    Spacing="{StaticResource SpaceLg}">
+
+                    <Grid
+                        x:Name="IdentityRow"
+                        ColumnDefinitions="*"
+                        RowDefinitions="Auto,Auto"
+                        ColumnSpacing="{StaticResource SpaceSm}"
+                        RowSpacing="{StaticResource SpaceXs}">
+                        <HorizontalStackLayout
+                            x:Name="LinkedIdentity"
+                            Grid.Row="0"
+                            Spacing="{StaticResource SpaceXs}"
+                            VerticalOptions="Center">
+                            <Label
+                                Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
+                                FontFamily="FontAwesomeBrands"
+                                FontSize="{StaticResource IconMd}"
+                                TextColor="{StaticResource WhatsApp}"
+                                VerticalTextAlignment="Center"
+                                SemanticProperties.Description="WhatsApp" />
+                            <c:Badge
+                                Text="Linked via WhatsApp"
+                                Variant="Success"
+                                SemanticProperties.Description="Linked via WhatsApp" />
+                        </HorizontalStackLayout>
+
+                        <Grid
+                            x:Name="EditAction"
+                            Grid.Row="1"
+                            HorizontalOptions="Start">
+                            <Button
+                                Text="Edit on Pickup Pal"
+                                Command="{Binding EditOnPickupPalCommand}"
+                                Style="{StaticResource LinkButton}"
+                                Padding="{StaticResource WelcomeOpenButtonPadding}"
+                                SemanticProperties.Description="Edit on Pickup Pal, opens external link" />
+                            <Label
+                                Text="{x:Static fonts:FontAwesomeGlyphs.ArrowUpRightFromSquare}"
+                                FontFamily="FontAwesomeSolid"
+                                FontSize="{StaticResource FontCaption}"
+                                TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                                HorizontalOptions="Start"
+                                VerticalTextAlignment="Center"
+                                InputTransparent="True"
+                                SemanticProperties.Description="External link" />
+                        </Grid>
+
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="ProfileWidthStates">
+                                <VisualState x:Name="Narrow" />
+                                <VisualState x:Name="Wide">
+                                    <VisualState.StateTriggers>
+                                        <AdaptiveTrigger MinWindowWidth="360" />
+                                    </VisualState.StateTriggers>
+                                    <VisualState.Setters>
+                                        <Setter TargetName="IdentityRow" Property="Grid.ColumnDefinitions" Value="*,Auto" />
+                                        <Setter TargetName="IdentityRow" Property="Grid.RowDefinitions" Value="Auto" />
+                                        <Setter TargetName="EditAction" Property="Grid.Row" Value="0" />
+                                        <Setter TargetName="EditAction" Property="Grid.Column" Value="1" />
+                                        <Setter TargetName="EditAction" Property="HorizontalOptions" Value="End" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Grid>
+
+                    <c:SectionHeader Text="Career stats" />
+
+                    <Grid
+                        x:Name="StatGrid"
+                        ColumnDefinitions="*,*"
+                        RowDefinitions="Auto,Auto,Auto"
+                        ColumnSpacing="{StaticResource SpaceMd}"
+                        RowSpacing="{StaticResource SpaceMd}">
+                        <c:StatTile
+                            x:Name="MatchesTile"
+                            Grid.Row="0"
+                            Grid.Column="0"
+                            Value="{Binding Profile.CareerStats.Matches, StringFormat='{0}'}"
+                            Label="Matches"
+                            SemanticProperties.Description="{Binding Profile.CareerStats.Matches, StringFormat='Matches: {0}'}" />
+                        <c:StatTile
+                            x:Name="GoalsTile"
+                            Grid.Row="0"
+                            Grid.Column="1"
+                            Value="{Binding Profile.CareerStats.Goals, StringFormat='{0}'}"
+                            Label="Goals"
+                            SemanticProperties.Description="{Binding Profile.CareerStats.Goals, StringFormat='Goals: {0}'}" />
+                        <c:StatTile
+                            x:Name="AssistsTile"
+                            Grid.Row="1"
+                            Grid.Column="0"
+                            Value="{Binding Profile.CareerStats.Assists, StringFormat='{0}'}"
+                            Label="Assists"
+                            SemanticProperties.Description="{Binding Profile.CareerStats.Assists, StringFormat='Assists: {0}'}" />
+                        <c:StatTile
+                            x:Name="RatingTile"
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Value="{Binding Profile.CareerStats.AverageRating, StringFormat='{0:F1}'}"
+                            Label="Avg rating"
+                            SemanticProperties.Description="{Binding Profile.CareerStats.AverageRating, StringFormat='Average rating: {0:F1}'}" />
+                        <c:StatTile
+                            x:Name="MvpTile"
+                            Grid.Row="2"
+                            Grid.Column="0"
+                            Value="{Binding Profile.CareerStats.MvpAwards, StringFormat='{0}'}"
+                            Label="MVP"
+                            SemanticProperties.Description="{Binding Profile.CareerStats.MvpAwards, StringFormat='MVP awards: {0}'}" />
+                        <c:StatTile
+                            x:Name="LikesTile"
+                            Grid.Row="2"
+                            Grid.Column="1"
+                            Value="{Binding Profile.CareerStats.Likes, StringFormat='{0}'}"
+                            Label="Likes"
+                            SemanticProperties.Description="{Binding Profile.CareerStats.Likes, StringFormat='Likes: {0}'}" />
+
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="StatWidthStates">
+                                <VisualState x:Name="TwoColumns" />
+                                <VisualState x:Name="ThreeColumns">
+                                    <VisualState.StateTriggers>
+                                        <AdaptiveTrigger MinWindowWidth="360" />
+                                    </VisualState.StateTriggers>
+                                    <VisualState.Setters>
+                                        <Setter TargetName="StatGrid" Property="Grid.ColumnDefinitions" Value="*,*,*" />
+                                        <Setter TargetName="StatGrid" Property="Grid.RowDefinitions" Value="Auto,Auto" />
+                                        <Setter TargetName="AssistsTile" Property="Grid.Row" Value="0" />
+                                        <Setter TargetName="AssistsTile" Property="Grid.Column" Value="2" />
+                                        <Setter TargetName="RatingTile" Property="Grid.Row" Value="1" />
+                                        <Setter TargetName="RatingTile" Property="Grid.Column" Value="0" />
+                                        <Setter TargetName="MvpTile" Property="Grid.Row" Value="1" />
+                                        <Setter TargetName="MvpTile" Property="Grid.Column" Value="1" />
+                                        <Setter TargetName="LikesTile" Property="Grid.Row" Value="1" />
+                                        <Setter TargetName="LikesTile" Property="Grid.Column" Value="2" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Grid>
+
+                    <c:BrandCard>
+                        <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label
+                                    Text="Recent form"
+                                    Style="{StaticResource TextBodyStrong}" />
+                                <Label
+                                    Grid.Column="1"
+                                    Text="last 5"
+                                    Style="{StaticResource TextCaption}"
+                                    Opacity="0.65" />
+                            </Grid>
+                            <FlexLayout
+                                BindableLayout.ItemsSource="{Binding RecentForm}"
+                                Direction="Row"
+                                Wrap="Wrap"
+                                JustifyContent="Start"
+                                AlignItems="Center">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="pageModels:ProfileFormBadge">
+                                        <c:Badge
+                                            Margin="0,0,4,4"
+                                            Text="{Binding Text}"
+                                            Variant="{Binding Variant}"
+                                            SemanticProperties.Description="{Binding Description}" />
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+
+                    <Grid
+                        ColumnDefinitions="Auto,*"
+                        ColumnSpacing="{StaticResource SpaceXs}"
+                        IsVisible="{Binding HasPendingNote}">
+                        <Label
+                            Text="{x:Static fonts:FontAwesomeGlyphs.Clock}"
+                            FontFamily="FontAwesomeSolid"
+                            Style="{StaticResource TextCaption}"
+                            TextColor="{AppThemeBinding Light={StaticResource WarningLight}, Dark={StaticResource WarningDark}}"
+                            VerticalOptions="Start"
+                            SemanticProperties.Description="Pending confirmation" />
+                        <Label
+                            Grid.Column="1"
+                            Text="{Binding PendingNote}"
+                            Style="{StaticResource TextCaption}" />
+                    </Grid>
+
+                    <Label
+                        Text="{Binding ActionMessage}"
+                        Style="{StaticResource TextCaption}"
+                        TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                        IsVisible="{Binding HasActionMessage}"
+                        SemanticProperties.Description="{Binding ActionMessage}" />
+
+                    <Button
+                        Text="View season leaderboard"
+                        Command="{Binding OpenLeaderboardCommand}"
+                        Style="{StaticResource GhostButton}"
+                        SemanticProperties.Description="View season leaderboard" />
+                </VerticalStackLayout>
+            </ScrollView>
+        </c:StateView>
     </Grid>
 </ContentPage>

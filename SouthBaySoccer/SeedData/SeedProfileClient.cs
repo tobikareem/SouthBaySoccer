@@ -5,6 +5,9 @@ namespace SouthBaySoccer.SeedData;
 
 public sealed class SeedProfileClient : IProfileClient
 {
+    public Task<PlayerProfileDto?> GetCurrentProfileAsync(CancellationToken cancellationToken) =>
+        GetProfileAsync(SeedFixtures.CurrentPlayerId, cancellationToken);
+
     public Task<PlayerProfileDto?> GetProfileAsync(
         Guid playerId,
         CancellationToken cancellationToken)
