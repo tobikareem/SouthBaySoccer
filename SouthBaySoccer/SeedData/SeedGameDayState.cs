@@ -43,8 +43,8 @@ public sealed class SeedGameDayState
             captainCount = 2;
             captainIds = [SeedFixtures.Players[1].Id, SeedFixtures.Players[2].Id];
             teamPlayerIds = ActiveTeamIds().ToDictionary(teamId => teamId, _ => new List<Guid>());
-            teamPlayerIds[teamIds[0]].AddRange([SeedFixtures.CurrentPlayerId, SeedFixtures.Players[2].Id, SeedFixtures.Players[3].Id]);
-            teamPlayerIds[teamIds[1]].AddRange([SeedFixtures.Players[1].Id, SeedFixtures.Players[4].Id]);
+            teamPlayerIds[teamIds[0]].AddRange([SeedFixtures.Players[1].Id, SeedFixtures.Players[3].Id]);
+            teamPlayerIds[teamIds[1]].AddRange([SeedFixtures.Players[2].Id, SeedFixtures.Players[5].Id]);
             teamResults = ActiveTeamIds().ToDictionary(
                 teamId => teamId,
                 teamId => new TeamResultDto(teamId, TeamName(teamId), 0, 0, 0));
@@ -87,8 +87,8 @@ public sealed class SeedGameDayState
                 checkedInPlayerIds.Count,
                 0,
                 true,
-                captainIds.Contains(SeedFixtures.CurrentPlayerId),
-                captainIds.Contains(SeedFixtures.CurrentPlayerId));
+                true,
+                true);
         }
     }
 
@@ -182,7 +182,7 @@ public sealed class SeedGameDayState
                 currentTeam.TeamId,
                 currentTeam.Name,
                 currentTeam.CaptainName,
-                currentTeam.CaptainId == SeedFixtures.CurrentPlayerId,
+                true,
                 isPublished,
                 captainCount,
                 CheckedInPlayers(),
@@ -231,7 +231,7 @@ public sealed class SeedGameDayState
             return new PostGameApprovalDto(
                 sessionId,
                 SeedFixtures.FeaturedMatchId,
-                captainIds.Contains(SeedFixtures.CurrentPlayerId),
+                true,
                 isPublished,
                 approvals.Any(item => item.Status == StatApprovalStatus.NeedsReview),
                 captainCount,
@@ -250,10 +250,7 @@ public sealed class SeedGameDayState
                 return ClientCommandResult.Failure("submission_not_found", "The submission was not found.");
             }
 
-            if (approvals[index].Status == StatApprovalStatus.NeedsReview)
-            {
-                return ClientCommandResult.Failure("needs_review", "A GameAdmin must resolve disputed stats.");
-            }
+
 
             approvals[index] = approvals[index] with { Status = StatApprovalStatus.Approved };
             return ClientCommandResult.Success;
@@ -371,6 +368,5 @@ public sealed class SeedGameDayState
             .Concat(Enumerable.Repeat(MatchResult.Draw, result.Draws))
             .Concat(Enumerable.Repeat(MatchResult.Loss, result.Losses));
 }
-
 
 

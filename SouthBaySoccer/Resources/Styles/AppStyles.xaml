@@ -40,8 +40,8 @@
 
     <OnIdiom x:Key="LayoutPadding"
              x:TypeArguments="Thickness"
-             Default="15">
-        <OnIdiom.Desktop>30</OnIdiom.Desktop>
+             Default="12">
+        <OnIdiom.Desktop>20</OnIdiom.Desktop>
     </OnIdiom>
 
     <OnIdiom x:Key="LayoutSpacing"
@@ -81,6 +81,11 @@
 
     <FontImageSource x:Key="IconStats"
                      Glyph="{x:Static f:FontAwesomeGlyphs.Trophy}"
+                     FontFamily="FontAwesomeSolid"
+                     Size="{StaticResource IconSize}" />
+
+    <FontImageSource x:Key="IconPlayers"
+                     Glyph="{x:Static f:FontAwesomeGlyphs.Users}"
                      FontFamily="FontAwesomeSolid"
                      Size="{StaticResource IconSize}" />
 
@@ -301,3 +306,4 @@
     </Style>
 
 </ResourceDictionary>
+

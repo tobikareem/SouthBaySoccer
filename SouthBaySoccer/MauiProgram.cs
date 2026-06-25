@@ -6,6 +6,7 @@ using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
 using SouthBaySoccer.Services.Leaderboard;
 using SouthBaySoccer.Services.Navigation;
+using SouthBaySoccer.Services.Players;
 using SouthBaySoccer.Services.Profile;
 using Syncfusion.Maui.Toolkit.Hosting;
 
@@ -93,6 +94,7 @@ public static class MauiProgram
         builder.Services.AddTransient<PostGameApprovalPageModel>();
         builder.Services.AddSingleton(new GameDayOptions());
         builder.Services.AddLeaderboardFeature();
+        builder.Services.AddPlayersFeature();
         builder.Services.AddProfileFeature();
         builder.Services.AddSingleton<ISessionsNavigator, ShellSessionsNavigator>();
         builder.Services.AddSingleton<IGameDayNavigator, ShellGameDayNavigator>();
@@ -142,6 +144,8 @@ public static class MauiProgram
     }
 #endif
 }
+
+
 
 
 

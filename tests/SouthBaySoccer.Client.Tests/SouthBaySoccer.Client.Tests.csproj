@@ -36,6 +36,7 @@
     <Compile Include="..\..\SouthBaySoccer\PageModels\CreateSessionPageModel.cs" Link="Client\PageModels\CreateSessionPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\ProfilePageModel.cs" Link="Client\PageModels\ProfilePageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\LeaderboardPageModel.cs" Link="Client\PageModels\LeaderboardPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\PlayersPageModel.cs" Link="Client\PageModels\PlayersPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\MatchStatsPageModel.cs" Link="Client\PageModels\MatchStatsPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\RateTeammatesPageModel.cs" Link="Client\PageModels\RateTeammatesPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\GameDayPageModels.cs" Link="Client\PageModels\GameDayPageModels.cs" />
@@ -65,6 +66,7 @@
     <None Include="..\..\SouthBaySoccer\Controls\StateView.xaml" Link="Client\Xaml\StateView.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\AppShell.xaml" Link="Client\Xaml\AppShell.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\StatsPage.xaml" Link="Client\Xaml\StatsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\PlayersPage.xaml" Link="Client\Xaml\PlayersPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\MatchStatsPage.xaml" Link="Client\Xaml\MatchStatsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\RateTeammatesPage.xaml" Link="Client\Xaml\RateTeammatesPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\ProfilePage.xaml" Link="Client\Xaml\ProfilePage.xaml" CopyToOutputDirectory="PreserveNewest" />

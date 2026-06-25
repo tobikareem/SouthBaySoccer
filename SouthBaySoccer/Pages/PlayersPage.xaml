@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.PlayersPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="PlayersPageName"
+    x:DataType="pageModels:PlayersPageModel"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Players">
+
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference PlayersPageName}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+
+    <Grid>
+        <c:StateView
+            State="{Binding State}"
+            Title="{Binding StateTitle}"
+            Message="{Binding StateMessage}"
+            Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
+            GlyphFontFamily="FontAwesomeSolid"
+            RetryCommand="{Binding RefreshCommand}">
+            <ScrollView>
+                <VerticalStackLayout
+                    Padding="{StaticResource LayoutPadding}"
+                    Spacing="{StaticResource SpaceLg}">
+
+                    <Grid
+                        ColumnDefinitions="*,Auto"
+                        ColumnSpacing="{StaticResource SpaceMd}">
+                        <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                            <Label
+                                Text="{Binding Title}"
+                                Style="{StaticResource TextH1}" />
+                            <Label
+                                Text="{Binding Subtitle}"
+                                Style="{StaticResource TextCaption}" />
+                        </VerticalStackLayout>
+                        <c:Badge
+                            Grid.Column="1"
+                            Text="{Binding TotalPlayersText}"
+                            Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
+                            Variant="Success"
+                            SemanticProperties.Description="{Binding TotalPlayers, StringFormat='{0} players'}" />
+                    </Grid>
+
+                    <Border
+                        Style="{StaticResource CardSurface}"
+                        Padding="{StaticResource SearchInputPadding}"
+                        BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}">
+                        <Grid
+                            ColumnDefinitions="Auto,*"
+                            ColumnSpacing="{StaticResource SpaceSm}"
+                            MinimumHeightRequest="{StaticResource TouchMin}">
+                            <Label
+                                Text="{x:Static fonts:FontAwesomeGlyphs.MagnifyingGlass}"
+                                FontFamily="FontAwesomeSolid"
+                                FontSize="{StaticResource IconMd}"
+                                TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+                                VerticalTextAlignment="Center"
+                                SemanticProperties.Description="Search" />
+                            <Entry
+                                Grid.Column="1"
+                                Text="{Binding SearchQuery}"
+                                Placeholder="Search players"
+                                Style="{StaticResource BrandEntry}"
+                                BackgroundColor="Transparent"
+                                ClearButtonVisibility="WhileEditing"
+                                SemanticProperties.Description="Search players" />
+                        </Grid>
+                    </Border>
+
+                    <c:SectionHeader Text="All players" />
+
+                    <VerticalStackLayout
+                        BindableLayout.ItemsSource="{Binding Players}"
+                        Spacing="{StaticResource SpaceSm}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="pageModels:PlayerDirectoryRowItem">
+                                <Border
+                                    Style="{StaticResource CardSurface}"
+                                    Padding="0"
+                                    MinimumHeightRequest="{StaticResource TouchMin}">
+                                    <c:PlayerRow
+                                        Initials="{Binding Initials}"
+                                        Name="{Binding Name}"
+                                        Detail="{Binding Detail}"
+                                        TapCommand="{Binding BindingContext.OpenPlayerCommand, Source={x:Reference PlayersPageName}}"
+                                        TapCommandParameter="{Binding PlayerId}">
+                                        <c:PlayerRow.TrailingContent>
+                                            <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="{StaticResource SpaceXs}">
+                                                <c:Badge
+                                                    Text="{Binding TrailingText}"
+                                                    Variant="Warning"
+                                                    IsVisible="{Binding IsGuest}"
+                                                    SemanticProperties.Description="Guest player" />
+                                                <Label
+                                                    Grid.Column="1"
+                                                    Text="{x:Static fonts:FontAwesomeGlyphs.ChevronRight}"
+                                                    FontFamily="FontAwesomeSolid"
+                                                    Style="{StaticResource TextCaption}"
+                                                    VerticalTextAlignment="Center"
+                                                    TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+                                                    SemanticProperties.Description="Open profile" />
+                                            </Grid>
+                                        </c:PlayerRow.TrailingContent>
+                                    </c:PlayerRow>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
+        </c:StateView>
+    </Grid>
+</ContentPage>

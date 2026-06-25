@@ -71,7 +71,10 @@ public partial class GameDayPageModel(
     private string _primaryActionText = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBlockReason))]
     private string? _blockReason;
+
+    public bool HasBlockReason => !string.IsNullOrWhiteSpace(BlockReason);
 
     [ObservableProperty]
     private int _goingCount;
@@ -234,15 +237,32 @@ public partial class CaptainAssignmentPageModel(
     private Task Appearing(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
 
     [RelayCommand]
-    private void SelectCaptainCount(int count)
+    private void SelectCaptainCount(object? count)
     {
-        CaptainCount = count;
-        foreach (var item in Players.Where(item => item.IsSelected).Skip(count))
+        if (!TryParseCaptainCount(count, out var parsedCount))
+        {
+            return;
+        }
+
+        CaptainCount = parsedCount;
+        foreach (var item in Players.Where(item => item.IsSelected).Skip(parsedCount))
         {
             item.IsSelected = false;
         }
 
         OnPropertyChanged(nameof(SelectedCountText));
+    }
+
+    private static bool TryParseCaptainCount(object? value, out int count)
+    {
+        count = value switch
+        {
+            int typedValue => typedValue,
+            string text when int.TryParse(text, out var parsedValue) => parsedValue,
+            _ => 0
+        };
+
+        return count is >= 2 and <= 4;
     }
 
     [RelayCommand]
@@ -477,6 +497,7 @@ public partial class PostGameApprovalPageModel(
         if (result.IsSuccess)
         {
             item.Status = StatApprovalStatus.Approved;
+            NeedsReview = Approvals.Any(approval => approval.Status == StatApprovalStatus.NeedsReview);
         }
     }
 
@@ -621,9 +642,15 @@ public partial class StatApprovalItem(Guid submissionId, string initials, string
     [ObservableProperty]
     private StatApprovalStatus _status = status;
 
-    public bool CanApprove => Status == StatApprovalStatus.Pending;
+    public bool CanApprove => Status is StatApprovalStatus.Pending or StatApprovalStatus.NeedsReview;
 
-    partial void OnStatusChanged(StatApprovalStatus value) => OnPropertyChanged(nameof(CanApprove));
+    public string ApprovalActionText => Status == StatApprovalStatus.NeedsReview ? "Resolve" : "Approve";
+
+    partial void OnStatusChanged(StatApprovalStatus value)
+    {
+        OnPropertyChanged(nameof(CanApprove));
+        OnPropertyChanged(nameof(ApprovalActionText));
+    }
 
     public static StatApprovalItem From(PendingStatApprovalDto dto)
     {
@@ -648,20 +675,63 @@ public partial class StatApprovalItem(Guid submissionId, string initials, string
 }
 
 #if ANDROID || IOS || MACCATALYST || WINDOWS
+public partial class CaptainAssignmentPageModel : IQueryAttributable
+{
+    void IQueryAttributable.ApplyQueryAttributes(IDictionary<string, object> query) => ApplySessionIdQuery(query);
+
+    private void ApplySessionIdQuery(IDictionary<string, object> query)
+    {
+        if (query.TryGetValue("sessionId", out var value) &&
+            Guid.TryParse(value?.ToString(), out var parsedSessionId))
+        {
+            sessionId = parsedSessionId;
+        }
+    }
+}
+
+public partial class TeamDraftPageModel : IQueryAttributable
+{
+    void IQueryAttributable.ApplyQueryAttributes(IDictionary<string, object> query) => ApplySessionIdQuery(query);
+
+    private void ApplySessionIdQuery(IDictionary<string, object> query)
+    {
+        if (query.TryGetValue("sessionId", out var value) &&
+            Guid.TryParse(value?.ToString(), out var parsedSessionId))
+        {
+            sessionId = parsedSessionId;
+        }
+    }
+}
+
+public partial class PostGameApprovalPageModel : IQueryAttributable
+{
+    void IQueryAttributable.ApplyQueryAttributes(IDictionary<string, object> query) => ApplySessionIdQuery(query);
+
+    private void ApplySessionIdQuery(IDictionary<string, object> query)
+    {
+        if (query.TryGetValue("sessionId", out var value) &&
+            Guid.TryParse(value?.ToString(), out var parsedSessionId))
+        {
+            sessionId = parsedSessionId;
+        }
+    }
+}
+
 public sealed class ShellGameDayNavigator : IGameDayNavigator
 {
     public Task OpenCaptainAssignmentAsync(Guid sessionId) =>
-        Shell.Current.GoToAsync($"captains?sessionId={sessionId}");
+        Shell.Current.GoToAsync(BuildRoute("captains", sessionId));
 
     public Task OpenTeamDraftAsync(Guid sessionId) =>
-        Shell.Current.GoToAsync($"draft?sessionId={sessionId}");
+        Shell.Current.GoToAsync(BuildRoute("draft", sessionId));
 
     public Task OpenPostGameApprovalAsync(Guid sessionId) =>
-        Shell.Current.GoToAsync($"postgame?sessionId={sessionId}");
+        Shell.Current.GoToAsync(BuildRoute("postgame", sessionId));
 
     public Task GoBackAsync() => Shell.Current.GoToAsync("..");
+
+    private static string BuildRoute(string route, Guid sessionId) =>
+        $"{route}?sessionId={Uri.EscapeDataString(sessionId.ToString())}";
 }
 #endif
-
-
 

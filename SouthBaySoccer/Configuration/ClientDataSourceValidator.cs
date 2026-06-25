@@ -12,6 +12,7 @@ public static class ClientDataSourceValidator
         nameof(IRosterClient),
         nameof(IStatsClient),
         nameof(ILeaderboardClient),
+        nameof(IPlayersClient),
         nameof(IProfileClient)
     ];
 
@@ -32,3 +33,5 @@ public static class ClientDataSourceValidator
         }
     }
 }
+
+

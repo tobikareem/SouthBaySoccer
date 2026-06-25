@@ -45,6 +45,7 @@ public static class ClientServiceCollectionExtensions
         services.AddSingleton<IRosterClient, SeedRosterClient>();
         services.AddSingleton<IStatsClient, SeedStatsClient>();
         services.AddSingleton<ILeaderboardClient, SeedLeaderboardClient>();
+        services.AddSingleton<IPlayersClient, SeedPlayersClient>();
         services.AddSingleton<IProfileClient, SeedProfileClient>();
         services.AddSingleton<IGameDayClient, SeedGameDayClient>();
         return services;
@@ -63,4 +64,3 @@ public static class ClientServiceCollectionExtensions
         }
     }
 }
-
