@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -52,6 +53,29 @@ public partial class ProfilePageModel(
     public bool HasPendingNote => !string.IsNullOrWhiteSpace(PendingNote);
 
     public bool HasActionMessage => !string.IsNullOrWhiteSpace(ActionMessage);
+
+    public string MatchesText => Profile?.CareerStats.Matches.ToString(CultureInfo.InvariantCulture) ?? "0";
+
+    public string GoalsText => Profile?.CareerStats.Goals.ToString(CultureInfo.InvariantCulture) ?? "0";
+
+    public string AssistsText => Profile?.CareerStats.Assists.ToString(CultureInfo.InvariantCulture) ?? "0";
+
+    public string AverageRatingText =>
+        Profile?.CareerStats.AverageRating.ToString("0.0", CultureInfo.InvariantCulture) ?? "0.0";
+
+    public string MvpAwardsText => Profile?.CareerStats.MvpAwards.ToString(CultureInfo.InvariantCulture) ?? "0";
+
+    public string LikesText => Profile?.CareerStats.Likes.ToString(CultureInfo.InvariantCulture) ?? "0";
+
+    partial void OnProfileChanged(PlayerProfileDto? value)
+    {
+        OnPropertyChanged(nameof(MatchesText));
+        OnPropertyChanged(nameof(GoalsText));
+        OnPropertyChanged(nameof(AssistsText));
+        OnPropertyChanged(nameof(AverageRatingText));
+        OnPropertyChanged(nameof(MvpAwardsText));
+        OnPropertyChanged(nameof(LikesText));
+    }
 
     partial void OnActionMessageChanged(string value) => OnPropertyChanged(nameof(HasActionMessage));
 

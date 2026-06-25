@@ -137,21 +137,17 @@ public class AuthenticatedShellTests
         touchMinimum.Value.Should().Be("44");
     }
 
-    [Theory]
-    [InlineData("StatsPage.xaml", "Stats are coming soon", "FontAwesomeGlyphs.Trophy")]
-    public void UnbuiltRootTab_ShowsAccessibleStateViewPlaceholder(
-        string fileName,
-        string title,
-        string glyph)
+    [Fact]
+    public void StatsRootTab_RendersImplementedLeaderboardScreen()
     {
-        var page = LoadXaml(fileName);
+        var page = LoadXaml("StatsPage.xaml");
         var stateView = page.Descendants()
             .Single(element => element.Name.LocalName == "StateView");
 
-        Attribute(stateView, "State").Should().Be("Empty");
-        Attribute(stateView, "Title").Should().Be(title);
-        Attribute(stateView, "Message").Should().NotBeNullOrWhiteSpace();
-        Attribute(stateView, "Glyph").Should().Contain(glyph);
+        page.ToString().Should().Contain("Leaderboard");
+        page.Descendants().Should().Contain(element => element.Name.LocalName == "SegmentedControl");
+        Attribute(stateView, "State").Should().Be("{Binding State}");
+        Attribute(stateView, "Glyph").Should().Contain("FontAwesomeGlyphs.Trophy");
         Attribute(stateView, "GlyphFontFamily").Should().Be("FontAwesomeSolid");
     }
 

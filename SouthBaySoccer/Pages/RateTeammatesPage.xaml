@@ -1,0 +1,116 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.RateTeammatesPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    x:Name="RatePage"
+    x:DataType="pageModels:RateTeammatesPageModel"
+    Shell.FlyoutBehavior="Disabled"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}">
+
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader Grid.Row="0"
+                       Title="Rate the match"
+                       Subtitle="{Binding MatchSubtitle}"
+                       ShowBack="True"
+                       BackCommand="{Binding BackCommand}" />
+
+        <c:StateView Grid.Row="1"
+                     State="{Binding State}"
+                     Title="{Binding StateTitle}"
+                     Message="{Binding StateMessage}"
+                     Glyph="{x:Static fonts:FontAwesomeGlyphs.Star}"
+                     GlyphFontFamily="FontAwesomeSolid"
+                     RetryCommand="{Binding RetryCommand}">
+            <CollectionView ItemsSource="{Binding Teammates}"
+                            Margin="{StaticResource WelcomeContentPadding}"
+                            SelectionMode="None">
+                <CollectionView.Header>
+                    <Label Text="{x:Static pageModels:RateTeammatesPageModel.IntroCopy}"
+                           Style="{StaticResource TextCaption}" />
+                </CollectionView.Header>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="pageModels:RateTeammateRow">
+                        <c:BrandCard Margin="{StaticResource WelcomeDividerMargin}">
+                            <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                                <Grid ColumnDefinitions="*,Auto"
+                                      ColumnSpacing="{StaticResource SpaceMd}">
+                                    <Grid ColumnDefinitions="Auto,*"
+                                          ColumnSpacing="{StaticResource SpaceMd}">
+                                        <c:Avatar Initials="{Binding Initials}"
+                                                  Size="{StaticResource AvatarMd}"
+                                                  Description="{Binding Name}" />
+                                        <VerticalStackLayout Grid.Column="1"
+                                                             Spacing="{StaticResource SpaceXs}"
+                                                             VerticalOptions="Center">
+                                            <Label Text="{Binding Name}"
+                                                   Style="{StaticResource TextBodyStrong}" />
+                                            <Label Text="{Binding Detail}"
+                                                   Style="{StaticResource TextCaption}" />
+                                        </VerticalStackLayout>
+                                    </Grid>
+
+                                    <HorizontalStackLayout Grid.Column="1"
+                                                           Spacing="{StaticResource SpaceLg}"
+                                                           VerticalOptions="Center">
+                                        <Grid MinimumHeightRequest="{StaticResource TouchMin}"
+                                              MinimumWidthRequest="{StaticResource TouchMin}">
+                                            <Grid.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding BindingContext.ToggleLikeCommand, Source={x:Reference RatePage}}"
+                                                                      CommandParameter="{Binding .}" />
+                                            </Grid.GestureRecognizers>
+                                            <RadioButton Content="{x:Static fonts:FontAwesomeGlyphs.Heart}"
+                                                         IsChecked="{Binding Liked, Mode=OneWay}"
+                                                         InputTransparent="True"
+                                                         Style="{StaticResource IconToggleButtonLike}"
+                                                         SemanticProperties.Description="{Binding LikeSemanticDescription}" />
+                                        </Grid>
+                                        <Grid MinimumHeightRequest="{StaticResource TouchMin}"
+                                              MinimumWidthRequest="{StaticResource TouchMin}">
+                                            <Grid.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding BindingContext.SelectMvpCommand, Source={x:Reference RatePage}}"
+                                                                      CommandParameter="{Binding .}" />
+                                            </Grid.GestureRecognizers>
+                                            <RadioButton Content="{x:Static fonts:FontAwesomeGlyphs.Star}"
+                                                         IsChecked="{Binding IsMvp, Mode=OneWay}"
+                                                         InputTransparent="True"
+                                                         Style="{StaticResource IconToggleButtonMvp}"
+                                                         SemanticProperties.Description="{Binding MvpSemanticDescription}" />
+                                        </Grid>
+                                    </HorizontalStackLayout>
+                                </Grid>
+
+                                <Grid ColumnDefinitions="*,Auto"
+                                      ColumnSpacing="{StaticResource SpaceMd}">
+                                    <Slider Minimum="0"
+                                            Maximum="10"
+                                            Value="{Binding RatingValue, Mode=TwoWay}"
+                                            Style="{StaticResource RatingSlider}"
+                                            SemanticProperties.Description="{Binding RatingSemanticDescription}" />
+                                    <Label Grid.Column="1"
+                                           Text="{Binding RatingText}"
+                                           Style="{StaticResource TextBodyStrong}"
+                                           WidthRequest="{StaticResource TouchMin}"
+                                           HorizontalTextAlignment="End"
+                                           VerticalTextAlignment="Center" />
+                                </Grid>
+                            </VerticalStackLayout>
+                        </c:BrandCard>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+                <CollectionView.Footer>
+                    <Button Text="Submit ratings"
+                            Command="{Binding SubmitRatingsCommand}"
+                            IsEnabled="{Binding CanSubmit}"
+                            Style="{StaticResource PrimaryButton}"
+                            Margin="{StaticResource WelcomeDividerMargin}"
+                            SemanticProperties.Description="Submit ratings" />
+                </CollectionView.Footer>
+            </CollectionView>
+        </c:StateView>
+    </Grid>
+</ContentPage>

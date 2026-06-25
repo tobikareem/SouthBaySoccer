@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -34,6 +34,9 @@
     <Compile Include="..\..\SouthBaySoccer\PageModels\SessionsHomePageModel.cs" Link="Client\PageModels\SessionsHomePageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\SessionDetailPageModel.cs" Link="Client\PageModels\SessionDetailPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\ProfilePageModel.cs" Link="Client\PageModels\ProfilePageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\LeaderboardPageModel.cs" Link="Client\PageModels\LeaderboardPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\MatchStatsPageModel.cs" Link="Client\PageModels\MatchStatsPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\RateTeammatesPageModel.cs" Link="Client\PageModels\RateTeammatesPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\Controls\ControlVariants.cs" Link="Client\Controls\ControlVariants.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationCoordinator.cs" Link="Client\Services\AuthenticationCoordinator.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AppStartupService.cs" Link="Client\Services\AppStartupService.cs" />
@@ -60,6 +63,8 @@
     <None Include="..\..\SouthBaySoccer\Controls\StateView.xaml" Link="Client\Xaml\StateView.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\AppShell.xaml" Link="Client\Xaml\AppShell.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\StatsPage.xaml" Link="Client\Xaml\StatsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\MatchStatsPage.xaml" Link="Client\Xaml\MatchStatsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\RateTeammatesPage.xaml" Link="Client\Xaml\RateTeammatesPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\ProfilePage.xaml" Link="Client\Xaml\ProfilePage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Resources\Styles\AppStyles.xaml" Link="Client\Xaml\AppStyles.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\SessionsHomePage.xaml" Link="Client\Xaml\SessionsHomePage.xaml" CopyToOutputDirectory="PreserveNewest" />

@@ -146,7 +146,10 @@ public static class SeedFixtures
                         Going(14),
                         Going(15),
                         Going(16)),
-                    ReadOnly<WaitlistEntryDto>()),
+                    ReadOnly(
+                        Waitlisted(4, 1),
+                        Waitlisted(22, 2),
+                        Waitlisted(23, 3))),
                 [StanfordSessionId] = new(
                     StanfordSessionId,
                     ReadOnly(

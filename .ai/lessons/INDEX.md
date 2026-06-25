@@ -5,3 +5,4 @@ One line per lesson. Skim this at the start of a task; read the full entry when 
 - [maui-build-target-framework](maui-build-target-framework.md) — Build a specific TFM, not the bare csproj, for this single-project MAUI app
 - [avoid-placeholder-gitkeep-trees](2026-06-18-avoid-placeholder-gitkeep-trees.md) — Create source directories with real files instead of committing placeholder trees
 - [do-not-use-ui-showcase-as-shell-home](2026-06-18-do-not-use-ui-showcase-as-shell-home.md) — Keep the UI Library showcase off the authenticated Shell startup path
+- [android-visual-state-target-scope](2026-06-23-android-visual-state-target-scope.md) — Cross-element VisualState TargetName setters can build successfully but crash when Android Shell creates a tab

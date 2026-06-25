@@ -102,7 +102,7 @@ Each is an `AppThemeBinding`-backed `Color`; provide a matching `SolidColorBrush
 
 ### 4.2 Typography (`BrandTokens.xaml` sizes + `BrandStyles.xaml` styles)
 
-Header font OpenSans Semibold / Segoe Semibold; body OpenSans Regular (already registered in `MauiProgram.cs`). Weights: Regular + Semibold only.
+Header font Inter Semibold; body Inter Regular (registered in `MauiProgram.cs` from Google Fonts). Weights: Regular + Semibold for core UI, with Bold available for native platform fallback and future display needs.
 
 | Style key | Size | Weight | Use |
 |-----------|------|--------|-----|

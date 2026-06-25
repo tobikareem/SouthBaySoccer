@@ -46,16 +46,12 @@
                 <VerticalStackLayout
                     Padding="{StaticResource LayoutPadding}"
                     Spacing="{StaticResource SpaceLg}">
-
                     <Grid
-                        x:Name="IdentityRow"
-                        ColumnDefinitions="*"
-                        RowDefinitions="Auto,Auto"
-                        ColumnSpacing="{StaticResource SpaceSm}"
-                        RowSpacing="{StaticResource SpaceXs}">
+                        ColumnDefinitions="*,Auto"
+                        ColumnSpacing="{StaticResource SpaceSm}">
                         <HorizontalStackLayout
                             x:Name="LinkedIdentity"
-                            Grid.Row="0"
+                            Grid.Column="0"
                             Spacing="{StaticResource SpaceXs}"
                             VerticalOptions="Center">
                             <Label
@@ -72,9 +68,8 @@
                         </HorizontalStackLayout>
 
                         <Grid
-                            x:Name="EditAction"
-                            Grid.Row="1"
-                            HorizontalOptions="Start">
+                            Grid.Column="1"
+                            HorizontalOptions="End">
                             <Button
                                 Text="Edit on Pickup Pal"
                                 Command="{Binding EditOnPickupPalCommand}"
@@ -91,99 +86,51 @@
                                 InputTransparent="True"
                                 SemanticProperties.Description="External link" />
                         </Grid>
-
-                        <VisualStateManager.VisualStateGroups>
-                            <VisualStateGroup x:Name="ProfileWidthStates">
-                                <VisualState x:Name="Narrow" />
-                                <VisualState x:Name="Wide">
-                                    <VisualState.StateTriggers>
-                                        <AdaptiveTrigger MinWindowWidth="360" />
-                                    </VisualState.StateTriggers>
-                                    <VisualState.Setters>
-                                        <Setter TargetName="IdentityRow" Property="Grid.ColumnDefinitions" Value="*,Auto" />
-                                        <Setter TargetName="IdentityRow" Property="Grid.RowDefinitions" Value="Auto" />
-                                        <Setter TargetName="EditAction" Property="Grid.Row" Value="0" />
-                                        <Setter TargetName="EditAction" Property="Grid.Column" Value="1" />
-                                        <Setter TargetName="EditAction" Property="HorizontalOptions" Value="End" />
-                                    </VisualState.Setters>
-                                </VisualState>
-                            </VisualStateGroup>
-                        </VisualStateManager.VisualStateGroups>
                     </Grid>
 
                     <c:SectionHeader Text="Career stats" />
 
                     <Grid
-                        x:Name="StatGrid"
-                        ColumnDefinitions="*,*"
-                        RowDefinitions="Auto,Auto,Auto"
+                        ColumnDefinitions="*,*,*"
+                        RowDefinitions="Auto,Auto"
                         ColumnSpacing="{StaticResource SpaceMd}"
                         RowSpacing="{StaticResource SpaceMd}">
                         <c:StatTile
-                            x:Name="MatchesTile"
                             Grid.Row="0"
                             Grid.Column="0"
-                            Value="{Binding Profile.CareerStats.Matches, StringFormat='{0}'}"
+                            Value="{Binding MatchesText}"
                             Label="Matches"
                             SemanticProperties.Description="{Binding Profile.CareerStats.Matches, StringFormat='Matches: {0}'}" />
                         <c:StatTile
-                            x:Name="GoalsTile"
                             Grid.Row="0"
                             Grid.Column="1"
-                            Value="{Binding Profile.CareerStats.Goals, StringFormat='{0}'}"
+                            Value="{Binding GoalsText}"
                             Label="Goals"
                             SemanticProperties.Description="{Binding Profile.CareerStats.Goals, StringFormat='Goals: {0}'}" />
                         <c:StatTile
-                            x:Name="AssistsTile"
-                            Grid.Row="1"
-                            Grid.Column="0"
-                            Value="{Binding Profile.CareerStats.Assists, StringFormat='{0}'}"
+                            Grid.Row="0"
+                            Grid.Column="2"
+                            Value="{Binding AssistsText}"
                             Label="Assists"
                             SemanticProperties.Description="{Binding Profile.CareerStats.Assists, StringFormat='Assists: {0}'}" />
                         <c:StatTile
-                            x:Name="RatingTile"
                             Grid.Row="1"
-                            Grid.Column="1"
-                            Value="{Binding Profile.CareerStats.AverageRating, StringFormat='{0:F1}'}"
+                            Grid.Column="0"
+                            Value="{Binding AverageRatingText}"
                             Label="Avg rating"
                             SemanticProperties.Description="{Binding Profile.CareerStats.AverageRating, StringFormat='Average rating: {0:F1}'}" />
                         <c:StatTile
-                            x:Name="MvpTile"
-                            Grid.Row="2"
-                            Grid.Column="0"
-                            Value="{Binding Profile.CareerStats.MvpAwards, StringFormat='{0}'}"
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Value="{Binding MvpAwardsText}"
                             Label="MVP"
                             SemanticProperties.Description="{Binding Profile.CareerStats.MvpAwards, StringFormat='MVP awards: {0}'}" />
                         <c:StatTile
-                            x:Name="LikesTile"
-                            Grid.Row="2"
-                            Grid.Column="1"
-                            Value="{Binding Profile.CareerStats.Likes, StringFormat='{0}'}"
+                            Grid.Row="1"
+                            Grid.Column="2"
+                            Value="{Binding LikesText}"
                             Label="Likes"
                             SemanticProperties.Description="{Binding Profile.CareerStats.Likes, StringFormat='Likes: {0}'}" />
-
-                        <VisualStateManager.VisualStateGroups>
-                            <VisualStateGroup x:Name="StatWidthStates">
-                                <VisualState x:Name="TwoColumns" />
-                                <VisualState x:Name="ThreeColumns">
-                                    <VisualState.StateTriggers>
-                                        <AdaptiveTrigger MinWindowWidth="360" />
-                                    </VisualState.StateTriggers>
-                                    <VisualState.Setters>
-                                        <Setter TargetName="StatGrid" Property="Grid.ColumnDefinitions" Value="*,*,*" />
-                                        <Setter TargetName="StatGrid" Property="Grid.RowDefinitions" Value="Auto,Auto" />
-                                        <Setter TargetName="AssistsTile" Property="Grid.Row" Value="0" />
-                                        <Setter TargetName="AssistsTile" Property="Grid.Column" Value="2" />
-                                        <Setter TargetName="RatingTile" Property="Grid.Row" Value="1" />
-                                        <Setter TargetName="RatingTile" Property="Grid.Column" Value="0" />
-                                        <Setter TargetName="MvpTile" Property="Grid.Row" Value="1" />
-                                        <Setter TargetName="MvpTile" Property="Grid.Column" Value="1" />
-                                        <Setter TargetName="LikesTile" Property="Grid.Row" Value="1" />
-                                        <Setter TargetName="LikesTile" Property="Grid.Column" Value="2" />
-                                    </VisualState.Setters>
-                                </VisualState>
-                            </VisualStateGroup>
-                        </VisualStateManager.VisualStateGroups>
                     </Grid>
 
                     <c:BrandCard>

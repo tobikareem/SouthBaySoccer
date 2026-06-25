@@ -64,7 +64,7 @@ public partial class SegmentedControl
                 Command = new Command(() => SelectedIndex = index),
                 MinimumHeightRequest = (double)Application.Current!.Resources["TouchMin"],
                 Padding = (Thickness)Application.Current.Resources["SegmentPadding"],
-                FontFamily = "OpenSansSemibold",
+                FontFamily = "InterSemibold",
                 FontSize = (double)Application.Current.Resources["FontLabel"],
                 CornerRadius = Convert.ToInt32(Application.Current.Resources["RadiusSegment"]),
                 BorderWidth = 0

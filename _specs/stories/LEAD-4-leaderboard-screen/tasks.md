@@ -4,7 +4,7 @@ Implementation tasks for [`requirements.md`](requirements.md) / [`design.md`](de
 the LEAD-4 slice of milestone **M11**; the full milestone roadmap and dependency graph live in
 [`../../tasks.md`](../../tasks.md). Status: `[ ]` todo · `[~]` in progress · `[x]` done.
 
-- [ ] **M11.LEAD4.a** Implement `LeaderboardPage` and `LeaderboardPageModel` directly from the
+- [x] **M11.LEAD4.a** Implement `LeaderboardPage` and `LeaderboardPageModel` directly from the
   `leaderboard` wireframe: title + season `Badge`, `SegmentedControl` (Goals/Assists/Rating/MVP),
   ranked `PlayerRow` list using `LeadingContent` for rank/trophy plus avatar/name/sub-detail/value,
   gold rank-1 leader treatment
@@ -14,17 +14,17 @@ the LEAD-4 slice of milestone **M11**; the full milestone roadmap and dependency
   supplied by SEED-1; do not redefine or extend its fixtures.
   — Stories: `LEAD-4`, `INV-13` · Projects: MAUI client · Depends on: M11.0c, M11.0b.
 
-- [ ] **M11.LEAD4.b** Wire metric switching and navigation in the page model: `SelectedMetric`,
+- [x] **M11.LEAD4.b** Wire metric switching and navigation in the page model: `SelectedMetric`,
   `Season`, `Rankings`, `IsBusy`; `SelectMetricCommand` re-queries the `ILeaderboardClient` and swaps
   the list/footnote without leaving the screen; `OpenPlayerCommand` navigates to the tapped player's
   Profile; `RefreshCommand` re-requests the current metric. Guard against concurrent queries.
   — Stories: `LEAD-4`, `LEAD-2` · Projects: MAUI client · Depends on: M11.LEAD4.a.
 
-- [ ] **M11.LEAD4.c** Bind the `StateView` loading/empty/error/offline states around the ranked list
+- [x] **M11.LEAD4.c** Bind the `StateView` loading/empty/error/offline states around the ranked list
   with a retry that re-requests the current metric.
   — Stories: `LEAD-4` · Projects: MAUI client · Depends on: M11.LEAD4.b.
 
-- [ ] **M11.LEAD4.d** `Client.Tests`: the page model exposes the four metrics, season label, and
+- [x] **M11.LEAD4.d** `Client.Tests`: the page model exposes the four metrics, season label, and
   wireframe header/footnote copy; selecting each metric calls `ILeaderboardClient` for that axis and
   swaps `Rankings` (segment switch swaps the ranking); seed order and `LEAD-3` tie-breaks are
   preserved (no re-sort); rank 1 is flagged as leader and ranks are sequential; `OpenPlayerCommand`
@@ -39,3 +39,4 @@ registration).
 **Done when:** the screen reproduces the `leaderboard` wireframe exactly from shared resources, all
 LEAD-4 scenarios have passing `Client.Tests`, metric switching re-queries the seed `ILeaderboardClient`
 and re-renders, no emoji/raw hex are used, and the client builds.
+

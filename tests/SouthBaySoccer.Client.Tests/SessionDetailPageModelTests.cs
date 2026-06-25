@@ -58,6 +58,17 @@ public class SessionDetailPageModelTests
     }
 
     [Fact]
+    public void SessionDetailPageXaml_CapacityLabel_UsesCurrentAndMaxGoing()
+    {
+        var xaml = ReadXaml("SessionDetailPage.xaml");
+
+        xaml.Should().Contain("<MultiBinding StringFormat=\"{}{0} / {1} going\">");
+        xaml.Should().Contain("<Binding Path=\"GoingCount\" />");
+        xaml.Should().Contain("<Binding Path=\"Capacity\" />");
+        xaml.Should().NotContain("StringFormat='{0} going'");
+    }
+
+    [Fact]
     public async Task Load_GoingRosterWithinPreviewLimit_ShowsAllGoingAndNoMoreAffordance()
     {
         var sessions = SessionsReturning(Detail(rsvpAvailable: true, isGoing: false));
@@ -74,6 +85,22 @@ public class SessionDetailPageModelTests
         pageModel.GoingPreview.Should().BeSameAs(pageModel.Going);
         pageModel.HasMoreGoing.Should().BeFalse();
         pageModel.MoreGoingCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Load_SeededMarinaSession_ShowsWaitlist()
+    {
+        var pageModel = new SessionDetailPageModel(
+            new SeedSessionsClient(new SeedState()),
+            new SeedRosterClient(new SeedState()));
+
+        ApplyQuery(pageModel, SeedFixtures.MarinaSessionId);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        pageModel.HasWaitlist.Should().BeTrue();
+        pageModel.WaitlistHeading.Should().Be("Waitlist · 3");
+        pageModel.Waitlist[0].Name.Should().Be("Tunde B.");
+        pageModel.Waitlist[0].IsNextUp.Should().BeTrue();
     }
 
     [Fact]
@@ -235,6 +262,13 @@ public class SessionDetailPageModelTests
             client => client.SetRsvpIntentAsync(
                 It.IsAny<Guid>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    private static string ReadXaml(string fileName)
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Client", "Xaml", fileName);
+        File.Exists(path).Should().BeTrue($"the test project must copy {fileName} to its output");
+        return File.ReadAllText(path);
     }
 
     private static Mock<ISessionsClient> SessionsReturning(SessionDetailDto detail)

@@ -2,9 +2,9 @@ using SouthBaySoccer.PageModels;
 
 namespace SouthBaySoccer.Pages;
 
-public partial class StatsPage : ContentPage
+public partial class MatchStatsPage : ContentPage
 {
-    public StatsPage(LeaderboardPageModel pageModel)
+    public MatchStatsPage(MatchStatsPageModel pageModel)
     {
         InitializeComponent();
         BindingContext = pageModel;

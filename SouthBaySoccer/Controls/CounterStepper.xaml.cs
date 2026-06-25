@@ -1,4 +1,4 @@
-using System.Windows.Input;
+﻿using System.Windows.Input;
 
 namespace SouthBaySoccer.Controls;
 
@@ -17,6 +17,8 @@ public partial class CounterStepper
         BindableProperty.Create(nameof(Step), typeof(int), typeof(CounterStepper), 1);
     public static readonly BindableProperty GlyphProperty =
         BindableProperty.Create(nameof(Glyph), typeof(string), typeof(CounterStepper), null);
+    public static readonly BindableProperty GlyphFontFamilyProperty =
+        BindableProperty.Create(nameof(GlyphFontFamily), typeof(string), typeof(CounterStepper), null);
     public static readonly BindableProperty CaptionProperty =
         BindableProperty.Create(nameof(Caption), typeof(string), typeof(CounterStepper), null,
             propertyChanged: static (bindable, _, _) => ((CounterStepper)bindable).RefreshButtons());
@@ -34,6 +36,7 @@ public partial class CounterStepper
     public int Maximum { get => (int)GetValue(MaximumProperty); set => SetValue(MaximumProperty, value); }
     public int Step { get => (int)GetValue(StepProperty); set => SetValue(StepProperty, value); }
     public string? Glyph { get => (string?)GetValue(GlyphProperty); set => SetValue(GlyphProperty, value); }
+    public string? GlyphFontFamily { get => (string?)GetValue(GlyphFontFamilyProperty); set => SetValue(GlyphFontFamilyProperty, value); }
     public string? Caption { get => (string?)GetValue(CaptionProperty); set => SetValue(CaptionProperty, value); }
     public ICommand? ValueChangedCommand { get => (ICommand?)GetValue(ValueChangedCommandProperty); set => SetValue(ValueChangedCommandProperty, value); }
 

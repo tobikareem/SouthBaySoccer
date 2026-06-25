@@ -4,6 +4,7 @@ using Microsoft.Maui.LifecycleEvents;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Leaderboard;
 using SouthBaySoccer.Services.Navigation;
 using SouthBaySoccer.Services.Profile;
 using Syncfusion.Maui.Toolkit.Hosting;
@@ -43,6 +44,9 @@ public static class MauiProgram
             })
             .ConfigureFonts(fonts =>
             {
+                fonts.AddFont("Inter-Regular.ttf", "InterRegular");
+                fonts.AddFont("Inter-SemiBold.ttf", "InterSemibold");
+                fonts.AddFont("Inter-Bold.ttf", "InterBold");
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 fonts.AddFont("SegoeUI-Semibold.ttf", "SegoeSemibold");
@@ -82,9 +86,13 @@ public static class MauiProgram
 
         builder.Services.AddTransient<SessionsHomePage>();
         builder.Services.AddTransient<SessionsHomePageModel>();
-        builder.Services.AddTransient<StatsPage>();
+        builder.Services.AddLeaderboardFeature();
         builder.Services.AddProfileFeature();
         builder.Services.AddSingleton<ISessionsNavigator, ShellSessionsNavigator>();
+        builder.Services.AddSingleton<IMatchStatsNavigator, ShellMatchStatsNavigator>();
+        builder.Services.AddSingleton(new MatchStatsOptions());
+        builder.Services.AddSingleton(new RateTeammatesOptions());
+        builder.Services.AddSingleton<IRateTeammatesNavigator, ShellRateTeammatesNavigator>();
 
         var pickupPalOptions = new PickupPalOptions();
         builder.Services.AddSingleton(pickupPalOptions);
@@ -98,6 +106,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<IExternalLauncher, ExternalLauncher>();
 
         builder.Services.AddTransientWithShellRoute<SessionDetailPage, SessionDetailPageModel>("session");
+        builder.Services.AddTransientWithShellRoute<MatchStatsPage, MatchStatsPageModel>("matchstats");
+        builder.Services.AddTransientWithShellRoute<RateTeammatesPage, RateTeammatesPageModel>("rate-teammates");
 
         builder.Services.AddTransientWithShellRoute<ProjectDetailPage, ProjectDetailPageModel>("project");
         builder.Services.AddTransientWithShellRoute<TaskDetailPage, TaskDetailPageModel>("task");

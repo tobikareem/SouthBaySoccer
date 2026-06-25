@@ -49,15 +49,20 @@
                         <HorizontalStackLayout Grid.Column="1"
                                                Spacing="{StaticResource SpaceSm}"
                                                VerticalOptions="Center">
-                            <controls:Badge Text="{Binding DuesStatus}" Variant="Success" />
+                            <controls:Badge Text="{Binding DuesStatus}"
+                                            Glyph="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}"
+                                            Variant="Success" />
                             <Border Style="{StaticResource IconTileSurface}"
                                     SemanticProperties.Description="Notifications">
-                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.Bell}"
-                                       FontFamily="FontAwesomeSolid"
-                                       FontSize="{StaticResource IconMd}"
-                                       TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
-                                       HorizontalOptions="Center"
-                                       VerticalOptions="Center" />
+                                <Image HorizontalOptions="Center"
+                                       VerticalOptions="Center">
+                                    <Image.Source>
+                                        <FontImageSource Glyph="{x:Static fonts:FontAwesomeGlyphs.Bell}"
+                                                         FontFamily="FontAwesomeSolid"
+                                                         Size="{StaticResource IconMd}"
+                                                         Color="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}" />
+                                    </Image.Source>
+                                </Image>
                             </Border>
                         </HorizontalStackLayout>
                     </Grid>
@@ -126,14 +131,38 @@
                                     </HorizontalStackLayout>
                                 </Border>
                             </HorizontalStackLayout>
-                            <Border Style="{StaticResource MetadataChip}"
-                                    BackgroundColor="White"
-                                    HorizontalOptions="Start">
-                                <Label Text="{Binding StatusLabel}"
-                                       Style="{StaticResource TextBodyStrong}"
-                                       FontSize="{StaticResource FontLabel}"
-                                       TextColor="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandGreenDepthDark}}" />
-                            </Border>
+                            <Grid ColumnDefinitions="Auto,*,Auto"
+                                  ColumnSpacing="{StaticResource SpaceSm}">
+                                <Border Style="{StaticResource MetadataChip}"
+                                        BackgroundColor="White"
+                                        HorizontalOptions="Start">
+                                    <HorizontalStackLayout Spacing="{StaticResource SpaceXs}"
+                                                           VerticalOptions="Center">
+                                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}"
+                                               FontFamily="FontAwesomeSolid"
+                                               Style="{StaticResource MutedIconLabel}"
+                                               TextColor="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandGreenDepthDark}}" />
+                                        <Label Text="{Binding StatusLabel}"
+                                               Style="{StaticResource TextBodyStrong}"
+                                               FontSize="{StaticResource FontLabel}"
+                                               TextColor="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandGreenDepthDark}}"
+                                               VerticalTextAlignment="Center" />
+                                    </HorizontalStackLayout>
+                                </Border>
+                                <HorizontalStackLayout Grid.Column="2"
+                                                       Spacing="{StaticResource SpaceXs}"
+                                                       VerticalOptions="Center">
+                                    <Label Text="View details"
+                                           Style="{StaticResource TextBodyStrong}"
+                                           FontSize="{StaticResource FontLabel}"
+                                           TextColor="White"
+                                           VerticalTextAlignment="Center" />
+                                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.ArrowRight}"
+                                           FontFamily="FontAwesomeSolid"
+                                           Style="{StaticResource MutedIconLabel}"
+                                           TextColor="White" />
+                                </HorizontalStackLayout>
+                            </Grid>
                         </VerticalStackLayout>
                     </controls:BrandCard>
 
@@ -151,18 +180,21 @@
                                 Command="{Binding OpenMatchStatsCommand}"
                                 CommandParameter="{Binding StatsPrompt.MatchId}" />
                         </controls:BrandCard.GestureRecognizers>
-                        <Grid ColumnDefinitions="Auto,*"
+                        <Grid ColumnDefinitions="Auto,*,Auto"
                               ColumnSpacing="{StaticResource SpaceMd}"
                               BindingContext="{Binding StatsPrompt}"
                               x:DataType="sessions:StatsPromptDto"
                               SemanticProperties.Description="{Binding Title}">
                             <Border Style="{StaticResource IconTileSurface}" VerticalOptions="Center">
-                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.ChartColumn}"
-                                       FontFamily="FontAwesomeSolid"
-                                       FontSize="{StaticResource IconMd}"
-                                       TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
-                                       HorizontalOptions="Center"
-                                       VerticalOptions="Center" />
+                                <Image HorizontalOptions="Center"
+                                       VerticalOptions="Center">
+                                    <Image.Source>
+                                        <FontImageSource Glyph="{x:Static fonts:FontAwesomeGlyphs.ChartColumn}"
+                                                         FontFamily="FontAwesomeSolid"
+                                                         Size="{StaticResource IconMd}"
+                                                         Color="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}" />
+                                    </Image.Source>
+                                </Image>
                             </Border>
                             <VerticalStackLayout Grid.Column="1"
                                                  Spacing="{StaticResource SpaceXs}"
@@ -170,6 +202,11 @@
                                 <Label Text="{Binding Title}" Style="{StaticResource TextBodyStrong}" />
                                 <Label Text="{Binding Caption}" Style="{StaticResource TextCaption}" />
                             </VerticalStackLayout>
+                            <Label Grid.Column="2"
+                                   Text="{x:Static fonts:FontAwesomeGlyphs.ChevronRight}"
+                                   FontFamily="FontAwesomeSolid"
+                                   Style="{StaticResource MutedIconLabel}"
+                                   VerticalOptions="Center" />
                         </Grid>
                     </controls:BrandCard>
 
