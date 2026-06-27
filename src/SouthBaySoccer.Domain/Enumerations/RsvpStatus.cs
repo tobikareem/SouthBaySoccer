@@ -13,8 +13,6 @@ public enum RsvpStatus
     Maybe,
 
     /// <summary>The player has declined to attend.</summary>
-    NotGoing,
-
-    /// <summary>The player is on the waitlist because the session is at capacity.</summary>
-    Waitlisted
+    NotGoing
 }
+

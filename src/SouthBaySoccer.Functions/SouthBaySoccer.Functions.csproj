@@ -5,6 +5,7 @@
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>1267bffa-38d4-4cbc-902d-217438a4f499</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
@@ -22,3 +23,4 @@
     <ProjectReference Include="..\SouthBaySoccer.Contracts\SouthBaySoccer.Contracts.csproj" />
   </ItemGroup>
 </Project>
+

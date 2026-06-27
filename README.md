@@ -101,6 +101,21 @@ dotnet test .\tests\SouthBaySoccer.Client.Tests\SouthBaySoccer.Client.Tests.cspr
 ```
 
 During development, prefer running the affected test project or individual test first.
+### Backend migration verification
+
+M1 migrations are validated by `SouthBaySoccer.Infrastructure.Tests`. The test fixture uses
+`(localdb)\MSSQLLocalDB`, creates an isolated database named `SouthBaySoccer_Test_<guid>`, applies
+all EF Core migrations with `Database.MigrateAsync()` during test setup, and drops only databases
+with that test prefix.
+
+```powershell
+dotnet test .\tests\SouthBaySoccer.Infrastructure.Tests\SouthBaySoccer.Infrastructure.Tests.csproj
+dotnet test .\tests\SouthBaySoccer.Functions.Tests\SouthBaySoccer.Functions.Tests.csproj
+```
+
+Production/shared-environment migrations are controlled deployment steps, not Function App cold-start
+work. Generate and review an idempotent SQL script or EF migration bundle, apply it with a dedicated
+deployment identity, and verify `__EFMigrationsHistory`. See [_specs/controlled-migrations.md](_specs/controlled-migrations.md).
 
 ## Local Functions configuration
 

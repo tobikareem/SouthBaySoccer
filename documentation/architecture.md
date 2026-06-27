@@ -714,7 +714,8 @@ The unit of work:
 
 Production migrations run as a controlled deployment step using a dedicated least-privilege
 identity. The Function App must not automatically migrate the database during cold start because
-multiple scaled instances could race.
+multiple scaled instances could race. The operational runbook lives in
+[`_specs/controlled-migrations.md`](../_specs/controlled-migrations.md).
 
 ### External services
 
@@ -891,3 +892,4 @@ with new feature behavior.
 - [Data Protection key management](https://learn.microsoft.com/aspnet/core/security/data-protection/implementation/key-management)
 - [ASP.NET Core JWT bearer authentication](https://learn.microsoft.com/aspnet/core/security/authentication/configure-jwt-bearer-authentication)
 - [Stripe webhook guidance](https://docs.stripe.com/webhooks)
+

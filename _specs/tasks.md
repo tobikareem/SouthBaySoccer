@@ -27,7 +27,7 @@ wiring is completed in the backend phase. See `design.md` §12.
 1. **M0 Foundation** — shared kernel, `BaseEntity`, cross-cutting abstractions, CI.
 2. **M1 Persistence & Identity core** — EF Core `DbContext`, audit/soft-delete, ASP.NET Identity stores, migrations.
 3. **M2 Functions pipeline** — middleware (correlation/exception/authn/authz), fail-closed classification, ProblemDetails.
-4. **M3 Authentication** — register, confirm, sign-in, refresh rotation, reset (AUTH).
+4. **M3 WhatsApp Session Authentication** � phone-number challenge verification, JWT/session issuance, refresh rotation, and backend auth authority. Email/password registration, confirm-email, sign-in, and password reset flows are explicitly out of Sprint 02 scope.
 5. **M4 Player profiles & waivers** — profiles, guests, emergency contact, waiver accept + gating (PROF, WAIV).
 6. **M5 Payments** — Stripe checkout + idempotent webhooks + membership/ledger (PAY).
 7. **M6 Seasons, venues & sessions** — seasons, venues, recurring sessions timer (SES).
@@ -48,23 +48,31 @@ wiring is completed in the backend phase. See `design.md` §12.
 - [~] **M0.4** Confirm decisions in design.md §10. — Current: membership is resolved as monthly membership plus session-specific guest/drop-in eligibility; SMS timing, balancing, and clean-sheet threshold remain. — Output: decisions recorded in design.md and durable conventions mirrored in `.ai/memory/`.
 
 ## M1 — Persistence & Identity core
-- [~] **M1.1** `SouthBaySoccerDbContext` + `IUnitOfWork`; audit-field save interceptor (`ICurrentUser`+`IClock`); global `IsDeleted==false` filter. — Current: empty `DbContext`, `UnitOfWork`, and Azure SQL DI registration exist; mappings, interceptor, and filter remain. — Projects: Infrastructure · Depends on: M0.1.
-- [ ] **M1.2** `ApplicationIdentityUser : IdentityUser<Guid>`, `AddIdentityCore`, role/token providers, EF Identity stores; shared Data Protection keys. — Stories: AUTH-* · Projects: Infrastructure.
-- [ ] **M1.3** Refresh-token records (hashed, revocable, rotation/reuse, family revoke) + `ProcessedWebhookEvent`, outbox tables — exempt from soft-delete with retention. — Stories: AUTH-4, PAY-2, NOTIF-1.
-- [ ] **M1.4** First migration; document controlled (non-cold-start) migration runner. — Done when: `Infrastructure.Tests` run against SQL-compatible infra.
+- [x] **M1.1** `SouthBaySoccerDbContext` + `IUnitOfWork`; audit-field save interceptor (`ICurrentUser`+`IClock`); global `IsDeleted==false` filter. - Done: EF Core context, unit of work, LocalDB-backed schema, global soft-delete filters, audit/soft-delete save interceptor, and Infrastructure tests are in place. - Projects: Infrastructure; Depends on: M0.1.
+- [x] **M1.2** `ApplicationIdentityUser : IdentityUser<Guid>`, `AddIdentityCore`, role/token providers, EF Identity stores; shared Data Protection keys. - Done: Identity Core is registered with GUID users/roles, EF stores, default data-protection token provider, EF-backed Data Protection keys, and an `IIdentityService` adapter with Infrastructure tests. - Stories: AUTH-*; Projects: Infrastructure.
+- [x] **M1.3** Refresh-token records (hashed, revocable, rotation/reuse, family revoke) + `ProcessedWebhookEvent`, outbox tables - exempt from soft-delete with retention. - Done: refresh-token persistence supports rotation metadata, reuse detection, family revocation references, device/session hashes, SQL constraints, and immutable operational-table tests for refresh tokens, webhooks, and outbox. Token exchange behavior remains in M3.3. - Stories: AUTH-4, PAY-2, NOTIF-1.
+- [x] **M1.4** First migration; document controlled (non-cold-start) migration runner. - Done: EF migrations exist, `_specs/controlled-migrations.md` documents script generation/application with a deployment identity, Infrastructure tests apply migrations against isolated SQL-compatible infrastructure, and Functions tests guard against cold-start schema mutation.
 
 ## M2 — Functions pipeline
-- [ ] **M2.1** Middleware order: correlation → exception → authentication → authorization → execute. — Projects: Functions · Depends on: M1.2.
-- [ ] **M2.2** `EndpointPolicyResolver`, `[RequirePolicy]`/`[AllowAnonymous]`, fail-closed rejection of unclassified/conflicting endpoints. — Stories: INV-11, NFR-AuthZ.
-- [ ] **M2.3** RFC 7807 `ProblemDetails` exception mapping (400/401/403/404/409/429/500); correlation-ID logging; no sensitive data in responses/logs.
-- [ ] **M2.4** `Functions.Tests`: classification, authz, ProblemDetails, correlation. — Done when: high-risk authz scenarios pass.
+- [x] **M2.1** Middleware order: correlation -> exception -> authentication -> authorization -> execute. - Done: `Program.cs` registers `AddSouthBaySoccerHttpPipeline`, middleware is composed in spec order, and `HttpPipelineOrderTests` verifies the exact sequence.
+- [x] **M2.2** `EndpointPolicyResolver`, `[RequirePolicy]`/`[AllowAnonymous]`, fail-closed rejection of unclassified/conflicting endpoints. - Done: reflection resolver, endpoint metadata attributes, authorization middleware, and resolver tests cover anonymous, policy, missing, conflicting, and empty-policy classifications.
+- [x] **M2.3** RFC 7807 `ProblemDetails` exception mapping (400/401/403/404/409/429/500); correlation-ID logging; no sensitive data in responses/logs. - Done: `ProblemDetailsMapper` maps required statuses, exception middleware writes safe problem responses with correlation IDs, correlation IDs are accepted/generated safely, and tests cover status mapping plus sensitive-detail suppression.
+- [x] **M2.4** `Functions.Tests`: classification, authz, ProblemDetails, correlation. - Done: resolver tests cover fail-closed classification, authorizer tests cover anonymous/unauthenticated/forbidden/authorized paths with Moq, ProblemDetails tests cover required status mappings and safe unexpected errors, and correlation tests cover accepted/generated IDs.
 
-## M3 — Authentication
-- [ ] **M3.1** `ITokenService` (JWT issue/validate, signing-key rotation via Key Vault with overlap). — Stories: AUTH-3.
-- [ ] **M3.2** `Features/Authentication`: register, confirm-email, sign-in, password reset (FluentValidation). — Stories: AUTH-1,2,3,5,6.
-- [ ] **M3.3** Refresh-token exchange with atomic rotation, family revocation, and reuse detection.
-  Client-side single-flight refresh is implemented in M11.1. — Stories: AUTH-4.
-- [ ] **M3.4** HTTP functions + contracts for the above (`[AllowAnonymous]` where intended). — Done when: AUTH scenarios pass in `Application.Tests`/`Functions.Tests`.
+## M3 � WhatsApp Session Authentication
+
+Email/password registration, confirm-email, sign-in, and password reset flows are explicitly out of
+Sprint 02 scope. The backend authentication authority for this sprint is a verified WhatsApp-number
+challenge exchanged for server-issued access and refresh tokens.
+
+- [x] **M3.1** `ITokenService` for JWT issue/validate, access-token claims, and signing-key rotation
+  via configuration/Key Vault overlap. - Done: `JwtTokenService` issues and validates HMAC JWTs with `kid`, issuer/audience, roles, policies, expiry, and retired-key validation tests. � Stories: AUTH-3.
+- [x] **M3.2** `Features/Authentication`: WhatsApp challenge request/verify Application use cases
+  with FluentValidation. - Done: request/verify handlers, validators, safe phone masking, challenge/identity/token issuer seams, and Application tests. External return alone does not authenticate. � Stories: AUTH-8, AUTH-3.
+- [x] **M3.3** Refresh-token exchange with atomic rotation, reuse detection, and family revocation.
+  Done: EF-backed serializable rotation service hashes raw tokens, consumes/replaces active tokens, marks reuse, and revokes token families. Client-side single-flight refresh is implemented in M11.1. � Stories: AUTH-4.
+- [~] **M3.4** HTTP Functions + Contracts for WhatsApp challenge request, WhatsApp challenge verify,
+  and refresh-token exchange only (`[AllowAnonymous]` where intended). - Current: endpoint shapes, metadata tests, bearer-token middleware, and request-scoped current-user are implemented; remaining work is a concrete `IWhatsAppAuthenticationWorkflow` adapter plus provider implementations for challenge delivery/verification. � Done when: WhatsApp auth and refresh scenarios pass end-to-end in `Application.Tests`/`Functions.Tests`.
 
 ## M4 — Player profiles & waivers
 - [ ] **M4.1** `PlayerProfile` (+`IsGuest`), `EmergencyContact`; configs + repository. — Stories: PROF-1,2,3.

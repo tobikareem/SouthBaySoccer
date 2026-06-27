@@ -12,3 +12,10 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [mobile-wireframes-design-source](mobile-wireframes-design-source.md) — mobile-wireframes.html is the authoritative visual and interaction reference for the MAUI client
 - [maui-shell-route-ownership](maui-shell-route-ownership.md) — Shell roots belong in AppShell; register only detail routes globally
 - [inter-ui-font](inter-ui-font.md) � MAUI product UI uses Inter from Google Fonts
+- [m1-audit-soft-delete-rule](m1-audit-soft-delete-rule.md) - M1.1 audit stamping, mutable soft deletes, and immutable hard-delete protection
+- [m1-identity-core-registration](m1-identity-core-registration.md) - M1.2 Identity Core, EF stores, token provider, and Data Protection registration
+- [m1-operational-records](m1-operational-records.md) - M1.3 refresh-token, webhook, and outbox operational-record persistence rules
+- [controlled-migrations](controlled-migrations.md) - EF migrations run only as controlled deployment steps, never Function cold start
+- [functions-pipeline-authz](functions-pipeline-authz.md) - Functions pipeline order and fail-closed endpoint access metadata
+- [functions-problem-details](functions-problem-details.md) - Functions RFC 7807 status mapping, correlation IDs, and safe error details
+- [m3-whatsapp-session-auth](m3-whatsapp-session-auth.md) - M3 is WhatsApp challenge/session auth, not email/password authentication
