@@ -25,3 +25,4 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [m7-check-in-window](m7-check-in-window.md) - M7 check-in window enforcement and late override audit rules
 - [m8-teams-stats](m8-teams-stats.md) - M8 match-grain stats authority, MVP, and profile stat reassignment rules
 - [m9-leaderboards-queries](m9-leaderboards-queries.md) - M9 leaderboard/profile stats derive from approved raw match facts
+- [postman-http-collections](postman-http-collections.md) - SouthBaySoccer Postman workspace collections mirror the repo http folder

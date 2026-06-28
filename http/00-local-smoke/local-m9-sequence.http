@@ -1,0 +1,363 @@
+@baseUrl = http://localhost:7071/api
+
+### 00. Mint a local development admin JWT and matching PlayerProfile.
+# Local-only endpoint. Requires DevTools:EnableLocalAdminSession=true and Development environment.
+# @name localAdminSession
+POST {{baseUrl}}/dev/local-admin-session
+
+###
+@accessToken = {{localAdminSession.response.body.$.accessToken}}
+@adminToken = {{accessToken}}
+
+PlayerProfileId
+
+### 01. Read the current authenticated profile; captures your player profile id.
+# Requires a token for an identity that already has a PlayerProfile row.
+# @name getMe
+GET {{baseUrl}}/profiles/me
+Authorization: Bearer {{accessToken}}
+
+###
+@currentPlayerProfileId = {{getMe.response.body.$.playerProfileId}}
+
+### 02. Create a season for the smoke data.
+# @name createSeason
+POST {{baseUrl}}/seasons
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Local Smoke Season",
+  "startsAtUtc": "{{seasonStartsAtUtc}}",
+  "endsAtUtc": "{{seasonEndsAtUtc}}"
+}
+
+###
+@seasonId = {{createSeason.response.body.$.seasonId}}
+
+### 03. Create a venue for the session.
+# @name createVenue
+POST {{baseUrl}}/venues
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Local Test Field",
+  "locality": "South Bay",
+  "address": "123 Local Dev Way"
+}
+
+###
+@venueId = {{createVenue.response.body.$.venueId}}
+
+### 04. Create a pickup session.
+# @name createSession
+POST {{baseUrl}}/sessions
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "seasonId": "{{seasonId}}",
+  "venueId": "{{venueId}}",
+  "title": "Friday Night Local Smoke",
+  "format": "8v8",
+  "capacity": 18,
+  "teamCount": 2,
+  "startsAtUtc": "{{sessionStartsAtUtc}}",
+  "checkInOpensAtUtc": "{{checkInOpensAtUtc}}",
+  "checkInClosesAtUtc": "{{checkInClosesAtUtc}}",
+  "rsvpDeadlineUtc": "{{rsvpDeadlineUtc}}"
+}
+
+###
+@sessionId = {{createSession.response.body.$.sessionId}}
+
+### 05. Create guest player Ada.
+# @name createGuestAda
+POST {{baseUrl}}/profiles/guests
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "displayName": "Ada Okafor",
+  "preferredPosition": "Forward",
+  "photoUri": null,
+  "emergencyContact": {
+    "name": "Local Contact",
+    "phoneNumber": "+15550101001",
+    "relationship": "Friend"
+  }
+}
+
+###
+@adaPlayerProfileId = {{createGuestAda.response.body.$.playerProfileId}}
+
+### 06. Create guest player Tunde.
+# @name createGuestTunde
+POST {{baseUrl}}/profiles/guests
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "displayName": "Tunde Bello",
+  "preferredPosition": "Midfielder",
+  "photoUri": null,
+  "emergencyContact": null
+}
+
+###
+@tundePlayerProfileId = {{createGuestTunde.response.body.$.playerProfileId}}
+
+### 07. Admin RSVP override for Ada.
+# @name adminRsvpAda
+POST {{baseUrl}}/sessions/{{sessionId}}/rsvp/admin-override
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-rsvp-ada-001
+Content-Type: application/json
+
+{
+  "playerProfileId": "{{adaPlayerProfileId}}",
+  "reason": "Local smoke seed"
+}
+
+### 08. Admin RSVP override for Tunde.
+# @name adminRsvpTunde
+POST {{baseUrl}}/sessions/{{sessionId}}/rsvp/admin-override
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-rsvp-tunde-001
+Content-Type: application/json
+
+{
+  "playerProfileId": "{{tundePlayerProfileId}}",
+  "reason": "Local smoke seed"
+}
+
+### 09. Current user RSVPs as Going.
+# @name myRsvp
+POST {{baseUrl}}/sessions/{{sessionId}}/rsvp
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: local-rsvp-me-001
+Content-Type: application/json
+
+{
+  "status": "Going"
+}
+
+### 10. Check in Ada.
+# This can fail if the current UTC time is outside the session check-in window.
+# @name checkInAda
+POST {{baseUrl}}/sessions/{{sessionId}}/check-ins
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-checkin-ada-001
+Content-Type: application/json
+
+{
+  "playerProfileId": "{{adaPlayerProfileId}}",
+  "outcome": "Present",
+  "lateOverrideReason": null
+}
+
+### 11. Check in Tunde.
+# @name checkInTunde
+POST {{baseUrl}}/sessions/{{sessionId}}/check-ins
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-checkin-tunde-001
+Content-Type: application/json
+
+{
+  "playerProfileId": "{{tundePlayerProfileId}}",
+  "outcome": "Present",
+  "lateOverrideReason": null
+}
+
+### 12. Create a match with two teams and three participants.
+# @name createMatch
+POST {{baseUrl}}/stats/matches
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-create-match-001
+Content-Type: application/json
+
+{
+  "sessionId": "{{sessionId}}",
+  "matchNumber": 1,
+  "teams": [
+    {
+      "matchTeamId": "{{teamOneId}}",
+      "teamNumber": 1,
+      "name": "Green",
+      "captainPlayerProfileId": "{{currentPlayerProfileId}}"
+    },
+    {
+      "matchTeamId": "{{teamTwoId}}",
+      "teamNumber": 2,
+      "name": "White",
+      "captainPlayerProfileId": "{{adaPlayerProfileId}}"
+    }
+  ],
+  "assignments": [
+    {
+      "matchTeamId": "{{teamOneId}}",
+      "playerProfileId": "{{currentPlayerProfileId}}",
+      "started": true,
+      "minutesPlayed": 60,
+      "playedGoalkeeper": false,
+      "position": "Midfielder"
+    },
+    {
+      "matchTeamId": "{{teamOneId}}",
+      "playerProfileId": "{{tundePlayerProfileId}}",
+      "started": true,
+      "minutesPlayed": 60,
+      "playedGoalkeeper": false,
+      "position": "Defender"
+    },
+    {
+      "matchTeamId": "{{teamTwoId}}",
+      "playerProfileId": "{{adaPlayerProfileId}}",
+      "started": true,
+      "minutesPlayed": 60,
+      "playedGoalkeeper": false,
+      "position": "Forward"
+    }
+  ]
+}
+
+###
+@matchId = {{createMatch.response.body.$.matchId}}
+
+### 13. Record match results; this marks the match Completed.
+# @name recordResults
+PUT {{baseUrl}}/stats/matches/{{matchId}}/results
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-record-results-001
+Content-Type: application/json
+
+{
+  "results": [
+    {
+      "matchTeamId": "{{teamOneId}}",
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goalsFor": 2,
+      "goalsAgainst": 1
+    },
+    {
+      "matchTeamId": "{{teamTwoId}}",
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goalsFor": 1,
+      "goalsAgainst": 2
+    }
+  ]
+}
+
+### 14. Record raw match events.
+# This replaces the match events. Events start Pending; approve them before leaderboard reads count them.
+# @name recordEvents
+PUT {{baseUrl}}/stats/matches/{{matchId}}/events
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-record-events-001
+Content-Type: application/json
+
+{
+  "events": [
+    {
+      "playerProfileId": "{{adaPlayerProfileId}}",
+      "assistPlayerProfileId": "{{currentPlayerProfileId}}",
+      "matchTeamId": "{{teamTwoId}}",
+      "eventType": "Goal",
+      "minute": 12
+    },
+    {
+      "playerProfileId": "{{currentPlayerProfileId}}",
+      "assistPlayerProfileId": "{{tundePlayerProfileId}}",
+      "matchTeamId": "{{teamOneId}}",
+      "eventType": "Goal",
+      "minute": 41
+    }
+  ]
+}
+
+###
+# Paste an inserted MatchEvents.Id here after querying LocalDB.
+# Example SQL: select Id, PlayerProfileId, EventType, ReviewStatus from MatchEvents where MatchId = '<matchId>';
+@matchEventId = paste-match-event-id-here
+
+### 15. Approve one match event so it counts on M9 leaderboards.
+# @name reviewMatchEvent
+POST {{baseUrl}}/stats/matches/{{matchId}}/events/{{matchEventId}}/review
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "approved": true,
+  "note": "Approved for local smoke test"
+}
+
+### 16. Submit peer feedback from the current authenticated player.
+# Current player cannot rate/like/MVP themselves.
+# @name submitFeedback
+POST {{baseUrl}}/stats/matches/{{matchId}}/feedback
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: local-feedback-001
+Content-Type: application/json
+
+{
+  "ratings": [
+    {
+      "ratedPlayerProfileId": "{{adaPlayerProfileId}}",
+      "score": 9
+    },
+    {
+      "ratedPlayerProfileId": "{{tundePlayerProfileId}}",
+      "score": 8
+    }
+  ],
+  "likedPlayerProfileIds": [
+    "{{adaPlayerProfileId}}"
+  ],
+  "mvpPlayerProfileId": "{{adaPlayerProfileId}}"
+}
+
+### 17. Lock match stats after review.
+# @name lockMatchStats
+POST {{baseUrl}}/stats/matches/{{matchId}}/lock
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-lock-match-001
+
+### 18. Read goals leaderboard.
+# @name goalsLeaderboard
+GET {{baseUrl}}/stats/leaderboards?seasonId={{seasonId}}&metric=Goals&page=1&pageSize=25
+Authorization: Bearer {{accessToken}}
+
+### 19. Read assists leaderboard.
+# @name assistsLeaderboard
+GET {{baseUrl}}/stats/leaderboards?seasonId={{seasonId}}&metric=Assists&page=1&pageSize=25
+Authorization: Bearer {{accessToken}}
+
+### 20. Read rating leaderboard.
+# @name ratingLeaderboard
+GET {{baseUrl}}/stats/leaderboards?seasonId={{seasonId}}&metric=Rating&page=1&pageSize=25
+Authorization: Bearer {{accessToken}}
+
+### 21. Read MVP leaderboard.
+# @name mvpLeaderboard
+GET {{baseUrl}}/stats/leaderboards?seasonId={{seasonId}}&metric=Mvp&page=1&pageSize=25
+Authorization: Bearer {{accessToken}}
+
+### 22. Read Ada profile stats for the season.
+# @name adaStats
+GET {{baseUrl}}/players/{{adaPlayerProfileId}}/stats?seasonId={{seasonId}}
+Authorization: Bearer {{accessToken}}
+
+### 23. Read current player stats for the season.
+# @name myStats
+GET {{baseUrl}}/players/me/stats?seasonId={{seasonId}}
+Authorization: Bearer {{accessToken}}
+
+### 24. Read Ada recent form.
+# @name adaRecentForm
+GET {{baseUrl}}/players/{{adaPlayerProfileId}}/recent-form?take=5
+Authorization: Bearer {{accessToken}}

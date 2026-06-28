@@ -1,0 +1,47 @@
+@baseUrl = http://localhost:7071/api
+@accessToken = paste-local-dev-jwt-here
+@refreshToken = paste-refresh-token-here
+
+### Mint a local development admin JWT and matching PlayerProfile.
+# Local-only endpoint. Requires DevTools:EnableLocalAdminSession=true and Development environment.
+# @name localAdminSession
+POST {{baseUrl}}/dev/local-admin-session
+
+###
+@accessToken = {{localAdminSession.response.body.$.accessToken}}
+### Request a WhatsApp sign-in challenge.
+# Local note: this currently fails unless a WhatsApp challenge delivery sender is configured.
+POST {{baseUrl}}/auth/whatsapp/challenges
+Content-Type: application/json
+
+{
+  "phoneNumber": "+15550101000",
+  "callbackUri": "southbaysoccer://auth/callback"
+}
+
+### Verify a WhatsApp sign-in challenge and exchange it for app tokens.
+# Requires a real challenge token delivered by the configured challenge sender.
+POST {{baseUrl}}/auth/whatsapp/challenges/verify
+Content-Type: application/json
+
+{
+  "challengeToken": "paste-challenge-token-here",
+  "callbackUri": "southbaysoccer://auth/callback"
+}
+
+### Refresh an application access token using a rotating refresh token.
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### Sign out the current authenticated user and revoke the supplied refresh token when present.
+POST {{baseUrl}}/auth/sign-out
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}

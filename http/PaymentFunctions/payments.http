@@ -1,0 +1,19 @@
+@baseUrl = http://localhost:7071/api
+@accessToken = paste-local-dev-jwt-here
+@sessionId = paste-session-id-here
+
+### Create a Stripe drop-in checkout session for a pickup session.
+# Local note: this currently fails until a real payment gateway is configured.
+POST {{baseUrl}}/sessions/{{sessionId}}/payments/drop-in-checkout
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: local-drop-in-checkout-001
+Content-Type: application/json
+
+{
+  "successPath": "/payments/success",
+  "cancelPath": "/payments/cancel"
+}
+
+### Get my payment eligibility for a session.
+GET {{baseUrl}}/sessions/{{sessionId}}/payments/eligibility/me
+Authorization: Bearer {{accessToken}}

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <AzureFunctionsVersion>v4</AzureFunctionsVersion>
@@ -23,4 +23,5 @@
     <ProjectReference Include="..\SouthBaySoccer.Contracts\SouthBaySoccer.Contracts.csproj" />
   </ItemGroup>
 </Project>
+
 

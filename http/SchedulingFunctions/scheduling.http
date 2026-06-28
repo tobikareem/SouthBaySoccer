@@ -1,0 +1,104 @@
+@baseUrl = http://localhost:7071/api
+@adminToken = paste-local-dev-jwt-here
+@accessToken = {{adminToken}}
+@seasonId = paste-season-id-here
+@venueId = paste-venue-id-here
+@sessionId = paste-session-id-here
+@recurrenceRuleId = paste-recurrence-rule-id-here
+
+### List seasons for admins.
+GET {{baseUrl}}/seasons
+Authorization: Bearer {{adminToken}}
+
+### Create a season.
+# @name createSeason
+POST {{baseUrl}}/seasons
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Local Season",
+  "startsAtUtc": "2026-06-01T00:00:00Z",
+  "endsAtUtc": "2026-12-31T23:59:59Z"
+}
+
+### List venues for admins.
+GET {{baseUrl}}/venues
+Authorization: Bearer {{adminToken}}
+
+### Create a venue.
+# @name createVenue
+POST {{baseUrl}}/venues
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Local Test Field",
+  "locality": "South Bay",
+  "address": "123 Local Dev Way"
+}
+
+### List upcoming player-visible sessions.
+GET {{baseUrl}}/sessions
+Authorization: Bearer {{accessToken}}
+
+### Create a session.
+# @name createSession
+POST {{baseUrl}}/sessions
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "seasonId": "{{seasonId}}",
+  "venueId": "{{venueId}}",
+  "title": "Friday Night Pickup",
+  "format": "8v8",
+  "capacity": 18,
+  "teamCount": 2,
+  "startsAtUtc": "2026-07-03T02:00:00Z",
+  "checkInOpensAtUtc": "2026-07-03T01:30:00Z",
+  "checkInClosesAtUtc": "2026-07-03T01:55:00Z",
+  "rsvpDeadlineUtc": "2026-07-03T01:00:00Z",
+  "recurrenceRuleId": null,
+  "occurrenceKey": null
+}
+
+### Cancel a session.
+POST {{baseUrl}}/sessions/{{sessionId}}/cancel
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason": "Local test cancellation"
+}
+
+### Create a recurrence rule.
+# @name createRecurrenceRule
+POST {{baseUrl}}/recurrence-rules
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Friday Nights",
+  "timeZoneId": "America/Los_Angeles",
+  "rule": "FREQ=WEEKLY;BYDAY=FR"
+}
+
+### Create one session occurrence from a recurrence rule.
+POST {{baseUrl}}/sessions/occurrences
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "recurrenceRuleId": "{{recurrenceRuleId}}",
+  "seasonId": "{{seasonId}}",
+  "venueId": "{{venueId}}",
+  "occurrenceStartsAtUtc": "2026-07-10T02:00:00Z",
+  "title": "Friday Night Pickup",
+  "format": "8v8",
+  "capacity": 18,
+  "teamCount": 2,
+  "checkInOpensAtUtc": "2026-07-10T01:30:00Z",
+  "checkInClosesAtUtc": "2026-07-10T01:55:00Z",
+  "rsvpDeadlineUtc": "2026-07-10T01:00:00Z"
+}

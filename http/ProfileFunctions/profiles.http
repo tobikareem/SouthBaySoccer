@@ -1,0 +1,48 @@
+@baseUrl = http://localhost:7071/api
+@accessToken = paste-local-dev-jwt-here
+@adminToken = {{accessToken}}
+@sourceGuestPlayerProfileId = paste-source-guest-player-profile-id-here
+@targetPlayerProfileId = paste-target-player-profile-id-here
+
+### Get the current authenticated player's profile.
+GET {{baseUrl}}/profiles/me
+Authorization: Bearer {{accessToken}}
+
+### Update the current authenticated player's profile.
+PUT {{baseUrl}}/profiles/me
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "displayName": "Local Admin",
+  "preferredPosition": "Midfielder",
+  "photoUri": null,
+  "emergencyContact": {
+    "name": "Emergency Contact",
+    "phoneNumber": "+15550101099",
+    "relationship": "Friend"
+  }
+}
+
+### Create a guest profile managed by an admin.
+# @name createGuestProfile
+POST {{baseUrl}}/profiles/guests
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "displayName": "Guest Player",
+  "preferredPosition": "Forward",
+  "photoUri": null,
+  "emergencyContact": null
+}
+
+### Create a profile merge request from a guest profile into a registered player profile.
+POST {{baseUrl}}/profiles/merges
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "sourceGuestPlayerProfileId": "{{sourceGuestPlayerProfileId}}",
+  "targetPlayerProfileId": "{{targetPlayerProfileId}}"
+}

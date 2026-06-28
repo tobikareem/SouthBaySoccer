@@ -1,0 +1,16 @@
+@baseUrl = http://localhost:7071/api
+@accessToken = paste-local-dev-jwt-here
+
+### Get the current published waiver document.
+# Requires a published WaiverDocument row; there is no public create/publish waiver endpoint yet.
+GET {{baseUrl}}/waivers/current
+Authorization: Bearer {{accessToken}}
+
+### Accept the current waiver for the authenticated player.
+# Requires a current published waiver document.
+POST {{baseUrl}}/waivers/accept
+Authorization: Bearer {{accessToken}}
+
+### Check whether the authenticated player has accepted the current waiver.
+GET {{baseUrl}}/waivers/eligibility/me
+Authorization: Bearer {{accessToken}}

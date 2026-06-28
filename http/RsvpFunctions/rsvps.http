@@ -1,0 +1,53 @@
+@baseUrl = http://localhost:7071/api
+@accessToken = paste-local-dev-jwt-here
+@adminToken = {{accessToken}}
+@sessionId = paste-session-id-here
+@playerProfileId = paste-player-profile-id-here
+
+### Submit my RSVP intent for a session.
+POST {{baseUrl}}/sessions/{{sessionId}}/rsvp
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: local-submit-rsvp-001
+Content-Type: application/json
+
+{
+  "status": "Going"
+}
+
+### Cancel my RSVP for a session.
+DELETE {{baseUrl}}/sessions/{{sessionId}}/rsvp
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: local-cancel-rsvp-001
+
+### Get my RSVP for a session.
+GET {{baseUrl}}/sessions/{{sessionId}}/rsvp/me
+Authorization: Bearer {{accessToken}}
+
+### Admin override a player onto the RSVP list.
+POST {{baseUrl}}/sessions/{{sessionId}}/rsvp/admin-override
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-admin-override-rsvp-001
+Content-Type: application/json
+
+{
+  "playerProfileId": "{{playerProfileId}}",
+  "reason": "Local API test"
+}
+
+### Check in a player for game day.
+# This can fail if current UTC time is outside the configured check-in window unless a late override is valid.
+POST {{baseUrl}}/sessions/{{sessionId}}/check-ins
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-check-in-001
+Content-Type: application/json
+
+{
+  "playerProfileId": "{{playerProfileId}}",
+  "outcome": "Present",
+  "lateOverrideReason": null
+}
+
+### Record no-shows for the session.
+POST {{baseUrl}}/sessions/{{sessionId}}/check-ins/no-shows
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-record-no-shows-001

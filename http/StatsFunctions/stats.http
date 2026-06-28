@@ -1,0 +1,188 @@
+@baseUrl = http://localhost:7071/api
+@accessToken = paste-local-dev-jwt-here
+@adminToken = {{accessToken}}
+@sessionId = paste-session-id-here
+@seasonId = paste-season-id-here
+@matchId = paste-match-id-here
+@matchEventId = paste-match-event-id-here
+@playerProfileId = paste-player-profile-id-here
+@otherPlayerProfileId = paste-other-player-profile-id-here
+@sourceGuestPlayerProfileId = paste-source-guest-player-profile-id-here
+@targetPlayerProfileId = paste-target-player-profile-id-here
+@teamOneId = 11111111-1111-1111-1111-111111111111
+@teamTwoId = 22222222-2222-2222-2222-222222222222
+
+### Create a match with teams and assignments.
+# @name createMatch
+POST {{baseUrl}}/stats/matches
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-create-match-001
+Content-Type: application/json
+
+{
+  "sessionId": "{{sessionId}}",
+  "matchNumber": 1,
+  "teams": [
+    {
+      "matchTeamId": "{{teamOneId}}",
+      "teamNumber": 1,
+      "name": "Green",
+      "captainPlayerProfileId": "{{playerProfileId}}"
+    },
+    {
+      "matchTeamId": "{{teamTwoId}}",
+      "teamNumber": 2,
+      "name": "White",
+      "captainPlayerProfileId": "{{otherPlayerProfileId}}"
+    }
+  ],
+  "assignments": [
+    {
+      "matchTeamId": "{{teamOneId}}",
+      "playerProfileId": "{{playerProfileId}}",
+      "started": true,
+      "minutesPlayed": 60,
+      "playedGoalkeeper": false,
+      "position": "Midfielder"
+    },
+    {
+      "matchTeamId": "{{teamTwoId}}",
+      "playerProfileId": "{{otherPlayerProfileId}}",
+      "started": true,
+      "minutesPlayed": 60,
+      "playedGoalkeeper": false,
+      "position": "Forward"
+    }
+  ]
+}
+
+### Record or replace match events.
+# Events start Pending. M9 leaderboards count approved goal events only.
+PUT {{baseUrl}}/stats/matches/{{matchId}}/events
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-record-events-001
+Content-Type: application/json
+
+{
+  "events": [
+    {
+      "playerProfileId": "{{playerProfileId}}",
+      "assistPlayerProfileId": "{{otherPlayerProfileId}}",
+      "matchTeamId": "{{teamOneId}}",
+      "eventType": "Goal",
+      "minute": 15
+    }
+  ]
+}
+
+### Review a match event as approved or rejected.
+# RecordMatchEvents does not return ids yet; query LocalDB for MatchEvents.Id and paste it above.
+POST {{baseUrl}}/stats/matches/{{matchId}}/events/{{matchEventId}}/review
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "approved": true,
+  "note": "Approved from local HTTP collection"
+}
+
+### Resolve a match review conflict as a stats admin.
+POST {{baseUrl}}/stats/matches/{{matchId}}/review-resolution
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "resolutionNote": "Resolved from local HTTP collection",
+  "beforeJson": "{}",
+  "afterJson": "{}"
+}
+
+### Record match results and mark a normal match Completed.
+PUT {{baseUrl}}/stats/matches/{{matchId}}/results
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-record-results-001
+Content-Type: application/json
+
+{
+  "results": [
+    {
+      "matchTeamId": "{{teamOneId}}",
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goalsFor": 2,
+      "goalsAgainst": 1
+    },
+    {
+      "matchTeamId": "{{teamTwoId}}",
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goalsFor": 1,
+      "goalsAgainst": 2
+    }
+  ]
+}
+
+### Submit peer feedback for ratings, likes, and MVP.
+# The authenticated player cannot rate, like, or MVP themselves.
+POST {{baseUrl}}/stats/matches/{{matchId}}/feedback
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: local-submit-feedback-001
+Content-Type: application/json
+
+{
+  "ratings": [
+    {
+      "ratedPlayerProfileId": "{{otherPlayerProfileId}}",
+      "score": 9
+    }
+  ],
+  "likedPlayerProfileIds": [
+    "{{otherPlayerProfileId}}"
+  ],
+  "mvpPlayerProfileId": "{{otherPlayerProfileId}}"
+}
+
+### Lock match stats after review.
+POST {{baseUrl}}/stats/matches/{{matchId}}/lock
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: local-lock-match-001
+
+### Add an audited stat correction.
+POST {{baseUrl}}/stats/matches/{{matchId}}/corrections
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "playerProfileId": "{{playerProfileId}}",
+  "reason": "Local correction note",
+  "beforeJson": "{}",
+  "afterJson": "{}"
+}
+
+### Reassign historical stats from a guest profile to a registered player profile.
+POST {{baseUrl}}/stats/profile-merge/reassign
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "sourceGuestPlayerProfileId": "{{sourceGuestPlayerProfileId}}",
+  "targetPlayerProfileId": "{{targetPlayerProfileId}}"
+}
+
+### Read a season leaderboard by metric: Goals, Assists, Rating, or Mvp.
+GET {{baseUrl}}/stats/leaderboards?seasonId={{seasonId}}&metric=Goals&page=1&pageSize=25
+Authorization: Bearer {{accessToken}}
+
+### Read a player's profile stats, optionally scoped to a season.
+GET {{baseUrl}}/players/{{playerProfileId}}/stats?seasonId={{seasonId}}
+Authorization: Bearer {{accessToken}}
+
+### Read my profile stats, optionally scoped to a season.
+GET {{baseUrl}}/players/me/stats?seasonId={{seasonId}}
+Authorization: Bearer {{accessToken}}
+
+### Read a player's recent form.
+GET {{baseUrl}}/players/{{playerProfileId}}/recent-form?take=5
+Authorization: Bearer {{accessToken}}
