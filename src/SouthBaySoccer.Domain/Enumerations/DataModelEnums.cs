@@ -1,4 +1,4 @@
-namespace SouthBaySoccer.Domain.Enumerations;
+﻿namespace SouthBaySoccer.Domain.Enumerations;
 
 /// <summary>Identifies whether an audited write was made by a person or system component.</summary>
 public enum AuditActorType { User, PlayerProfile, Webhook, Timer, Queue, Migration, System }
@@ -19,11 +19,15 @@ public enum AttendanceOutcome { CheckedIn, Late, NoShow, Excused }
 /// <summary>Identifies an admin override kind.</summary>
 public enum AdminOverrideType { Waiver, Payment, Deadline, CheckIn }
 /// <summary>Represents a match lifecycle state.</summary>
-public enum MatchStatus { Draft, InProgress, Completed, Published, Locked }
+public enum MatchStatus { Draft, InProgress, Completed, NeedsReview, Published, Locked }
 /// <summary>Identifies a match event kind.</summary>
 public enum MatchEventType { Goal, OwnGoal, YellowCard, RedCard }
+/// <summary>Represents captain or admin review state for a raw match event.</summary>
+public enum MatchEventReviewStatus { Pending, Approved, Rejected }
 /// <summary>Identifies supported match award types.</summary>
 public enum MatchAwardType { Mvp }
+/// <summary>Identifies supported leaderboard query metrics.</summary>
+public enum StatLeaderboardMetric { Goals, Assists, Rating, Mvp }
 /// <summary>Identifies a notification channel.</summary>
 public enum NotificationChannel { Email, Sms, WhatsApp, Push }
 /// <summary>Represents notification message status.</summary>

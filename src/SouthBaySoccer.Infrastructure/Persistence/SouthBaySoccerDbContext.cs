@@ -51,6 +51,7 @@ public class SouthBaySoccerDbContext : IdentityDbContext<ApplicationIdentityUser
     public DbSet<PlayerLike> PlayerLikes => Set<PlayerLike>();
     public DbSet<MatchAward> MatchAwards => Set<MatchAward>();
     public DbSet<StatCorrection> StatCorrections => Set<StatCorrection>();
+    public DbSet<ProfileStatReassignmentAudit> ProfileStatReassignmentAudits => Set<ProfileStatReassignmentAudit>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<NotificationMessage> NotificationMessages => Set<NotificationMessage>();
     public DbSet<NotificationRecipient> NotificationRecipients => Set<NotificationRecipient>();
@@ -68,3 +69,4 @@ public class SouthBaySoccerDbContext : IdentityDbContext<ApplicationIdentityUser
         modelBuilder.ConfigureSouthBaySoccerModel();
     }
 }
+

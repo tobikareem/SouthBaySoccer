@@ -11,6 +11,7 @@ var builder = FunctionsApplication.CreateBuilder(args);
 builder.ConfigureFunctionsWebApplication();
 builder.AddSouthBaySoccerHttpPipeline();
 builder.Services.Configure<JwtTokenOptions>(builder.Configuration.GetSection("Authentication:Jwt"));
+builder.Services.Configure<WhatsAppChallengeOptions>(builder.Configuration.GetSection("Authentication:WhatsAppChallenge"));
 
 var connectionString = builder.Configuration.GetConnectionString("SouthBaySoccerDb")
     ?? builder.Configuration["ConnectionStrings:SouthBaySoccerDb"];

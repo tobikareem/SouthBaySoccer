@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SouthBaySoccer.Application.Abstractions.Authentication;
+using SouthBaySoccer.Application.Abstractions.Maps;
 using SouthBaySoccer.Application.Abstractions.Time;
+using SouthBaySoccer.Domain.Interfaces.Repositories;
 using SouthBaySoccer.Infrastructure;
 using SouthBaySoccer.Infrastructure.Identity;
 using SouthBaySoccer.Infrastructure.Persistence;
@@ -82,6 +84,18 @@ public sealed class InfrastructureRegistrationTests
         matches.Should().BeTrue();
     }
 
+
+    [Fact]
+    public void AddInfrastructure_WhenRegistered_ProvidesSchedulingRepositoriesAndMapsFallback()
+    {
+        using var provider = CreateServiceProvider();
+
+        provider.GetRequiredService<ISeasonRepository>().Should().NotBeNull();
+        provider.GetRequiredService<IVenueRepository>().Should().NotBeNull();
+        provider.GetRequiredService<ISessionRepository>().Should().NotBeNull();
+        provider.GetRequiredService<IRsvpRepository>().Should().NotBeNull();
+        provider.GetRequiredService<IMapsService>().Should().NotBeNull();
+    }
     private ServiceProvider CreateServiceProvider()
     {
         var services = new ServiceCollection();

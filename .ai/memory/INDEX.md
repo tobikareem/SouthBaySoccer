@@ -19,3 +19,9 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [functions-pipeline-authz](functions-pipeline-authz.md) - Functions pipeline order and fail-closed endpoint access metadata
 - [functions-problem-details](functions-problem-details.md) - Functions RFC 7807 status mapping, correlation IDs, and safe error details
 - [m3-whatsapp-session-auth](m3-whatsapp-session-auth.md) - M3 is WhatsApp challenge/session auth, not email/password authentication
+- [m4-profiles-waivers](m4-profiles-waivers.md) - M4 profile anchor, guest profile, emergency contact privacy, and current-waiver eligibility rules
+- [m6-scheduling](m6-scheduling.md) - M5 payment deferral, M6 UTC scheduling, recurrence occurrence keys, and cancellation notification boundary
+- [m7-rsvp-waitlist](m7-rsvp-waitlist.md) - M7 waitlist source of truth, serializable RSVP writes, and deferred payment eligibility seam
+- [m7-check-in-window](m7-check-in-window.md) - M7 check-in window enforcement and late override audit rules
+- [m8-teams-stats](m8-teams-stats.md) - M8 match-grain stats authority, MVP, and profile stat reassignment rules
+- [m9-leaderboards-queries](m9-leaderboards-queries.md) - M9 leaderboard/profile stats derive from approved raw match facts

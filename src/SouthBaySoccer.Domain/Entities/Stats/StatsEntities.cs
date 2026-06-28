@@ -14,7 +14,7 @@ public class MatchResult : BaseEntity { public Guid MatchId { get; set; } public
 /// <summary>Represents participation facts for a player in a match.</summary>
 public class PlayerMatchStats : BaseEntity { public Guid MatchId { get; set; } public Guid PlayerProfileId { get; set; } public bool Played { get; set; } public int? MinutesPlayed { get; set; } public bool Started { get; set; } public bool PlayedGoalkeeper { get; set; } public string? Position { get; set; } }
 /// <summary>Represents a raw match event such as a goal or card.</summary>
-public class MatchEvent : BaseEntity { public Guid MatchId { get; set; } public Guid? PlayerProfileId { get; set; } public Guid? AssistPlayerProfileId { get; set; } public Guid? MatchTeamId { get; set; } public MatchEventType EventType { get; set; } public int Minute { get; set; } }
+public class MatchEvent : BaseEntity { public Guid MatchId { get; set; } public Guid? PlayerProfileId { get; set; } public Guid? AssistPlayerProfileId { get; set; } public Guid? MatchTeamId { get; set; } public MatchEventType EventType { get; set; } public int Minute { get; set; } public Guid? SubmittedByPlayerProfileId { get; set; } public MatchEventReviewStatus ReviewStatus { get; set; } public Guid? ReviewedByPlayerProfileId { get; set; } public DateTime? ReviewedAtUtc { get; set; } public string? ReviewNote { get; set; } }
 /// <summary>Represents a peer rating vote.</summary>
 public class PlayerRatingVote : BaseEntity { public Guid MatchId { get; set; } public Guid VoterPlayerProfileId { get; set; } public Guid RatedPlayerProfileId { get; set; } public int Score { get; set; } }
 /// <summary>Represents a player like given after a match.</summary>
@@ -23,3 +23,7 @@ public class PlayerLike : BaseEntity { public Guid MatchId { get; set; } public 
 public class MatchAward : BaseEntity { public Guid MatchId { get; set; } public Guid PlayerProfileId { get; set; } public Guid? AwardedByPlayerProfileId { get; set; } public MatchAwardType AwardType { get; set; } }
 /// <summary>Represents an auditable correction after stats are locked or published.</summary>
 public class StatCorrection : BaseEntity { public Guid MatchId { get; set; } public Guid? PlayerProfileId { get; set; } public Guid CorrectedByPlayerProfileId { get; set; } public string Reason { get; set; } = string.Empty; public string BeforeJson { get; set; } = string.Empty; public string AfterJson { get; set; } = string.Empty; public DateTime CorrectedAtUtc { get; set; } }
+
+/// <summary>Represents an audit record for profile stat reassignment after a guest profile merge.</summary>
+public class ProfileStatReassignmentAudit : BaseEntity { public Guid SourceGuestPlayerProfileId { get; set; } public Guid TargetPlayerProfileId { get; set; } public int AffectedCount { get; set; } public DateTime ReassignedAtUtc { get; set; } }
+

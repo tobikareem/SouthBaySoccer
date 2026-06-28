@@ -23,10 +23,10 @@ public sealed class VerifyWhatsAppChallengeCommandHandlerTests
                     request.ChallengeToken == "abcdefghijklmnopqrstuvwxyz" &&
                     request.CallbackUri == "southbaysoccer://auth/whatsapp"),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new WhatsAppChallengeVerificationResult("+15163447233", "***-***-7233"));
+            .ReturnsAsync(new WhatsAppChallengeVerificationResult("phone-hash-7233", "***-***-7233"));
         var identityResolver = new Mock<IWhatsAppIdentityResolver>(MockBehavior.Strict);
         identityResolver
-            .Setup(resolver => resolver.FindByVerifiedPhoneNumberAsync("+15163447233", It.IsAny<CancellationToken>()))
+            .Setup(resolver => resolver.FindByVerifiedPhoneNumberHashAsync("phone-hash-7233", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WhatsAppIdentity(identityUserId, playerProfileId, "***-***-7233", roles));
         var tokenIssuer = new Mock<IAuthenticationTokenIssuer>(MockBehavior.Strict);
         tokenIssuer
@@ -69,7 +69,7 @@ public sealed class VerifyWhatsAppChallengeCommandHandlerTests
                 It.IsAny<CancellationToken>()),
             Times.Never);
         identityResolver.Verify(
-            resolver => resolver.FindByVerifiedPhoneNumberAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            resolver => resolver.FindByVerifiedPhoneNumberHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
         tokenIssuer.Verify(
             issuer => issuer.IssueTokensAsync(It.IsAny<AuthenticationTokenSubject>(), It.IsAny<CancellationToken>()),
@@ -84,10 +84,10 @@ public sealed class VerifyWhatsAppChallengeCommandHandlerTests
             .Setup(service => service.VerifyChallengeAsync(
                 It.IsAny<WhatsAppChallengeVerificationRequest>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new WhatsAppChallengeVerificationResult("+15163447233", "***-***-7233"));
+            .ReturnsAsync(new WhatsAppChallengeVerificationResult("phone-hash-7233", "***-***-7233"));
         var identityResolver = new Mock<IWhatsAppIdentityResolver>(MockBehavior.Strict);
         identityResolver
-            .Setup(resolver => resolver.FindByVerifiedPhoneNumberAsync("+15163447233", It.IsAny<CancellationToken>()))
+            .Setup(resolver => resolver.FindByVerifiedPhoneNumberHashAsync("phone-hash-7233", It.IsAny<CancellationToken>()))
             .ReturnsAsync((WhatsAppIdentity?)null);
         var tokenIssuer = new Mock<IAuthenticationTokenIssuer>(MockBehavior.Strict);
         var handler = CreateHandler(challengeService, identityResolver, tokenIssuer);

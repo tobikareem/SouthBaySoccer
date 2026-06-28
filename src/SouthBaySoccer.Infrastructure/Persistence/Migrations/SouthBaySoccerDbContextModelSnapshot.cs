@@ -661,6 +661,9 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -698,6 +701,10 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.Property<string>("ResponseBodyHash")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("ResponseBodyJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<int?>("ResponseStatusCode")
                         .HasColumnType("int");
@@ -1993,6 +2000,24 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("PlayerProfileId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<string>("ReviewStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ReviewedByPlayerProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("SubmittedByPlayerProfileId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -2004,7 +2029,13 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("AssistPlayerProfileId");
 
+                    b.HasIndex("ReviewedByPlayerProfileId");
+
+                    b.HasIndex("SubmittedByPlayerProfileId");
+
                     b.HasIndex("MatchId", "EventType");
+
+                    b.HasIndex("MatchId", "ReviewStatus");
 
                     b.HasIndex("PlayerProfileId", "EventType");
 
@@ -2279,6 +2310,55 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         });
 
                     b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", true);
+                });
+
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Stats.ProfileStatReassignmentAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AffectedCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("ReassignedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("SourceGuestPlayerProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TargetPlayerProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TargetPlayerProfileId");
+
+                    b.HasIndex("SourceGuestPlayerProfileId", "TargetPlayerProfileId", "ReassignedAtUtc");
+
+                    b.ToTable("ProfileStatReassignmentAudits", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProfileStatReassignmentAudits_AffectedCount", "[AffectedCount] >= 0");
+                        });
+
+                    b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", false);
                 });
 
             modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Stats.StatCorrection", b =>
@@ -2700,6 +2780,16 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("PlayerProfileId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Identity.PlayerProfile", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewedByPlayerProfileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Identity.PlayerProfile", null)
+                        .WithMany()
+                        .HasForeignKey("SubmittedByPlayerProfileId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Stats.MatchResult", b =>
@@ -2737,6 +2827,21 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.HasOne("SouthBaySoccer.Domain.Entities.Identity.PlayerProfile", null)
                         .WithMany()
                         .HasForeignKey("PlayerProfileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Stats.ProfileStatReassignmentAudit", b =>
+                {
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Identity.PlayerProfile", null)
+                        .WithMany()
+                        .HasForeignKey("SourceGuestPlayerProfileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Identity.PlayerProfile", null)
+                        .WithMany()
+                        .HasForeignKey("TargetPlayerProfileId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

@@ -1,5 +1,7 @@
 using System.Net;
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using SouthBaySoccer.Application.Common;
 
 namespace SouthBaySoccer.Functions.Pipeline;
 
@@ -11,6 +13,14 @@ public sealed class ProblemDetailsMapper : IProblemDetailsMapper
     {
         var problem = exception switch
         {
+            ValidationException fluentValidation => Create(
+                HttpStatusCode.BadRequest,
+                "Validation failed",
+                "One or more request values are invalid.",
+                "validation",
+                fluentValidation.Errors
+                    .GroupBy(error => error.PropertyName)
+                    .ToDictionary(group => group.Key, group => group.Select(error => error.ErrorMessage).ToArray())),
             ValidationProblemException validation => Create(
                 HttpStatusCode.BadRequest,
                 "Validation failed",
@@ -22,6 +32,26 @@ public sealed class ProblemDetailsMapper : IProblemDetailsMapper
                 "Unauthorized",
                 "Authentication is required.",
                 "unauthorized"),
+            ApplicationUnauthenticatedException => Create(
+                HttpStatusCode.Unauthorized,
+                "Unauthorized",
+                "Authentication is required.",
+                "unauthorized"),
+            ApplicationNotFoundException => Create(
+                HttpStatusCode.NotFound,
+                "Not found",
+                "The requested resource was not found.",
+                "not-found"),
+            ApplicationConflictException => Create(
+                HttpStatusCode.Conflict,
+                "Conflict",
+                "The request conflicts with the current state.",
+                "conflict"),
+            ApplicationForbiddenException => Create(
+                HttpStatusCode.Forbidden,
+                "Forbidden",
+                "You do not have permission to perform this action.",
+                "forbidden"),
             UnauthorizedAccessException => Create(
                 HttpStatusCode.Unauthorized,
                 "Unauthorized",
@@ -86,3 +116,5 @@ public sealed class ProblemDetailsMapper : IProblemDetailsMapper
         return problem;
     }
 }
+
+

@@ -47,11 +47,11 @@ public sealed class VerifyWhatsAppChallengeCommandHandler
             new WhatsAppChallengeVerificationRequest(command.ChallengeToken, command.CallbackUri),
             cancellationToken);
 
-        var identity = await identityResolver.FindByVerifiedPhoneNumberAsync(
-            verifiedChallenge.PhoneNumber,
+        var identity = await identityResolver.FindByVerifiedPhoneNumberHashAsync(
+            verifiedChallenge.PhoneNumberHash,
             cancellationToken);
 
-        var maskedPhoneNumber = PhoneNumberMasker.Mask(verifiedChallenge.PhoneNumber);
+        var maskedPhoneNumber = verifiedChallenge.MaskedPhoneNumber;
         if (identity is null)
         {
             throw new WhatsAppIdentityNotFoundException(maskedPhoneNumber);
