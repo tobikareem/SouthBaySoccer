@@ -167,3 +167,6 @@ secrets.json
 Thumbs.db
 ehthumbs.db
 [Dd]esktop.ini
+/deployment_template.zip
+/src/SouthBaySoccer.Functions/Properties/PublishProfiles
+/SouthBaySoccerFunc.PublishSettings
