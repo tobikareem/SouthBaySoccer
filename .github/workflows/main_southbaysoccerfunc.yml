@@ -10,7 +10,8 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.' # set this to the path to your web app project, defaults to the repository root
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'src/SouthBaySoccer.Functions'
+  AZURE_FUNCTIONAPP_PROJECT: 'src/SouthBaySoccer.Functions/SouthBaySoccer.Functions.csproj'
   DOTNET_VERSION: '10.0.x' # set this to the dotnet version to use
 
 jobs:
@@ -25,16 +26,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup DotNet ${{ env.DOTNET_VERSION }} Environment
-        uses: actions/setup-dotnet@v1
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: 'Resolve Project Dependencies Using Dotnet'
         shell: bash
         run: |
-          pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
-          dotnet build --configuration Release --output ./output
-          popd
+          dotnet publish '${{ env.AZURE_FUNCTIONAPP_PROJECT }}' --configuration Release --output '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
       
       - name: Login to Azure
         uses: azure/login@v2
