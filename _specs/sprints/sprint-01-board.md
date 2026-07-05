@@ -96,7 +96,7 @@ _(none)_
 
 | Card | Story | Why |
 |------|-------|-----|
-| Typed API pipeline | `M11.1` (`[~]`) | swaps seeds for the real API later; not needed in the UI phase |
+| Typed API pipeline | `M11.1` (`[x]`) | done: shared HttpClient pipeline, token refresh, and API-backed profile client |
 | Challenge verify/exchange + Functions tests | `AUTH-8` (`M11.3c/3d` `[~]`) | server endpoints blocked on backend `M3`; client uses the seed challenge now |
 | 4-captain topology decision | `TEAM-4` | resolved: 3 captains means 3 teams and 4 captains means 4 teams; backend/team-draft design should model two-, three-, and four-team rotation formats |
 

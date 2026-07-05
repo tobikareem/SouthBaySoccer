@@ -34,15 +34,32 @@ public static class ClientServiceCollectionExtensions
 
     private static IServiceCollection AddApiClients(IServiceCollection services, PickupPalOptions pickupPalOptions)
     {
-        services.AddSingleton<IAuthenticationClient>(_ =>
+        services.AddTransient<CorrelationIdHandler>();
+        services.AddTransient<AuthenticationHandler>();
+        services.AddTransient<ApiExceptionHandler>();
+
+        services.AddHttpClient(
+            "SouthBaySoccer.Anonymous",
+            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+
+        services.AddHttpClient<IProfileClient, ApiProfileClient>(
+            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<AuthenticationHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+
+        services.AddSingleton<IAuthenticationClient>(provider =>
             new AuthenticationClient(
-                new HttpClient { BaseAddress = pickupPalOptions.ApiBaseUri },
+                provider.GetRequiredService<IHttpClientFactory>().CreateClient("SouthBaySoccer.Anonymous"),
                 pickupPalOptions));
+        services.AddSingleton<IAuthenticationSessionRefresher, AuthenticationSessionRefresher>();
 
 #if RELEASE
         return services;
 #else
-        return AddSeedClientsExceptAuthentication(services);
+        return AddSeedClientsExceptProfileAndAuthentication(services);
 #endif
     }
 
@@ -55,12 +72,13 @@ public static class ClientServiceCollectionExtensions
         services.AddSingleton<SeedState>();
         services.AddSingleton<SeedGameDayState>();
         services.AddSingleton<IAuthenticationClient, SeedAuthenticationClient>();
-        return AddSeedClientsExceptAuthentication(services);
+        services.AddSingleton<IProfileClient, SeedProfileClient>();
+        return AddSeedClientsExceptProfileAndAuthentication(services);
 #endif
     }
 
 #if !RELEASE
-    private static IServiceCollection AddSeedClientsExceptAuthentication(IServiceCollection services)
+    private static IServiceCollection AddSeedClientsExceptProfileAndAuthentication(IServiceCollection services)
     {
         services.TryAddSingleton<SeedState>();
         services.TryAddSingleton<SeedGameDayState>();
@@ -70,7 +88,6 @@ public static class ClientServiceCollectionExtensions
         services.AddSingleton<IStatsClient, SeedStatsClient>();
         services.AddSingleton<ILeaderboardClient, SeedLeaderboardClient>();
         services.AddSingleton<IPlayersClient, SeedPlayersClient>();
-        services.AddSingleton<IProfileClient, SeedProfileClient>();
         services.AddSingleton<IGameDayClient, SeedGameDayClient>();
         return services;
     }

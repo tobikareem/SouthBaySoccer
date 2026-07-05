@@ -27,7 +27,7 @@ public sealed class AuthenticationClient(HttpClient httpClient, PickupPalOptions
     {
         var request = new RequestWhatsAppChallengeRequest(phoneNumber, options.CallbackUri.ToString());
         using var response = await httpClient.PostAsJsonAsync(
-            "api/v1/auth/whatsapp/challenge",
+            "auth/whatsapp/challenges",
             request,
             cancellationToken);
 
@@ -43,7 +43,7 @@ public sealed class AuthenticationClient(HttpClient httpClient, PickupPalOptions
     {
         var request = new VerifyWhatsAppChallengeRequest(challengeToken, options.CallbackUri.ToString());
         using var response = await httpClient.PostAsJsonAsync(
-            "api/v1/auth/whatsapp/verify",
+            "auth/whatsapp/challenges/verify",
             request,
             cancellationToken);
 
@@ -58,7 +58,7 @@ public sealed class AuthenticationClient(HttpClient httpClient, PickupPalOptions
         CancellationToken cancellationToken)
     {
         using var response = await httpClient.PostAsJsonAsync(
-            "api/v1/auth/refresh",
+            "auth/refresh",
             new RefreshTokenRequest(refreshToken),
             cancellationToken);
 
@@ -68,3 +68,4 @@ public sealed class AuthenticationClient(HttpClient httpClient, PickupPalOptions
                ?? throw new InvalidOperationException("The sign-in service returned an empty response.");
     }
 }
+

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Moq;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.SeedData;
 using SouthBaySoccer.Services.Authentication;
@@ -58,9 +59,10 @@ public class SeedClientRegistrationTests
     }
 
     [Fact]
-    public void AddSouthBaySoccerClients_ApiSelected_ResolvesRealAuthenticationClient()
+    public void AddSouthBaySoccerClients_ApiSelected_ResolvesRealAuthenticationAndProfileClients()
     {
         var services = new ServiceCollection();
+        services.AddSingleton(Mock.Of<ISecureTokenStore>());
 
         services.AddSouthBaySoccerClients(
             new ClientDataSourceOptions { DataSource = ClientDataSource.Api },
@@ -69,6 +71,8 @@ public class SeedClientRegistrationTests
 
         provider.GetRequiredService<IAuthenticationClient>()
             .Should().BeOfType<AuthenticationClient>();
+        provider.GetRequiredService<IProfileClient>()
+            .Should().BeOfType<ApiProfileClient>();
     }
 
     [Fact]
@@ -82,3 +86,5 @@ public class SeedClientRegistrationTests
             .WithMessage("*Seed*Release*");
     }
 }
+
+

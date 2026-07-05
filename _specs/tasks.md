@@ -149,8 +149,8 @@ M5 is intentionally deferred while M6 Seasons, venues, and sessions are implemen
   fail fast for unavailable Api or Release+Seed, and let M11.1 complete the Api branch. Seeds are
   Release-guarded and carry no real personal data. â€” Stories: UI-first phase (design.md Â§12) Â· Projects:
   MAUI client Â· Depends on: M11.0.
-- [~] **M11.1** `Contracts`-based typed API services + `HttpClient` pipeline (`CorrelationIdHandler`â†’`AuthenticationHandler`â†’`ApiExceptionHandler`); secure token storage. â€” Current: typed authentication client and secure token storage are implemented for AUTH-7/8; the shared correlation/authentication/exception handler pipeline remains. â€” Stories: AUTH-4, NFR-Security.
-- [ ] **M11.2** Replace one MAUI sample repository flow with a typed API client (proves the path). â€” Stories: PROF-1.
+- [x] **M11.1** `Contracts`-based typed API services + `HttpClient` pipeline (`CorrelationIdHandler` -> `AuthenticationHandler` -> `ApiExceptionHandler`); secure token storage. - Done: API mode registers `HttpClientFactory`, correlation IDs, bearer token attachment, single-flight refresh-token rotation, safe API exceptions, and an API-backed profile client. - Stories: AUTH-4, NFR-Security.
+- [x] **M11.2** Replace one MAUI sample repository flow with a typed API client (proves the path). - Done: API mode resolves `IProfileClient` to `ApiProfileClient`, loading `profiles/me` through the shared authenticated pipeline while Seed mode keeps `SeedProfileClient`. - Stories: PROF-1.
 - [x] **M11.3a** Implement `WelcomeBackPage` and `WelcomeBackPageModel` directly from the first
   `signin` screen in `documentation/mobile-wireframes.html`: branded header, welcome copy, phone
   input, phone sign-in action, security notice, Pickup Pal bot card, divider, signup action, and caption.

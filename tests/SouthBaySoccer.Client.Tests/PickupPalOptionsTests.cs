@@ -12,9 +12,11 @@ public class PickupPalOptionsTests
     {
         var options = new PickupPalOptions();
 
+        options.ApiBaseUri.ToString().Should().Be("http://localhost:7071/api/");
         options.SignupUri.Scheme.Should().Be("https");
         options.BotUri.Host.Should().Be("wa.me");
         options.CallbackUri.Scheme.Should().Be("southbaysoccer");
         options.BotDisplayNumber.Should().NotBeNullOrWhiteSpace();
     }
 }
+

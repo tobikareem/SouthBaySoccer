@@ -2,8 +2,8 @@
 
 AUTH-8 slice of milestone **M11** (full roadmap: [`../../tasks.md`](../../tasks.md)).
 
-- [~] **M11.1** `Contracts`-based typed API services + `HttpClient` pipeline
-  (`CorrelationIdHandler` -> `AuthenticationHandler` -> `ApiExceptionHandler`); secure token storage.
+- [x] **M11.1** `Contracts`-based typed API services + `HttpClient` pipeline
+  (`CorrelationIdHandler` -> `AuthenticationHandler` -> `ApiExceptionHandler`); secure token storage and single-flight refresh are implemented.
   - Stories: `AUTH-4`, `NFR-Security`.
 
 - [x] **M11.3b** (AUTH-8 slice) Add international phone validation, busy/error/offline states, and the Welcome Back sign-in command. External-return alone must not authenticate.

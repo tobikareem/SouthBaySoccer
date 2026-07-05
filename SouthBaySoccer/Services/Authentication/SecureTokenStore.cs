@@ -25,6 +25,21 @@ public sealed class SecureTokenStore : ISecureTokenStore
         }
     }
 
+
+    public Task<string?> GetAccessTokenAsync() =>
+        SecureStorage.Default.GetAsync(AccessTokenKey);
+
+    public async Task<DateTime?> GetAccessTokenExpiresAtUtcAsync()
+    {
+        var value = await SecureStorage.Default.GetAsync(AccessTokenExpiryKey);
+        return DateTime.TryParse(
+            value,
+            null,
+            System.Globalization.DateTimeStyles.AdjustToUniversal,
+            out var expiresAtUtc)
+            ? expiresAtUtc
+            : null;
+    }
     public Task<string?> GetRefreshTokenAsync() =>
         SecureStorage.Default.GetAsync(RefreshTokenKey);
 
@@ -36,3 +51,5 @@ public sealed class SecureTokenStore : ISecureTokenStore
         return Task.CompletedTask;
     }
 }
+
+
