@@ -272,8 +272,9 @@
 
                 <Button Text="Primary action" Style="{StaticResource PrimaryButton}" />
                 <Button Text="Secondary action" Style="{StaticResource GhostButton}" />
-                <Button Text="Continue with WhatsApp" Style="{StaticResource WhatsAppButton}" />
+                <Button Text="Sign in with phone" Style="{StaticResource PrimaryButton}" />
             </VerticalStackLayout>
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>
+

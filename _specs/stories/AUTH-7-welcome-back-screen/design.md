@@ -17,19 +17,19 @@ must not appear behind it (`INV-11`, fail-closed).
 1. Green-to-Pine brand header (~`34,16,30` padding): 42-dip circular football mark, `SouthBay Soccer`
    title, `Pickup soccer, organized.` subtitle, white right-side flag stripe + low-opacity circular motif.
 2. Content area, 16-dip horizontal / 20-dip top padding: `WELCOME BACK` (`TextLabel`),
-   `Your next game starts here.` (`TextH1`), WhatsApp/Pickup Pal explanatory copy (`TextCaption`).
-3. Phone-number input surface: Font Awesome WhatsApp brand glyph + phone input (telephone keyboard,
+   `Your next game starts here.` (`TextH1`), Pickup Pal explanatory copy (`TextCaption`).
+3. Phone-number input surface: Font Awesome phone glyph + phone input (telephone keyboard,
    international-format validation). The wireframe number `+1 (516) 344-7233` is **sample data only**;
    production uses the last entered number or an example placeholder — never a personal number default.
-4. Full-width `Continue with WhatsApp` action (WhatsApp green treatment) → behavior in `AUTH-8`.
+4. Full-width `Sign in with phone` action (primary brand treatment) → behavior in `AUTH-8`.
 5. `NoticeSurface` with shield-check glyph + exact security copy:
    `Password-free and secure` then
-   `We use a one-time link through WhatsApp. SouthBaySoccer never sees your WhatsApp password.`
+   `Pickup Pal verifies your account. SouthBaySoccer stores only app session tokens on this device.`
 6. Pickup Pal bot `BrandCard` (`SurfaceAlt`): `PICKUP PAL BOT` label, configured number, external-link
-   glyph + `Open`, `Or message the bot a link code to connect this device.` → behavior in `AUTH-9`.
+   glyph + `Open`, `Need help? Open the Pickup Pal bot for account support.` → behavior in `AUTH-9`.
 7. Divider with centered `not on pickup pal?`.
 8. Full-width `Sign up on Pickup Pal` ghost action (external-link glyph) → behavior in `AUTH-9`.
-9. Centered caption: `Create your account on the web, then come back and continue with WhatsApp.`
+9. Centered caption: `Create your account on the web, then come back and sign in with your phone number.`
 
 Colors, radii, typography, and touch sizes come from `BrandColors.xaml`/`BrandTokens.xaml`/
 `BrandStyles.xaml`; the page adds no raw hex colors or emoji.
@@ -49,7 +49,7 @@ Unicode literals. Required glyphs:
 | Purpose | Family | Icon |
 |---|---|---|
 | Product mark | Solid | `futbol` |
-| WhatsApp field/action | Brands | `whatsapp` |
+| Phone field/action | Solid | `phone` |
 | Security notice | Solid | `shield-halved` / `shield` |
 | External actions | Solid | `arrow-up-right-from-square` |
 
@@ -64,10 +64,7 @@ the command behaviors). Startup coordinator: check secure storage for a refresh 
 safe refresh → route to authenticated Sessions Shell on success → otherwise show `WelcomeBackPage`
 and clear invalid credentials.
 
-States: initial · invalid phone · requesting challenge · challenge sent/awaiting deep link · offline
-· recoverable service error. Never log the full phone number, challenge, deep-link token, or access/
-refresh tokens; mask in telemetry. Authentication is established only by a verified challenge
-exchange — never by button navigation or browser return.
+States: initial - invalid phone - signing in - account not found - offline - recoverable service error. Never log the full phone number, access token, or refresh token; mask in telemetry. Authentication is established only by a successful Pickup Pal phone lookup followed by SouthBaySoccer token issuance - never by button navigation or browser return.
 
 ## Test design (`Client.Tests`) — AUTH-7 slice
 
@@ -76,4 +73,7 @@ exchange — never by button navigation or browser return.
 - icon controls expose semantic descriptions;
 - the page remains scrollable and uncut at large text sizes and the narrowest supported width.
 
-(Challenge/deep-link and external-launch test cases are specified in `AUTH-8`/`AUTH-9`.)
+(Phone sign-in and external-launch test cases are specified in `AUTH-8`/`AUTH-9`.)
+
+
+

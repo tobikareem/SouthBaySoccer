@@ -26,3 +26,4 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [m8-teams-stats](m8-teams-stats.md) - M8 match-grain stats authority, MVP, and profile stat reassignment rules
 - [m9-leaderboards-queries](m9-leaderboards-queries.md) - M9 leaderboard/profile stats derive from approved raw match facts
 - [postman-http-collections](postman-http-collections.md) - SouthBaySoccer Postman workspace collections mirror the repo http folder
+- [pickuppal-phone-sign-in](pickuppal-phone-sign-in.md) - Pickup Pal phone lookup is the user source of truth; SouthBaySoccer still issues local tokens

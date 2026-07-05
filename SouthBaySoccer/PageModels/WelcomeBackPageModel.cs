@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -15,13 +16,13 @@ public partial class WelcomeBackPageModel(
     public const string WelcomeLabel = "WELCOME BACK";
     public const string Heading = "Your next game starts here.";
     public const string Description =
-        "Sign in securely with the WhatsApp number connected to your Pickup Pal account.";
+        "Sign in with the phone number connected to your Pickup Pal account.";
     public const string SecurityHeading = "Password-free and secure";
     public const string SecurityMessage =
-        "We use a one-time link through WhatsApp. SouthBaySoccer never sees your WhatsApp password.";
-    public const string BotHelpMessage = "Or message the bot a link code to connect this device.";
+        "Pickup Pal verifies your account. SouthBaySoccer stores only app session tokens on this device.";
+    public const string BotHelpMessage = "Need help? Open the Pickup Pal bot for account support.";
     public const string SignupHelpMessage =
-        "Create your account on the web, then come back and continue with WhatsApp.";
+        "Create your account on the web, then come back and sign in with your phone number.";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPhoneNumberError))]
@@ -58,22 +59,19 @@ public partial class WelcomeBackPageModel(
         try
         {
             IsBusy = true;
-            var challenge = await authenticationClient.RequestWhatsAppChallengeAsync(
+            var tokens = await authenticationClient.SignInByPhoneAsync(
                 normalizedPhoneNumber,
                 cancellationToken);
 
-            if (await authenticationCoordinator.TryCompleteChallengeAsync(
-                    challenge.ChallengeId,
-                    cancellationToken))
-            {
-                return;
-            }
-
-            StatusMessage = "Check WhatsApp for your secure one-time sign-in link.";
+            await authenticationCoordinator.CompleteSignInAsync(tokens, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            StatusMessage = "We couldn't find that phone number on Pickup Pal. Sign up on Pickup Pal, then come back.";
         }
         catch (HttpRequestException)
         {

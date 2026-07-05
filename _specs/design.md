@@ -179,24 +179,24 @@ appear behind it.
    - `Your next game starts here.` using `TextH1`.
    - explanatory WhatsApp/Pickup Pal copy using `TextCaption`.
 3. Phone-number input surface.
-   - Font Awesome WhatsApp brand glyph.
+   - Font Awesome phone glyph.
    - phone input with telephone keyboard and international-format validation.
    - the wireframe number `+1 (516) 344-7233` is design sample data only; production uses the last
      explicitly entered number or an example placeholder and must not ship a personal number as a
      default value.
-4. Full-width `Continue with WhatsApp` action using the WhatsApp green button treatment.
+4. Full-width `Sign in with phone` action using the primary brand button treatment.
 5. `NoticeSurface` with Font Awesome shield-check glyph and the exact security message:
    `Password-free and secure` followed by
-   `We use a one-time link through WhatsApp. SouthBaySoccer never sees your WhatsApp password.`
+   `Pickup Pal verifies your account. SouthBaySoccer stores only app session tokens on this device.`
 6. Pickup Pal bot `BrandCard` using `SurfaceAlt`.
    - uppercase `PICKUP PAL BOT` label;
    - configured display number (wireframe example `+1 (650) 220-5416`);
    - Font Awesome external-link glyph and `Open` command;
-   - `Or message the bot a link code to connect this device.`
+   - `Need help? Open the Pickup Pal bot for account support.`
 7. Divider with centered lowercase copy `not on pickup pal?`.
 8. Full-width `Sign up on Pickup Pal` ghost action with Font Awesome external-link glyph.
 9. Centered caption:
-   `Create your account on the web, then come back and continue with WhatsApp.`
+   `Create your account on the web, then come back and sign in with your phone number.`
 
 Colors, radii, typography, and touch sizes come from `BrandColors.xaml`, `BrandTokens.xaml`, and
 `BrandStyles.xaml`; the page adds no raw hex colors or emoji.
@@ -225,7 +225,7 @@ constants rather than embedding Unicode literals. Required Welcome Back glyphs:
 | Purpose | Font family | Font Awesome icon |
 |---|---|---|
 | Product mark | Solid | `futbol` |
-| WhatsApp field/action | Brands | `whatsapp` |
+| Phone field/action | Brands | `whatsapp` |
 | Security notice | Solid | `shield-halved` or `shield` |
 | External actions | Solid | `arrow-up-right-from-square` |
 
@@ -253,11 +253,11 @@ WelcomeBackPage
 - `RequestWhatsAppChallengeCommand`;
 - `OpenPickupPalBotCommand`;
 - `OpenPickupPalSignupCommand`;
-- deep-link completion handling through an injected authentication coordinator.
+- phone sign-in completion through an injected authentication coordinator.
 
 The page code-behind contains only `InitializeComponent`. URI launching, validation, sign-in state,
 and navigation do not live in XAML code-behind. Configuration uses typed options for the Pickup Pal
-bot number, bot URI, signup URI, and approved deep-link callback scheme.
+bot number, bot URI, signup URI, and phone sign-in endpoint settings.
 
 The app startup coordinator:
 
@@ -272,14 +272,14 @@ The screen supports:
 
 - initial;
 - invalid phone;
-- requesting challenge;
-- challenge sent / awaiting deep link;
+- signing in;
+- Pickup Pal account not found;
 - offline;
 - recoverable service error.
 
-Do not log the complete phone number, challenge, deep-link token, access token, or refresh token.
+Do not log the complete phone number, Pickup Pal email, access token, or refresh token.
 Display values should be masked in telemetry. The client never claims authentication from button
-navigation or browser return alone; only a verified challenge exchange establishes a session.
+navigation or browser return alone; only a successful Pickup Pal phone lookup followed by SouthBaySoccer token issuance establishes a session.
 
 ### 11.6 Test design
 
@@ -289,10 +289,10 @@ navigation or browser return alone; only a verified challenge exchange establish
 - valid restored session bypasses it;
 - wireframe copy and commands are exposed by the page model;
 - invalid numbers do not invoke the authentication client;
-- repeated taps while busy produce one challenge request;
+- repeated taps while busy produce one phone sign-in request;
 - failures preserve the entered number and restore the command;
 - bot and signup commands use typed configuration;
-- verified deep link stores tokens and navigates once;
+- successful phone sign-in stores tokens and navigates once;
 - icon controls expose semantic descriptions and the page remains scrollable at large text sizes.
 
 ## 12. Seed-data strategy (UI-first phase)
@@ -320,3 +320,6 @@ the client unblocked:
   (transactions, webhooks, idempotency, authorization) is re-run when the corresponding backend
   milestone is implemented. UI-only scenarios (e.g. AUTH-7 composition, accessibility) are fully
   verifiable now.
+
+
+

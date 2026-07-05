@@ -48,14 +48,27 @@ public class SeedClientRegistrationTests
 #endif
 
     [Fact]
-    public void Validate_ApiSelected_FailsFastAndNamesMissingRegistrations()
+    public void Validate_ApiSelected_AllowsApiAuthenticationRegistration()
     {
         var options = new ClientDataSourceOptions { DataSource = ClientDataSource.Api };
 
         var act = () => ClientDataSourceValidator.Validate(options, seedProviderAvailable: true);
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*IAuthenticationClient*ISessionsClient*ISessionAdminClient*IRosterClient*IStatsClient*ILeaderboardClient*IPlayersClient*IProfileClient*");
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void AddSouthBaySoccerClients_ApiSelected_ResolvesRealAuthenticationClient()
+    {
+        var services = new ServiceCollection();
+
+        services.AddSouthBaySoccerClients(
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api },
+            new PickupPalOptions());
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<IAuthenticationClient>()
+            .Should().BeOfType<AuthenticationClient>();
     }
 
     [Fact]

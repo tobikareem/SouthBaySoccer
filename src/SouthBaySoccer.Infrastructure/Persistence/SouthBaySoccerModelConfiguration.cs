@@ -36,6 +36,7 @@ internal static class SouthBaySoccerModelConfiguration
         modelBuilder.Entity<PlayerProfile>(b =>
         {
             ConfigureBase(b, "PlayerProfiles", softDelete: true);
+            b.Property(x => x.PickupPalUserId).HasMaxLength(128);
             b.Property(x => x.DisplayName).HasMaxLength(160).IsRequired();
             b.Property(x => x.NormalizedDisplayName).HasMaxLength(160).IsRequired();
             b.Property(x => x.PreferredPosition).HasMaxLength(64).IsRequired();
@@ -44,6 +45,7 @@ internal static class SouthBaySoccerModelConfiguration
             b.Property(x => x.PhotoUri).HasMaxLength(1024);
             b.Property(x => x.Role).HasConversion<string>().HasMaxLength(32).IsRequired();
             b.HasIndex(x => x.IdentityUserId).IsUnique().HasFilter("[IdentityUserId] IS NOT NULL AND [IsDeleted] = 0");
+            b.HasIndex(x => x.PickupPalUserId).IsUnique().HasFilter("[PickupPalUserId] IS NOT NULL AND [IsDeleted] = 0");
             b.HasIndex(x => new { x.IsGuest, x.IsDeleted });
         });
         modelBuilder.Entity<EmergencyContact>(b => { ConfigureBase(b, "EmergencyContacts", true); b.Property(x => x.Name).HasMaxLength(160).IsRequired(); b.Property(x => x.PhoneNumberHash).HasMaxLength(128).IsRequired(); b.Property(x => x.MaskedPhoneNumber).HasMaxLength(32).IsRequired(); b.Property(x => x.Relationship).HasMaxLength(80); b.HasOne<PlayerProfile>().WithMany().HasForeignKey(x => x.PlayerProfileId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => x.PlayerProfileId).IsUnique().HasFilter("[IsDeleted] = 0"); });

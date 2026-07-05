@@ -7,6 +7,20 @@ namespace SouthBaySoccer.Services.Authentication;
 public sealed class AuthenticationClient(HttpClient httpClient, PickupPalOptions options)
     : IAuthenticationClient
 {
+    public async Task<AuthenticationTokensResponse> SignInByPhoneAsync(
+        string phoneNumber,
+        CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.PostAsJsonAsync(
+            "auth/pickuppal/phone/sign-in",
+            new SignInByPhoneRequest(phoneNumber),
+            cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<AuthenticationTokensResponse>(
+                   cancellationToken: cancellationToken)
+               ?? throw new InvalidOperationException("The sign-in service returned an empty response.");
+    }
     public async Task<RequestWhatsAppChallengeResponse> RequestWhatsAppChallengeAsync(
         string phoneNumber,
         CancellationToken cancellationToken)

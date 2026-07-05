@@ -1,21 +1,19 @@
-# AUTH-8 — Continue with WhatsApp · Design
+# AUTH-8 - Pickup Pal phone sign-in - Design
 
 Realizes [`requirements.md`](requirements.md). Screen composition is in
 [`AUTH-7 design`](../AUTH-7-welcome-back-screen/design.md); token issue/refresh mechanics are in
-[`../../design.md`](../../design.md) §6; this file specifies the challenge flow.
+[`../../design.md`](../../design.md) section 6; this file specifies the phone sign-in flow.
 
 ## Flow
 
-```
+```text
 WelcomeBackPageModel.RequestWhatsAppChallengeCommand
-  -> validate PhoneNumber (international format) ; else set PhoneNumberError, send nothing
+  -> validate PhoneNumber (international format); else set PhoneNumberError, send nothing
   -> IsBusy = true (block re-submit)
-  -> IAuthenticationClient.RequestWhatsAppChallengeAsync(phone)   // one-time Pickup Pal challenge
-  -> on failure/offline: show recoverable error, IsBusy = false, keep number
-  -> on success: state = "awaiting deep link"
-
-Deep-link callback (approved scheme)
-  -> authentication coordinator verifies + exchanges the challenge at the Function App
+  -> IAuthenticationClient.SignInByPhoneAsync(phone)
+  -> Function App calls Pickup Pal GET /api/users/phone/{digits}
+  -> if not found: safe sign-up prompt, no tokens, stay signed out
+  -> if found: sync ApplicationIdentityUser + PlayerProfile, preserving local role
   -> Function App returns SouthBaySoccer access + rotating refresh tokens (AUTH-3/AUTH-4)
   -> ISecureTokenStore persists tokens (platform secure storage)
   -> IAuthenticationNavigator replaces Welcome Back with the authenticated Sessions Shell (once)
@@ -23,26 +21,22 @@ Deep-link callback (approved scheme)
 
 ## Components
 
-- **Client:** `RequestWhatsAppChallengeCommand`, `PhoneNumber`, `PhoneNumberError`, `IsBusy`;
-  `IAuthenticationClient`, `ISecureTokenStore`, `IAuthenticationNavigator`, and a deep-link
-  authentication coordinator. International phone validation in the page model (presentation
-  validation only; server is authoritative).
-- **Backend (Contracts/Functions/Application):** a Pickup-Pal-backed challenge endpoint
-  (`[AllowAnonymous]`) and a verify/exchange endpoint that mints SouthBaySoccer tokens; reuses the
-  `ITokenService` + refresh-token rotation from `AUTH-3/AUTH-4`. Approved deep-link callback scheme
-  is typed configuration.
+- **Client:** `RequestWhatsAppChallengeCommand` currently owns the sign-in button behavior for XAML compatibility; it calls `IAuthenticationClient.SignInByPhoneAsync`, then `IAuthenticationCoordinator.CompleteSignInAsync` on success. International phone validation remains presentation validation only; server validation is authoritative.
+- **Backend (Contracts/Functions/Application):** anonymous `POST /auth/pickuppal/phone/sign-in`, `SignInByPhoneRequest`, Pickup Pal user lookup, local identity/profile sync, SouthBaySoccer access-token issuance, and refresh-token rotation from `AUTH-3/AUTH-4`.
+- **Infrastructure:** `IPickupPalUserClient` uses configurable `PickupPal:BaseUrl` and treats Pickup Pal as the profile source of truth. SouthBaySoccer stores local identity, email, role, token state, masked/hash phone, and `PickupPalUserId`; it does not store raw phone numbers.
 
 ## Security (`NFR-Security`, `INV-11`)
 
-- Single in-flight challenge per submit; duplicate taps coalesce.
-- Authentication is established **only** by a verified challenge exchange — never by returning from
-  WhatsApp/browser. No authenticated route opens before verification.
-- Never log the phone number, challenge, deep-link token, or tokens; mask in telemetry.
+- Single in-flight sign-in per submit; duplicate taps coalesce.
+- Authentication is established only when Pickup Pal returns a user and SouthBaySoccer issues tokens.
+- Not-found responses stay safe and do not disclose phone/email beyond the user's own entered number.
+- Never log the raw phone number, Pickup Pal email, access token, or refresh token; mask sensitive values in telemetry.
 
-## Test design (`Client.Tests` / `Functions.Tests`) — AUTH-8 slice
+## Test design (`Client.Tests` / `Application.Tests` / `Infrastructure.Tests` / `Functions.Tests`) - AUTH-8 slice
 
-- valid number invokes the challenge client; invalid number does not and shows inline validation;
-- repeated taps while busy produce exactly one challenge request;
-- request failure preserves the number and re-enables the action;
-- a verified deep link exchanges, stores tokens securely, and navigates exactly once;
-- (backend) verify/exchange issues rotating tokens and rejects an unverified/forged challenge.
+- valid number invokes phone sign-in once; invalid number does not call the API and shows inline validation;
+- repeated taps while busy produce exactly one sign-in request;
+- not found shows the sign-up prompt, stores no tokens, and does not navigate;
+- service failure preserves the number, re-enables the action, and shows non-sensitive copy;
+- Pickup Pal user sync creates/updates identity/profile, persists email, keeps local role unchanged, and avoids duplicates;
+- the anonymous Function endpoint returns tokens on success and safe problem details on not found.

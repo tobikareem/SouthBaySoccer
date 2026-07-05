@@ -70,19 +70,19 @@
                 <Border Style="{StaticResource WelcomeInputSurface}">
                     <Grid ColumnDefinitions="Auto,*"
                           ColumnSpacing="{StaticResource SpaceSm}">
-                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
-                               FontFamily="FontAwesomeBrands"
+                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.Phone}"
+                               FontFamily="FontAwesomeSolid"
                                FontSize="{StaticResource IconMd}"
-                               TextColor="{StaticResource WhatsApp}"
+                               TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
                                VerticalTextAlignment="Center"
-                               SemanticProperties.Description="WhatsApp number" />
+                               SemanticProperties.Description="Pickup Pal phone number" />
                         <Entry Grid.Column="1"
                                Text="{Binding PhoneNumber}"
                                Keyboard="Telephone"
                                Placeholder="+1 555 123 4567"
                                ReturnType="Done"
                                Style="{StaticResource WelcomePhoneEntry}"
-                               SemanticProperties.Description="WhatsApp phone number"
+                               SemanticProperties.Description="Pickup Pal phone number"
                                SemanticProperties.Hint="Include the country code" />
                     </Grid>
                 </Border>
@@ -93,13 +93,13 @@
                        IsVisible="{Binding HasPhoneNumberError}" />
 
                 <Grid>
-                    <Button Text="Continue with WhatsApp"
+                    <Button Text="Sign in with phone"
                             Command="{Binding RequestWhatsAppChallengeCommand}"
                             IsEnabled="{Binding IsNotBusy}"
-                            Style="{StaticResource WhatsAppButton}"
-                            SemanticProperties.Description="Continue with WhatsApp" />
-                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
-                           FontFamily="FontAwesomeBrands"
+                            Style="{StaticResource PrimaryButton}"
+                            SemanticProperties.Description="Sign in with Pickup Pal phone number" />
+                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.Phone}"
+                           FontFamily="FontAwesomeSolid"
                            FontSize="{StaticResource IconMd}"
                            TextColor="White"
                            HorizontalOptions="Start"
@@ -201,3 +201,5 @@
         </ScrollView>
     </Grid>
 </ContentPage>
+
+

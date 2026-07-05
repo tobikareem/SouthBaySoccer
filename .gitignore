@@ -171,3 +171,4 @@ ehthumbs.db
 /src/SouthBaySoccer.Functions/Properties/PublishProfiles
 /SouthBaySoccerFunc.PublishSettings
 PwScripts/*
+http/pickuppal-api.json

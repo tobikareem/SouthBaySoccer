@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
+using SouthBaySoccer.Application.Features.Authentication;
 using SouthBaySoccer.Functions.Pipeline;
 using Xunit;
 
@@ -15,6 +16,7 @@ public sealed class ProblemDetailsMapperTests
         { new UnauthenticatedException(), 401, "Unauthorized" },
         { new ForbiddenException(), 403, "Forbidden" },
         { new ResourceNotFoundException(), 404, "Not found" },
+        { new PickupPalUserNotFoundException(), 404, "Not found" },
         { new ConflictProblemException(), 409, "Conflict" },
         { new RateLimitExceededException(), 429, "Too many requests" },
         { new InvalidOperationException("sql timeout with private details"), 500, "Unexpected error" },

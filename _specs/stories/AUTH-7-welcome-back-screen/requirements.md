@@ -7,7 +7,7 @@
 
 ## Story
 
-*As a* returning SouthBaySoccer player, *I want* a clear WhatsApp sign-in screen, *so that* I can
+*As a* returning SouthBaySoccer player, *I want* a clear Pickup Pal phone sign-in screen, *so that* I can
 connect the app to my Pickup Pal account without entering a password.
 
 This is the first application screen and directly implements the first `signin` wireframe screen.
@@ -30,7 +30,7 @@ Scenario: The screen matches the first mobile wireframe hierarchy
   Given the Welcome Back screen is displayed
   Then it has a Flag Green-to-Pine header with the white flag stripe and decorative motif
   And the content is a white-dominant scrollable surface with 16 device-independent-pixel side padding
-  And the WhatsApp number field appears before the primary action
+  And the phone number field appears before the primary action
   And the security notice appears after the primary action
   And the Pickup Pal bot card appears before the "not on pickup pal?" divider
   And the external signup action and explanatory copy are the final content
@@ -51,5 +51,7 @@ Scenario: Screen remains usable with large text and a narrow viewport
 
 ## Related stories
 
-- [`AUTH-8`](../AUTH-8-continue-with-whatsapp/requirements.md) — the Continue-with-WhatsApp action and challenge verification.
+- [`AUTH-8`](../AUTH-8-continue-with-whatsapp/requirements.md) — the Pickup Pal phone sign-in action and token exchange.
 - [`AUTH-9`](../AUTH-9-pickup-pal-actions/requirements.md) — the bot / signup external actions on this screen.
+
+

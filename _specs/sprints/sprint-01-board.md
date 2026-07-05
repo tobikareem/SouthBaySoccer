@@ -32,7 +32,7 @@ Every story requirement, one line each. `[x]` = Definition of Done met · `[ ]` 
 - [x] **M11.0c** — Shared UI extensions: `LeadingContent` on BrandHeader/PlayerRow + `IconButton`, `IconToggleButton`, `MetadataChip`, `RatingSlider`. (S1)
 
 **Authentication (sign-in)**
-- [ ] **AUTH-7** — Welcome Back WhatsApp sign-in screen, the first app route. _(client screen done; automated large-text/narrow visual check remains)_
+- [ ] **AUTH-7** — Welcome Back Pickup Pal phone sign-in screen, the first app route. _(client screen done; automated large-text/narrow visual check remains)_
 - [ ] **AUTH-8** — Request + verify the one-time WhatsApp sign-in challenge. _(client slice done; verify/exchange + Functions tests deferred to the backend phase)_
 - [x] **AUTH-9** — Open the Pickup Pal bot / signup external actions.
 
@@ -82,7 +82,7 @@ _(none)_
 | Shared UI extensions | `M11.0c` | LeadingContent slots, icon/toggle/chip/slider styles, showcase, and XAML contract tests |
 | Seed providers + fixtures/state + DI | `SEED-1` | complete seed client set, immutable fixtures, resettable state, DI selection, Release guard, and tests |
 | Welcome Back screen | `AUTH-7` (`M11.3a`) | client done; `M11.3d` large-text/narrow visual check carryover |
-| Continue with WhatsApp (client) | `AUTH-8` (`M11.3b`) | client challenge/deep-link done |
+| Sign in with phone (client) | `AUTH-8` (`M11.3b`) | client challenge/deep-link done |
 | Pickup Pal actions | `AUTH-9` (`M11.3b/d`) | done |
 | Authenticated Shell & tabs | `NAV-1` | tabbed Shell, startup/sign-in routing, back-stack guard, Font Awesome tab icons, tests, and Windows/Android builds clean. |
 | Sessions (home) screen | `SES-6` | upcoming sessions, dues status, submit-stats prompt, seed-backed states, semantic/responsive checks, visual sign-off, and Windows/Android builds clean. |
@@ -137,4 +137,5 @@ Week 1. Screens start once `SEED-1` + `M11.0c` + `NAV-1` are merged.
 3. A card is **Done** only when its story's Definition of Done in `tasks.md` is met
    (builds, seed-backed `Client.Tests` green, wireframe match, no emoji/raw hex, accessibility + light/dark).
 4. Note new blockers under **Blocked** with the reason.
+
 

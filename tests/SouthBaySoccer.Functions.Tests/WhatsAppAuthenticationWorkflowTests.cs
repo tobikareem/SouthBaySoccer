@@ -90,9 +90,16 @@ public sealed class WhatsAppAuthenticationWorkflowTests
             identityResolver,
             Mock.Of<IAuthenticationTokenIssuer>());
 
+        var signInHandler = new SignInByPhoneCommandHandler(
+            new SignInByPhoneCommandValidator(),
+            Mock.Of<IPickupPalUserClient>(),
+            Mock.Of<IPickupPalUserSyncService>(),
+            Mock.Of<IAuthenticationTokenIssuer>());
+
         return new WhatsAppAuthenticationWorkflow(
             requestHandler,
             verifyHandler,
+            signInHandler,
             refreshTokenExchangeService,
             identityResolver,
             tokenService);

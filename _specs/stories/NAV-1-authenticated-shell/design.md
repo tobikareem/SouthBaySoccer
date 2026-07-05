@@ -31,7 +31,7 @@ App start
        ├─ success → set authenticated Shell as root, Sessions tab active
        └─ no/expired session → set Welcome Back as root (auth region)
 
-Sign-in success (AUTH-8 verified challenge)
+Sign-in success (AUTH-8 phone sign-in)
   └─ IAuthenticationNavigator.GoToAuthenticatedShellAsync()
        → replaces the auth region root with the authenticated Shell (Sessions active)
 
@@ -68,3 +68,5 @@ Shell itself is structural. The only state surface NAV-1 owns is the **placehold
 - after entering the Shell, back navigation does not return to Welcome Back;
 - an unbuilt tab shows the placeholder `StateView`, not a blank page;
 - tab bar/icons use brand resources + Font Awesome glyphs with semantic names; targets ≥ 44 dip.
+
+
