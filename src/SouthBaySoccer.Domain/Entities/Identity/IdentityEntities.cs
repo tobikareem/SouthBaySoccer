@@ -8,6 +8,8 @@ public class PlayerProfile : BaseEntity
 {
     /// <summary>Gets or sets the optional ASP.NET Identity user id for registered players.</summary>
     public Guid? IdentityUserId { get; set; }
+    /// <summary>Gets or sets the stable Pickup Pal user id for linked registered players.</summary>
+    public string? PickupPalUserId { get; set; }
     /// <summary>Gets or sets the display name shown in rosters and stats.</summary>
     public string DisplayName { get; set; } = string.Empty;
     /// <summary>Gets or sets the normalized display name used for search.</summary>

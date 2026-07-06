@@ -5,6 +5,14 @@ namespace SouthBaySoccer.SeedData;
 
 public sealed class SeedAuthenticationClient : IAuthenticationClient
 {
+    public Task<AuthenticationTokensResponse> SignInByPhoneAsync(
+        string phoneNumber,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(CreateTokens());
+    }
+
     private static readonly DateTime ChallengeExpiresAtUtc =
         new(2099, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 

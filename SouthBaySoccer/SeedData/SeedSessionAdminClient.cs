@@ -16,6 +16,20 @@ public sealed class SeedSessionAdminClient(SeedState state) : ISessionAdminClien
         return Task.FromResult(state.GetCreateSessionDefaults());
     }
 
+    public Task<IReadOnlyList<ManagedSessionDto>> ListManagedSessionsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(state.ListManagedSessions());
+    }
+
+    public Task<ManagedSessionEditDto?> GetSessionForEditAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(state.GetSessionForEdit(sessionId));
+    }
+
     public Task<IReadOnlyList<VenueDto>> SearchVenuesAsync(
         string? query,
         CancellationToken cancellationToken)
@@ -30,6 +44,15 @@ public sealed class SeedSessionAdminClient(SeedState state) : ISessionAdminClien
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(state.CreateDraft(command));
+    }
+
+    public Task<CreateSessionResult> UpdateSessionAsync(
+        Guid sessionId,
+        CreateSessionCommand command,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(state.UpdateSession(sessionId, command));
     }
 
     public Task<CreateSessionResult> PublishAsync(Guid draftId, CancellationToken cancellationToken)

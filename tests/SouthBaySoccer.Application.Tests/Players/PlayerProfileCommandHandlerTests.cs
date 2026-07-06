@@ -2,6 +2,7 @@ using FluentAssertions;
 using Moq;
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Abstractions.Time;
+using SouthBaySoccer.Application.Features.Authentication;
 using SouthBaySoccer.Application.Features.Players;
 using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Enumerations;
@@ -66,6 +67,47 @@ public sealed class PlayerProfileCommandHandlerTests
         unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
+
+    [Fact]
+    public async Task HandleAsync_WhenConfiguredAdminPhoneHashMatches_PromotesProfileToGameAdmin()
+    {
+        var identityUserId = Guid.NewGuid();
+        var profile = new PlayerProfile
+        {
+            Id = Guid.NewGuid(),
+            IdentityUserId = identityUserId,
+            DisplayName = "Tobi",
+            NormalizedDisplayName = "TOBI",
+            PreferredPosition = "Forward",
+            PhoneNumberHash = "configured-admin-hash",
+            Role = PlayerRole.Player,
+        };
+        var repository = new Mock<IPlayerProfileRepository>();
+        repository
+            .Setup(x => x.FindByIdentityUserIdAsync(identityUserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(profile);
+        repository
+            .Setup(x => x.FindEmergencyContactAsync(profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((EmergencyContact?)null);
+        var configuredAdmins = new Mock<IConfiguredAdminPhoneNumberService>();
+        configuredAdmins
+            .Setup(x => x.IsConfiguredAdminPhoneNumberHash("configured-admin-hash"))
+            .Returns(true);
+        var unitOfWork = new Mock<IUnitOfWork>();
+        unitOfWork.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        var handler = new GetMyProfileQueryHandler(
+            CreateCurrentUser(identityUserId).Object,
+            repository.Object,
+            configuredAdmins.Object,
+            unitOfWork.Object);
+
+        var result = await handler.HandleAsync();
+
+        profile.Role.Should().Be(PlayerRole.GameAdmin);
+        result.Role.Should().Be(PlayerRole.GameAdmin.ToString());
+        repository.Verify(x => x.Update(profile), Times.Once);
+        unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
     [Fact]
     public async Task HandleAsync_WhenCreatingGuestProfile_CreatesGuestWithoutIdentityUser()
     {
@@ -139,3 +181,4 @@ public sealed class PlayerProfileCommandHandlerTests
         return currentUser;
     }
 }
+

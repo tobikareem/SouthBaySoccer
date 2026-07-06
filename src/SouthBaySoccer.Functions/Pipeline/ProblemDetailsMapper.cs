@@ -1,6 +1,7 @@
 using System.Net;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using SouthBaySoccer.Application.Features.Authentication;
 using SouthBaySoccer.Application.Common;
 
 namespace SouthBaySoccer.Functions.Pipeline;
@@ -37,6 +38,11 @@ public sealed class ProblemDetailsMapper : IProblemDetailsMapper
                 "Unauthorized",
                 "Authentication is required.",
                 "unauthorized"),
+            PickupPalUserNotFoundException => Create(
+                HttpStatusCode.NotFound,
+                "Not found",
+                "No Pickup Pal account was found for that phone number.",
+                "pickup-pal-user-not-found"),
             ApplicationNotFoundException => Create(
                 HttpStatusCode.NotFound,
                 "Not found",

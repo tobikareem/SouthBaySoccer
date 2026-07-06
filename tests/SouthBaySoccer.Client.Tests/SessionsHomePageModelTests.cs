@@ -2,6 +2,7 @@ using System.Net.Http;
 using FluentAssertions;
 using Moq;
 using SouthBaySoccer.Contracts.Common;
+using SouthBaySoccer.Contracts.Profiles;
 using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
@@ -17,7 +18,7 @@ public class SessionsHomePageModelTests
     {
         var sessionsClient = new SeedSessionsClient(new SeedState());
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
-        var pageModel = new SessionsHomePageModel(sessionsClient, navigator.Object);
+        var pageModel = CreatePageModel(sessionsClient, navigator.Object, hour: 9);
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
@@ -38,6 +39,142 @@ public class SessionsHomePageModelTests
         pageModel.CanManageSessions.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(9, "Good morning, Tobi")]
+    [InlineData(13, "Good afternoon, Tobi")]
+    [InlineData(19, "Good evening, Tobi")]
+    public async Task Appearing_ProfileLoaded_BuildsGreetingFromLocalClockAndFirstName(
+        int hour,
+        string expectedGreeting)
+    {
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with { Greeting = "Fallback greeting" });
+        var profileClient = ProfileClientReturning("Tobi Kareem");
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(
+            sessionsClient.Object,
+            navigator.Object,
+            profileClient.Object,
+            hour);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.Greeting.Should().Be(expectedGreeting);
+        profileClient.Verify(
+            client => client.GetCurrentProfileAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Appearing_ProfileCallCompletes_ClearsRefreshSpinner()
+    {
+        var profileGate = new TaskCompletionSource<PlayerProfileDto?>();
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard);
+        var profileClient = new Mock<IProfileClient>();
+        profileClient
+            .Setup(client => client.GetCurrentProfileAsync(It.IsAny<CancellationToken>()))
+            .Returns(profileGate.Task);
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(
+            sessionsClient.Object,
+            navigator.Object,
+            profileClient.Object);
+
+        var load = pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.IsRefreshing.Should().BeTrue();
+        profileGate.SetResult(new PlayerProfileDto(
+            SeedFixtures.CurrentPlayerId,
+            "Tobi Kareem",
+            "Captain",
+            "TK",
+            new CareerStatsDto(0, 0, 0, 0, 0, 0),
+            [],
+            null));
+        await load;
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsRefreshing.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Appearing_AfterProfileLoaded_UsesCachedProfileName()
+    {
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with { Greeting = "Fallback greeting" });
+        var profileClient = ProfileClientReturning("Tobi Kareem");
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(
+            sessionsClient.Object,
+            navigator.Object,
+            profileClient.Object,
+            hour: 9);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.Greeting.Should().Be("Good morning, Tobi");
+        sessionsClient.Verify(
+            client => client.GetDashboardAsync(It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+        profileClient.Verify(
+            client => client.GetCurrentProfileAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Refresh_AfterProfileLoaded_ForcesProfileReload()
+    {
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with { Greeting = "Fallback greeting" });
+        var profileClient = ProfileClientReturning("Tobi Kareem");
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(
+            sessionsClient.Object,
+            navigator.Object,
+            profileClient.Object,
+            hour: 9);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.RefreshCommand.ExecuteAsync(null);
+
+        profileClient.Verify(
+            client => client.GetCurrentProfileAsync(It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task Appearing_ProfileUnavailable_UsesDashboardGreeting()
+    {
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with { Greeting = "Good morning, Captain" });
+        var profileClient = new Mock<IProfileClient>();
+        profileClient
+            .Setup(client => client.GetCurrentProfileAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PlayerProfileDto?)null);
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(
+            sessionsClient.Object,
+            navigator.Object,
+            profileClient.Object,
+            hour: 19);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.Greeting.Should().Be("Good morning, Captain");
+    }
+
     [Fact]
     public async Task CreateSession_Invoked_NavigatesToCreateSessionScreen()
     {
@@ -46,11 +183,34 @@ public class SessionsHomePageModelTests
         navigator
             .Setup(item => item.GoToCreateSessionAsync())
             .Returns(Task.CompletedTask);
-        var pageModel = new SessionsHomePageModel(sessionsClient.Object, navigator.Object);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
+        pageModel.CanManageSessions = true;
 
         await pageModel.CreateSessionCommand.ExecuteAsync(null);
 
         navigator.Verify(item => item.GoToCreateSessionAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task Appearing_RegularPlayerProfile_HidesCreateSessionAndBlocksNavigation()
+    {
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with { CanManageSessions = true });
+        var profileClient = ProfileClientReturning("Tobi Kareem", role: "Player");
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(
+            sessionsClient.Object,
+            navigator.Object,
+            profileClient.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.CreateSessionCommand.ExecuteAsync(null);
+
+        pageModel.CanManageSessions.Should().BeFalse();
+        pageModel.CreateSessionCommand.CanExecute(null).Should().BeFalse();
+        navigator.Verify(item => item.GoToCreateSessionAsync(), Times.Never);
     }
 
     [Fact]
@@ -61,7 +221,7 @@ public class SessionsHomePageModelTests
             .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(EmptyDashboard());
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
-        var pageModel = new SessionsHomePageModel(sessionsClient.Object, navigator.Object);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
@@ -78,7 +238,7 @@ public class SessionsHomePageModelTests
             .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("boom"));
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
-        var pageModel = new SessionsHomePageModel(sessionsClient.Object, navigator.Object);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
 
         var act = () => pageModel.AppearingCommand.ExecuteAsync(null);
 
@@ -95,7 +255,7 @@ public class SessionsHomePageModelTests
             .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("offline"));
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
-        var pageModel = new SessionsHomePageModel(sessionsClient.Object, navigator.Object);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
@@ -112,7 +272,7 @@ public class SessionsHomePageModelTests
             .ThrowsAsync(new HttpRequestException("offline"))
             .ReturnsAsync(SeedFixtures.Dashboard);
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
-        var pageModel = new SessionsHomePageModel(sessionsClient.Object, navigator.Object);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
         await pageModel.RefreshCommand.ExecuteAsync(null);
@@ -129,7 +289,7 @@ public class SessionsHomePageModelTests
         navigator
             .Setup(item => item.GoToSessionAsync(SeedFixtures.StanfordSessionId))
             .Returns(Task.CompletedTask);
-        var pageModel = new SessionsHomePageModel(sessionsClient.Object, navigator.Object);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
 
         await pageModel.ViewSessionDetailCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
 
@@ -144,7 +304,7 @@ public class SessionsHomePageModelTests
         navigator
             .Setup(item => item.GoToMatchStatsAsync(SeedFixtures.FeaturedMatchId))
             .Returns(Task.CompletedTask);
-        var pageModel = new SessionsHomePageModel(sessionsClient.Object, navigator.Object);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
 
         await pageModel.OpenMatchStatsCommand.ExecuteAsync(SeedFixtures.FeaturedMatchId);
 
@@ -166,7 +326,7 @@ public class SessionsHomePageModelTests
             .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
             .Returns((CancellationToken _) => Task.FromResult(state.GetDashboard()));
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
-        var pageModel = new SessionsHomePageModel(sessionsClient.Object, navigator.Object);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
 
         await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
 
@@ -192,13 +352,50 @@ public class SessionsHomePageModelTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(ClientCommandResult.Failure("session_not_full", "still space"));
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
-        var pageModel = new SessionsHomePageModel(sessionsClient.Object, navigator.Object);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
 
         await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.MarinaSessionId);
 
         sessionsClient.Verify(
             client => client.GetDashboardAsync(It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    private static SessionsHomePageModel CreatePageModel(
+        ISessionsClient sessionsClient,
+        ISessionsNavigator navigator,
+        IProfileClient? profileClient = null,
+        int hour = 9) =>
+        new(
+            sessionsClient,
+            navigator,
+            profileClient ?? ProfileClientReturning("Tobi Kareem").Object,
+            new FixedTimeProvider(hour));
+
+    private static Mock<IProfileClient> ProfileClientReturning(string displayName, string role = "GameAdmin")
+    {
+        var profileClient = new Mock<IProfileClient>();
+        profileClient
+            .Setup(client => client.GetCurrentProfileAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlayerProfileDto(
+                SeedFixtures.CurrentPlayerId,
+                displayName,
+                "Captain",
+                "TK",
+                new CareerStatsDto(0, 0, 0, 0, 0, 0),
+                [],
+                null,
+                role));
+
+        return profileClient;
+    }
+
+    private sealed class FixedTimeProvider(int hour) : TimeProvider
+    {
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+
+        public override DateTimeOffset GetUtcNow() =>
+            new(2026, 7, 5, hour, 0, 0, TimeSpan.Zero);
     }
 
     private static SessionsDashboardDto EmptyDashboard() =>

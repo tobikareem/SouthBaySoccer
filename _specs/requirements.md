@@ -157,7 +157,7 @@ Scenario: Repeated failures lock the account temporarily
 > [`stories/AUTH-9-pickup-pal-actions/`](stories/AUTH-9-pickup-pal-actions/requirements.md). The
 > summaries below remain as the overview index.
 
-*As a* returning SouthBaySoccer player, *I want* a clear WhatsApp sign-in screen, *so that* I can
+*As a* returning SouthBaySoccer player, *I want* a clear Pickup Pal phone sign-in screen, *so that* I can
 connect the app to my Pickup Pal account without entering a password.
 
 This is the first application screen and directly implements the first `signin` screen in
@@ -179,13 +179,13 @@ Scenario: The screen matches the first mobile wireframe hierarchy
   Given the Welcome Back screen is displayed
   Then it has a Flag Green-to-Pine header with the white flag stripe and decorative motif
   And the content is a white-dominant scrollable surface with 16 device-independent-pixel side padding
-  And the WhatsApp number field appears before the primary action
+  And the phone number field appears before the primary action
   And the security notice appears after the primary action
   And the Pickup Pal bot card appears before the "not on pickup pal?" divider
   And the external signup action and explanatory copy are the final content
 
 Scenario: Iconography uses Font Awesome instead of emoji
-  Given the Welcome Back screen contains football, WhatsApp, shield, and external-link pictograms
+  Given the Welcome Back screen contains football, phone, shield, and external-link pictograms
   Then each pictogram is rendered from a bundled Font Awesome Free font
   And no Unicode emoji is used
   And every informational or interactive icon has a semantic description
@@ -198,41 +198,47 @@ Scenario: Screen remains usable with large text and a narrow viewport
   And every interactive target is at least 44 device-independent pixels
 ```
 
-### AUTH-8 — Continue with WhatsApp from Welcome Back
-*As a* returning player, *I want* to request a one-time WhatsApp sign-in link, *so that* I can
-authenticate through the Pickup Pal account connected to my phone number.
+### AUTH-8 - Pickup Pal phone sign-in from Welcome Back
+*As a* returning player, *I want* to sign in with the phone number on my Pickup Pal account, *so that*
+SouthBaySoccer can verify my account and issue app tokens without a password.
 
 ```gherkin
-Scenario: Valid WhatsApp number starts password-free sign-in
+Scenario: Valid phone number starts password-free sign-in
   Given the Welcome Back screen is displayed
   And I enter a valid international phone number
-  When I select "Continue with WhatsApp"
-  Then the client requests a one-time Pickup Pal sign-in challenge
+  When I select "Sign in with phone"
+  Then the client posts the phone number to the SouthBaySoccer phone sign-in endpoint
   And the primary action enters a busy state and cannot be submitted twice
-  And no authenticated route opens until the challenge is verified
+  And no authenticated route opens until SouthBaySoccer returns access and refresh tokens
 
-Scenario: Invalid WhatsApp number is rejected locally
+Scenario: Invalid phone number is rejected locally
   Given the Welcome Back screen is displayed
   When I enter a missing or invalid phone number
-  And I select "Continue with WhatsApp"
+  And I select "Sign in with phone"
   Then an inline validation message explains the required phone format
   And no network request is sent
 
-Scenario: Challenge request failure is recoverable
+Scenario: Pickup Pal account is not found
   Given a valid phone number is entered
-  When the challenge request fails because the service is unavailable or the device is offline
+  When Pickup Pal does not have a user for that number
+  Then a non-sensitive message asks me to sign up on Pickup Pal
+  And no tokens are stored
+  And the app remains on the Welcome Back screen
+
+Scenario: Phone sign-in failure is recoverable
+  Given a valid phone number is entered
+  When the phone sign-in request fails because the service is unavailable or the device is offline
   Then a non-sensitive error message is displayed
   And the number remains available for correction or retry
   And the primary action becomes enabled again
 
-Scenario: Verified one-time link completes sign-in
-  Given a one-time sign-in challenge was requested for my number
-  When the app receives and verifies the Pickup Pal deep link
-  Then the Function App exchanges the verified challenge for SouthBaySoccer access and refresh tokens
+Scenario: Pickup Pal phone match completes sign-in
+  Given Pickup Pal has a user for my phone number
+  When the Function App syncs the returned Pickup Pal user locally
+  Then the Function App issues SouthBaySoccer access and refresh tokens
   And the tokens are stored using platform secure storage
   And the app replaces the Welcome Back route with the authenticated Sessions route
 ```
-
 ### AUTH-9 — Pickup Pal help and signup actions
 
 ```gherkin
@@ -799,3 +805,6 @@ AUTH-3/4, RSVP-2/4, PAY-2, SES-3, STAT-3, LEAD-1, PROF-4, and NOTIF-1.
 
 The first-screen client trace is `AUTH-7/8/9 + INV-13` → `design.md` §11 →
 `tasks.md` M11.0a and M11.3a–M11.3d.
+
+
+

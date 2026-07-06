@@ -8,6 +8,25 @@ namespace SouthBaySoccer.Functions.Authentication;
 
 public sealed class AuthenticationFunctions(IWhatsAppAuthenticationWorkflow workflow)
 {
+    [Function(nameof(SignInByPhone))]
+    [AllowAnonymous]
+    public async Task<HttpResponseData> SignInByPhone(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/pickuppal/phone/sign-in")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var body = await request.ReadFromJsonAsync<SignInByPhoneRequest>(cancellationToken);
+        if (body is null)
+        {
+            throw new ValidationProblemException(new Dictionary<string, string[]>
+            {
+                ["body"] = ["A request body is required."],
+            });
+        }
+
+        var result = await workflow.SignInByPhoneAsync(body, cancellationToken);
+        return await WriteJsonAsync(request, HttpStatusCode.OK, result, cancellationToken);
+    }
+
     [Function(nameof(RequestWhatsAppChallenge))]
     [AllowAnonymous]
     public async Task<HttpResponseData> RequestWhatsAppChallenge(

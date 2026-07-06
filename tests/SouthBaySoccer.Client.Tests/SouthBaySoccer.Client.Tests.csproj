@@ -12,6 +12,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="FluentAssertions" Version="7.2.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -41,6 +42,7 @@
     <Compile Include="..\..\SouthBaySoccer\PageModels\RateTeammatesPageModel.cs" Link="Client\PageModels\RateTeammatesPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\GameDayPageModels.cs" Link="Client\PageModels\GameDayPageModels.cs" />
     <Compile Include="..\..\SouthBaySoccer\Controls\ControlVariants.cs" Link="Client\Controls\ControlVariants.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationClient.cs" Link="Client\Services\AuthenticationClient.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationCoordinator.cs" Link="Client\Services\AuthenticationCoordinator.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AppStartupService.cs" Link="Client\Services\AppStartupService.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IAppStartupService.cs" Link="Client\Services\IAppStartupService.cs" />
@@ -48,6 +50,7 @@
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IAuthenticationCoordinator.cs" Link="Client\Services\IAuthenticationCoordinator.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IAuthenticationNavigator.cs" Link="Client\Services\IAuthenticationNavigator.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IExternalLauncher.cs" Link="Client\Services\IExternalLauncher.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\IUserDialogService.cs" Link="Client\Services\IUserDialogService.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\ISecureTokenStore.cs" Link="Client\Services\ISecureTokenStore.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\PhoneNumberValidator.cs" Link="Client\Services\PhoneNumberValidator.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Clients\*.cs" Link="Client\Services\Clients\%(Filename)%(Extension)" />
@@ -85,5 +88,7 @@
     <None Include="..\..\SouthBaySoccer\Services\Profile\ProfileFeatureServiceCollectionExtensions.cs" Link="Client\Source\ProfileFeatureServiceCollectionExtensions.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
+
+
 
 

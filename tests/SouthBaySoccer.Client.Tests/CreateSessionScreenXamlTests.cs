@@ -71,7 +71,7 @@ public class CreateSessionScreenXamlTests
 
     [Fact]
     public void CreateSessionScreen_PublishActionExposesSemanticDescription() =>
-        ReadXaml().Should().Contain("SemanticProperties.Description=\"Publish to team\"");
+        ReadXaml().Should().Contain("SemanticProperties.Description=\"Publish or update session\"");
 
     [Fact]
     public void CreateSessionScreen_HeaderMatchesAdminSessionWireframe()
@@ -89,6 +89,8 @@ public class CreateSessionScreenXamlTests
         var xaml = ReadXaml();
 
         xaml.Should().Contain("Create a session, preview it, then publish it to the team so players can RSVP.");
+        xaml.Should().Contain("CREATED SESSIONS");
+        xaml.Should().Contain("Edit");
         xaml.Should().Contain("GAME DATE AND TIME");
         xaml.Should().Contain("GAME DATE");
         xaml.Should().Contain("START TIME");
@@ -101,7 +103,7 @@ public class CreateSessionScreenXamlTests
         xaml.Should().Contain("GAME SETUP");
         xaml.Should().Contain("PLAYER PREVIEW");
         xaml.Should().Contain("Ready for RSVP");
-        xaml.Should().Contain("Publish to team");
+        xaml.Should().Contain("PrimaryActionText");
     }
 
     [Fact]

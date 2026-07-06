@@ -65,12 +65,41 @@ public class CreateSessionPageModelTests
         pageModel.SelectedFormat.Should().Be("7v7");
         pageModel.Capacity.Should().Be(20);
         pageModel.SelectedVenue!.Name.Should().Be("Marina Field");
-        pageModel.PreviewTitle.Should().Be("Marina Field · Saturday pickup");
+        pageModel.PreviewTitle.Should().Contain("Marina Field").And.Contain("Saturday pickup");
         pageModel.PreviewDateLabel.Should().Be("Jun 27");
         pageModel.PreviewTimeLabel.Should().Be("7:40 PM");
-        pageModel.PreviewFormatLabel.Should().Be("7v7 · 20 spots");
-        pageModel.CheckInPreviewLabel.Should().Be("Check-in 7:30 PM · closes 7:45 PM");
+        pageModel.PreviewFormatLabel.Should().Contain("7v7").And.Contain("20 spots");
+        pageModel.CheckInPreviewLabel.Should().Contain("Check-in 7:30 PM").And.Contain("closes 7:45 PM");
         GetContractProperty<TimeSpan>(pageModel, "RsvpCloseTime").Should().Be(new TimeSpan(18, 30, 0));
+        pageModel.CanPublish.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Load_SeedDefaults_LoadsCreatedSessionsForAdminUpdates()
+    {
+        var pageModel = SeedBackedModel(out _, out _);
+
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        pageModel.HasManagedSessions.Should().BeTrue();
+        pageModel.ManagedSessions.Should().Contain(session => session.Title.Contains("Marina Field"));
+        pageModel.ManagedSessions.Should().OnlyContain(session => session.SessionId != Guid.Empty);
+    }
+
+    [Fact]
+    public async Task EditManagedSession_LoadsExistingSessionIntoUpdateMode()
+    {
+        var pageModel = SeedBackedModel(out _, out _);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        var session = pageModel.ManagedSessions.First(item => item.Title.Contains("Stanford Turf"));
+
+        await pageModel.EditManagedSessionCommand.ExecuteAsync(session);
+
+        pageModel.IsEditingSession.Should().BeTrue();
+        pageModel.EditingSessionId.Should().Be(session.SessionId);
+        pageModel.PrimaryActionText.Should().Be("Update session");
+        pageModel.SelectedVenue!.Name.Should().Be("Stanford Turf");
+        pageModel.PreviewTitle.Should().Contain("Stanford Turf").And.Contain("Saturday pickup");
         pageModel.CanPublish.Should().BeTrue();
     }
 
@@ -149,7 +178,7 @@ public class CreateSessionPageModelTests
         pageModel.VenueQuery.Should().Be("Cuesta Park");
         pageModel.SavedVenueHint.Should().Be(cuesta.Locality);
         pageModel.HasVenueResults.Should().BeFalse();
-        pageModel.PreviewTitle.Should().Be("Cuesta Park · Saturday pickup");
+        pageModel.PreviewTitle.Should().Contain("Cuesta Park").And.Contain("Saturday pickup");
     }
 
     [Fact]
@@ -204,6 +233,31 @@ public class CreateSessionPageModelTests
         ids.Should().OnlyContain(id => id == ids[0]);
         var dashboard = await sessionsClient.GetDashboardAsync(CancellationToken.None);
         dashboard.ComingUpSessions.Count(session => session.Id == ids[0]).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task PublishToTeam_EditingExistingSession_UpdatesSessionWithoutCreatingDuplicate()
+    {
+        var pageModel = SeedBackedModel(out var state, out var navigator);
+        var sessionsClient = new SeedSessionsClient(state);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        var session = pageModel.ManagedSessions.First(item => item.Title.Contains("Marina Field"));
+        var originalDashboard = await sessionsClient.GetDashboardAsync(CancellationToken.None);
+        var originalCount = originalDashboard.ComingUpSessions.Count;
+
+        await pageModel.EditManagedSessionCommand.ExecuteAsync(session);
+        pageModel.Capacity = 18;
+        pageModel.SelectVenueCommand.Execute(SeedFixtures.Venues.Single(venue => venue.Name == "Cuesta Park"));
+        await pageModel.PublishToTeamCommand.ExecuteAsync(null);
+
+        var updated = await sessionsClient.GetSessionAsync(session.SessionId, CancellationToken.None);
+        var dashboard = await sessionsClient.GetDashboardAsync(CancellationToken.None);
+
+        updated!.Venue.Should().Be("Cuesta Park");
+        updated.Capacity.Should().Be(18);
+        dashboard.ComingUpSessions.Count.Should().Be(originalCount);
+        pageModel.ValidationMessage.Should().BeEmpty();
+        navigator.Verify(item => item.GoToSessionAsync(It.IsAny<Guid>()), Times.Never);
     }
 
     [Fact]

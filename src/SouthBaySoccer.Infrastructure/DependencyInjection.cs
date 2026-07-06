@@ -63,6 +63,9 @@ public static class DependencyInjection
         services.AddSingleton<IWhatsAppChallengeTokenGenerator, WhatsAppChallengeTokenGenerator>();
         services.AddSingleton<IWhatsAppChallengeDeliverySender, UnavailableWhatsAppChallengeDeliverySender>();
         services.AddScoped<IWhatsAppIdentityResolver, WhatsAppIdentityResolver>();
+        services.AddHttpClient<IPickupPalUserClient, PickupPalUserClient>();
+        services.AddSingleton<IConfiguredAdminPhoneNumberService, ConfiguredAdminPhoneNumberService>();
+        services.AddScoped<IPickupPalUserSyncService, PickupPalUserSyncService>();
         services.AddScoped<IAuthenticationTokenIssuer, AuthenticationTokenIssuer>();
         services.AddScoped<ITokenService, JwtTokenService>();
         services.AddScoped<IRefreshTokenExchangeService, RefreshTokenExchangeService>();
@@ -78,6 +81,7 @@ public static class DependencyInjection
             {
                 options.SignIn.RequireConfirmedAccount = true;
                 options.User.RequireUniqueEmail = true;
+                options.User.AllowedUserNameCharacters += ":";
                 options.Password.RequiredLength = 10;
                 options.Password.RequireDigit = true;
                 options.Password.RequireLowercase = true;
@@ -93,3 +97,4 @@ public static class DependencyInjection
         return services;
     }
 }
+

@@ -2,6 +2,7 @@ using CommunityToolkit.Maui;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.LifecycleEvents;
 using SouthBaySoccer.Configuration;
+using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
 using SouthBaySoccer.Services.Leaderboard;
@@ -77,6 +78,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<TagRepository>();
         builder.Services.AddSingleton<SeedDataService>();
         builder.Services.AddSingleton<ModalErrorHandler>();
+        builder.Services.AddSingleton<IUserDialogService, UserDialogService>();
+        builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<MainPageModel>();
         builder.Services.AddSingleton<ProjectListPageModel>();
         builder.Services.AddSingleton<ManageMetaPageModel>();
@@ -103,10 +106,22 @@ public static class MauiProgram
         builder.Services.AddSingleton(new RateTeammatesOptions());
         builder.Services.AddSingleton<IRateTeammatesNavigator, ShellRateTeammatesNavigator>();
 
+#if DEBUG && ANDROID
+        var pickupPalOptions = new PickupPalOptions { ApiBaseUri = new Uri("http://10.0.2.2:7071/api/") };
+#else
         var pickupPalOptions = new PickupPalOptions();
+#endif
+        var configuredClientDataSource = builder.Configuration["ClientDataSource"];
+        var clientDataSourceOptions = ClientDataSourceOptions.FromValue(configuredClientDataSource);
+#if DEBUG && ANDROID
+        if (string.IsNullOrWhiteSpace(configuredClientDataSource))
+        {
+            clientDataSourceOptions = new ClientDataSourceOptions { DataSource = ClientDataSource.Api };
+        }
+#endif
         builder.Services.AddSingleton(pickupPalOptions);
         builder.Services.AddSouthBaySoccerClients(
-            ClientDataSourceOptions.FromValue(builder.Configuration["ClientDataSource"]),
+            clientDataSourceOptions,
             pickupPalOptions);
         builder.Services.AddSingleton<ISecureTokenStore, SecureTokenStore>();
         builder.Services.AddSingleton<IAuthenticationNavigator, AuthenticationNavigator>();
@@ -144,8 +159,4 @@ public static class MauiProgram
     }
 #endif
 }
-
-
-
-
 

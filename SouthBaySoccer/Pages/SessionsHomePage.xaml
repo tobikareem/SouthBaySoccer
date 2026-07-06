@@ -32,7 +32,8 @@
         Glyph="{x:Static fonts:FontAwesomeGlyphs.Calendar}"
         GlyphFontFamily="FontAwesomeSolid"
         RetryCommand="{Binding RefreshCommand}">
-        <RefreshView Command="{Binding RefreshCommand}">
+        <RefreshView Command="{Binding RefreshCommand}"
+                     IsRefreshing="{Binding IsRefreshing, Mode=TwoWay}">
             <ScrollView>
                 <VerticalStackLayout
                     Padding="{StaticResource LayoutPadding}"
@@ -210,7 +211,7 @@
                         </Grid>
                     </controls:BrandCard>
 
-                    <!-- Admin: create-session entry, gated by the seed CanManageSessions flag -->
+                    <!-- Admin: create-session entry, gated by the signed-in profile role -->
                     <controls:SectionHeader
                         Text="Admin"
                         ActionText="Create session"

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Services.Authentication;
 
@@ -25,10 +26,41 @@ public static class ClientServiceCollectionExtensions
         return options.DataSource switch
         {
             ClientDataSource.Seed => AddSeedClients(services),
-            ClientDataSource.Api => services,
+            ClientDataSource.Api => AddApiClients(services, pickupPalOptions),
             _ => throw new InvalidOperationException(
                 $"Unsupported client data source '{options.DataSource}'.")
         };
+    }
+
+    private static IServiceCollection AddApiClients(IServiceCollection services, PickupPalOptions pickupPalOptions)
+    {
+        services.AddTransient<CorrelationIdHandler>();
+        services.AddTransient<AuthenticationHandler>();
+        services.AddTransient<ApiExceptionHandler>();
+
+        services.AddHttpClient(
+            "SouthBaySoccer.Anonymous",
+            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+
+        services.AddHttpClient<IProfileClient, ApiProfileClient>(
+            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<AuthenticationHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+
+        services.AddSingleton<IAuthenticationClient>(provider =>
+            new AuthenticationClient(
+                provider.GetRequiredService<IHttpClientFactory>().CreateClient("SouthBaySoccer.Anonymous"),
+                pickupPalOptions));
+        services.AddSingleton<IAuthenticationSessionRefresher, AuthenticationSessionRefresher>();
+
+#if RELEASE
+        return services;
+#else
+        return AddSeedClientsExceptProfileAndAuthentication(services);
+#endif
     }
 
     private static IServiceCollection AddSeedClients(IServiceCollection services)
@@ -40,17 +72,26 @@ public static class ClientServiceCollectionExtensions
         services.AddSingleton<SeedState>();
         services.AddSingleton<SeedGameDayState>();
         services.AddSingleton<IAuthenticationClient, SeedAuthenticationClient>();
+        services.AddSingleton<IProfileClient, SeedProfileClient>();
+        return AddSeedClientsExceptProfileAndAuthentication(services);
+#endif
+    }
+
+#if !RELEASE
+    private static IServiceCollection AddSeedClientsExceptProfileAndAuthentication(IServiceCollection services)
+    {
+        services.TryAddSingleton<SeedState>();
+        services.TryAddSingleton<SeedGameDayState>();
         services.AddSingleton<ISessionsClient, SeedSessionsClient>();
         services.AddSingleton<ISessionAdminClient, SeedSessionAdminClient>();
         services.AddSingleton<IRosterClient, SeedRosterClient>();
         services.AddSingleton<IStatsClient, SeedStatsClient>();
         services.AddSingleton<ILeaderboardClient, SeedLeaderboardClient>();
         services.AddSingleton<IPlayersClient, SeedPlayersClient>();
-        services.AddSingleton<IProfileClient, SeedProfileClient>();
         services.AddSingleton<IGameDayClient, SeedGameDayClient>();
         return services;
-#endif
     }
+#endif
 
     private static bool IsSeedProviderAvailable
     {

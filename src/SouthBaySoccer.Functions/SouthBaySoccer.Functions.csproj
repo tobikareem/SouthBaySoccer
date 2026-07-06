@@ -25,5 +25,3 @@
     <ProjectReference Include="..\SouthBaySoccer.Contracts\SouthBaySoccer.Contracts.csproj" />
   </ItemGroup>
 </Project>
-
-

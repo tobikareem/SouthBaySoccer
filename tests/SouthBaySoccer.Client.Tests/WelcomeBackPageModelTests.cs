@@ -3,6 +3,7 @@ using Moq;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Contracts.Authentication;
 using SouthBaySoccer.PageModels;
+using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Authentication;
 
 namespace SouthBaySoccer.Client.Tests;
@@ -10,7 +11,7 @@ namespace SouthBaySoccer.Client.Tests;
 public class WelcomeBackPageModelTests
 {
     [Fact]
-    public async Task RequestWhatsAppChallenge_InvalidPhone_DoesNotCallClient()
+    public async Task RequestPhoneSignIn_InvalidPhone_DoesNotCallClient()
     {
         var authenticationClient = new Mock<IAuthenticationClient>(MockBehavior.Strict);
         var authenticationCoordinator = new Mock<IAuthenticationCoordinator>(MockBehavior.Strict);
@@ -29,15 +30,16 @@ public class WelcomeBackPageModelTests
     }
 
     [Fact]
-    public async Task RequestWhatsAppChallenge_ValidPhone_NormalizesAndCallsOnce()
+    public async Task RequestPhoneSignIn_ValidPhone_NormalizesStoresTokensAndNavigates()
     {
         var authenticationClient = new Mock<IAuthenticationClient>();
         authenticationClient
-            .Setup(client => client.RequestWhatsAppChallengeAsync(
+            .Setup(client => client.SignInByPhoneAsync(
                 "+15163447233",
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new RequestWhatsAppChallengeResponse(
-                "challenge-id",
+            .ReturnsAsync(new AuthenticationTokensResponse(
+                "access-token",
+                "refresh-token",
                 DateTime.UtcNow.AddMinutes(10)));
         var externalLauncher = new Mock<IExternalLauncher>(MockBehavior.Strict);
         var authenticationCoordinator = CreateIncompleteCoordinator();
@@ -49,37 +51,34 @@ public class WelcomeBackPageModelTests
 
         await pageModel.RequestWhatsAppChallengeCommand.ExecuteAsync(null);
 
-        pageModel.StatusMessage.Should().Contain("Check WhatsApp");
+        pageModel.HasStatusMessage.Should().BeFalse();
         pageModel.IsBusy.Should().BeFalse();
         authenticationClient.Verify(
-            client => client.RequestWhatsAppChallengeAsync(
+            client => client.SignInByPhoneAsync(
                 "+15163447233",
                 It.IsAny<CancellationToken>()),
             Times.Once);
         authenticationCoordinator.Verify(
-            coordinator => coordinator.TryCompleteChallengeAsync(
-                "challenge-id",
+            coordinator => coordinator.CompleteSignInAsync(
+                It.IsAny<AuthenticationTokensResponse>(),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task RequestWhatsAppChallenge_SeedChallengeCompletes_NavigatesWithoutWaitingMessage()
+    public async Task RequestPhoneSignIn_Success_NavigatesWithoutStatusMessage()
     {
         var authenticationClient = new Mock<IAuthenticationClient>();
         authenticationClient
-            .Setup(client => client.RequestWhatsAppChallengeAsync(
+            .Setup(client => client.SignInByPhoneAsync(
                 "+15163447233",
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new RequestWhatsAppChallengeResponse(
-                "seed-whatsapp-challenge",
+            .ReturnsAsync(new AuthenticationTokensResponse(
+                "access-token",
+                "refresh-token",
                 DateTime.UtcNow.AddMinutes(10)));
         var authenticationCoordinator = new Mock<IAuthenticationCoordinator>();
-        authenticationCoordinator
-            .Setup(coordinator => coordinator.TryCompleteChallengeAsync(
-                "seed-whatsapp-challenge",
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+
         var externalLauncher = new Mock<IExternalLauncher>(MockBehavior.Strict);
         var pageModel = CreatePageModel(
             authenticationClient,
@@ -92,18 +91,18 @@ public class WelcomeBackPageModelTests
         pageModel.HasStatusMessage.Should().BeFalse();
         pageModel.IsBusy.Should().BeFalse();
         authenticationCoordinator.Verify(
-            coordinator => coordinator.TryCompleteChallengeAsync(
-                "seed-whatsapp-challenge",
+            coordinator => coordinator.CompleteSignInAsync(
+                It.IsAny<AuthenticationTokensResponse>(),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task RequestWhatsAppChallenge_ServiceFailure_PreservesPhoneAndIsRecoverable()
+    public async Task RequestPhoneSignIn_ServiceFailure_PreservesPhoneAndIsRecoverable()
     {
         var authenticationClient = new Mock<IAuthenticationClient>();
         authenticationClient
-            .Setup(client => client.RequestWhatsAppChallengeAsync(
+            .Setup(client => client.SignInByPhoneAsync(
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("offline"));
@@ -121,6 +120,46 @@ public class WelcomeBackPageModelTests
         pageModel.IsNotBusy.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task RequestPhoneSignIn_NotFound_ShowsSignupPromptAndDoesNotNavigate()
+    {
+        var authenticationClient = new Mock<IAuthenticationClient>();
+        authenticationClient
+            .Setup(client => client.SignInByPhoneAsync(
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("not found", null, System.Net.HttpStatusCode.NotFound));
+        var authenticationCoordinator = new Mock<IAuthenticationCoordinator>(MockBehavior.Strict);
+        var externalLauncher = new Mock<IExternalLauncher>(MockBehavior.Strict);
+        var dialogService = new Mock<IUserDialogService>();
+        dialogService
+            .Setup(dialog => dialog.ShowAlertAsync(
+                WelcomeBackPageModel.PickupPalNotFoundTitle,
+                WelcomeBackPageModel.PickupPalNotFoundMessage,
+                "OK",
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var pageModel = CreatePageModel(
+            authenticationClient,
+            authenticationCoordinator,
+            externalLauncher,
+            dialogService: dialogService);
+        pageModel.PhoneNumber = "+1 516 344 7233";
+
+        await pageModel.RequestWhatsAppChallengeCommand.ExecuteAsync(null);
+
+        pageModel.HasStatusMessage.Should().BeFalse();
+        pageModel.IsNotBusy.Should().BeTrue();
+        WelcomeBackPageModel.PickupPalNotFoundMessage.Should().NotContain("516");
+        dialogService.Verify(
+            dialog => dialog.ShowAlertAsync(
+                WelcomeBackPageModel.PickupPalNotFoundTitle,
+                WelcomeBackPageModel.PickupPalNotFoundMessage,
+                "OK",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        authenticationCoordinator.VerifyNoOtherCalls();
+    }
     [Fact]
     public async Task OpenPickupPalBot_LaunchFailure_ShowsRecoverableMessage()
     {
@@ -147,20 +186,20 @@ public class WelcomeBackPageModelTests
         WelcomeBackPageModel.Heading.Should().Be("Your next game starts here.");
         WelcomeBackPageModel.SecurityHeading.Should().Be("Password-free and secure");
         WelcomeBackPageModel.SecurityMessage.Should().Be(
-            "We use a one-time link through WhatsApp. SouthBaySoccer never sees your WhatsApp password.");
+            "Pickup Pal verifies your account. SouthBaySoccer stores only app session tokens on this device.");
         WelcomeBackPageModel.BotHelpMessage.Should().Be(
-            "Or message the bot a link code to connect this device.");
+            "Need help? Open the Pickup Pal bot for account support.");
         WelcomeBackPageModel.SignupHelpMessage.Should().Be(
-            "Create your account on the web, then come back and continue with WhatsApp.");
+            "Create your account on the web, then come back and sign in with your phone number.");
     }
 
     [Fact]
-    public async Task RequestWhatsAppChallenge_WhileInFlight_IsBusyAndCannotResubmit()
+    public async Task RequestPhoneSignIn_WhileInFlight_IsBusyAndCannotResubmit()
     {
-        var gate = new TaskCompletionSource<RequestWhatsAppChallengeResponse>();
+        var gate = new TaskCompletionSource<AuthenticationTokensResponse>();
         var authenticationClient = new Mock<IAuthenticationClient>();
         authenticationClient
-            .Setup(client => client.RequestWhatsAppChallengeAsync(
+            .Setup(client => client.SignInByPhoneAsync(
                 "+15163447233",
                 It.IsAny<CancellationToken>()))
             .Returns(gate.Task);
@@ -175,8 +214,9 @@ public class WelcomeBackPageModelTests
         var inFlight = pageModel.RequestWhatsAppChallengeCommand.ExecuteAsync(null);
         var busyDuringFlight = pageModel.IsBusy;
         var blockedDuringFlight = pageModel.RequestWhatsAppChallengeCommand.CanExecute(null);
-        gate.SetResult(new RequestWhatsAppChallengeResponse(
-            "challenge-id",
+        gate.SetResult(new AuthenticationTokensResponse(
+            "access-token",
+            "refresh-token",
             DateTime.UtcNow.AddMinutes(10)));
         await inFlight;
 
@@ -185,18 +225,18 @@ public class WelcomeBackPageModelTests
         pageModel.IsBusy.Should().BeFalse();
         pageModel.RequestWhatsAppChallengeCommand.CanExecute(null).Should().BeTrue();
         authenticationClient.Verify(
-            client => client.RequestWhatsAppChallengeAsync(
+            client => client.SignInByPhoneAsync(
                 "+15163447233",
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task RequestWhatsAppChallenge_UnexpectedFailure_IsRecoverableAndNonSensitive()
+    public async Task RequestPhoneSignIn_UnexpectedFailure_IsRecoverableAndNonSensitive()
     {
         var authenticationClient = new Mock<IAuthenticationClient>();
         authenticationClient
-            .Setup(client => client.RequestWhatsAppChallengeAsync(
+            .Setup(client => client.SignInByPhoneAsync(
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("unexpected"));
@@ -299,11 +339,13 @@ public class WelcomeBackPageModelTests
         Mock<IAuthenticationClient> authenticationClient,
         Mock<IAuthenticationCoordinator> authenticationCoordinator,
         Mock<IExternalLauncher> externalLauncher,
-        PickupPalOptions? options = null) =>
+        PickupPalOptions? options = null,
+        Mock<IUserDialogService>? dialogService = null) =>
         new(
             authenticationClient.Object,
             authenticationCoordinator.Object,
             externalLauncher.Object,
+            (dialogService ?? new Mock<IUserDialogService>(MockBehavior.Strict)).Object,
             options ?? new PickupPalOptions());
 
     private static Mock<IAuthenticationCoordinator> CreateIncompleteCoordinator()
@@ -314,6 +356,12 @@ public class WelcomeBackPageModelTests
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
+        coordinator
+            .Setup(item => item.CompleteSignInAsync(
+                It.IsAny<AuthenticationTokensResponse>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         return coordinator;
     }
 }
+

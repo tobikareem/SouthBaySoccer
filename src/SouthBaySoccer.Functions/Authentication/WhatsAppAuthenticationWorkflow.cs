@@ -9,10 +9,22 @@ namespace SouthBaySoccer.Functions.Authentication;
 public sealed class WhatsAppAuthenticationWorkflow(
     RequestWhatsAppChallengeCommandHandler requestChallengeHandler,
     VerifyWhatsAppChallengeCommandHandler verifyChallengeHandler,
+    SignInByPhoneCommandHandler signInByPhoneHandler,
     IRefreshTokenExchangeService refreshTokenExchangeService,
     IWhatsAppIdentityResolver identityResolver,
     ITokenService tokenService) : IWhatsAppAuthenticationWorkflow
 {
+    public async Task<AuthenticationTokensResponse> SignInByPhoneAsync(
+        SignInByPhoneRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tokens = await signInByPhoneHandler.HandleAsync(
+            new SignInByPhoneCommand(request.PhoneNumber),
+            cancellationToken);
+
+        return ToResponse(tokens);
+    }
+
     public async Task<RequestWhatsAppChallengeResponse> RequestWhatsAppChallengeAsync(
         RequestWhatsAppChallengeRequest request,
         CancellationToken cancellationToken)

@@ -22,7 +22,7 @@ public class AppStartupRoutingTests
         var authClient = new Mock<IAuthenticationClient>();
         var navigator = new Mock<IAuthenticationNavigator>();
 
-        var service = new AppStartupService(tokenStore.Object, authClient.Object, navigator.Object);
+        var service = new AppStartupService(tokenStore.Object, authClient.Object, navigator.Object, new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
         await service.TryRestoreSessionAsync();
 
@@ -46,7 +46,7 @@ public class AppStartupRoutingTests
             .Setup(n => n.ShowAuthenticatedAppAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var service = new AppStartupService(tokenStore.Object, authClient.Object, navigator.Object);
+        var service = new AppStartupService(tokenStore.Object, authClient.Object, navigator.Object, new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
         await service.TryRestoreSessionAsync();
 
@@ -66,7 +66,7 @@ public class AppStartupRoutingTests
             .ThrowsAsync(new InvalidOperationException("refresh rejected"));
         var navigator = new Mock<IAuthenticationNavigator>();
 
-        var service = new AppStartupService(tokenStore.Object, authClient.Object, navigator.Object);
+        var service = new AppStartupService(tokenStore.Object, authClient.Object, navigator.Object, new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
         await service.TryRestoreSessionAsync();
 
@@ -87,7 +87,7 @@ public class AppStartupRoutingTests
             .ThrowsAsync(new OperationCanceledException());
         var navigator = new Mock<IAuthenticationNavigator>();
 
-        var service = new AppStartupService(tokenStore.Object, authClient.Object, navigator.Object);
+        var service = new AppStartupService(tokenStore.Object, authClient.Object, navigator.Object, new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
         var act = () => service.TryRestoreSessionAsync(cts.Token);
 
@@ -178,3 +178,4 @@ public class AuthenticationCoordinatorRoutingTests
         navigator.Verify(n => n.ShowAuthenticatedAppAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }
+

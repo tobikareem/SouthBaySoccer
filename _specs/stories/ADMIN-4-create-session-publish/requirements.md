@@ -6,8 +6,9 @@
 
 ## User story
 
-*As an* Admin or GameAdmin, *I want* to create a pickup session with game date, time, location, capacity,
-and team format, then publish it to the team, *so that* players can RSVP from the Sessions screen.
+*As an* Admin or GameAdmin, *I want* to create or update a pickup session with game date, time,
+location, capacity, and team format, then publish it to the team, *so that* players can RSVP from the
+Sessions screen and admins can correct session details later.
 
 ## Acceptance criteria
 
@@ -24,6 +25,14 @@ Scenario: Admin publishes the session to the team
   Then the session appears in the team Sessions feed
   And eligible players can RSVP Going or join the waitlist
   And a notification or feed update is queued for the team
+
+Scenario: Admin updates an existing created session
+  Given I have CanManageSessions
+  And a created or published session exists
+  When I open it from the Created sessions list and save changed date, time, venue, format, or capacity
+  Then the existing player-facing session is updated
+  And no duplicate session is created
+  And the session remains open for future updates
 
 Scenario: Required fields are validated
   Given I am creating a session
@@ -47,5 +56,7 @@ Scenario: Unauthorized user cannot create a session
 ## Notes
 
 - Publishing creates the player-facing session card used by `SES-6` and `RSVP-8`.
+- Created sessions are listed on the admin screen and can be reopened for updates; updates modify the
+  existing session rather than creating another one.
 - Check-in defaults can be generated from start time, but admins can adjust them before publish.
 - The backend stores UTC timestamps; the UI displays venue-local date/time.

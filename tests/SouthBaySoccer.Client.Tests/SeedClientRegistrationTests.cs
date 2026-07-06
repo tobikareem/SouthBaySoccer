@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Moq;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.SeedData;
 using SouthBaySoccer.Services.Authentication;
@@ -48,14 +49,30 @@ public class SeedClientRegistrationTests
 #endif
 
     [Fact]
-    public void Validate_ApiSelected_FailsFastAndNamesMissingRegistrations()
+    public void Validate_ApiSelected_AllowsApiAuthenticationRegistration()
     {
         var options = new ClientDataSourceOptions { DataSource = ClientDataSource.Api };
 
         var act = () => ClientDataSourceValidator.Validate(options, seedProviderAvailable: true);
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*IAuthenticationClient*ISessionsClient*ISessionAdminClient*IRosterClient*IStatsClient*ILeaderboardClient*IPlayersClient*IProfileClient*");
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void AddSouthBaySoccerClients_ApiSelected_ResolvesRealAuthenticationAndProfileClients()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(Mock.Of<ISecureTokenStore>());
+
+        services.AddSouthBaySoccerClients(
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api },
+            new PickupPalOptions());
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<IAuthenticationClient>()
+            .Should().BeOfType<AuthenticationClient>();
+        provider.GetRequiredService<IProfileClient>()
+            .Should().BeOfType<ApiProfileClient>();
     }
 
     [Fact]
@@ -69,3 +86,5 @@ public class SeedClientRegistrationTests
             .WithMessage("*Seed*Release*");
     }
 }
+
+

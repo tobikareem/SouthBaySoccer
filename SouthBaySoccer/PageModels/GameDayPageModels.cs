@@ -27,6 +27,7 @@ public interface IGameDayNavigator
 public partial class GameDayPageModel(
     IGameDayClient gameDayClient,
     IGameDayNavigator navigator,
+    IProfileClient profileClient,
     GameDayOptions options) : ObservableObject
 {
     public const string NoticeText = "RSVP is attendance intent. Game Day check-in records who is actually at the field.";
@@ -86,12 +87,23 @@ public partial class GameDayPageModel(
     private int _lateCount;
 
     [ObservableProperty]
+    private bool _isAdmin;
+
+    public bool HasGameDayActions => CanAssignCaptains || CanDraftTeam || CanApprovePostGame;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasGameDayActions))]
+    [NotifyCanExecuteChangedFor(nameof(OpenCaptainAssignmentCommand))]
     private bool _canAssignCaptains;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasGameDayActions))]
+    [NotifyCanExecuteChangedFor(nameof(OpenTeamDraftCommand))]
     private bool _canDraftTeam;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasGameDayActions))]
+    [NotifyCanExecuteChangedFor(nameof(OpenPostGameApprovalCommand))]
     private bool _canApprovePostGame;
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -126,16 +138,25 @@ public partial class GameDayPageModel(
         }
     }
 
-    [RelayCommand]
-    private Task OpenCaptainAssignment() => navigator.OpenCaptainAssignmentAsync(sessionId);
+    [RelayCommand(CanExecute = nameof(CanOpenCaptainAssignment))]
+    private Task OpenCaptainAssignment() =>
+        CanAssignCaptains ? navigator.OpenCaptainAssignmentAsync(sessionId) : Task.CompletedTask;
 
-    [RelayCommand]
-    private Task OpenTeamDraft() => navigator.OpenTeamDraftAsync(sessionId);
+    [RelayCommand(CanExecute = nameof(CanOpenTeamDraft))]
+    private Task OpenTeamDraft() =>
+        CanDraftTeam ? navigator.OpenTeamDraftAsync(sessionId) : Task.CompletedTask;
 
-    [RelayCommand]
-    private Task OpenPostGameApproval() => navigator.OpenPostGameApprovalAsync(sessionId);
+    [RelayCommand(CanExecute = nameof(CanOpenPostGameApproval))]
+    private Task OpenPostGameApproval() =>
+        CanApprovePostGame ? navigator.OpenPostGameApprovalAsync(sessionId) : Task.CompletedTask;
 
     private bool CanCheckInNow() => CanCheckIn && !IsBusy;
+
+    private bool CanOpenCaptainAssignment() => CanAssignCaptains;
+
+    private bool CanOpenTeamDraft() => CanDraftTeam;
+
+    private bool CanOpenPostGameApproval() => CanApprovePostGame;
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -149,7 +170,8 @@ public partial class GameDayPageModel(
                 return;
             }
 
-            ApplyContext(ApplyWindow(context));
+            var isAdmin = await LoadIsAdminAsync(cancellationToken);
+            ApplyContext(ApplyWindow(context), isAdmin);
         }
         catch (HttpRequestException)
         {
@@ -180,9 +202,34 @@ public partial class GameDayPageModel(
         };
     }
 
-    private void ApplyContext(GameDayContextDto context)
+    private async Task<bool> LoadIsAdminAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var profile = await profileClient.GetCurrentProfileAsync(cancellationToken);
+            return IsAdministrativeRole(profile?.Role);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsAdministrativeRole(string? role) =>
+        role is not null &&
+        (role.Equals("Owner", StringComparison.OrdinalIgnoreCase) ||
+         role.Equals("Admin", StringComparison.OrdinalIgnoreCase) ||
+         role.Equals("GameAdmin", StringComparison.OrdinalIgnoreCase) ||
+         role.Equals("Game Admin", StringComparison.OrdinalIgnoreCase));
+
+    private void ApplyContext(GameDayContextDto context, bool isAdmin)
     {
         sessionId = context.SessionId;
+        IsAdmin = isAdmin;
         Venue = context.Venue;
         StatusLabel = context.StatusLabel;
         GameStartLabel = context.GameStartLabel;
@@ -194,9 +241,9 @@ public partial class GameDayPageModel(
         CheckedInCount = context.CheckedInCount;
         LateCount = context.LateCount;
         CanCheckIn = context.IsSelfCheckInAvailable;
-        CanAssignCaptains = context.CanAssignCaptains;
-        CanDraftTeam = context.CanDraftTeam;
-        CanApprovePostGame = context.CanApprovePostGame;
+        CanAssignCaptains = isAdmin || context.CanAssignCaptains;
+        CanDraftTeam = isAdmin || context.CanDraftTeam;
+        CanApprovePostGame = isAdmin || context.CanApprovePostGame;
         StateTitle = string.Empty;
         StateMessage = string.Empty;
         State = ViewState.Content;

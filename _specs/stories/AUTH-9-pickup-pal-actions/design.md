@@ -16,7 +16,7 @@ file specifies the external-launch behavior.
 
 - The signup page opens in the **system browser** over HTTPS.
 - Returning from WhatsApp or the browser **never** establishes a session (authentication only via the
-  `AUTH-8` verified challenge exchange).
+  `AUTH-8` phone sign-in token exchange).
 - If WhatsApp or a browser cannot handle the configured URI, show a recoverable explanation and stay
   on the Welcome Back screen.
 - Don't place sensitive values in URIs, logs, or telemetry (`NFR-Security`).
@@ -26,3 +26,5 @@ file specifies the external-launch behavior.
 - bot and signup commands use the typed configuration (not page text);
 - an external-launch failure shows a recoverable message and keeps the user on the screen;
 - returning from an external app does not flip the app into an authenticated state.
+
+

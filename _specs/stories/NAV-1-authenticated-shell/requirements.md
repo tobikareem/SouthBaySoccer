@@ -58,6 +58,7 @@ Scenario: Shell uses the brand system and accessible tab icons
 
 ## Related stories
 
-- [`AUTH-8`](../AUTH-8-continue-with-whatsapp/requirements.md) — its verified challenge calls the
-  authentication navigator that NAV-1 routes into the Shell.
+- [`AUTH-8`](../AUTH-8-continue-with-whatsapp/requirements.md) - its successful phone sign-in calls the authentication navigator that NAV-1 routes into the Shell.
 - `SES-6` (Sessions tab), `LEAD-4` (Stats tab), `PROF-5` (Profile tab) — the tab destinations.
+
+

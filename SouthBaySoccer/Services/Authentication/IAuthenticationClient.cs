@@ -4,6 +4,10 @@ namespace SouthBaySoccer.Services.Authentication;
 
 public interface IAuthenticationClient
 {
+    Task<AuthenticationTokensResponse> SignInByPhoneAsync(
+        string phoneNumber,
+        CancellationToken cancellationToken);
+
     Task<RequestWhatsAppChallengeResponse> RequestWhatsAppChallengeAsync(
         string phoneNumber,
         CancellationToken cancellationToken);

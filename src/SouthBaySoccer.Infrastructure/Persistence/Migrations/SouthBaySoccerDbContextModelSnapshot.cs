@@ -383,6 +383,10 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1024)
                         .HasColumnType("nvarchar(1024)");
 
+                    b.Property<string>("PickupPalUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<string>("PreferredPosition")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -405,6 +409,10 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.HasIndex("IdentityUserId")
                         .IsUnique()
                         .HasFilter("[IdentityUserId] IS NOT NULL AND [IsDeleted] = 0");
+
+                    b.HasIndex("PickupPalUserId")
+                        .IsUnique()
+                        .HasFilter("[PickupPalUserId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.HasIndex("IsGuest", "IsDeleted");
 

@@ -55,7 +55,7 @@
                         <Label Grid.Column="1" Text="{x:Static pageModels:GameDayPageModel.NoticeText}" Style="{StaticResource TextCaption}" />
                     </Grid>
                 </Border>
-                <c:SectionHeader Text="Game-day actions" />
+                <c:SectionHeader Text="Game-day actions" IsVisible="{Binding HasGameDayActions}" />
                 <c:PlayerRow Initials="CA" Name="Assign captains" Detail="2, 3, or 4 captains = 2, 3, or 4 teams" TapCommand="{Binding OpenCaptainAssignmentCommand}" IsVisible="{Binding CanAssignCaptains}" />
                 <c:PlayerRow Initials="DR" Name="Pick your team" Detail="Captain permission - session scoped" TapCommand="{Binding OpenTeamDraftCommand}" IsVisible="{Binding CanDraftTeam}" />
                 <c:PlayerRow Initials="PG" Name="Approve stats and result" Detail="After game - captains only" TapCommand="{Binding OpenPostGameApprovalCommand}" IsVisible="{Binding CanApprovePostGame}" />

@@ -16,8 +16,13 @@ namespace SouthBaySoccer.PageModels;
 /// </summary>
 public partial class SessionsHomePageModel(
     ISessionsClient sessionsClient,
-    ISessionsNavigator navigator) : ObservableObject
+    ISessionsNavigator navigator,
+    IProfileClient profileClient,
+    TimeProvider timeProvider) : ObservableObject
 {
+    private string? _cachedProfileDisplayName;
+    private string? _cachedProfileRole;
+
     public const string EmptyTitle = "No upcoming sessions";
     public const string EmptyMessage = "New game days will appear here as soon as they are scheduled.";
     public const string ErrorTitle = "Couldn't load your sessions";
@@ -27,6 +32,9 @@ public partial class SessionsHomePageModel(
 
     [ObservableProperty]
     private ViewState _state = ViewState.Loading;
+
+    [ObservableProperty]
+    private bool _isRefreshing;
 
     [ObservableProperty]
     private string _stateTitle = string.Empty;
@@ -61,11 +69,13 @@ public partial class SessionsHomePageModel(
     [ObservableProperty]
     private bool _canManageSessions;
 
-    [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task Appearing(CancellationToken cancellationToken) => LoadDashboardAsync(cancellationToken);
+    partial void OnCanManageSessionsChanged(bool value) => CreateSessionCommand.NotifyCanExecuteChanged();
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task Refresh(CancellationToken cancellationToken) => LoadDashboardAsync(cancellationToken);
+    private Task Appearing(CancellationToken cancellationToken) => LoadDashboardAsync(forceProfileRefresh: false, cancellationToken);
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task Refresh(CancellationToken cancellationToken) => LoadDashboardAsync(forceProfileRefresh: true, cancellationToken);
 
     [RelayCommand]
     private Task ViewSessionDetail(Guid sessionId) => navigator.GoToSessionAsync(sessionId);
@@ -76,8 +86,11 @@ public partial class SessionsHomePageModel(
     [RelayCommand]
     private Task ViewSchedule() => navigator.GoToScheduleAsync();
 
-    [RelayCommand]
-    private Task CreateSession() => navigator.GoToCreateSessionAsync();
+    [RelayCommand(CanExecute = nameof(CanCreateSession))]
+    private Task CreateSession() =>
+        CanManageSessions ? navigator.GoToCreateSessionAsync() : Task.CompletedTask;
+
+    private bool CanCreateSession() => CanManageSessions;
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task JoinWaitlist(Guid sessionId, CancellationToken cancellationToken)
@@ -90,7 +103,7 @@ public partial class SessionsHomePageModel(
                 return;
             }
 
-            await LoadDashboardAsync(cancellationToken);
+            await LoadDashboardAsync(forceProfileRefresh: false, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -104,14 +117,20 @@ public partial class SessionsHomePageModel(
         }
     }
 
-    private async Task LoadDashboardAsync(CancellationToken cancellationToken)
+    private async Task LoadDashboardAsync(bool forceProfileRefresh, CancellationToken cancellationToken)
     {
         State = ViewState.Loading;
+        IsRefreshing = true;
 
         try
         {
             var dashboard = await sessionsClient.GetDashboardAsync(cancellationToken);
-            ApplyDashboard(dashboard);
+            var profileContext = await BuildProfileContextOrDefaultAsync(
+                dashboard.Greeting,
+                forceProfileRefresh,
+                cancellationToken);
+
+            ApplyDashboard(dashboard, profileContext.Greeting, profileContext.CanManageSessions);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -125,19 +144,23 @@ public partial class SessionsHomePageModel(
         {
             ApplyErrorState(ViewState.Error, ErrorTitle, ErrorMessage);
         }
+        finally
+        {
+            IsRefreshing = false;
+        }
     }
 
-    private void ApplyDashboard(SessionsDashboardDto dashboard)
+    private void ApplyDashboard(SessionsDashboardDto dashboard, string greeting, bool canManageSessions)
     {
         GroupLabel = dashboard.GroupLabel;
-        Greeting = dashboard.Greeting;
+        Greeting = greeting;
         DuesStatus = dashboard.DuesStatus;
         FeaturedSession = dashboard.FeaturedSession;
         StatsPrompt = dashboard.StatsPrompt;
         ComingUpLabel = dashboard.ComingUpLabel;
         ScheduleActionLabel = dashboard.ScheduleActionLabel;
         ComingUpSessions = dashboard.ComingUpSessions;
-        CanManageSessions = dashboard.CanManageSessions;
+        CanManageSessions = canManageSessions;
 
         if (dashboard.FeaturedSession is null && dashboard.ComingUpSessions.Count == 0)
         {
@@ -148,6 +171,77 @@ public partial class SessionsHomePageModel(
         StateTitle = string.Empty;
         StateMessage = string.Empty;
         State = ViewState.Content;
+    }
+
+    private async Task<ProfileHomeContext> BuildProfileContextOrDefaultAsync(
+        string fallbackGreeting,
+        bool forceProfileRefresh,
+        CancellationToken cancellationToken)
+    {
+        if (!forceProfileRefresh && !string.IsNullOrWhiteSpace(_cachedProfileDisplayName))
+        {
+            return new ProfileHomeContext(
+                BuildGreeting(_cachedProfileDisplayName),
+                IsAdministrativeRole(_cachedProfileRole));
+        }
+
+        try
+        {
+            var profile = await profileClient.GetCurrentProfileAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(profile?.DisplayName))
+            {
+                return new ProfileHomeContext(
+                    string.IsNullOrWhiteSpace(_cachedProfileDisplayName)
+                        ? fallbackGreeting
+                        : BuildGreeting(_cachedProfileDisplayName),
+                    IsAdministrativeRole(_cachedProfileRole));
+            }
+
+            _cachedProfileDisplayName = profile.DisplayName;
+            _cachedProfileRole = profile.Role;
+
+            return new ProfileHomeContext(
+                BuildGreeting(profile.DisplayName),
+                IsAdministrativeRole(profile.Role));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return new ProfileHomeContext(fallbackGreeting, IsAdministrativeRole(_cachedProfileRole));
+        }
+    }
+
+    private static bool IsAdministrativeRole(string? role) =>
+        role is not null &&
+        (role.Equals("Owner", StringComparison.OrdinalIgnoreCase) ||
+         role.Equals("Admin", StringComparison.OrdinalIgnoreCase) ||
+         role.Equals("GameAdmin", StringComparison.OrdinalIgnoreCase) ||
+         role.Equals("Game Admin", StringComparison.OrdinalIgnoreCase));
+
+    private sealed record ProfileHomeContext(string Greeting, bool CanManageSessions);
+    private string BuildGreeting(string displayName)
+    {
+        var firstName = displayName
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault();
+
+        if (string.IsNullOrWhiteSpace(firstName))
+        {
+            firstName = displayName.Trim();
+        }
+
+        var hour = timeProvider.GetLocalNow().Hour;
+        var dayPart = hour switch
+        {
+            < 12 => "morning",
+            < 17 => "afternoon",
+            _ => "evening"
+        };
+
+        return $"Good {dayPart}, {firstName}";
     }
 
     private void ApplyErrorState(ViewState state, string title, string message)

@@ -1,4 +1,5 @@
 using System.Net;
+using SouthBaySoccer.Contracts.Authentication;
 using SouthBaySoccer.Configuration;
 
 namespace SouthBaySoccer.Services.Authentication;
@@ -10,6 +11,15 @@ public sealed class AuthenticationCoordinator(
     PickupPalOptions options,
     ClientDataSourceOptions dataSourceOptions) : IAuthenticationCoordinator
 {
+    public async Task CompleteSignInAsync(
+        AuthenticationTokensResponse tokens,
+        CancellationToken cancellationToken = default)
+    {
+        await tokenStore.StoreAsync(tokens);
+        _completed = true;
+        await navigator.ShowAuthenticatedAppAsync(cancellationToken);
+    }
+
     private readonly SemaphoreSlim _completionLock = new(1, 1);
     private bool _completed;
 

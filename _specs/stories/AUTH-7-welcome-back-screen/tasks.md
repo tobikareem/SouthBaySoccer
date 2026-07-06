@@ -10,7 +10,7 @@ the AUTH-7 slice of milestone **M11**; the full milestone roadmap and dependency
   — Stories: `INV-13`, `AUTH-7` · Projects: MAUI client · Depends on: M11.0.
 
 - [x] **M11.3a** Implement `WelcomeBackPage` and `WelcomeBackPageModel` directly from the first
-  `signin` wireframe: branded header, welcome copy, phone input, WhatsApp action, security notice,
+  `signin` wireframe: branded header, welcome copy, phone input, phone sign-in action, security notice,
   Pickup Pal bot card, divider, signup action, and caption. Use only shared brand resources and Font
   Awesome glyphs; no emoji or page-local hex.
   — Stories: `AUTH-7`, `INV-13` · Projects: MAUI client · Depends on: M11.0a.
@@ -25,7 +25,8 @@ the AUTH-7 slice of milestone **M11**; the full milestone roadmap and dependency
   client tests are implemented. Automated large-text/narrow-viewport visual verification remains.
 
 **Prerequisites:** M11.0 (reusable UI foundation, done). **Related task slices:**
-[`AUTH-8`](../AUTH-8-continue-with-whatsapp/tasks.md) (challenge flow), [`AUTH-9`](../AUTH-9-pickup-pal-actions/tasks.md) (external actions).
+[`AUTH-8`](../AUTH-8-continue-with-whatsapp/tasks.md) (phone sign-in flow), [`AUTH-9`](../AUTH-9-pickup-pal-actions/tasks.md) (external actions).
 
 **Done when:** the screen reproduces the first wireframe exactly from shared resources, all AUTH-7
 scenarios have passing `Client.Tests`, no emoji/raw hex are used, and the client builds.
+

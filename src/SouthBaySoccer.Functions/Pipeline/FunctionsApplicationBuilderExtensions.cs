@@ -1,4 +1,4 @@
-﻿using SouthBaySoccer.Application.Features.Authentication;
+using SouthBaySoccer.Application.Features.Authentication;
 using SouthBaySoccer.Application.Features.Payments;
 using SouthBaySoccer.Application.Features.Players;
 using SouthBaySoccer.Application.Features.Rsvps;
@@ -20,8 +20,10 @@ public static class FunctionsApplicationBuilderExtensions
     {
         builder.Services.AddScoped<IValidator<RequestWhatsAppChallengeCommand>, RequestWhatsAppChallengeCommandValidator>();
         builder.Services.AddScoped<IValidator<VerifyWhatsAppChallengeCommand>, VerifyWhatsAppChallengeCommandValidator>();
+        builder.Services.AddScoped<IValidator<SignInByPhoneCommand>, SignInByPhoneCommandValidator>();
         builder.Services.AddScoped<RequestWhatsAppChallengeCommandHandler>();
         builder.Services.AddScoped<VerifyWhatsAppChallengeCommandHandler>();
+        builder.Services.AddScoped<SignInByPhoneCommandHandler>();
         builder.Services.AddScoped<IWhatsAppAuthenticationWorkflow, WhatsAppAuthenticationWorkflow>();
         builder.Services.AddScoped<IValidator<UpdateMyProfileCommand>, UpdateMyProfileCommandValidator>();
         builder.Services.AddScoped<IValidator<CreateGuestProfileCommand>, CreateGuestProfileCommandValidator>();

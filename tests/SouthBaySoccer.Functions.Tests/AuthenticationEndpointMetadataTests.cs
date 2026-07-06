@@ -11,6 +11,7 @@ namespace SouthBaySoccer.Functions.Tests;
 public sealed class AuthenticationEndpointMetadataTests
 {
     [Theory]
+    [InlineData(nameof(AuthenticationFunctions.SignInByPhone), "auth/pickuppal/phone/sign-in")]
     [InlineData(nameof(AuthenticationFunctions.RequestWhatsAppChallenge), "auth/whatsapp/challenges")]
     [InlineData(nameof(AuthenticationFunctions.VerifyWhatsAppChallenge), "auth/whatsapp/challenges/verify")]
     [InlineData(nameof(AuthenticationFunctions.Refresh), "auth/refresh")]
@@ -38,6 +39,7 @@ public sealed class AuthenticationEndpointMetadataTests
     {
         var methods = new[]
         {
+            nameof(AuthenticationFunctions.SignInByPhone),
             nameof(AuthenticationFunctions.RequestWhatsAppChallenge),
             nameof(AuthenticationFunctions.VerifyWhatsAppChallenge),
             nameof(AuthenticationFunctions.Refresh),
