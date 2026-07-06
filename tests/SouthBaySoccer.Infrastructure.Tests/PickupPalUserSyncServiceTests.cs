@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SouthBaySoccer.Application.Features.Authentication;
 using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Infrastructure;
+using SouthBaySoccer.Infrastructure.Authentication;
 using SouthBaySoccer.Infrastructure.Identity;
 using SouthBaySoccer.Infrastructure.Persistence;
 
@@ -73,9 +74,24 @@ public sealed class PickupPalUserSyncServiceTests
         identity!.Email.Should().Be("new@example.test");
     }
 
-    private ServiceProvider CreateServiceProvider()
+    [Fact]
+    public async Task SyncAsync_ConfiguredAdminPhone_PromotesProfileAndTokenSubjectToGameAdmin()
+    {
+        using var provider = CreateServiceProvider("15106949421");
+        var service = provider.GetRequiredService<IPickupPalUserSyncService>();
+        var db = provider.GetRequiredService<SouthBaySoccerDbContext>();
+
+        var subject = await service.SyncAsync(CreatePickupPalUser("pickuppal-user-admin", "admin@example.test"));
+
+        var profile = await db.PlayerProfiles.FindAsync(subject.PlayerProfileId);
+        profile!.Role.Should().Be(PlayerRole.GameAdmin);
+        subject.Roles.Should().ContainSingle().Which.Should().Be(PlayerRole.GameAdmin.ToString());
+    }
+
+    private ServiceProvider CreateServiceProvider(string adminPhoneNumbers = "")
     {
         var services = new ServiceCollection();
+        services.Configure<AdminPhoneNumberOptions>(options => options.AdminPhoneNumbers = adminPhoneNumbers);
         services.AddInfrastructure(database.ConnectionString);
         return services.BuildServiceProvider();
     }
@@ -92,3 +108,5 @@ public sealed class PickupPalUserSyncServiceTests
             new[] { "st", "rw", "cm" },
             DateTime.UtcNow);
 }
+
+

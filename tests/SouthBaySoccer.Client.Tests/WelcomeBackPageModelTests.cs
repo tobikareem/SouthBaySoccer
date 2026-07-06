@@ -3,6 +3,7 @@ using Moq;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Contracts.Authentication;
 using SouthBaySoccer.PageModels;
+using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Authentication;
 
 namespace SouthBaySoccer.Client.Tests;
@@ -130,16 +131,33 @@ public class WelcomeBackPageModelTests
             .ThrowsAsync(new HttpRequestException("not found", null, System.Net.HttpStatusCode.NotFound));
         var authenticationCoordinator = new Mock<IAuthenticationCoordinator>(MockBehavior.Strict);
         var externalLauncher = new Mock<IExternalLauncher>(MockBehavior.Strict);
+        var dialogService = new Mock<IUserDialogService>();
+        dialogService
+            .Setup(dialog => dialog.ShowAlertAsync(
+                WelcomeBackPageModel.PickupPalNotFoundTitle,
+                WelcomeBackPageModel.PickupPalNotFoundMessage,
+                "OK",
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         var pageModel = CreatePageModel(
             authenticationClient,
             authenticationCoordinator,
-            externalLauncher);
+            externalLauncher,
+            dialogService: dialogService);
         pageModel.PhoneNumber = "+1 516 344 7233";
 
         await pageModel.RequestWhatsAppChallengeCommand.ExecuteAsync(null);
 
-        pageModel.StatusMessage.Should().Contain("Sign up on Pickup Pal");
+        pageModel.HasStatusMessage.Should().BeFalse();
         pageModel.IsNotBusy.Should().BeTrue();
+        WelcomeBackPageModel.PickupPalNotFoundMessage.Should().NotContain("516");
+        dialogService.Verify(
+            dialog => dialog.ShowAlertAsync(
+                WelcomeBackPageModel.PickupPalNotFoundTitle,
+                WelcomeBackPageModel.PickupPalNotFoundMessage,
+                "OK",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
         authenticationCoordinator.VerifyNoOtherCalls();
     }
     [Fact]
@@ -321,11 +339,13 @@ public class WelcomeBackPageModelTests
         Mock<IAuthenticationClient> authenticationClient,
         Mock<IAuthenticationCoordinator> authenticationCoordinator,
         Mock<IExternalLauncher> externalLauncher,
-        PickupPalOptions? options = null) =>
+        PickupPalOptions? options = null,
+        Mock<IUserDialogService>? dialogService = null) =>
         new(
             authenticationClient.Object,
             authenticationCoordinator.Object,
             externalLauncher.Object,
+            (dialogService ?? new Mock<IUserDialogService>(MockBehavior.Strict)).Object,
             options ?? new PickupPalOptions());
 
     private static Mock<IAuthenticationCoordinator> CreateIncompleteCoordinator()
@@ -344,3 +364,4 @@ public class WelcomeBackPageModelTests
         return coordinator;
     }
 }
+

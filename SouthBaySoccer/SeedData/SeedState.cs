@@ -19,6 +19,9 @@ public sealed class SeedState
     private Dictionary<Guid, Guid> publishedSessionByDraft = [];
     private Dictionary<Guid, SessionSummaryDto> publishedSummaries = [];
     private Dictionary<Guid, SessionDetailDto> publishedDetails = [];
+    private Dictionary<Guid, CreateSessionCommand> managedSessionCommands = [];
+    private Dictionary<Guid, SessionSummaryDto> managedSummaryOverrides = [];
+    private Dictionary<Guid, SessionDetailDto> managedDetailOverrides = [];
 
     public SeedState()
     {
@@ -38,6 +41,10 @@ public sealed class SeedState
             publishedSessionByDraft = [];
             publishedSummaries = [];
             publishedDetails = [];
+            managedSummaryOverrides = [];
+            managedDetailOverrides = [];
+            managedSessionCommands = SeedFixtures.Sessions.Values
+                .ToDictionary(session => session.Id, ToEditableCommand);
         }
     }
 
@@ -45,8 +52,10 @@ public sealed class SeedState
     {
         lock (syncRoot)
         {
-            var featured = ApplyRosterState(SeedFixtures.Dashboard.FeaturedSession);
+            var featuredSource = ResolveSummary(SeedFixtures.Dashboard.FeaturedSession);
+            var featured = ApplyRosterState(featuredSource);
             var comingUp = SeedFixtures.Dashboard.ComingUpSessions
+                .Select(ResolveSummary)
                 .Concat(publishedSummaries.Values)
                 .Select(ApplyRosterState)
                 .ToArray();
@@ -63,7 +72,8 @@ public sealed class SeedState
     {
         lock (syncRoot)
         {
-            if (!SeedFixtures.Sessions.TryGetValue(sessionId, out var session)
+            if (!managedDetailOverrides.TryGetValue(sessionId, out var session)
+                && !SeedFixtures.Sessions.TryGetValue(sessionId, out session)
                 && !publishedDetails.TryGetValue(sessionId, out session))
             {
                 return null;
@@ -291,6 +301,33 @@ public sealed class SeedState
 
     public CreateSessionDefaultsDto GetCreateSessionDefaults() => SeedFixtures.CreateSessionDefaults;
 
+    public IReadOnlyList<ManagedSessionDto> ListManagedSessions()
+    {
+        lock (syncRoot)
+        {
+            var fixedSessions = SeedFixtures.Dashboard.ComingUpSessions
+                .Prepend(SeedFixtures.Dashboard.FeaturedSession)
+                .Select(ResolveSummary);
+
+            return Array.AsReadOnly(
+                fixedSessions
+                    .Concat(publishedSummaries.Values)
+                    .Select(ApplyRosterState)
+                    .OrderBy(session => session.StartsAtUtc)
+                    .Select(ToManagedSession)
+                    .ToArray());
+        }
+    }
+
+    public ManagedSessionEditDto? GetSessionForEdit(Guid sessionId)
+    {
+        lock (syncRoot)
+        {
+            return managedSessionCommands.TryGetValue(sessionId, out var command)
+                ? new ManagedSessionEditDto(sessionId, command, true)
+                : null;
+        }
+    }
     public IReadOnlyList<VenueDto> SearchVenues(string? query)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -325,6 +362,41 @@ public sealed class SeedState
         }
     }
 
+    public CreateSessionResult UpdateSession(Guid sessionId, CreateSessionCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        var validation = ValidateCommand(command);
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        lock (syncRoot)
+        {
+            if (!managedSessionCommands.ContainsKey(sessionId))
+            {
+                return CreateSessionResult.Failure("session_not_found", "The session was not found.");
+            }
+
+            managedSessionCommands[sessionId] = command;
+            var summary = BuildSummary(sessionId, command);
+            var detail = BuildDetail(sessionId, command);
+
+            if (publishedSummaries.ContainsKey(sessionId))
+            {
+                publishedSummaries[sessionId] = summary;
+                publishedDetails[sessionId] = detail;
+            }
+            else
+            {
+                managedSummaryOverrides[sessionId] = summary;
+                managedDetailOverrides[sessionId] = detail;
+            }
+
+            return CreateSessionResult.Success(sessionId);
+        }
+    }
     public CreateSessionResult Publish(Guid draftId)
     {
         lock (syncRoot)
@@ -343,6 +415,7 @@ public sealed class SeedState
             var sessionId = Guid.NewGuid();
             publishedSummaries[sessionId] = BuildSummary(sessionId, command);
             publishedDetails[sessionId] = BuildDetail(sessionId, command);
+            managedSessionCommands[sessionId] = command;
             rosters[sessionId] = new RosterDto(sessionId, [], []);
             publishedSessionByDraft[draftId] = sessionId;
 
@@ -415,6 +488,40 @@ public sealed class SeedState
         return null;
     }
 
+    private SessionSummaryDto ResolveSummary(SessionSummaryDto session) =>
+        managedSummaryOverrides.TryGetValue(session.Id, out var updated)
+            ? updated
+            : session;
+
+    private static ManagedSessionDto ToManagedSession(SessionSummaryDto session) =>
+        new(
+            session.Id,
+            session.Title,
+            session.DateLabel,
+            session.TimeLabel,
+            session.Venue,
+            session.Format,
+            session.Capacity,
+            session.StatusLabel);
+
+    private static CreateSessionCommand ToEditableCommand(SessionDetailDto session)
+    {
+        var localStart = DateTime.SpecifyKind(session.StartsAtUtc, DateTimeKind.Unspecified);
+        var venue = SeedFixtures.Venues.FirstOrDefault(
+            item => item.Name.Equals(session.Venue, StringComparison.OrdinalIgnoreCase));
+
+        return new CreateSessionCommand(
+            localStart.Date,
+            localStart.TimeOfDay,
+            localStart.TimeOfDay - TimeSpan.FromMinutes(10),
+            localStart.TimeOfDay + TimeSpan.FromMinutes(5),
+            venue?.Id,
+            session.Venue,
+            session.Format,
+            session.Capacity,
+            2,
+            localStart.TimeOfDay - TimeSpan.FromHours(1));
+    }
     private static SessionSummaryDto BuildSummary(Guid sessionId, CreateSessionCommand command) =>
         new(
             sessionId,
@@ -451,6 +558,12 @@ public sealed class SeedState
         time >= TimeSpan.Zero && time < TimeSpan.FromDays(1);
     private bool TryGetCapacity(Guid sessionId, out int capacity)
     {
+        if (managedDetailOverrides.TryGetValue(sessionId, out var updatedSession))
+        {
+            capacity = updatedSession.Capacity;
+            return true;
+        }
+
         if (SeedFixtures.Sessions.TryGetValue(sessionId, out var session))
         {
             capacity = session.Capacity;

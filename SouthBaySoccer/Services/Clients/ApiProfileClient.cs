@@ -34,7 +34,8 @@ public sealed class ApiProfileClient(HttpClient httpClient) : IProfileClient
             ToInitials(profile.DisplayName),
             new CareerStatsDto(0, 0, 0, 0, 0, 0),
             Array.Empty<MatchResult>(),
-            profile.IsGuest ? "Guest profile" : null);
+            profile.IsGuest ? "Guest profile" : null,
+            profile.Role);
 
     private static string ToInitials(string displayName)
     {

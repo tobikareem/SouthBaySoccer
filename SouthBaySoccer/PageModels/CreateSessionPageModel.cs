@@ -40,6 +40,7 @@ public partial class CreateSessionPageModel(
     private Guid? _draftId;
     private bool _isPublished;
     private Guid _publishedSessionId;
+    private bool _isApplyingSession;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanPublish))]
@@ -133,6 +134,15 @@ public partial class CreateSessionPageModel(
     private string _feedLabel = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasManagedSessions))]
+    private IReadOnlyList<ManagedSessionDto> _managedSessions = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEditingSession))]
+    [NotifyPropertyChangedFor(nameof(PrimaryActionText))]
+    private Guid? _editingSessionId;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasValidationMessage))]
     private string _validationMessage = string.Empty;
 
@@ -149,6 +159,15 @@ public partial class CreateSessionPageModel(
     /// <summary>True when a validation message should be surfaced under the form.</summary>
     public bool HasValidationMessage => !string.IsNullOrEmpty(ValidationMessage);
 
+    /// <summary>True when there are created sessions the admin can open for updates.</summary>
+    public bool HasManagedSessions => ManagedSessions.Count > 0;
+
+    /// <summary>True when the form is editing an existing published session instead of creating a new one.</summary>
+    public bool IsEditingSession => EditingSessionId is not null;
+
+    /// <summary>Primary form action text for create vs. update mode.</summary>
+    public string PrimaryActionText => IsEditingSession ? "Update session" : "Publish to team";
+
     /// <summary>Currently selected game format (e.g. "7v7"), or empty when none is selected.</summary>
     public string SelectedFormat =>
         SelectedFormatIndex >= 0 && SelectedFormatIndex < Formats.Count
@@ -161,13 +180,13 @@ public partial class CreateSessionPageModel(
             ? SelectedTeamIndex + 2
             : 0;
 
-    /// <summary>Check-in window preview, e.g. "Check-in 7:30 PM · closes 7:45 PM".</summary>
+    /// <summary>Check-in window preview, e.g. "Check-in 7:30 PM - closes 7:45 PM".</summary>
     public string CheckInPreviewLabel =>
-        $"Check-in {FormatTime(CheckInOpen)} · closes {FormatTime(CheckInClose)}";
+        $"Check-in {FormatTime(CheckInOpen)} - closes {FormatTime(CheckInClose)}";
 
-    /// <summary>Player-preview card title, e.g. "Marina Field · Saturday pickup".</summary>
+    /// <summary>Player-preview card title, e.g. "Marina Field - Saturday pickup".</summary>
     public string PreviewTitle =>
-        SelectedVenue is null ? "New session" : $"{SelectedVenue.Name} · Saturday pickup";
+        SelectedVenue is null ? "New session" : $"{SelectedVenue.Name} - Saturday pickup";
 
     /// <summary>Player-preview date chip, e.g. "Jun 27".</summary>
     public string PreviewDateLabel => FormatDate(GameDate);
@@ -175,8 +194,8 @@ public partial class CreateSessionPageModel(
     /// <summary>Player-preview time chip, e.g. "7:40 PM".</summary>
     public string PreviewTimeLabel => FormatTime(StartTime);
 
-    /// <summary>Player-preview format/capacity chip, e.g. "7v7 · 20 spots".</summary>
-    public string PreviewFormatLabel => $"{SelectedFormat} · {Capacity} spots";
+    /// <summary>Player-preview format/capacity chip, e.g. "7v7 - 20 spots".</summary>
+    public string PreviewFormatLabel => $"{SelectedFormat} - {Capacity} spots";
 
     /// <summary>True when the form is complete and a publish may be attempted.</summary>
     public bool CanPublish =>
@@ -222,6 +241,7 @@ public partial class CreateSessionPageModel(
             }
 
             ApplyDefaults(defaults);
+            await RefreshManagedSessionsAsync(cancellationToken);
 
             StateTitle = string.Empty;
             StateMessage = string.Empty;
@@ -276,6 +296,41 @@ public partial class CreateSessionPageModel(
         ValidationMessage = string.Empty;
     }
 
+    /// <summary>Loads an existing session into the form so the admin can update it.</summary>
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task EditManagedSession(ManagedSessionDto? session, CancellationToken cancellationToken)
+    {
+        if (session is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var editable = await adminClient.GetSessionForEditAsync(session.SessionId, cancellationToken);
+            if (editable is null)
+            {
+                ValidationMessage = "The selected session could not be opened for updates.";
+                return;
+            }
+
+            ApplySessionForEdit(editable);
+            ValidationMessage = string.Empty;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException)
+        {
+            ValidationMessage = OfflinePublishMessage;
+        }
+        catch (Exception)
+        {
+            ValidationMessage = "Something went wrong opening the session for updates.";
+        }
+    }
+
     /// <summary>
     /// Validates the form, creates a draft, and publishes it to the team feed. Idempotent: once
     /// published, re-invoking navigates to the existing session instead of creating a duplicate.
@@ -283,6 +338,12 @@ public partial class CreateSessionPageModel(
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanPublishToTeam))]
     private async Task PublishToTeam(CancellationToken cancellationToken)
     {
+        if (EditingSessionId is not null)
+        {
+            await UpdateExistingSessionAsync(cancellationToken);
+            return;
+        }
+
         if (_isPublished)
         {
             await navigator.GoToSessionAsync(_publishedSessionId);
@@ -324,6 +385,7 @@ public partial class CreateSessionPageModel(
 
             _isPublished = true;
             _publishedSessionId = published.SessionId;
+            await RefreshManagedSessionsAsync(cancellationToken);
             await navigator.GoToSessionAsync(published.SessionId);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -355,6 +417,11 @@ public partial class CreateSessionPageModel(
 
     partial void OnStartTimeChanged(TimeSpan value)
     {
+        if (_isApplyingSession)
+        {
+            return;
+        }
+
         CheckInOpen = value - TimeSpan.FromMinutes(_checkInLeadMinutes);
         CheckInClose = value + TimeSpan.FromMinutes(_checkInCloseOffsetMinutes);
     }
@@ -375,6 +442,103 @@ public partial class CreateSessionPageModel(
     partial void OnRsvpCloseTimeChanged(TimeSpan value)
     {
         RsvpDeadline = value;
+    }
+
+    private async Task UpdateExistingSessionAsync(CancellationToken cancellationToken)
+    {
+        var validationError = Validate();
+        if (validationError is not null)
+        {
+            ValidationMessage = validationError;
+            return;
+        }
+
+        ValidationMessage = string.Empty;
+        IsPublishing = true;
+
+        try
+        {
+            var updated = await adminClient.UpdateSessionAsync(
+                EditingSessionId!.Value,
+                BuildCommand(),
+                cancellationToken);
+
+            if (!updated.IsSuccess)
+            {
+                ValidationMessage = updated.ErrorMessage ?? GenericPublishError;
+                return;
+            }
+
+            await RefreshManagedSessionsAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException)
+        {
+            ValidationMessage = OfflinePublishMessage;
+        }
+        catch (Exception)
+        {
+            ValidationMessage = GenericPublishError;
+        }
+        finally
+        {
+            IsPublishing = false;
+        }
+    }
+
+    private async Task RefreshManagedSessionsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            ManagedSessions = await adminClient.ListManagedSessionsAsync(cancellationToken) ?? [];
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            ManagedSessions = [];
+        }
+    }
+
+    private void ApplySessionForEdit(ManagedSessionEditDto session)
+    {
+        _isApplyingSession = true;
+        try
+        {
+            EditingSessionId = session.SessionId;
+            _isPublished = true;
+            _publishedSessionId = session.SessionId;
+            _draftId = null;
+            ApplyCommand(session.Command);
+        }
+        finally
+        {
+            _isApplyingSession = false;
+        }
+    }
+
+    private void ApplyCommand(CreateSessionCommand command)
+    {
+        GameDate = command.GameDateLocal.Date;
+        StartTime = command.StartTimeLocal;
+        RsvpCloseDate = command.GameDateLocal.Date;
+        RsvpDeadline = command.RsvpDeadlineLocal;
+        RsvpCloseTime = command.RsvpDeadlineLocal ?? command.StartTimeLocal - TimeSpan.FromHours(1);
+        CheckInOpen = command.CheckInOpenLocal;
+        CheckInClose = command.CheckInCloseLocal;
+        Capacity = command.Capacity;
+        SelectedFormatIndex = Math.Max(0, Formats.ToList().IndexOf(command.Format));
+        SelectedTeamIndex = command.TeamCount - 2;
+        SelectVenue(new VenueDto(
+            command.VenueId ?? Guid.Empty,
+            command.VenueName,
+            "Managed session",
+            false));
     }
 
     private void ApplyDefaults(CreateSessionDefaultsDto defaults)

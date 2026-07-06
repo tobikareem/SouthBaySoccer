@@ -1,4 +1,5 @@
 using Moq;
+using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Contracts.Authentication;
 using SouthBaySoccer.Services.Authentication;
 
@@ -16,7 +17,8 @@ public class AppStartupServiceTests
         var service = new AppStartupService(
             tokenStore.Object,
             authenticationClient.Object,
-            navigator.Object);
+            navigator.Object,
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
         await service.TryRestoreSessionAsync();
 
@@ -43,7 +45,8 @@ public class AppStartupServiceTests
         var service = new AppStartupService(
             tokenStore.Object,
             authenticationClient.Object,
-            navigator.Object);
+            navigator.Object,
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
         await service.TryRestoreSessionAsync();
 
@@ -66,11 +69,33 @@ public class AppStartupServiceTests
         var service = new AppStartupService(
             tokenStore.Object,
             authenticationClient.Object,
-            navigator.Object);
+            navigator.Object,
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
         await service.TryRestoreSessionAsync();
 
         tokenStore.Verify(store => store.ClearAsync(), Times.Once);
         navigator.VerifyNoOtherCalls();
     }
+
+    [Fact]
+    public async Task TryRestoreSession_ApiModeWithSeedRefreshToken_ClearsTokenWithoutAuthenticating()
+    {
+        var tokenStore = new Mock<ISecureTokenStore>();
+        tokenStore.Setup(store => store.GetRefreshTokenAsync()).ReturnsAsync("seed-refresh-token");
+        var authenticationClient = new Mock<IAuthenticationClient>(MockBehavior.Strict);
+        var navigator = new Mock<IAuthenticationNavigator>(MockBehavior.Strict);
+        var service = new AppStartupService(
+            tokenStore.Object,
+            authenticationClient.Object,
+            navigator.Object,
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+
+        await service.TryRestoreSessionAsync();
+
+        tokenStore.Verify(store => store.ClearAsync(), Times.Once);
+        authenticationClient.VerifyNoOtherCalls();
+        navigator.VerifyNoOtherCalls();
+    }
 }
+

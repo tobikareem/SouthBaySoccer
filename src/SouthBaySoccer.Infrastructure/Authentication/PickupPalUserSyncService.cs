@@ -13,7 +13,8 @@ namespace SouthBaySoccer.Infrastructure.Authentication;
 /// </summary>
 public sealed class PickupPalUserSyncService(
     SouthBaySoccerDbContext dbContext,
-    UserManager<ApplicationIdentityUser> userManager) : IPickupPalUserSyncService
+    UserManager<ApplicationIdentityUser> userManager,
+    IConfiguredAdminPhoneNumberService configuredAdminPhoneNumberService) : IPickupPalUserSyncService
 {
     public async Task<AuthenticationTokenSubject> SyncAsync(
         PickupPalUser user,
@@ -65,6 +66,7 @@ public sealed class PickupPalUserSyncService(
             profile.IdentityUserId = identityUser.Id;
             profile.PickupPalUserId = pickupPalUserId;
             ApplyProfile(profile, displayName, phoneNumber, user.ProfilePicture, user.PreferredPositions);
+            ApplyConfiguredAdminRole(profile, phoneNumber);
             identityUser.PlayerProfileId = profile.Id;
 
             var createResult = await userManager.CreateAsync(identityUser);
@@ -91,6 +93,7 @@ public sealed class PickupPalUserSyncService(
             profile.IdentityUserId = identityUser.Id;
             profile.PickupPalUserId = pickupPalUserId;
             ApplyProfile(profile, displayName, phoneNumber, user.ProfilePicture, user.PreferredPositions);
+            ApplyConfiguredAdminRole(profile, phoneNumber);
             identityUser.PlayerProfileId = profile.Id;
 
             var updateResult = await userManager.UpdateAsync(identityUser);
@@ -114,6 +117,18 @@ public sealed class PickupPalUserSyncService(
         identityUser.NormalizedEmail = identityUser.Email?.ToUpperInvariant();
         identityUser.EmailConfirmed = !string.IsNullOrWhiteSpace(identityUser.Email);
     }
+
+    private void ApplyConfiguredAdminRole(PlayerProfile profile, string phoneNumber)
+    {
+        if (configuredAdminPhoneNumberService.IsConfiguredAdminPhoneNumber(phoneNumber) &&
+            !IsAdministrativeRole(profile.Role))
+        {
+            profile.Role = PlayerRole.GameAdmin;
+        }
+    }
+
+    private static bool IsAdministrativeRole(PlayerRole role) =>
+        role is PlayerRole.Owner or PlayerRole.Admin or PlayerRole.GameAdmin;
 
     private static void ApplyProfile(
         PlayerProfile profile,
@@ -175,3 +190,4 @@ public sealed class PickupPalUserSyncService(
     private static string ToIdentityErrorMessage(IdentityResult result) =>
         string.Join("; ", result.Errors.Select(error => error.Description));
 }
+

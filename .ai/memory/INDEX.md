@@ -28,4 +28,5 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [postman-http-collections](postman-http-collections.md) - SouthBaySoccer Postman workspace collections mirror the repo http folder
 - [pickuppal-phone-sign-in](pickuppal-phone-sign-in.md) - Pickup Pal phone lookup is the user source of truth; SouthBaySoccer still issues local tokens
 - [maui-api-client-pipeline](maui-api-client-pipeline.md) - MAUI API mode uses HttpClientFactory with correlation, bearer auth, refresh, and API exception handlers
+- [sessions-home-profile-greeting](sessions-home-profile-greeting.md) - Sessions home greeting comes from profiles/me plus local device time
 

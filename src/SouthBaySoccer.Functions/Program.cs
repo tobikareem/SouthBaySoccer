@@ -13,6 +13,7 @@ builder.AddSouthBaySoccerHttpPipeline();
 builder.Services.Configure<JwtTokenOptions>(builder.Configuration.GetSection("Authentication:Jwt"));
 builder.Services.Configure<WhatsAppChallengeOptions>(builder.Configuration.GetSection("Authentication:WhatsAppChallenge"));
 builder.Services.Configure<PickupPalApiOptions>(builder.Configuration.GetSection("PickupPal"));
+builder.Services.Configure<AdminPhoneNumberOptions>(builder.Configuration);
 
 var connectionString = builder.Configuration.GetConnectionString("SouthBaySoccerDb")
     ?? builder.Configuration["ConnectionStrings:SouthBaySoccerDb"];
@@ -25,3 +26,4 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddInfrastructure(connectionString);
 
 builder.Build().Run();
+

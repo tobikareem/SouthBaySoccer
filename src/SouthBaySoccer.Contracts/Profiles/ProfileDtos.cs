@@ -14,7 +14,8 @@ public sealed record PlayerProfileDto(
     string Initials,
     CareerStatsDto CareerStats,
     IReadOnlyList<MatchResult> RecentForm,
-    string? PendingConfirmationNote);
+    string? PendingConfirmationNote,
+    string Role = "Player");
 
 public sealed record CareerStatsDto(
     int Matches,

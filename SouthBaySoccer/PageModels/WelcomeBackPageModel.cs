@@ -3,6 +3,7 @@ using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SouthBaySoccer.Configuration;
+using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Authentication;
 
 namespace SouthBaySoccer.PageModels;
@@ -11,6 +12,7 @@ public partial class WelcomeBackPageModel(
     IAuthenticationClient authenticationClient,
     IAuthenticationCoordinator authenticationCoordinator,
     IExternalLauncher externalLauncher,
+    IUserDialogService dialogService,
     PickupPalOptions options) : ObservableObject
 {
     public const string WelcomeLabel = "WELCOME BACK";
@@ -23,6 +25,9 @@ public partial class WelcomeBackPageModel(
     public const string BotHelpMessage = "Need help? Open the Pickup Pal bot for account support.";
     public const string SignupHelpMessage =
         "Create your account on the web, then come back and sign in with your phone number.";
+    public const string PickupPalNotFoundTitle = "Pickup Pal account not found";
+    public const string PickupPalNotFoundMessage =
+        "We couldn't find that phone number on Pickup Pal. Sign up on Pickup Pal, then come back and sign in.";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPhoneNumberError))]
@@ -71,7 +76,11 @@ public partial class WelcomeBackPageModel(
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
-            StatusMessage = "We couldn't find that phone number on Pickup Pal. Sign up on Pickup Pal, then come back.";
+            await dialogService.ShowAlertAsync(
+                PickupPalNotFoundTitle,
+                PickupPalNotFoundMessage,
+                "OK",
+                cancellationToken);
         }
         catch (HttpRequestException)
         {
@@ -116,3 +125,4 @@ public partial class WelcomeBackPageModel(
         }
     }
 }
+

@@ -265,7 +265,8 @@ public static class SeedFixtures
         "TK",
         new CareerStatsDto(24, 12, 9, 7.8m, 3, 41),
         ReadOnly(MatchResult.Win, MatchResult.Win, MatchResult.Draw, MatchResult.Win, MatchResult.Loss),
-        "2 goals from Sat awaiting confirmation");
+        "2 goals from Sat awaiting confirmation",
+        "GameAdmin");
 
     private static PlayerSummaryDto Player(
         Guid id,

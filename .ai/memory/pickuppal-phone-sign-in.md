@@ -11,3 +11,5 @@ local (`PlayerProfile.Role`) and are not overwritten by Pickup Pal profile sync.
 Pickup Pal preferred soccer positions come from the full user profile endpoint `GET /api/users/{id}` at
 `userInfo.sportsInfo[]` where `sport == "SOCCER"` and `isActive == true`; sync them into
 `PlayerProfile.PreferredPosition` as a comma-separated string such as `st, rw, cm`.
+Configured AdminPhoneNumbers is a root Functions setting containing comma-separated phone numbers. Normalize each entry to +{digits}, compare raw Pickup Pal sign-in phones transiently during sync, and compare hashes on profiles/me; matching users are promoted to local PlayerRole.GameAdmin unless already Owner, Admin, or GameAdmin.
+

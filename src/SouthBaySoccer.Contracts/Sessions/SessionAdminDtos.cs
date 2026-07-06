@@ -30,6 +30,23 @@ public sealed record VenueDto(
     string Locality,
     bool IsSaved);
 
+/// <summary>Compact row for sessions that an admin can open and update.</summary>
+public sealed record ManagedSessionDto(
+    Guid SessionId,
+    string Title,
+    string DateLabel,
+    string TimeLabel,
+    string VenueName,
+    string Format,
+    int Capacity,
+    string StatusLabel);
+
+/// <summary>Editable session details loaded into the admin create/update form.</summary>
+public sealed record ManagedSessionEditDto(
+    Guid SessionId,
+    CreateSessionCommand Command,
+    bool IsPublished);
+
 /// <summary>
 /// Command carrying the admin-entered, venue-local session details for create/publish. The backend
 /// validates this with FluentValidation and stores UTC timestamps; the seed validates the same rules.

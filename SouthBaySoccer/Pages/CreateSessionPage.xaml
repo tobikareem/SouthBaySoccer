@@ -54,6 +54,41 @@
                         </Grid>
                     </Border>
 
+
+                    <!-- Created sessions -->
+                    <Label Text="CREATED SESSIONS"
+                           Style="{StaticResource TextLabel}"
+                           IsVisible="{Binding HasManagedSessions}" />
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding ManagedSessions}"
+                                         IsVisible="{Binding HasManagedSessions}"
+                                         Spacing="{StaticResource SpaceSm}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="sessions:ManagedSessionDto">
+                                <c:BrandCard SemanticProperties.Description="{Binding Title}">
+                                    <Grid ColumnDefinitions="*,Auto"
+                                          ColumnSpacing="{StaticResource SpaceSm}">
+                                        <VerticalStackLayout Spacing="{StaticResource SpaceXs}"
+                                                             VerticalOptions="Center">
+                                            <Label Text="{Binding Title}" Style="{StaticResource TextBodyStrong}" />
+                                            <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                                <Label Text="{Binding DateLabel}" Style="{StaticResource TextCaption}" />
+                                                <Label Text="{Binding TimeLabel}" Style="{StaticResource TextCaption}" />
+                                                <Label Text="{Binding StatusLabel}" Style="{StaticResource TextCaption}" />
+                                            </HorizontalStackLayout>
+                                            <Label Text="{Binding Capacity, StringFormat='Capacity {0}'}"
+                                                   Style="{StaticResource TextCaption}" />
+                                        </VerticalStackLayout>
+                                        <Button Grid.Column="1"
+                                                Text="Edit"
+                                                Style="{StaticResource GhostButton}"
+                                                Command="{Binding Source={x:Reference CreateSession}, Path=BindingContext.EditManagedSessionCommand, x:DataType=ContentPage}"
+                                                CommandParameter="{Binding .}"
+                                                SemanticProperties.Description="Edit session" />
+                                    </Grid>
+                                </c:BrandCard>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
                     <!-- Game date and time -->
                     <Label Text="GAME DATE AND TIME" Style="{StaticResource TextLabel}" />
                     <c:BrandCard>
@@ -337,12 +372,12 @@
                            TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}" />
 
                     <!-- Publish -->
-                    <Button Text="Publish to team"
+                    <Button Text="{Binding PrimaryActionText}"
                             Command="{Binding PublishToTeamCommand}"
                             IsEnabled="{Binding CanPublish}"
                             Style="{StaticResource PrimaryButton}"
                             ContentLayout="Left,8"
-                            SemanticProperties.Description="Publish to team">
+                            SemanticProperties.Description="Publish or update session">
                         <Button.ImageSource>
                             <FontImageSource Glyph="{x:Static fonts:FontAwesomeGlyphs.PaperPlane}"
                                              FontFamily="FontAwesomeSolid"
