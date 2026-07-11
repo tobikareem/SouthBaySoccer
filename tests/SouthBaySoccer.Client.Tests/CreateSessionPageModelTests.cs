@@ -250,6 +250,25 @@ public class CreateSessionPageModelTests
     }
 
     [Fact]
+    public async Task SearchVenuesCommand_QueryMatchesSelectedVenueName_SkipsSearchAndKeepsListClosed()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        var venue = new VenueDto(Guid.NewGuid(), "Cuesta Park", "Mountain View", false);
+        pageModel.SelectVenueCommand.Execute(venue);
+
+        // Selecting a venue sets VenueQuery to its name, which the page's TextChanged handler turns
+        // into exactly this call - it must not reopen the results list or hit the API.
+        await pageModel.SearchVenuesCommand.ExecuteAsync(venue.Name);
+
+        pageModel.VenueResults.Should().BeEmpty();
+        pageModel.HasVenueResults.Should().BeFalse();
+        adminClient.Verify(
+            client => client.SearchVenuesAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task AddVenue_WithUnknownTypedVenue_CreatesAndSelectsVenue()
     {
         var pageModel = SeedBackedModel(out _, out _);
@@ -267,6 +286,23 @@ public class CreateSessionPageModelTests
         pageModel.VenueQuery.Should().Be("New Park");
         pageModel.SavedVenueHint.Should().Be("Torrance");
         pageModel.CanPublish.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AddVenue_WithCommaOnlyLocalityTypedVenue_FallsBackToLocalityAsName()
+    {
+        var pageModel = SeedBackedModel(out _, out _);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        pageModel.VenueQuery = ", Torrance";
+        await pageModel.SearchVenuesCommand.ExecuteAsync(null);
+        pageModel.CanCreateVenue.Should().BeTrue();
+
+        await pageModel.AddVenueCommand.ExecuteAsync(null);
+
+        pageModel.SelectedVenue.Should().NotBeNull();
+        pageModel.SelectedVenue!.Name.Should().Be("Torrance");
+        pageModel.SelectedVenue.Locality.Should().Be("South Bay");
     }
 
     [Fact]
@@ -635,6 +671,7 @@ public class CreateSessionPageModelTests
         pageModel.ValidationMessage.Should().Be("Check-in must open before it closes.");
         navigator.Verify(item => item.GoToSessionAsync(It.IsAny<Guid>()), Times.Never);
     }
+
     [Fact]
     public async Task PublishToTeam_CheckInCloseAfterStart_ShowsValidationAndDoesNotPublish()
     {
@@ -643,10 +680,54 @@ public class CreateSessionPageModelTests
 
         pageModel.CheckInOpen = new TimeSpan(19, 30, 0);
         pageModel.CheckInClose = new TimeSpan(19, 45, 0);
+
+        // The rule must surface via Validate() on tap rather than silently disable the button - the
+        // button (and the command it drives) must stay enabled so tapping reaches Validate() at all.
+        pageModel.CanPublish.Should().BeTrue();
+        pageModel.PublishToTeamCommand.CanExecute(null).Should().BeTrue();
         await pageModel.PublishToTeamCommand.ExecuteAsync(null);
 
         pageModel.ValidationMessage.Should().Be("Check-in close cannot be after session start.");
         navigator.Verify(item => item.GoToSessionAsync(It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task EditManagedSession_LegacyCheckInCloseAfterStart_KeepsUpdateButtonTappableAndSurfacesValidation()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        var session = new ManagedSessionDto(
+            Guid.NewGuid(), "Legacy session", "Jul 11", "7:40 PM", "Marina Field", "7v7", 20, "Published");
+        var editable = new ManagedSessionEditDto(
+            session.SessionId,
+            new CreateSessionCommand(
+                new DateTime(2026, 7, 11, 0, 0, 0, DateTimeKind.Unspecified),
+                new TimeSpan(19, 40, 0),
+                new TimeSpan(19, 30, 0),
+                new TimeSpan(19, 45, 0), // stale seed offset: check-in close after session start
+                Guid.NewGuid(),
+                "Marina Field",
+                "7v7",
+                20,
+                2,
+                new TimeSpan(18, 30, 0)),
+            IsPublished: true);
+        adminClient
+            .Setup(client => client.GetSessionForEditAsync(session.SessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(editable);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        await pageModel.EditManagedSessionCommand.ExecuteAsync(session);
+
+        pageModel.CanPublish.Should().BeTrue("the admin must be able to discover why the update is blocked");
+        pageModel.PublishToTeamCommand.CanExecute(null).Should().BeTrue();
+
+        await pageModel.PublishToTeamCommand.ExecuteAsync(null);
+
+        pageModel.ValidationMessage.Should().Be("Check-in close cannot be after session start.");
+        adminClient.Verify(
+            client => client.UpdateSessionAsync(
+                It.IsAny<Guid>(), It.IsAny<CreateSessionCommand>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }
 

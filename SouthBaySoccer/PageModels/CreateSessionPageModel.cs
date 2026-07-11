@@ -45,6 +45,7 @@ public partial class CreateSessionPageModel(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanPublish))]
+    [NotifyPropertyChangedFor(nameof(IsVenueQueryNovel))]
     [NotifyPropertyChangedFor(nameof(CanCreateVenue))]
     [NotifyCanExecuteChangedFor(nameof(AddVenueCommand))]
     private ViewState _state = ViewState.Loading;
@@ -89,6 +90,7 @@ public partial class CreateSessionPageModel(
     private TimeSpan _checkInClose = new(19, 5, 0);
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsVenueQueryNovel))]
     [NotifyPropertyChangedFor(nameof(CanCreateVenue))]
     [NotifyPropertyChangedFor(nameof(CreateVenueActionText))]
     [NotifyCanExecuteChangedFor(nameof(AddVenueCommand))]
@@ -96,12 +98,14 @@ public partial class CreateSessionPageModel(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasVenueResults))]
+    [NotifyPropertyChangedFor(nameof(IsVenueQueryNovel))]
     [NotifyPropertyChangedFor(nameof(CanCreateVenue))]
     [NotifyCanExecuteChangedFor(nameof(AddVenueCommand))]
     private IReadOnlyList<VenueDto> _venueResults = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelectedVenue))]
+    [NotifyPropertyChangedFor(nameof(IsVenueQueryNovel))]
     [NotifyPropertyChangedFor(nameof(CanCreateVenue))]
     [NotifyCanExecuteChangedFor(nameof(AddVenueCommand))]
     [NotifyPropertyChangedFor(nameof(PreviewTitle))]
@@ -171,13 +175,19 @@ public partial class CreateSessionPageModel(
     /// <summary>True once a venue has been selected for the session.</summary>
     public bool HasSelectedVenue => SelectedVenue is not null;
 
-    /// <summary>True when the current typed venue can be saved from the form.</summary>
-    public bool CanCreateVenue =>
+    /// <summary>
+    /// True when the typed query does not match an existing venue, independent of whether a
+    /// create-venue request is currently in flight. Drives the add-venue button's visibility so it
+    /// does not vanish under the admin's finger the moment <see cref="IsCreatingVenue"/> flips.
+    /// </summary>
+    public bool IsVenueQueryNovel =>
         State == ViewState.Content
-        && !IsCreatingVenue
         && !HasSelectedVenue
         && !string.IsNullOrWhiteSpace(VenueQuery)
         && !VenueResults.Any(venue => string.Equals(venue.Name, VenueQuery.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>True when the current typed venue can be saved from the form right now.</summary>
+    public bool CanCreateVenue => IsVenueQueryNovel && !IsCreatingVenue;
 
     /// <summary>Label for creating a saved venue from the current typed query.</summary>
     public string CreateVenueActionText =>
@@ -238,7 +248,8 @@ public partial class CreateSessionPageModel(
         && Capacity >= MinimumCapacity
         && Capacity <= MaximumCapacity
         && CheckInOpen < CheckInClose
-        && CheckInClose <= StartTime
+        // Check-in-close-after-start is deliberately NOT gated here: Validate() surfaces that message
+        // on tap instead of silently disabling the button (see Validate() below).
         && RsvpCloseDate != default
         && RsvpDeadline is not null
         && RsvpCloseTime != default
@@ -301,9 +312,19 @@ public partial class CreateSessionPageModel(
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task SearchVenues(string? query, CancellationToken cancellationToken)
     {
+        var searchQuery = string.IsNullOrWhiteSpace(query) ? VenueQuery : query;
+
+        // Selecting a venue (or creating one) sets VenueQuery to the selection's name, which re-fires
+        // this search via the TextChanged handler. Skip it so the results list stays collapsed
+        // instead of repopulating right after the admin made their choice.
+        if (SelectedVenue is not null
+            && string.Equals(searchQuery.Trim(), SelectedVenue.Name, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         try
         {
-            var searchQuery = string.IsNullOrWhiteSpace(query) ? VenueQuery : query;
             if (string.IsNullOrWhiteSpace(searchQuery))
             {
                 VenueResults = [];
@@ -754,13 +775,19 @@ public partial class CreateSessionPageModel(
     private static (string Name, string Locality) SplitVenueQuery(string query)
     {
         var trimmed = query.Trim();
-        var parts = trimmed.Split(',', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 2)
+        var parts = trimmed.Split(',', 2, StringSplitOptions.TrimEntries);
+        var name = parts.Length > 0 ? parts[0] : string.Empty;
+        var locality = parts.Length > 1 ? parts[1] : string.Empty;
+
+        if (string.IsNullOrWhiteSpace(name))
         {
-            return (parts[0], parts[1]);
+            // A leading comma (e.g. ", Torrance") leaves the name empty - fall back to whatever
+            // non-empty text is present rather than saving a venue literally named ", Torrance".
+            name = !string.IsNullOrWhiteSpace(locality) ? locality : trimmed;
+            locality = string.Empty;
         }
 
-        return (trimmed, "South Bay");
+        return (name, string.IsNullOrWhiteSpace(locality) ? "South Bay" : locality);
     }
 
     private static string FormatDate(DateTime date) =>
