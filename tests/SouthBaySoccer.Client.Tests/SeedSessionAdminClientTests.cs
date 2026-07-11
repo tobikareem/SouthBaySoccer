@@ -14,7 +14,7 @@ public class SeedSessionAdminClientTests
             GameDateLocal: new DateTime(2026, 7, 4, 0, 0, 0, DateTimeKind.Unspecified),
             StartTimeLocal: new TimeSpan(18, 0, 0),
             CheckInOpenLocal: new TimeSpan(17, 50, 0),
-            CheckInCloseLocal: new TimeSpan(18, 5, 0),
+            CheckInCloseLocal: new TimeSpan(18, 0, 0),
             VenueId: SeedFixtures.Venues[2].Id,
             VenueName: venueName,
             Format: format,
@@ -58,6 +58,19 @@ public class SeedSessionAdminClientTests
     }
 
     [Fact]
+    public async Task CreateVenueAsync_WithNewVenue_AddsSearchableSavedVenue()
+    {
+        var client = new SeedSessionAdminClient(new SeedState());
+
+        var venue = await client.CreateVenueAsync("New Park", "Torrance", null, CancellationToken.None);
+        var results = await client.SearchVenuesAsync("new", CancellationToken.None);
+ 
+        venue.Name.Should().Be("New Park");
+        venue.Locality.Should().Be("Torrance");
+        venue.IsSaved.Should().BeTrue();
+        results.Should().ContainSingle(item => item.Id == venue.Id);
+    }
+    [Fact]
     public async Task CreateDraftAsync_InvalidCapacity_ReturnsFailureWithoutPublishing()
     {
         var client = new SeedSessionAdminClient(new SeedState());
@@ -75,13 +88,29 @@ public class SeedSessionAdminClientTests
         var command = ValidCommand() with
         {
             CheckInOpenLocal = new TimeSpan(18, 10, 0),
-            CheckInCloseLocal = new TimeSpan(18, 5, 0)
+            CheckInCloseLocal = new TimeSpan(18, 0, 0)
         };
 
         var result = await client.CreateDraftAsync(command, CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
         result.ErrorCode.Should().Be("checkin_window_invalid");
+    }
+
+
+    [Fact]
+    public async Task CreateDraftAsync_CheckInCloseAfterStart_ReturnsFailure()
+    {
+        var client = new SeedSessionAdminClient(new SeedState());
+        var command = ValidCommand() with
+        {
+            CheckInCloseLocal = new TimeSpan(18, 5, 0)
+        };
+
+        var result = await client.CreateDraftAsync(command, CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorCode.Should().Be("checkin_close_after_start");
     }
 
     [Fact]

@@ -21,6 +21,14 @@ public interface ISessionRepository : IRepository<Session>
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Lists sessions that can be managed by an organizer with a bounded result count.
+    /// </summary>
+    Task<IReadOnlyList<Session>> ListManagedAsync(
+        DateTime fromUtc,
+        int take,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Finds a recurrence rule by id.
     /// </summary>
     Task<RecurrenceRule?> FindRecurrenceRuleAsync(Guid recurrenceRuleId, CancellationToken cancellationToken = default);

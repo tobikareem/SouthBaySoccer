@@ -29,4 +29,6 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [pickuppal-phone-sign-in](pickuppal-phone-sign-in.md) - Pickup Pal phone lookup is the user source of truth; SouthBaySoccer still issues local tokens
 - [maui-api-client-pipeline](maui-api-client-pipeline.md) - MAUI API mode uses HttpClientFactory with correlation, bearer auth, refresh, and API exception handlers
 - [sessions-home-profile-greeting](sessions-home-profile-greeting.md) - Sessions home greeting comes from profiles/me plus local device time
-
+- [sprint-03-api-integration](sprint-03-api-integration.md) - Sprint 03 wires the MAUI app to the Functions API while preserving wireframe-matched screens
+- [sprint-03-resume-later](sprint-03-resume-later.md) - Sprint 03 API integration is parked and should be resumed later from its board
+- [sprint-04-players-directory](sprint-04-players-directory.md) - Sprint 04 makes the Players tab data-driven from AspNetUsers and PlayerProfiles

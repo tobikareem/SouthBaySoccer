@@ -17,10 +17,13 @@ public sealed class AuthenticationNavigator(IServiceProvider services) : IAuthen
                 ?? throw new InvalidOperationException("The application window is not available.");
 
             // AppShell is registered transient, so this is always a fresh shell with no prior
-            // navigation state, and Sessions is the first ShellContent in the TabBar — assigning it
-            // as the window page lands on the Sessions tab (//sessions) by default. Do NOT call
-            // GoToAsync here: invoking Shell navigation before the shell handler exists crashes.
-            window.Page = services.GetRequiredService<AppShell>();
+            // navigation state. Assign it first, then queue the initial Shell route after the
+            // handler has had a turn to attach on Android.
+            var shell = services.GetRequiredService<AppShell>();
+            window.Page = shell;
+            shell.Dispatcher.DispatchDelayed(
+                TimeSpan.FromMilliseconds(100),
+                () => shell.GoToAsync("//sessions").FireAndForgetSafeAsync());
         });
     }
 }

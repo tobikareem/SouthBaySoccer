@@ -10,6 +10,7 @@ namespace SouthBaySoccer.Functions.Profiles;
 
 public sealed class ProfileFunctions(
     GetMyProfileQueryHandler getMyProfileHandler,
+    GetPlayerProfileQueryHandler getPlayerProfileHandler,
     UpdateMyProfileCommandHandler updateMyProfileHandler,
     CreateGuestProfileCommandHandler createGuestProfileHandler,
     CreateProfileMergeCommandHandler createProfileMergeHandler)
@@ -21,6 +22,17 @@ public sealed class ProfileFunctions(
         CancellationToken cancellationToken)
     {
         var result = await getMyProfileHandler.HandleAsync(cancellationToken);
+        return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(result), cancellationToken);
+    }
+
+    [Function(nameof(GetPlayerProfile))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> GetPlayerProfile(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "profiles/{playerProfileId:guid}")] HttpRequestData request,
+        Guid playerProfileId,
+        CancellationToken cancellationToken)
+    {
+        var result = await getPlayerProfileHandler.HandleAsync(playerProfileId, cancellationToken);
         return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(result), cancellationToken);
     }
 
@@ -100,6 +112,32 @@ public sealed class ProfileFunctions(
                     profile.EmergencyContact.Name,
                     profile.EmergencyContact.MaskedPhoneNumber,
                     profile.EmergencyContact.Relationship));
+
+    private static PlayerProfileDto ToResponse(PlayerProfileDetailModel profile) =>
+        new(
+            profile.PlayerProfileId,
+            profile.DisplayName,
+            profile.PreferredPosition,
+            profile.Initials,
+            new CareerStatsDto(
+                profile.CareerStats.Matches,
+                profile.CareerStats.Goals,
+                profile.CareerStats.Assists,
+                profile.CareerStats.AverageRating,
+                profile.CareerStats.MvpAwards,
+                profile.CareerStats.Likes),
+            profile.RecentForm.Select(ToResponse).ToArray(),
+            profile.PendingConfirmationNote,
+            profile.Role);
+
+    private static MatchResult ToResponse(PlayerProfileRecentFormOutcome outcome) =>
+        outcome switch
+        {
+            PlayerProfileRecentFormOutcome.Win => MatchResult.Win,
+            PlayerProfileRecentFormOutcome.Draw => MatchResult.Draw,
+            PlayerProfileRecentFormOutcome.Loss => MatchResult.Loss,
+            _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Unsupported recent form outcome."),
+        };
 
     private static async Task<T> ReadRequiredJsonAsync<T>(
         HttpRequestData request,

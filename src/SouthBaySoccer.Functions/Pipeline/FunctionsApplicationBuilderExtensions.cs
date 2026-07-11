@@ -29,6 +29,8 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<IValidator<CreateGuestProfileCommand>, CreateGuestProfileCommandValidator>();
         builder.Services.AddScoped<IValidator<CreateProfileMergeCommand>, CreateProfileMergeCommandValidator>();
         builder.Services.AddScoped<GetMyProfileQueryHandler>();
+        builder.Services.AddScoped<GetPlayerDirectoryQueryHandler>();
+        builder.Services.AddScoped<GetPlayerProfileQueryHandler>();
         builder.Services.AddScoped<UpdateMyProfileCommandHandler>();
         builder.Services.AddScoped<CreateGuestProfileCommandHandler>();
         builder.Services.AddScoped<CreateProfileMergeCommandHandler>();
@@ -48,7 +50,14 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<ListUpcomingSessionsQueryHandler>();
         builder.Services.AddScoped<CancelSessionCommandHandler>();
         builder.Services.AddScoped<CreateRecurrenceRuleCommandHandler>();
-        builder.Services.AddScoped<CreateSessionOccurrenceCommandHandler>();        builder.Services.AddScoped<IPlayerSessionEligibilityService, PlayerSessionEligibilityService>();
+        builder.Services.AddScoped<CreateSessionOccurrenceCommandHandler>();
+        builder.Services.AddScoped<GetCreateSessionAdminDefaultsQueryHandler>();
+        builder.Services.AddScoped<ListManagedSessionsQueryHandler>();
+        builder.Services.AddScoped<GetSessionForAdminEditQueryHandler>();
+        builder.Services.AddScoped<CreateSessionDraftCommandHandler>();
+        builder.Services.AddScoped<UpdateSessionAdminCommandHandler>();
+        builder.Services.AddScoped<PublishSessionCommandHandler>();
+        builder.Services.AddScoped<IPlayerSessionEligibilityService, PlayerSessionEligibilityService>();
         builder.Services.AddScoped<IPaymentEligibilityService, DeferredPaymentEligibilityService>();
         builder.Services.AddScoped<IValidator<SubmitRsvpCommand>, SubmitRsvpCommandValidator>();
         builder.Services.AddScoped<IValidator<AdminOverrideRsvpCommand>, AdminOverrideRsvpCommandValidator>();

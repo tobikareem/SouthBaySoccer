@@ -73,6 +73,8 @@ public class SeedClientRegistrationTests
             .Should().BeOfType<AuthenticationClient>();
         provider.GetRequiredService<IProfileClient>()
             .Should().BeOfType<ApiProfileClient>();
+        provider.GetRequiredService<IPlayersClient>()
+            .Should().BeOfType<ApiPlayersClient>();
     }
 
     [Fact]

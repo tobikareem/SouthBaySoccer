@@ -117,7 +117,7 @@ public static class SeedFixtures
         DefaultGameDateLocal: new DateTime(2026, 6, 27, 0, 0, 0, DateTimeKind.Unspecified),
         DefaultStartTimeLocal: new TimeSpan(19, 40, 0),
         CheckInLeadMinutes: 10,
-        CheckInCloseOffsetMinutes: 5,
+        CheckInCloseOffsetMinutes: 0,
         Formats: ReadOnly("5v5", "7v7", "9v9"),
         DefaultFormatIndex: 1,
         DefaultCapacity: 20,
@@ -312,3 +312,4 @@ public static class SeedFixtures
     private static IReadOnlyList<T> ReadOnly<T>(params T[] items) =>
         Array.AsReadOnly(items);
 }
+

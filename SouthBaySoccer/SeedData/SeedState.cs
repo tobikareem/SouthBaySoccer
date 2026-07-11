@@ -20,6 +20,7 @@ public sealed class SeedState
     private Dictionary<Guid, SessionSummaryDto> publishedSummaries = [];
     private Dictionary<Guid, SessionDetailDto> publishedDetails = [];
     private Dictionary<Guid, CreateSessionCommand> managedSessionCommands = [];
+    private List<VenueDto> customVenues = [];
     private Dictionary<Guid, SessionSummaryDto> managedSummaryOverrides = [];
     private Dictionary<Guid, SessionDetailDto> managedDetailOverrides = [];
 
@@ -41,6 +42,7 @@ public sealed class SeedState
             publishedSessionByDraft = [];
             publishedSummaries = [];
             publishedDetails = [];
+            customVenues = [];
             managedSummaryOverrides = [];
             managedDetailOverrides = [];
             managedSessionCommands = SeedFixtures.Sessions.Values
@@ -332,16 +334,37 @@ public sealed class SeedState
     {
         if (string.IsNullOrWhiteSpace(query))
         {
-            return SeedFixtures.Venues;
+            return Array.AsReadOnly(AllVenues().ToArray());
         }
 
         var trimmed = query.Trim();
         return Array.AsReadOnly(
-            SeedFixtures.Venues
+            AllVenues()
                 .Where(venue =>
                     venue.Name.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
                     || venue.Locality.Contains(trimmed, StringComparison.OrdinalIgnoreCase))
                 .ToArray());
+    }
+
+    public VenueDto CreateVenue(string name, string locality, string? address)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(locality);
+
+        lock (syncRoot)
+        {
+            var trimmedName = name.Trim();
+            var existing = AllVenues().FirstOrDefault(
+                venue => string.Equals(venue.Name, trimmedName, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+            {
+                return existing;
+            }
+
+            var venue = new VenueDto(Guid.NewGuid(), trimmedName, locality.Trim(), true);
+            customVenues.Add(venue);
+            return venue;
+        }
     }
 
     public CreateSessionResult CreateDraft(CreateSessionCommand command)
@@ -464,6 +487,13 @@ public sealed class SeedState
                 "Check-in must open before it closes.");
         }
 
+        if (command.CheckInCloseLocal > command.StartTimeLocal)
+        {
+            return CreateSessionResult.Failure(
+                "checkin_close_after_start",
+                "Check-in close cannot be after session start.");
+        }
+
         if (command.RsvpDeadlineLocal is null)
         {
             return CreateSessionResult.Failure(
@@ -493,6 +523,7 @@ public sealed class SeedState
             ? updated
             : session;
 
+    private IEnumerable<VenueDto> AllVenues() => SeedFixtures.Venues.Concat(customVenues);
     private static ManagedSessionDto ToManagedSession(SessionSummaryDto session) =>
         new(
             session.Id,
@@ -514,7 +545,7 @@ public sealed class SeedState
             localStart.Date,
             localStart.TimeOfDay,
             localStart.TimeOfDay - TimeSpan.FromMinutes(10),
-            localStart.TimeOfDay + TimeSpan.FromMinutes(5),
+            localStart.TimeOfDay,
             venue?.Id,
             session.Venue,
             session.Format,
@@ -631,6 +662,4 @@ public sealed class SeedState
         IEnumerable<RateableTeammateDto> teammates) =>
         Array.AsReadOnly(teammates.ToArray());
 }
-
-
 

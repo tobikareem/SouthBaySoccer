@@ -153,6 +153,70 @@ public sealed class ApiPipelineTests
         profile.Initials.Should().Be("CT");
     }
 
+    [Fact]
+    public async Task ApiProfileClient_GetProfileAsync_SendsProfileRouteAndMapsResponse()
+    {
+        HttpRequestMessage? observed = null;
+        var playerId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var httpClient = new HttpClient(new StubHttpMessageHandler(request =>
+        {
+            observed = request;
+            return JsonResponse(
+                $$"""
+                {
+                    "playerId": "{{playerId}}",
+                    "displayName": "Ada Johnson",
+                    "subtitle": "Midfielder",
+                    "initials": "AJ",
+                    "careerStats": {
+                        "matches": 12,
+                        "goals": 4,
+                        "assists": 5,
+                        "averageRating": 4.6,
+                        "mvpAwards": 2,
+                        "likes": 7
+                    },
+                    "recentForm": [0, 1],
+                    "pendingConfirmationNote": null,
+                    "role": "Captain"
+                }
+                """);
+        }))
+        {
+            BaseAddress = new Uri("https://api.test/"),
+        };
+        var client = new ApiProfileClient(httpClient);
+
+        var profile = await client.GetProfileAsync(playerId, CancellationToken.None);
+
+        observed!.Method.Should().Be(HttpMethod.Get);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/profiles/{playerId}");
+        profile.Should().NotBeNull();
+        profile!.DisplayName.Should().Be("Ada Johnson");
+        profile.CareerStats.Matches.Should().Be(12);
+        profile.RecentForm.Should().Equal(
+            SouthBaySoccer.Contracts.Profiles.MatchResult.Win,
+            SouthBaySoccer.Contracts.Profiles.MatchResult.Draw);
+        profile.Role.Should().Be("Captain");
+    }
+
+    [Fact]
+    public async Task ApiProfileClient_GetProfileAsync_WhenNotFound_ReturnsNull()
+    {
+        var httpClient = new HttpClient(new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)))
+        {
+            BaseAddress = new Uri("https://api.test/"),
+        };
+        var client = new ApiProfileClient(httpClient);
+
+        var profile = await client.GetProfileAsync(
+            Guid.Parse("44444444-4444-4444-4444-444444444444"),
+            CancellationToken.None);
+
+        profile.Should().BeNull();
+    }
+
     private static HttpResponseMessage JsonResponse(string json) =>
         new(HttpStatusCode.OK)
         {

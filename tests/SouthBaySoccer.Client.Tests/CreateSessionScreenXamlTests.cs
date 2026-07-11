@@ -133,6 +133,24 @@ public class CreateSessionScreenXamlTests
     }
 
     [Fact]
+    public void CreateSessionScreen_VenueSearchUsesCodeBehindTextChangedHandler()
+    {
+        var xaml = ReadXaml();
+
+        xaml.Should().Contain("x:Name=\"VenueSearchEntry\"");
+        xaml.Should().Contain("TextChanged=\"OnVenueSearchTextChanged\"");
+        xaml.Should().NotContain("Command=\"{Binding SearchVenuesCommand}\"", "Android should not depend on toolkit behavior command binding for Entry text changes");
+    }
+
+    [Fact]
+    public void CreateSessionScreen_DoesNotUseToolkitEventBehaviorForAppearing()
+    {
+        ReadXaml().Should().NotContain(
+            "EventToCommandBehavior",
+            "Create Session uses code-behind lifecycle wiring to avoid Android behavior binding crashes");
+    }
+
+    [Fact]
     public void CreateSessionScreen_RsvpDeadlineIsEditable()
     {
         Elements(LoadXaml(), "TimePicker")

@@ -1,3 +1,5 @@
+using SouthBaySoccer.Domain.Enumerations;
+
 namespace SouthBaySoccer.Application.Features.Scheduling;
 
 public sealed record SeasonModel(
@@ -51,7 +53,71 @@ public sealed record CreateSessionCommand(
     DateTime CheckInClosesAtUtc,
     DateTime RsvpDeadlineUtc,
     Guid? RecurrenceRuleId = null,
-    string? OccurrenceKey = null);
+    string? OccurrenceKey = null,
+    SessionStatus Status = SessionStatus.Published);
+
+
+public sealed record CreateSessionAdminDefaultsModel(
+    bool CanManageSessions,
+    DateTime DefaultGameDateLocal,
+    TimeSpan DefaultStartTimeLocal,
+    int CheckInLeadMinutes,
+    int CheckInCloseOffsetMinutes,
+    IReadOnlyList<string> Formats,
+    int DefaultFormatIndex,
+    int DefaultCapacity,
+    int MinimumCapacity,
+    int MaximumCapacity,
+    IReadOnlyList<string> TeamOptions,
+    int DefaultTeamIndex,
+    VenueModel SavedVenue,
+    string FeedLabel,
+    TimeSpan? DefaultRsvpDeadlineLocal);
+
+public sealed record ManagedSessionModel(
+    Guid SessionId,
+    string Title,
+    DateTime StartsAtUtc,
+    string VenueName,
+    string Format,
+    int Capacity,
+    string Status);
+
+public sealed record ManagedSessionEditModel(
+    Guid SessionId,
+    Guid VenueId,
+    string VenueName,
+    string Format,
+    int Capacity,
+    int TeamCount,
+    DateTime StartsAtUtc,
+    DateTime CheckInOpensAtUtc,
+    DateTime CheckInClosesAtUtc,
+    DateTime RsvpDeadlineUtc,
+    string Status);
+
+public sealed record CreateSessionDraftCommand(
+    Guid? VenueId,
+    string VenueName,
+    string Format,
+    int Capacity,
+    int TeamCount,
+    DateTime StartsAtUtc,
+    DateTime CheckInOpensAtUtc,
+    DateTime CheckInClosesAtUtc,
+    DateTime RsvpDeadlineUtc);
+
+public sealed record UpdateSessionAdminCommand(
+    Guid SessionId,
+    Guid? VenueId,
+    string VenueName,
+    string Format,
+    int Capacity,
+    int TeamCount,
+    DateTime StartsAtUtc,
+    DateTime CheckInOpensAtUtc,
+    DateTime CheckInClosesAtUtc,
+    DateTime RsvpDeadlineUtc);
 
 public sealed record CancelSessionCommand(
     Guid SessionId,
@@ -80,3 +146,4 @@ public sealed record CreateSessionOccurrenceCommand(
     DateTime CheckInOpensAtUtc,
     DateTime CheckInClosesAtUtc,
     DateTime RsvpDeadlineUtc);
+

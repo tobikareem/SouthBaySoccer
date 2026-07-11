@@ -44,6 +44,8 @@ public partial class CreateSessionPageModel(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanPublish))]
+    [NotifyPropertyChangedFor(nameof(CanCreateVenue))]
+    [NotifyCanExecuteChangedFor(nameof(AddVenueCommand))]
     private ViewState _state = ViewState.Loading;
 
     [ObservableProperty]
@@ -86,14 +88,21 @@ public partial class CreateSessionPageModel(
     private TimeSpan _checkInClose = new(19, 5, 0);
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCreateVenue))]
+    [NotifyPropertyChangedFor(nameof(CreateVenueActionText))]
+    [NotifyCanExecuteChangedFor(nameof(AddVenueCommand))]
     private string _venueQuery = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasVenueResults))]
+    [NotifyPropertyChangedFor(nameof(CanCreateVenue))]
+    [NotifyCanExecuteChangedFor(nameof(AddVenueCommand))]
     private IReadOnlyList<VenueDto> _venueResults = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelectedVenue))]
+    [NotifyPropertyChangedFor(nameof(CanCreateVenue))]
+    [NotifyCanExecuteChangedFor(nameof(AddVenueCommand))]
     [NotifyPropertyChangedFor(nameof(PreviewTitle))]
     [NotifyPropertyChangedFor(nameof(CanPublish))]
     private VenueDto? _selectedVenue;
@@ -150,11 +159,30 @@ public partial class CreateSessionPageModel(
     [NotifyPropertyChangedFor(nameof(CanPublish))]
     private bool _isPublishing;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCreateVenue))]
+    [NotifyCanExecuteChangedFor(nameof(AddVenueCommand))]
+    private bool _isCreatingVenue;
+
     /// <summary>True when at least one venue search result is available to choose from.</summary>
     public bool HasVenueResults => VenueResults.Count > 0;
 
     /// <summary>True once a venue has been selected for the session.</summary>
     public bool HasSelectedVenue => SelectedVenue is not null;
+
+    /// <summary>True when the current typed venue can be saved from the form.</summary>
+    public bool CanCreateVenue =>
+        State == ViewState.Content
+        && !IsCreatingVenue
+        && !HasSelectedVenue
+        && !string.IsNullOrWhiteSpace(VenueQuery)
+        && !VenueResults.Any(venue => string.Equals(venue.Name, VenueQuery.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Label for creating a saved venue from the current typed query.</summary>
+    public string CreateVenueActionText =>
+        string.IsNullOrWhiteSpace(VenueQuery)
+            ? "Add venue"
+            : $"Add \"{VenueQuery.Trim()}\"";
 
     /// <summary>True when a validation message should be surfaced under the form.</summary>
     public bool HasValidationMessage => !string.IsNullOrEmpty(ValidationMessage);
@@ -209,6 +237,7 @@ public partial class CreateSessionPageModel(
         && Capacity >= MinimumCapacity
         && Capacity <= MaximumCapacity
         && CheckInOpen < CheckInClose
+        && CheckInClose <= StartTime
         && RsvpCloseDate != default
         && RsvpDeadline is not null
         && RsvpCloseTime != default
@@ -261,13 +290,20 @@ public partial class CreateSessionPageModel(
         }
     }
 
-    /// <summary>Searches venues for the current <see cref="VenueQuery"/> and refreshes the results list.</summary>
+    /// <summary>Searches venues for the current typed query and refreshes the results list.</summary>
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private async Task SearchVenues(CancellationToken cancellationToken)
+    private async Task SearchVenues(string? query, CancellationToken cancellationToken)
     {
         try
         {
-            VenueResults = await adminClient.SearchVenuesAsync(VenueQuery, cancellationToken);
+            var searchQuery = string.IsNullOrWhiteSpace(query) ? VenueQuery : query;
+            if (string.IsNullOrWhiteSpace(searchQuery))
+            {
+                VenueResults = [];
+                return;
+            }
+
+            VenueResults = await adminClient.SearchVenuesAsync(searchQuery, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -277,6 +313,48 @@ public partial class CreateSessionPageModel(
         {
             // Venue search is a convenience; a transient failure should not break the form.
             VenueResults = [];
+        }
+    }
+
+    /// <summary>Creates a saved venue from the typed venue/location text and selects it.</summary>
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanCreateVenue))]
+    private async Task AddVenue(CancellationToken cancellationToken)
+    {
+        if (!CanCreateVenue)
+        {
+            return;
+        }
+
+        var (name, locality) = SplitVenueQuery(VenueQuery);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        IsCreatingVenue = true;
+        ValidationMessage = string.Empty;
+
+        try
+        {
+            var venue = await adminClient.CreateVenueAsync(name, locality, null, cancellationToken);
+            SelectVenue(venue);
+            VenueResults = [];
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException)
+        {
+            ValidationMessage = OfflinePublishMessage;
+        }
+        catch (Exception)
+        {
+            ValidationMessage = "Something went wrong saving the venue.";
+        }
+        finally
+        {
+            IsCreatingVenue = false;
         }
     }
 
@@ -612,6 +690,11 @@ public partial class CreateSessionPageModel(
             return "Check-in must open before it closes.";
         }
 
+        if (CheckInClose > StartTime)
+        {
+            return "Check-in close cannot be after session start.";
+        }
+
         if (RsvpCloseDate == default || RsvpDeadline is null || RsvpCloseTime == default)
         {
             return "Set an RSVP deadline.";
@@ -645,9 +728,22 @@ public partial class CreateSessionPageModel(
         State = state;
     }
 
+    private static (string Name, string Locality) SplitVenueQuery(string query)
+    {
+        var trimmed = query.Trim();
+        var parts = trimmed.Split(',', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 2)
+        {
+            return (parts[0], parts[1]);
+        }
+
+        return (trimmed, "South Bay");
+    }
+
     private static string FormatDate(DateTime date) =>
         date.ToString("MMM d", CultureInfo.InvariantCulture);
 
     private static string FormatTime(TimeSpan time) =>
         (DateTime.MinValue + time).ToString("h:mm tt", CultureInfo.InvariantCulture);
 }
+

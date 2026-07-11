@@ -50,6 +50,18 @@ public static class ClientServiceCollectionExtensions
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
+        services.AddHttpClient<ISessionAdminClient, ApiSessionAdminClient>(
+            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<AuthenticationHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+
+        services.AddHttpClient<IPlayersClient, ApiPlayersClient>(
+            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<AuthenticationHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+
         services.AddSingleton<IAuthenticationClient>(provider =>
             new AuthenticationClient(
                 provider.GetRequiredService<IHttpClientFactory>().CreateClient("SouthBaySoccer.Anonymous"),
@@ -59,7 +71,7 @@ public static class ClientServiceCollectionExtensions
 #if RELEASE
         return services;
 #else
-        return AddSeedClientsExceptProfileAndAuthentication(services);
+        return AddSeedClientsExceptApiBacked(services);
 #endif
     }
 
@@ -80,16 +92,27 @@ public static class ClientServiceCollectionExtensions
 #if !RELEASE
     private static IServiceCollection AddSeedClientsExceptProfileAndAuthentication(IServiceCollection services)
     {
+        AddSharedSeedClients(services);
+        services.AddSingleton<ISessionAdminClient, SeedSessionAdminClient>();
+        return services;
+    }
+
+    private static IServiceCollection AddSeedClientsExceptApiBacked(IServiceCollection services)
+    {
+        AddSharedSeedClients(services);
+        return services;
+    }
+
+    private static void AddSharedSeedClients(IServiceCollection services)
+    {
         services.TryAddSingleton<SeedState>();
         services.TryAddSingleton<SeedGameDayState>();
         services.AddSingleton<ISessionsClient, SeedSessionsClient>();
-        services.AddSingleton<ISessionAdminClient, SeedSessionAdminClient>();
         services.AddSingleton<IRosterClient, SeedRosterClient>();
         services.AddSingleton<IStatsClient, SeedStatsClient>();
         services.AddSingleton<ILeaderboardClient, SeedLeaderboardClient>();
-        services.AddSingleton<IPlayersClient, SeedPlayersClient>();
+        services.TryAddSingleton<IPlayersClient, SeedPlayersClient>();
         services.AddSingleton<IGameDayClient, SeedGameDayClient>();
-        return services;
     }
 #endif
 

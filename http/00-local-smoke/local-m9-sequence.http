@@ -20,6 +20,15 @@ Authorization: Bearer {{accessToken}}
 ###
 @currentPlayerProfileId = {{getMe.response.body.$.playerProfileId}}
 
+### 01a. Read the Players tab directory from real PlayerProfiles.
+# @name getPlayerDirectory
+GET {{baseUrl}}/players/directory
+Authorization: Bearer {{accessToken}}
+
+### 01b. Read the profile detail path used when tapping a Players tab row.
+GET {{baseUrl}}/profiles/{{currentPlayerProfileId}}
+Authorization: Bearer {{accessToken}}
+
 ### 02. Create a season for the smoke data.
 # @name createSeason
 POST {{baseUrl}}/seasons

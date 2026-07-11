@@ -15,6 +15,31 @@ public sealed record PlayerProfileModel(
     string Role,
     EmergencyContactView? EmergencyContact);
 
+public sealed record PlayerProfileDetailModel(
+    Guid PlayerProfileId,
+    string DisplayName,
+    string PreferredPosition,
+    string Initials,
+    CareerStatsModel CareerStats,
+    IReadOnlyList<PlayerProfileRecentFormOutcome> RecentForm,
+    string? PendingConfirmationNote,
+    string Role);
+
+public sealed record CareerStatsModel(
+    int Matches,
+    int Goals,
+    int Assists,
+    decimal AverageRating,
+    int MvpAwards,
+    int Likes);
+
+public enum PlayerProfileRecentFormOutcome
+{
+    Win,
+    Draw,
+    Loss
+}
+
 public sealed record EmergencyContactView(
     string Name,
     string MaskedPhoneNumber,

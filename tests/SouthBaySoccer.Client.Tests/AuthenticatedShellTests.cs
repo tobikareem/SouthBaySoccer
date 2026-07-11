@@ -159,8 +159,9 @@ public class AuthenticatedShellTests
     {
         var source = LoadSource("AuthenticationNavigator.cs");
 
-        source.Should().Contain("window.Page = services.GetRequiredService<AppShell>()");
-        source.Should().NotContain("GoToAsync(");
+        source.Should().Contain("window.Page = shell");
+        source.Should().Contain("DispatchDelayed");
+        source.Should().Contain("GoToAsync(\"//sessions\")");
         source.Should().NotContain("PushAsync(");
     }
 

@@ -22,6 +22,13 @@ public interface ISessionAdminClient
     /// <summary>Searches saved and nearby venues for the given query (empty query returns all venues).</summary>
     Task<IReadOnlyList<VenueDto>> SearchVenuesAsync(string? query, CancellationToken cancellationToken);
 
+    /// <summary>Creates a saved venue from the create-session form and returns it selected.</summary>
+    Task<VenueDto> CreateVenueAsync(
+        string name,
+        string locality,
+        string? address,
+        CancellationToken cancellationToken);
+
     /// <summary>Creates an unpublished session draft from the entered details.</summary>
     Task<CreateSessionResult> CreateDraftAsync(CreateSessionCommand command, CancellationToken cancellationToken);
 
@@ -37,3 +44,4 @@ public interface ISessionAdminClient
     /// </summary>
     Task<CreateSessionResult> PublishAsync(Guid draftId, CancellationToken cancellationToken);
 }
+

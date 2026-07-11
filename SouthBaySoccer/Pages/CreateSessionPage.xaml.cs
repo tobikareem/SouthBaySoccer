@@ -9,4 +9,25 @@ public partial class CreateSessionPage : ContentPage
         InitializeComponent();
         BindingContext = pageModel;
     }
+
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+
+        if (BindingContext is CreateSessionPageModel pageModel
+            && pageModel.LoadCommand.CanExecute(null))
+        {
+            pageModel.LoadCommand.ExecuteAsync(null).FireAndForgetSafeAsync();
+        }
+    }
+
+    private void OnVenueSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (BindingContext is CreateSessionPageModel pageModel
+            && pageModel.SearchVenuesCommand.CanExecute(e.NewTextValue))
+        {
+            pageModel.SearchVenuesCommand.ExecuteAsync(e.NewTextValue).FireAndForgetSafeAsync();
+        }
+    }
 }
+

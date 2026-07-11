@@ -111,13 +111,11 @@ public static class MauiProgram
 #else
         var pickupPalOptions = new PickupPalOptions();
 #endif
+#if DEBUG && ANDROID
+        var clientDataSourceOptions = new ClientDataSourceOptions { DataSource = ClientDataSource.Seed };
+#else
         var configuredClientDataSource = builder.Configuration["ClientDataSource"];
         var clientDataSourceOptions = ClientDataSourceOptions.FromValue(configuredClientDataSource);
-#if DEBUG && ANDROID
-        if (string.IsNullOrWhiteSpace(configuredClientDataSource))
-        {
-            clientDataSourceOptions = new ClientDataSourceOptions { DataSource = ClientDataSource.Api };
-        }
 #endif
         builder.Services.AddSingleton(pickupPalOptions);
         builder.Services.AddSouthBaySoccerClients(

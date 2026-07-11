@@ -40,7 +40,7 @@ public class CreateSessionPageModelTests
             DefaultGameDateLocal: new DateTime(2026, 6, 27, 0, 0, 0, DateTimeKind.Unspecified),
             DefaultStartTimeLocal: new TimeSpan(19, 40, 0),
             CheckInLeadMinutes: 10,
-            CheckInCloseOffsetMinutes: 5,
+            CheckInCloseOffsetMinutes: 0,
             Formats: ["5v5", "7v7", "9v9"],
             DefaultFormatIndex: 1,
             DefaultCapacity: 20,
@@ -69,7 +69,7 @@ public class CreateSessionPageModelTests
         pageModel.PreviewDateLabel.Should().Be("Jun 27");
         pageModel.PreviewTimeLabel.Should().Be("7:40 PM");
         pageModel.PreviewFormatLabel.Should().Contain("7v7").And.Contain("20 spots");
-        pageModel.CheckInPreviewLabel.Should().Contain("Check-in 7:30 PM").And.Contain("closes 7:45 PM");
+        pageModel.CheckInPreviewLabel.Should().Contain("Check-in 7:30 PM").And.Contain("closes 7:40 PM");
         GetContractProperty<TimeSpan>(pageModel, "RsvpCloseTime").Should().Be(new TimeSpan(18, 30, 0));
         pageModel.CanPublish.Should().BeTrue();
     }
@@ -165,6 +165,50 @@ public class CreateSessionPageModelTests
         pageModel.VenueResults.Should().ContainSingle(venue => venue.Name == "Stanford Turf");
     }
 
+    [Fact]
+    public async Task SearchVenuesCommand_WithTypedVenue_SearchesApiClient()
+    {
+        var searched = default(string);
+        var adminClient = new Mock<ISessionAdminClient>();
+        adminClient
+            .Setup(client => client.GetDefaultsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.CreateSessionDefaults);
+        adminClient
+            .Setup(client => client.ListManagedSessionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        adminClient
+            .Setup(client => client.SearchVenuesAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<string?, CancellationToken>((query, _) => searched = query)
+            .ReturnsAsync([SeedFixtures.Venues.Single(venue => venue.Name == "Stanford Turf")]);
+        var navigator = new Mock<ISessionsNavigator>();
+        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        await pageModel.SearchVenuesCommand.ExecuteAsync("stanford");
+
+        searched.Should().Be("stanford");
+        pageModel.VenueResults.Should().ContainSingle(venue => venue.Name == "Stanford Turf");
+    }
+
+    [Fact]
+    public async Task AddVenue_WithUnknownTypedVenue_CreatesAndSelectsVenue()
+    {
+        var pageModel = SeedBackedModel(out _, out _);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        pageModel.VenueQuery = "New Park, Torrance";
+        await pageModel.SearchVenuesCommand.ExecuteAsync(null);
+        pageModel.CanCreateVenue.Should().BeTrue();
+
+        await pageModel.AddVenueCommand.ExecuteAsync(null);
+
+        pageModel.SelectedVenue.Should().NotBeNull();
+        pageModel.SelectedVenue!.Name.Should().Be("New Park");
+        pageModel.SelectedVenue.Locality.Should().Be("Torrance");
+        pageModel.VenueQuery.Should().Be("New Park");
+        pageModel.SavedVenueHint.Should().Be("Torrance");
+        pageModel.CanPublish.Should().BeTrue();
+    }
     [Fact]
     public async Task SelectVenue_FromResults_SetsSelectionAndCollapsesList()
     {
@@ -342,14 +386,14 @@ public class CreateSessionPageModelTests
         await pageModel.LoadCommand.ExecuteAsync(null);
 
         pageModel.CheckInOpen = new TimeSpan(19, 25, 0);
-        pageModel.CheckInClose = new TimeSpan(19, 50, 0);
+        pageModel.CheckInClose = new TimeSpan(19, 40, 0);
         SetContractProperty<DateTime>(pageModel, "RsvpCloseDate", pageModel.GameDate.Date);
         SetContractProperty<TimeSpan>(pageModel, "RsvpCloseTime", new TimeSpan(18, 30, 0));
         await pageModel.PublishToTeamCommand.ExecuteAsync(null);
 
         captured.Should().NotBeNull();
         captured!.CheckInOpenLocal.Should().Be(new TimeSpan(19, 25, 0));
-        captured.CheckInCloseLocal.Should().Be(new TimeSpan(19, 50, 0));
+        captured.CheckInCloseLocal.Should().Be(new TimeSpan(19, 40, 0));
         captured.RsvpDeadlineLocal.Should().Be(new TimeSpan(18, 30, 0));
     }
 
@@ -414,11 +458,24 @@ public class CreateSessionPageModelTests
         var pageModel = SeedBackedModel(out _, out var navigator);
         await pageModel.LoadCommand.ExecuteAsync(null);
 
-        pageModel.CheckInOpen = new TimeSpan(19, 50, 0);
-        pageModel.CheckInClose = new TimeSpan(19, 45, 0);
+        pageModel.CheckInOpen = new TimeSpan(19, 45, 0);
+        pageModel.CheckInClose = new TimeSpan(19, 40, 0);
         await pageModel.PublishToTeamCommand.ExecuteAsync(null);
 
         pageModel.ValidationMessage.Should().Be("Check-in must open before it closes.");
+        navigator.Verify(item => item.GoToSessionAsync(It.IsAny<Guid>()), Times.Never);
+    }
+    [Fact]
+    public async Task PublishToTeam_CheckInCloseAfterStart_ShowsValidationAndDoesNotPublish()
+    {
+        var pageModel = SeedBackedModel(out _, out var navigator);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        pageModel.CheckInOpen = new TimeSpan(19, 30, 0);
+        pageModel.CheckInClose = new TimeSpan(19, 45, 0);
+        await pageModel.PublishToTeamCommand.ExecuteAsync(null);
+
+        pageModel.ValidationMessage.Should().Be("Check-in close cannot be after session start.");
         navigator.Verify(item => item.GoToSessionAsync(It.IsAny<Guid>()), Times.Never);
     }
 }

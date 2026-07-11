@@ -14,13 +14,6 @@
     Shell.NavBarIsVisible="False"
     Style="{StaticResource BrandPage}">
 
-    <ContentPage.Behaviors>
-        <toolkit:EventToCommandBehavior
-            BindingContext="{Binding Path=BindingContext, Source={x:Reference CreateSession}, x:DataType=ContentPage}"
-            EventName="Appearing"
-            Command="{Binding LoadCommand}" />
-    </ContentPage.Behaviors>
-
     <Grid RowDefinitions="Auto,*">
         <c:BrandHeader Grid.Row="0"
                        Title="Create session"
@@ -202,18 +195,14 @@
                                        TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
                                        VerticalTextAlignment="Center"
                                        SemanticProperties.Description="Search venues" />
-                                <Entry Grid.Column="1"
+                                <Entry x:Name="VenueSearchEntry"
+                                       Grid.Column="1"
                                        Text="{Binding VenueQuery}"
+                                       TextChanged="OnVenueSearchTextChanged"
                                        Placeholder="Search venues"
                                        Style="{StaticResource BrandEntry}"
                                        MinimumHeightRequest="{StaticResource TouchMin}"
-                                       SemanticProperties.Description="Search venues">
-                                    <Entry.Behaviors>
-                                        <toolkit:EventToCommandBehavior
-                                            EventName="TextChanged"
-                                            Command="{Binding SearchVenuesCommand}" />
-                                    </Entry.Behaviors>
-                                </Entry>
+                                       SemanticProperties.Description="Search venues" />
                             </Grid>
 
                             <!-- Venue search results -->
@@ -247,6 +236,19 @@
                                 </BindableLayout.ItemTemplate>
                             </VerticalStackLayout>
 
+                            <Button Text="{Binding CreateVenueActionText}"
+                                    Command="{Binding AddVenueCommand}"
+                                    IsVisible="{Binding CanCreateVenue}"
+                                    Style="{StaticResource LinkButton}"
+                                    ContentLayout="Left,6"
+                                    SemanticProperties.Description="Add typed venue">
+                                <Button.ImageSource>
+                                    <FontImageSource Glyph="{x:Static fonts:FontAwesomeGlyphs.CirclePlus}"
+                                                     FontFamily="FontAwesomeSolid"
+                                                     Size="{StaticResource IconMd}"
+                                                     Color="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}" />
+                                </Button.ImageSource>
+                            </Button>
                             <!-- Selected venue confirmation -->
                             <Grid ColumnDefinitions="*,Auto"
                                   ColumnSpacing="{StaticResource SpaceSm}"
@@ -390,3 +392,4 @@
         </c:StateView>
     </Grid>
 </ContentPage>
+

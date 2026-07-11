@@ -9,7 +9,7 @@ public sealed class ApiProfileClient(HttpClient httpClient) : IProfileClient
     public Task<PlayerProfileDto?> GetProfileAsync(
         Guid playerId,
         CancellationToken cancellationToken) =>
-        Task.FromResult<PlayerProfileDto?>(null);
+        GetProfileByPathAsync($"profiles/{playerId}", cancellationToken);
 
     public async Task<PlayerProfileDto?> GetCurrentProfileAsync(CancellationToken cancellationToken)
     {
@@ -24,6 +24,21 @@ public sealed class ApiProfileClient(HttpClient httpClient) : IProfileClient
             cancellationToken: cancellationToken);
 
         return profile is null ? null : ToPlayerProfileDto(profile);
+    }
+
+    private async Task<PlayerProfileDto?> GetProfileByPathAsync(
+        string path,
+        CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.GetAsync(path, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<PlayerProfileDto>(
+            cancellationToken: cancellationToken);
     }
 
     private static PlayerProfileDto ToPlayerProfileDto(MyProfileResponse profile) =>
