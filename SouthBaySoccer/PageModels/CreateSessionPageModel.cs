@@ -544,9 +544,19 @@ public partial class CreateSessionPageModel(
         CheckInClose = value + TimeSpan.FromMinutes(_checkInCloseOffsetMinutes);
     }
 
-    partial void OnGameDateChanged(DateTime value)
+    partial void OnGameDateChanged(DateTime oldValue, DateTime newValue)
     {
-        RsvpCloseDate = value.Date;
+        if (_isApplyingSession)
+        {
+            return;
+        }
+
+        // Shift the RSVP close date by the same delta the game date just moved, rather than resetting
+        // it to game day. Because both fields start out equal (DateTime.Today), this reproduces the
+        // previous "defaults to game day" behavior for a fresh pick while also preserving an
+        // established day-before offset (e.g. loaded from an existing session via ApplyCommand) when
+        // the admin subsequently changes the game date — see task-5-brief.md Fix 2.
+        RsvpCloseDate = RsvpCloseDate.Date.AddDays((newValue.Date - oldValue.Date).Days);
     }
 
     partial void OnRsvpDeadlineChanged(TimeSpan? value)
@@ -648,7 +658,9 @@ public partial class CreateSessionPageModel(
     {
         GameDate = command.GameDateLocal.Date;
         StartTime = command.StartTimeLocal;
-        RsvpCloseDate = command.GameDateLocal.Date;
+        // RsvpDeadlineDayOffset preserves a deadline set on a day other than game day (e.g. the
+        // evening before) across this load/save round-trip instead of coercing it onto game day.
+        RsvpCloseDate = command.GameDateLocal.Date.AddDays(command.RsvpDeadlineDayOffset);
         RsvpDeadline = command.RsvpDeadlineLocal;
         RsvpCloseTime = command.RsvpDeadlineLocal ?? command.StartTimeLocal - TimeSpan.FromHours(1);
         CheckInOpen = command.CheckInOpenLocal;
@@ -763,7 +775,8 @@ public partial class CreateSessionPageModel(
             SelectedFormat,
             Capacity,
             SelectedTeamCount,
-            RsvpDeadline);
+            RsvpDeadline,
+            RsvpDeadlineDayOffset: (RsvpCloseDate.Date - GameDate.Date).Days);
 
     private void ApplyState(ViewState state, string title, string message)
     {

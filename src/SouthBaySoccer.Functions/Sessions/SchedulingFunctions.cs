@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Net;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using SouthBaySoccer.Application.Features.Scheduling;
@@ -58,13 +60,9 @@ public sealed class SchedulingFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "venues")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var query = GetQueryParameter(request.Url, "query");
-        var venues = await listVenuesHandler.HandleAsync(cancellationToken);
-        var filtered = string.IsNullOrWhiteSpace(query)
-            ? venues
-            : venues.Where(x => x.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || x.Locality.Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
-        return await WriteJsonAsync(request, HttpStatusCode.OK, filtered.Select(ToResponse).ToArray(), cancellationToken);
+        var query = QueryHelpers.ParseQuery(request.Url.Query);
+        var venues = await listVenuesHandler.HandleAsync(ReadOptionalString(query, "query"), cancellationToken);
+        return await WriteJsonAsync(request, HttpStatusCode.OK, venues.Select(ToResponse).ToArray(), cancellationToken);
     }
 
     [Function(nameof(CreateVenue))]
@@ -119,9 +117,7 @@ public sealed class SchedulingFunctions(
         CancellationToken cancellationToken)
     {
         var session = await getSessionForAdminEditHandler.HandleAsync(sessionId, cancellationToken);
-        return session is null
-            ? request.CreateResponse(HttpStatusCode.NotFound)
-            : await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(session), cancellationToken);
+        return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(session), cancellationToken);
     }
 
     [Function(nameof(CreateSessionDraft))]
@@ -299,12 +295,12 @@ public sealed class SchedulingFunctions(
 
     private static ManagedSessionDto ToResponse(ManagedSessionModel session)
     {
-        var localStart = ToLocal(session.StartsAtUtc);
+        var localStart = SessionAdminTimeZone.ToLocal(session.StartsAtUtc);
         return new ManagedSessionDto(
             session.SessionId,
             session.Title,
-            localStart.ToString("MMM d"),
-            localStart.ToString("h:mm tt"),
+            localStart.ToString("MMM d", CultureInfo.InvariantCulture),
+            localStart.ToString("h:mm tt", CultureInfo.InvariantCulture),
             session.VenueName,
             session.Format,
             session.Capacity,
@@ -313,10 +309,10 @@ public sealed class SchedulingFunctions(
 
     private static ManagedSessionEditDto ToResponse(ManagedSessionEditModel session)
     {
-        var localStart = ToLocal(session.StartsAtUtc);
-        var localCheckInOpen = ToLocal(session.CheckInOpensAtUtc);
-        var localCheckInClose = ToLocal(session.CheckInClosesAtUtc);
-        var localRsvpDeadline = ToLocal(session.RsvpDeadlineUtc);
+        var localStart = SessionAdminTimeZone.ToLocal(session.StartsAtUtc);
+        var localCheckInOpen = SessionAdminTimeZone.ToLocal(session.CheckInOpensAtUtc);
+        var localCheckInClose = SessionAdminTimeZone.ToLocal(session.CheckInClosesAtUtc);
+        var localRsvpDeadline = SessionAdminTimeZone.ToLocal(session.RsvpDeadlineUtc);
         return new ManagedSessionEditDto(
             session.SessionId,
             new ContractCreateSessionCommand(
@@ -329,9 +325,21 @@ public sealed class SchedulingFunctions(
                 session.Format,
                 session.Capacity,
                 session.TeamCount,
-                localRsvpDeadline.TimeOfDay),
+                localRsvpDeadline.TimeOfDay,
+                DayOffset(localCheckInOpen, localStart),
+                DayOffset(localCheckInClose, localStart),
+                DayOffset(localRsvpDeadline, localStart)),
             string.Equals(session.Status, "Published", StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>
+    /// Days between <paramref name="local"/>'s calendar date and <paramref name="gameDayLocal"/>'s
+    /// (negative when <paramref name="local"/> falls before the game day). Preserving this alongside
+    /// the time-of-day is what lets a deadline set the evening before the game survive an edit
+    /// round-trip instead of being coerced onto game day.
+    /// </summary>
+    private static int DayOffset(DateTime local, DateTime gameDayLocal) =>
+        (local.Date - gameDayLocal.Date).Days;
 
     private static SessionAdminResponse ToResponse(SessionModel session) =>
         new(
@@ -357,10 +365,12 @@ public sealed class SchedulingFunctions(
             command.Format,
             command.Capacity,
             command.TeamCount,
-            ToUtc(command.GameDateLocal, command.StartTimeLocal),
-            ToUtc(command.GameDateLocal, command.CheckInOpenLocal),
-            ToUtc(command.GameDateLocal, command.CheckInCloseLocal),
-            ToUtc(command.GameDateLocal, command.RsvpDeadlineLocal ?? command.StartTimeLocal.Subtract(TimeSpan.FromHours(1))));
+            SessionAdminTimeZone.ToUtc(command.GameDateLocal, command.StartTimeLocal),
+            SessionAdminTimeZone.ToUtc(command.GameDateLocal.AddDays(command.CheckInOpenDayOffset), command.CheckInOpenLocal),
+            SessionAdminTimeZone.ToUtc(command.GameDateLocal.AddDays(command.CheckInCloseDayOffset), command.CheckInCloseLocal),
+            SessionAdminTimeZone.ToUtc(
+                command.GameDateLocal.AddDays(command.RsvpDeadlineDayOffset),
+                command.RsvpDeadlineLocal ?? command.StartTimeLocal.Subtract(TimeSpan.FromHours(1))));
 
     private static UpdateSessionAdminCommand ToUpdateCommand(Guid sessionId, ContractCreateSessionCommand command) =>
         new(
@@ -370,59 +380,18 @@ public sealed class SchedulingFunctions(
             command.Format,
             command.Capacity,
             command.TeamCount,
-            ToUtc(command.GameDateLocal, command.StartTimeLocal),
-            ToUtc(command.GameDateLocal, command.CheckInOpenLocal),
-            ToUtc(command.GameDateLocal, command.CheckInCloseLocal),
-            ToUtc(command.GameDateLocal, command.RsvpDeadlineLocal ?? command.StartTimeLocal.Subtract(TimeSpan.FromHours(1))));
+            SessionAdminTimeZone.ToUtc(command.GameDateLocal, command.StartTimeLocal),
+            SessionAdminTimeZone.ToUtc(command.GameDateLocal.AddDays(command.CheckInOpenDayOffset), command.CheckInOpenLocal),
+            SessionAdminTimeZone.ToUtc(command.GameDateLocal.AddDays(command.CheckInCloseDayOffset), command.CheckInCloseLocal),
+            SessionAdminTimeZone.ToUtc(
+                command.GameDateLocal.AddDays(command.RsvpDeadlineDayOffset),
+                command.RsvpDeadlineLocal ?? command.StartTimeLocal.Subtract(TimeSpan.FromHours(1))));
 
-    private static DateTime ToUtc(DateTime localDate, TimeSpan localTime)
-    {
-        var local = DateTime.SpecifyKind(localDate.Date + localTime, DateTimeKind.Unspecified);
-        return TimeZoneInfo.ConvertTimeToUtc(local, PacificTimeZone);
-    }
+    private static string? ReadOptionalString(
+        IDictionary<string, Microsoft.Extensions.Primitives.StringValues> query,
+        string key) =>
+        query.TryGetValue(key, out var values) ? values.FirstOrDefault() : null;
 
-    private static DateTime ToLocal(DateTime utc)
-    {
-        var normalized = utc.Kind == DateTimeKind.Utc ? utc : DateTime.SpecifyKind(utc, DateTimeKind.Utc);
-        return TimeZoneInfo.ConvertTimeFromUtc(normalized, PacificTimeZone);
-    }
-
-    private static TimeZoneInfo PacificTimeZone { get; } = FindPacificTimeZone();
-
-    private static TimeZoneInfo FindPacificTimeZone()
-    {
-        try
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("Pacific Standard Time");
-        }
-        catch (TimeZoneNotFoundException)
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
-        }
-    }
-
-    private static string? GetQueryParameter(Uri url, string name)
-    {
-        var query = url.Query;
-        if (string.IsNullOrWhiteSpace(query) || query.Length <= 1)
-        {
-            return null;
-        }
-
-        foreach (var pair in query[1..].Split('&', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var parts = pair.Split('=', 2);
-            var key = WebUtility.UrlDecode(parts[0]);
-            if (!string.Equals(key, name, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            return parts.Length == 2 ? WebUtility.UrlDecode(parts[1]) : string.Empty;
-        }
-
-        return null;
-    }
     private static async Task<T> ReadRequiredJsonAsync<T>(
         HttpRequestData request,
         CancellationToken cancellationToken)

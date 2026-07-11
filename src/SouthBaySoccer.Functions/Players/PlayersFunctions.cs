@@ -34,8 +34,7 @@ public sealed class PlayersFunctions(GetPlayerDirectoryQueryHandler getPlayerDir
                 entry.Player.DisplayName,
                 entry.Player.Initials,
                 entry.Player.Position,
-                entry.Player.IsGuest,
-                entry.Player.IdentityId),
+                entry.Player.IsGuest),
             entry.Subtitle,
             entry.Matches);
 

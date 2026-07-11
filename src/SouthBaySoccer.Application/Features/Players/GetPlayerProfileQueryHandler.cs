@@ -26,7 +26,7 @@ public sealed class GetPlayerProfileQueryHandler(
             profile.Id,
             profile.DisplayName,
             profile.PreferredPosition,
-            BuildInitials(profile.DisplayName),
+            PlayerInitials.Build(profile.DisplayName),
             new CareerStatsModel(
                 stats.Appearances,
                 stats.Goals,
@@ -55,16 +55,5 @@ public sealed class GetPlayerProfileQueryHandler(
         }
 
         return outcomes.Take(RecentFormTake).ToArray();
-    }
-
-    private static string BuildInitials(string displayName)
-    {
-        var initials = string.Concat(
-            displayName
-                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                .Take(2)
-                .Select(part => char.ToUpperInvariant(part[0])));
-
-        return string.IsNullOrWhiteSpace(initials) ? "?" : initials;
     }
 }

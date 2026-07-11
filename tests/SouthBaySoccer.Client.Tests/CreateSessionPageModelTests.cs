@@ -139,6 +139,101 @@ public class CreateSessionPageModelTests
         pageModel.ValidationMessage.Should().Be("You do not have permission to edit this session.");
     }
 
+    private static ManagedSessionEditDto EditableSessionWithRsvpDeadlineDayBeforeGame(Guid sessionId, Guid venueId) =>
+        new(
+            sessionId,
+            new CreateSessionCommand(
+                new DateTime(2026, 7, 11, 0, 0, 0, DateTimeKind.Unspecified),
+                new TimeSpan(19, 40, 0),
+                new TimeSpan(19, 30, 0),
+                new TimeSpan(19, 40, 0),
+                venueId,
+                "Marina Field",
+                "7v7",
+                20,
+                2,
+                new TimeSpan(20, 0, 0),
+                RsvpDeadlineDayOffset: -1),
+            IsPublished: true);
+
+    [Fact]
+    public async Task EditManagedSession_RsvpDeadlineOnDayBeforeGame_LoadsRsvpCloseDateOnThatDay()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        var venueId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        var session = new ManagedSessionDto(
+            Guid.NewGuid(), "Test session", "Jul 11", "7:40 PM", "Marina Field", "7v7", 20, "Published");
+        adminClient
+            .Setup(client => client.GetSessionForEditAsync(session.SessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(EditableSessionWithRsvpDeadlineDayBeforeGame(session.SessionId, venueId));
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        await pageModel.EditManagedSessionCommand.ExecuteAsync(session);
+
+        // Fix 2: a deadline stored the evening BEFORE the game must not be coerced onto game day when
+        // the edit form loads.
+        pageModel.GameDate.Should().Be(new DateTime(2026, 7, 11));
+        GetContractProperty<DateTime>(pageModel, "RsvpCloseDate").Should().Be(new DateTime(2026, 7, 10));
+    }
+
+    [Fact]
+    public async Task EditManagedSession_RsvpDeadlineOnDayBeforeGame_SaveWithoutFurtherEditsPreservesOffset()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        var venueId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        var session = new ManagedSessionDto(
+            Guid.NewGuid(), "Test session", "Jul 11", "7:40 PM", "Marina Field", "7v7", 20, "Published");
+        adminClient
+            .Setup(client => client.GetSessionForEditAsync(session.SessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(EditableSessionWithRsvpDeadlineDayBeforeGame(session.SessionId, venueId));
+        CreateSessionCommand? captured = null;
+        adminClient
+            .Setup(client => client.UpdateSessionAsync(
+                session.SessionId, It.IsAny<CreateSessionCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid, CreateSessionCommand, CancellationToken>((_, command, _) => captured = command)
+            .ReturnsAsync(CreateSessionResult.Success(session.SessionId));
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        await pageModel.EditManagedSessionCommand.ExecuteAsync(session);
+
+        // Round-trip (b): loading then immediately saving must NOT drift the deadline onto game day.
+        await pageModel.PublishToTeamCommand.ExecuteAsync(null);
+
+        captured.Should().NotBeNull();
+        captured!.GameDateLocal.Should().Be(new DateTime(2026, 7, 11));
+        captured.RsvpDeadlineDayOffset.Should().Be(-1);
+    }
+
+    [Fact]
+    public async Task EditManagedSession_GameDateMovedForward_RsvpCloseDateShiftsWithItPreservingOffset()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        var venueId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        var session = new ManagedSessionDto(
+            Guid.NewGuid(), "Test session", "Jul 11", "7:40 PM", "Marina Field", "7v7", 20, "Published");
+        adminClient
+            .Setup(client => client.GetSessionForEditAsync(session.SessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(EditableSessionWithRsvpDeadlineDayBeforeGame(session.SessionId, venueId));
+        CreateSessionCommand? captured = null;
+        adminClient
+            .Setup(client => client.UpdateSessionAsync(
+                session.SessionId, It.IsAny<CreateSessionCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid, CreateSessionCommand, CancellationToken>((_, command, _) => captured = command)
+            .ReturnsAsync(CreateSessionResult.Success(session.SessionId));
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        await pageModel.EditManagedSessionCommand.ExecuteAsync(session);
+
+        // Round-trip (c): the admin postpones the game two days without manually re-touching the RSVP
+        // close date — the offset (day before game) must shift with it, not reset onto the new game day.
+        pageModel.GameDate = new DateTime(2026, 7, 13);
+        GetContractProperty<DateTime>(pageModel, "RsvpCloseDate").Should().Be(new DateTime(2026, 7, 12));
+
+        await pageModel.PublishToTeamCommand.ExecuteAsync(null);
+
+        captured.Should().NotBeNull();
+        captured!.GameDateLocal.Should().Be(new DateTime(2026, 7, 13));
+        captured.RsvpDeadlineDayOffset.Should().Be(-1);
+    }
+
     [Fact]
     public async Task Load_WithoutManagePermission_ShowsDeniedStateAndBlocksPublish()
     {

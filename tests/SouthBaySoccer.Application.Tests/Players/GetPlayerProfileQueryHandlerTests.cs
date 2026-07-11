@@ -66,6 +66,37 @@ public sealed class GetPlayerProfileQueryHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenDisplayNameIsBlank_UsesFallbackInitialsMatchingClient()
+    {
+        var playerProfileId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var profileRepository = new Mock<IPlayerProfileRepository>();
+        profileRepository
+            .Setup(x => x.FindProfileAsync(playerProfileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlayerProfile
+            {
+                Id = playerProfileId,
+                DisplayName = " ",
+                PreferredPosition = "Keeper",
+                Role = PlayerRole.Player,
+            });
+        var statsRepository = new Mock<IStatsRepository>();
+        statsRepository
+            .Setup(x => x.GetPlayerStatsAsync(playerProfileId, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlayerStatSummaryReadModel(
+                playerProfileId, " ", "Keeper", false, null, 0, 0, 0, 0m, 0, 0, 0));
+        statsRepository
+            .Setup(x => x.ListPlayerRecentFormAsync(playerProfileId, 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        var handler = new GetPlayerProfileQueryHandler(profileRepository.Object, statsRepository.Object);
+
+        var result = await handler.HandleAsync(playerProfileId);
+
+        // "SB" matches ApiProfileClient.BuildInitials' fallback so the same player renders
+        // identically whether the initials came from the server or the MAUI client's local fallback.
+        result.Initials.Should().Be("SB");
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenProfileIsMissing_ThrowsNotFound()
     {
         var playerProfileId = Guid.Parse("22222222-2222-2222-2222-222222222222");

@@ -44,12 +44,13 @@ public interface IPlayerProfileRepository : IRepository<PlayerProfile>
 }
 
 /// <summary>
-/// Read model for the players directory projection.
+/// Read model for the players directory projection. Deliberately omits the linked identity user id:
+/// the directory is a public-facing listing and navigation between screens uses
+/// <see cref="PlayerProfileId"/>, so the identity id has no reason to leave the repository.
 /// </summary>
 public sealed record PlayerDirectoryReadModel(
     Guid PlayerProfileId,
     string DisplayName,
     string PreferredPosition,
     bool IsGuest,
-    Guid? IdentityUserId,
     int Matches);

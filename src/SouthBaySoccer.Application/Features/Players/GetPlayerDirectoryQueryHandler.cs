@@ -1,3 +1,4 @@
+using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 
 namespace SouthBaySoccer.Application.Features.Players;
@@ -12,10 +13,9 @@ public sealed class GetPlayerDirectoryQueryHandler(IPlayerProfileRepository play
                 new PlayerDirectorySummaryModel(
                     row.PlayerProfileId,
                     row.DisplayName,
-                    BuildInitials(row.DisplayName),
+                    PlayerInitials.Build(row.DisplayName),
                     row.PreferredPosition,
-                    row.IsGuest,
-                    row.IdentityUserId),
+                    row.IsGuest),
                 $"{(row.IsGuest ? "Guest" : row.PreferredPosition)} \u00B7 #{index + 1}",
                 row.Matches))
             .ToArray();
@@ -25,16 +25,5 @@ public sealed class GetPlayerDirectoryQueryHandler(IPlayerProfileRepository play
             "Search the crew and open career stats.",
             players.Length,
             players);
-    }
-
-    private static string BuildInitials(string displayName)
-    {
-        var initials = string.Concat(
-            displayName
-                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                .Take(2)
-                .Select(part => char.ToUpperInvariant(part[0])));
-
-        return string.IsNullOrWhiteSpace(initials) ? "?" : initials;
     }
 }

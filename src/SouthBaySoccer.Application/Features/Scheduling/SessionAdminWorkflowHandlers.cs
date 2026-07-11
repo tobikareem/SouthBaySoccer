@@ -19,7 +19,7 @@ public sealed class GetCreateSessionAdminDefaultsQueryHandler(
     {
         var venues = await venueRepository.ListActiveAsync(cancellationToken);
         var savedVenue = venues.FirstOrDefault();
-        var localToday = ToPacificLocal(clock.UtcNow).Date;
+        var localToday = SessionAdminTimeZone.ToLocal(clock.UtcNow).Date;
         var defaultDate = NextSaturday(localToday);
         var defaultStart = new TimeSpan(19, 40, 0);
 
@@ -53,14 +53,6 @@ public sealed class GetCreateSessionAdminDefaultsQueryHandler(
 
         return DateTime.SpecifyKind(localToday.AddDays(daysUntilSaturday), DateTimeKind.Unspecified);
     }
-
-    private static DateTime ToPacificLocal(DateTime utcNow)
-    {
-        var utc = utcNow.Kind == DateTimeKind.Utc
-            ? utcNow
-            : DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
-        return TimeZoneInfo.ConvertTimeFromUtc(utc, SessionAdminTimeZone.Pacific);
-    }
 }
 
 public sealed class ListManagedSessionsQueryHandler(
@@ -93,15 +85,12 @@ public sealed class GetSessionForAdminEditQueryHandler(
     ISessionRepository sessionRepository,
     IVenueRepository venueRepository)
 {
-    public async Task<ManagedSessionEditModel?> HandleAsync(
+    public async Task<ManagedSessionEditModel> HandleAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default)
     {
-        var session = await sessionRepository.GetByIdAsync(sessionId, cancellationToken);
-        if (session is null)
-        {
-            return null;
-        }
+        var session = await sessionRepository.GetByIdAsync(sessionId, cancellationToken)
+            ?? throw new ApplicationNotFoundException("Session was not found.");
 
         var venue = await venueRepository.GetByIdAsync(session.VenueId, cancellationToken);
 
@@ -167,7 +156,7 @@ public sealed class CreateSessionDraftCommandHandler(
         new(
             seasonId,
             venueId,
-            $"{command.VenueName.Trim()} - Saturday pickup",
+            $"{command.VenueName.Trim()} - {WeekdayPickupTitle(command.StartsAtUtc)}",
             command.Format,
             command.Capacity,
             command.TeamCount,
@@ -177,6 +166,10 @@ public sealed class CreateSessionDraftCommandHandler(
             command.RsvpDeadlineUtc,
             Status: status);
 
+    /// <summary>Derives "&lt;Weekday&gt; pickup" from the session's venue-local start date.</summary>
+    private static string WeekdayPickupTitle(DateTime startsAtUtc) =>
+        $"{SessionAdminTimeZone.ToLocal(startsAtUtc).DayOfWeek} pickup";
+
     internal static async Task<Season> ResolveSeasonAsync(
         ISeasonRepository seasonRepository,
         DateTime startsAtUtc,
@@ -184,8 +177,7 @@ public sealed class CreateSessionDraftCommandHandler(
     {
         var seasons = await seasonRepository.ListActiveAsync(cancellationToken);
         return seasons.FirstOrDefault(x => x.StartsAtUtc <= startsAtUtc && x.EndsAtUtc >= startsAtUtc)
-            ?? seasons.FirstOrDefault()
-            ?? throw new ApplicationConflictException("A season is required before creating sessions.");
+            ?? throw new ApplicationConflictException("No season covers the session start date.");
     }
 
     internal static async Task<Venue> ResolveVenueAsync(
@@ -285,23 +277,6 @@ public sealed class PublishSessionCommandHandler(
         sessionRepository.Update(session);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return SchedulingMappers.ToModel(session);
-    }
-}
-
-internal static class SessionAdminTimeZone
-{
-    public static TimeZoneInfo Pacific { get; } = FindPacificTimeZone();
-
-    private static TimeZoneInfo FindPacificTimeZone()
-    {
-        try
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("Pacific Standard Time");
-        }
-        catch (TimeZoneNotFoundException)
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
-        }
     }
 }
 

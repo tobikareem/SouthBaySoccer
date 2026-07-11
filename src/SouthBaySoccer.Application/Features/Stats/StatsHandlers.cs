@@ -467,13 +467,7 @@ public sealed class GetSeasonLeaderboardQueryHandler(
         string preferredPosition,
         bool isGuest,
         Guid? identityUserId) =>
-        new(playerProfileId, displayName, BuildInitials(displayName), preferredPosition, isGuest, identityUserId);
-
-    private static string BuildInitials(string displayName)
-    {
-        var initials = string.Concat(displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
-        return string.IsNullOrWhiteSpace(initials) ? "?" : initials;
-    }
+        new(playerProfileId, displayName, PlayerInitials.Build(displayName), preferredPosition, isGuest, identityUserId);
 }
 
 public sealed class GetPlayerStatsQueryHandler(

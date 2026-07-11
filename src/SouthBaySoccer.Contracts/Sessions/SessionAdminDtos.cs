@@ -51,6 +51,15 @@ public sealed record ManagedSessionEditDto(
 /// Command carrying the admin-entered, venue-local session details for create/publish. The backend
 /// validates this with FluentValidation and stores UTC timestamps; the seed validates the same rules.
 /// </summary>
+/// <remarks>
+/// <see cref="CheckInOpenLocal"/>, <see cref="CheckInCloseLocal"/>, and <see cref="RsvpDeadlineLocal"/>
+/// are times-of-day; each is paired with a day-offset field expressing how many days its local date
+/// falls before (negative) or after (positive) <see cref="GameDateLocal"/>. Carrying the offset
+/// explicitly — rather than always re-deriving the date from <see cref="GameDateLocal"/> — lets an
+/// edit round-trip preserve a deadline set the evening before the game instead of silently coercing it
+/// onto game day. All three default to 0 (same day as the game), which covers the common case and
+/// keeps existing callers source-compatible.
+/// </remarks>
 public sealed record CreateSessionCommand(
     DateTime GameDateLocal,
     TimeSpan StartTimeLocal,
@@ -61,7 +70,10 @@ public sealed record CreateSessionCommand(
     string Format,
     int Capacity,
     int TeamCount,
-    TimeSpan? RsvpDeadlineLocal = null);
+    TimeSpan? RsvpDeadlineLocal = null,
+    int CheckInOpenDayOffset = 0,
+    int CheckInCloseDayOffset = 0,
+    int RsvpDeadlineDayOffset = 0);
 
 /// <summary>
 /// Result of a create-draft or publish operation. Mirrors <c>ClientCommandResult</c> but also carries

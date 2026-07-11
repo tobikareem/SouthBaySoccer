@@ -19,10 +19,6 @@ internal sealed class PlayerProfileRepository(SouthBaySoccerDbContext dbContext)
     public async Task<IReadOnlyList<PlayerDirectoryReadModel>> ListDirectoryAsync(CancellationToken cancellationToken = default) =>
         await (
             from profile in dbContext.PlayerProfiles
-            let identityUserId = dbContext.Users
-                .Where(user => user.Id == profile.IdentityUserId || user.PlayerProfileId == profile.Id)
-                .Select(user => (Guid?)user.Id)
-                .FirstOrDefault()
             let matches = dbContext.PlayerMatchStats
                 .Where(stat => stat.PlayerProfileId == profile.Id)
                 .Select(stat => stat.MatchId)
@@ -34,7 +30,6 @@ internal sealed class PlayerProfileRepository(SouthBaySoccerDbContext dbContext)
                 profile.DisplayName,
                 profile.PreferredPosition,
                 profile.IsGuest,
-                identityUserId,
                 matches))
         .ToArrayAsync(cancellationToken);
 

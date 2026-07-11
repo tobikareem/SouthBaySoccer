@@ -1,6 +1,7 @@
 using FluentAssertions;
 using FluentValidation;
 using Moq;
+using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Scheduling;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Enumerations;
@@ -32,6 +33,77 @@ public sealed class SessionAdminWorkflowHandlerTests
         added.Should().NotBeNull();
         added!.Status.Should().Be(SessionStatus.Draft);
         added.Title.Should().Be("Marina Field - Saturday pickup");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenCreatingDraft_TitleUsesSessionsActualLocalWeekday()
+    {
+        var sessionRepository = new Mock<ISessionRepository>();
+        var handler = new CreateSessionDraftCommandHandler(
+            new CreateSessionCommandValidator(),
+            SeasonRepository(),
+            VenueRepository(),
+            sessionRepository.Object,
+            SavingUnitOfWork().Object);
+        // 2026-07-08 19:40 UTC is 12:40 PM Pacific — a Wednesday, not the hardcoded "Saturday".
+        var command = ValidDraftCommand() with
+        {
+            StartsAtUtc = Utc(2026, 7, 8, 19, 40),
+            CheckInOpensAtUtc = Utc(2026, 7, 8, 19, 30),
+            CheckInClosesAtUtc = Utc(2026, 7, 8, 19, 40),
+            RsvpDeadlineUtc = Utc(2026, 7, 8, 18, 30),
+        };
+
+        var result = await handler.HandleAsync(command);
+
+        result.Title.Should().Be("Marina Field - Wednesday pickup");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenNoSeasonCoversStartDate_ThrowsConflict()
+    {
+        var seasonRepository = new Mock<ISeasonRepository>();
+        seasonRepository
+            .Setup(x => x.ListActiveAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new Season
+                {
+                    Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                    Name = "Spring 2026",
+                    StartsAtUtc = Utc(2026, 1, 1, 0, 0),
+                    EndsAtUtc = Utc(2026, 3, 31, 23, 59),
+                },
+            ]);
+        var handler = new CreateSessionDraftCommandHandler(
+            new CreateSessionCommandValidator(),
+            seasonRepository.Object,
+            VenueRepository(),
+            new Mock<ISessionRepository>().Object,
+            SavingUnitOfWork().Object);
+        // Session start (July) falls outside the only active season (Jan-Mar) — there is no season to
+        // silently fall back to.
+        var command = ValidDraftCommand();
+
+        var act = () => handler.HandleAsync(command);
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("No season covers the session start date.");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenSessionForAdminEditIsMissing_ThrowsNotFound()
+    {
+        var sessionId = Guid.NewGuid();
+        var sessionRepository = new Mock<ISessionRepository>();
+        sessionRepository
+            .Setup(x => x.GetByIdAsync(sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Session?)null);
+        var handler = new GetSessionForAdminEditQueryHandler(sessionRepository.Object, VenueRepository());
+
+        var act = async () => await handler.HandleAsync(sessionId);
+
+        await act.Should().ThrowAsync<ApplicationNotFoundException>()
+            .WithMessage("Session was not found.");
     }
 
     [Fact]

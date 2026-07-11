@@ -10,7 +10,6 @@ public sealed class GetPlayerDirectoryQueryHandlerTests
     [Fact]
     public async Task HandleAsync_WhenProfilesExist_ReturnsDirectoryRowsInRepositoryOrder()
     {
-        var identityUserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var repository = new Mock<IPlayerProfileRepository>();
         repository
             .Setup(x => x.ListDirectoryAsync(It.IsAny<CancellationToken>()))
@@ -20,14 +19,12 @@ public sealed class GetPlayerDirectoryQueryHandlerTests
                     "Ada Johnson",
                     "Midfielder",
                     false,
-                    identityUserId,
                     12),
                 new PlayerDirectoryReadModel(
                     Guid.Parse("33333333-3333-3333-3333-333333333333"),
                     "Guest Player",
                     "Forward",
                     true,
-                    null,
                     1),
             ]);
         var handler = new GetPlayerDirectoryQueryHandler(repository.Object);
@@ -39,7 +36,6 @@ public sealed class GetPlayerDirectoryQueryHandlerTests
         result.TotalPlayers.Should().Be(2);
         result.Players[0].Player.DisplayName.Should().Be("Ada Johnson");
         result.Players[0].Player.Initials.Should().Be("AJ");
-        result.Players[0].Player.IdentityId.Should().Be(identityUserId);
         result.Players[0].Subtitle.Should().Be("Midfielder \u00B7 #1");
         result.Players[0].Matches.Should().Be(12);
         result.Players[1].Player.IsGuest.Should().BeTrue();
@@ -47,7 +43,7 @@ public sealed class GetPlayerDirectoryQueryHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_WhenDisplayNameIsBlank_UsesFallbackInitial()
+    public async Task HandleAsync_WhenDisplayNameIsBlank_UsesFallbackInitialsMatchingClient()
     {
         var repository = new Mock<IPlayerProfileRepository>();
         repository
@@ -58,7 +54,6 @@ public sealed class GetPlayerDirectoryQueryHandlerTests
                     " ",
                     "Keeper",
                     false,
-                    null,
                     0),
             ]);
         var handler = new GetPlayerDirectoryQueryHandler(repository.Object);
@@ -66,6 +61,8 @@ public sealed class GetPlayerDirectoryQueryHandlerTests
         var result = await handler.HandleAsync();
 
         result.Players.Should().ContainSingle();
-        result.Players[0].Player.Initials.Should().Be("?");
+        // "SB" matches ApiProfileClient.BuildInitials' fallback so the same player renders
+        // identically whether the initials came from the server or the MAUI client's local fallback.
+        result.Players[0].Player.Initials.Should().Be("SB");
     }
 }

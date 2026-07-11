@@ -16,5 +16,4 @@ public sealed record PlayerDirectorySummaryModel(
     string DisplayName,
     string Initials,
     string Position,
-    bool IsGuest,
-    Guid? IdentityId);
+    bool IsGuest);

@@ -30,7 +30,6 @@ public sealed class ApiPlayersClientTests
     {
         HttpRequestMessage? observed = null;
         var playerId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-        var identityId = Guid.Parse("22222222-2222-2222-2222-222222222222");
         var client = CreateClient(request =>
         {
             observed = request;
@@ -47,8 +46,7 @@ public sealed class ApiPlayersClientTests
                         "displayName": "Ada Johnson",
                         "initials": "AJ",
                         "position": "Midfielder",
-                        "isGuest": false,
-                        "identityId": "{{identityId}}"
+                        "isGuest": false
                       },
                       "subtitle": "Midfielder \u00B7 #1",
                       "matches": 12
@@ -65,7 +63,6 @@ public sealed class ApiPlayersClientTests
         directory.TotalPlayers.Should().Be(1);
         directory.Players.Should().ContainSingle();
         directory.Players[0].Player.Id.Should().Be(playerId);
-        directory.Players[0].Player.IdentityId.Should().Be(identityId);
         directory.Players[0].Matches.Should().Be(12);
     }
 
