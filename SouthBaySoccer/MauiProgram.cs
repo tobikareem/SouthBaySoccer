@@ -78,6 +78,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<TagRepository>();
         builder.Services.AddSingleton<SeedDataService>();
         builder.Services.AddSingleton<ModalErrorHandler>();
+        builder.Services.AddSingleton<StartupErrorHandler>();
         builder.Services.AddSingleton<IUserDialogService, UserDialogService>();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<MainPageModel>();

@@ -8,16 +8,17 @@ public partial class App : Application
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IAuthenticationCoordinator _authenticationCoordinator;
-    private readonly IErrorHandler _callbackErrorHandler;
+    private readonly StartupErrorHandler _callbackErrorHandler;
 
     public App(
         IServiceProvider serviceProvider,
-        IAuthenticationCoordinator authenticationCoordinator)
+        IAuthenticationCoordinator authenticationCoordinator,
+        StartupErrorHandler callbackErrorHandler)
     {
         InitializeComponent();
         _serviceProvider = serviceProvider;
         _authenticationCoordinator = authenticationCoordinator;
-        _callbackErrorHandler = new AppErrorHandler(serviceProvider.GetRequiredService<ModalErrorHandler>());
+        _callbackErrorHandler = callbackErrorHandler;
     }
 
     protected override Window CreateWindow(IActivationState? activationState)
@@ -34,10 +35,5 @@ public partial class App : Application
     {
         base.OnAppLinkRequestReceived(uri);
         _authenticationCoordinator.HandleCallbackAsync(uri).FireAndForgetSafeAsync(_callbackErrorHandler);
-    }
-
-    private sealed class AppErrorHandler(ModalErrorHandler modalErrorHandler) : IErrorHandler
-    {
-        public void HandleError(Exception ex) => modalErrorHandler.HandleError(ex);
     }
 }

@@ -160,9 +160,22 @@ public class AuthenticatedShellTests
         var source = LoadSource("AuthenticationNavigator.cs");
 
         source.Should().Contain("window.Page = shell");
-        source.Should().Contain("DispatchDelayed");
         source.Should().Contain("GoToAsync(\"//sessions\")");
         source.Should().NotContain("PushAsync(");
+    }
+
+    [Fact]
+    public void AuthenticationNavigator_NavigatesOnceShellIsReady_NotOnAFixedDelay()
+    {
+        // Item D fix: a 100ms DispatchDelayed guess is not a guarantee the Shell's handler has
+        // attached on slow devices. Navigation must wait for the Shell to actually report ready
+        // (Loaded), and any navigation failure must reach an error handler instead of being
+        // silently swallowed by FireAndForgetSafeAsync's null-handler default.
+        var source = LoadSource("AuthenticationNavigator.cs");
+
+        source.Should().NotContain("DispatchDelayed");
+        source.Should().Contain("shell.Loaded");
+        source.Should().Contain("FireAndForgetSafeAsync(errorHandler)");
     }
 
     [Fact]

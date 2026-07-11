@@ -15,13 +15,65 @@ public sealed class AuthenticationCoordinator(
         AuthenticationTokensResponse tokens,
         CancellationToken cancellationToken = default)
     {
-        await tokenStore.StoreAsync(tokens);
-        _completed = true;
-        await navigator.ShowAuthenticatedAppAsync(cancellationToken);
+        await _completionLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_completed)
+            {
+                // Session restore (or the WhatsApp callback) already claimed completion and
+                // shown the authenticated Shell while this manual sign-in call was in flight.
+                return;
+            }
+
+            await tokenStore.StoreAsync(tokens);
+            _completed = true;
+            await navigator.ShowAuthenticatedAppAsync(cancellationToken);
+        }
+        finally
+        {
+            _completionLock.Release();
+        }
     }
 
     private readonly SemaphoreSlim _completionLock = new(1, 1);
-    private bool _completed;
+
+    // Volatile: read from AppStartupService's restore guard, which may run interleaved with
+    // (though not necessarily on a different thread than) the sign-in/callback path.
+    private volatile bool _completed;
+
+    public bool IsAuthenticated => _completed;
+
+    /// <summary>
+    /// Atomically claims sign-in completion for a caller that persists tokens and shows the
+    /// authenticated Shell itself (currently: startup session restore). Shares
+    /// <see cref="_completionLock"/> with <see cref="CompleteSignInAsync"/> and
+    /// <see cref="CompleteChallengeAsync"/> so exactly one of the three completion paths ever
+    /// wins, regardless of the order they land in.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> if the caller won the race and must proceed with its own token
+    /// persistence and Shell navigation; <see langword="false"/> if sign-in already completed via
+    /// the manual phone flow or a verified app-link callback, in which case the caller must not
+    /// navigate.
+    /// </returns>
+    public async Task<bool> TryClaimAuthenticationAsync(CancellationToken cancellationToken = default)
+    {
+        await _completionLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_completed)
+            {
+                return false;
+            }
+
+            _completed = true;
+            return true;
+        }
+        finally
+        {
+            _completionLock.Release();
+        }
+    }
 
     public Task<bool> TryCompleteChallengeAsync(
         string challengeToken,

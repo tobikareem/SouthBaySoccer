@@ -9,6 +9,154 @@ namespace SouthBaySoccer.Client.Tests;
 public class AuthenticationCoordinatorTests
 {
     [Fact]
+    public void IsAuthenticated_BeforeAnySignIn_IsFalse()
+    {
+        var coordinator = new AuthenticationCoordinator(
+            new Mock<IAuthenticationClient>(MockBehavior.Strict).Object,
+            new Mock<ISecureTokenStore>(MockBehavior.Strict).Object,
+            new Mock<IAuthenticationNavigator>(MockBehavior.Strict).Object,
+            new PickupPalOptions(),
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+
+        coordinator.IsAuthenticated.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task IsAuthenticated_AfterCompleteSignIn_IsTrue()
+    {
+        var tokens = new AuthenticationTokensResponse(
+            "access-token",
+            "refresh-token",
+            DateTime.UtcNow.AddMinutes(15));
+        var tokenStore = new Mock<ISecureTokenStore>();
+        var navigator = new Mock<IAuthenticationNavigator>();
+        var coordinator = new AuthenticationCoordinator(
+            new Mock<IAuthenticationClient>(MockBehavior.Strict).Object,
+            tokenStore.Object,
+            navigator.Object,
+            new PickupPalOptions(),
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+
+        await coordinator.CompleteSignInAsync(tokens);
+
+        coordinator.IsAuthenticated.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task IsAuthenticated_AfterVerifiedAppLinkCallback_IsTrue()
+    {
+        var tokens = new AuthenticationTokensResponse(
+            "access-token",
+            "refresh-token",
+            DateTime.UtcNow.AddMinutes(15));
+        var authenticationClient = new Mock<IAuthenticationClient>();
+        authenticationClient
+            .Setup(client => client.VerifyWhatsAppChallengeAsync(
+                "verified-token",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tokens);
+        var tokenStore = new Mock<ISecureTokenStore>();
+        var navigator = new Mock<IAuthenticationNavigator>();
+        var coordinator = new AuthenticationCoordinator(
+            authenticationClient.Object,
+            tokenStore.Object,
+            navigator.Object,
+            new PickupPalOptions(),
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+
+        coordinator.IsAuthenticated.Should().BeFalse();
+
+        await coordinator.HandleCallbackAsync(
+            new Uri("southbaysoccer://auth/whatsapp?token=verified-token"));
+
+        coordinator.IsAuthenticated.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task TryClaimAuthentication_WhenNotYetAuthenticated_ClaimsAndReturnsTrue()
+    {
+        var coordinator = new AuthenticationCoordinator(
+            new Mock<IAuthenticationClient>(MockBehavior.Strict).Object,
+            new Mock<ISecureTokenStore>(MockBehavior.Strict).Object,
+            new Mock<IAuthenticationNavigator>(MockBehavior.Strict).Object,
+            new PickupPalOptions(),
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+
+        var claimed = await coordinator.TryClaimAuthenticationAsync();
+
+        claimed.Should().BeTrue();
+        coordinator.IsAuthenticated.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task TryClaimAuthentication_CalledTwice_OnlyTheFirstCallerWins()
+    {
+        var coordinator = new AuthenticationCoordinator(
+            new Mock<IAuthenticationClient>(MockBehavior.Strict).Object,
+            new Mock<ISecureTokenStore>(MockBehavior.Strict).Object,
+            new Mock<IAuthenticationNavigator>(MockBehavior.Strict).Object,
+            new PickupPalOptions(),
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+
+        var firstClaim = await coordinator.TryClaimAuthenticationAsync();
+        var secondClaim = await coordinator.TryClaimAuthenticationAsync();
+
+        firstClaim.Should().BeTrue();
+        secondClaim.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task CompleteSignInAsync_WhenRestoreAlreadyClaimedAuthentication_DoesNotStoreOrNavigateAgain()
+    {
+        // Covers the restore-wins-the-race ordering: session restore atomically claims
+        // authentication and shows the Shell first; a manual sign-in that was already in flight
+        // must become a no-op instead of storing tokens and swapping the Shell a second time.
+        var tokens = new AuthenticationTokensResponse(
+            "access-token",
+            "refresh-token",
+            DateTime.UtcNow.AddMinutes(15));
+        var tokenStore = new Mock<ISecureTokenStore>(MockBehavior.Strict);
+        var navigator = new Mock<IAuthenticationNavigator>(MockBehavior.Strict);
+        var coordinator = new AuthenticationCoordinator(
+            new Mock<IAuthenticationClient>(MockBehavior.Strict).Object,
+            tokenStore.Object,
+            navigator.Object,
+            new PickupPalOptions(),
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+        (await coordinator.TryClaimAuthenticationAsync()).Should().BeTrue();
+
+        await coordinator.CompleteSignInAsync(tokens);
+
+        tokenStore.VerifyNoOtherCalls();
+        navigator.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task HandleCallback_WhenRestoreAlreadyClaimedAuthentication_SkipsVerificationAndReturnsTrue()
+    {
+        // Same ordering from the callback side: a legitimate but late-arriving WhatsApp callback
+        // must not re-verify or re-navigate once restore has already claimed authentication.
+        var authenticationClient = new Mock<IAuthenticationClient>(MockBehavior.Strict);
+        var tokenStore = new Mock<ISecureTokenStore>(MockBehavior.Strict);
+        var navigator = new Mock<IAuthenticationNavigator>(MockBehavior.Strict);
+        var coordinator = new AuthenticationCoordinator(
+            authenticationClient.Object,
+            tokenStore.Object,
+            navigator.Object,
+            new PickupPalOptions(),
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+        (await coordinator.TryClaimAuthenticationAsync()).Should().BeTrue();
+
+        var result = await coordinator.HandleCallbackAsync(
+            new Uri("southbaysoccer://auth/whatsapp?token=verified-token"));
+
+        result.Should().BeTrue();
+        authenticationClient.VerifyNoOtherCalls();
+        tokenStore.VerifyNoOtherCalls();
+        navigator.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task HandleCallback_ValidConfiguredCallback_StoresTokensAndNavigatesOnce()
     {
         var tokens = new AuthenticationTokensResponse(
