@@ -240,6 +240,197 @@ public sealed class ApiSessionAdminClientTests
     }
 
     [Fact]
+    public async Task CreateDraftAsync_WhenRetriedAfterFailedAttempt_ReusesSameIdempotencyKey()
+    {
+        // A lost/failed response must not present a new Idempotency-Key on retry, or the server's
+        // IdempotentRequestExecutor replay protection never triggers and a duplicate draft is created.
+        var sessionId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+        var requests = new List<HttpRequestMessage>();
+        var callCount = 0;
+        var client = CreateClient(request =>
+        {
+            requests.Add(request);
+            callCount++;
+            return callCount == 1
+                ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                : JsonResponse(
+                    $$"""
+                    {
+                      "isSuccess": true,
+                      "sessionId": "{{sessionId}}",
+                      "errorCode": null,
+                      "errorMessage": null
+                    }
+                    """);
+        });
+
+        var failedAttempt = () => client.CreateDraftAsync(ValidCommand(), CancellationToken.None);
+        await failedAttempt.Should().ThrowAsync<HttpRequestException>();
+        var retried = await client.CreateDraftAsync(ValidCommand(), CancellationToken.None);
+
+        retried.IsSuccess.Should().BeTrue();
+        requests.Should().HaveCount(2);
+        requests[1].Headers.GetValues("Idempotency-Key").Single()
+            .Should().Be(requests[0].Headers.GetValues("Idempotency-Key").Single());
+    }
+
+    [Fact]
+    public async Task CreateDraftAsync_CalledAgainAfterSuccess_PresentsNewIdempotencyKeyForNewDraft()
+    {
+        // Once a draft is created successfully, the key is done with; starting a new draft (a new
+        // logical operation) must not silently replay under the old key.
+        var requests = new List<HttpRequestMessage>();
+        var client = CreateClient(request =>
+        {
+            requests.Add(request);
+            return JsonResponse(
+                $$"""
+                {
+                  "isSuccess": true,
+                  "sessionId": "{{Guid.NewGuid()}}",
+                  "errorCode": null,
+                  "errorMessage": null
+                }
+                """);
+        });
+
+        var first = await client.CreateDraftAsync(ValidCommand(), CancellationToken.None);
+        var second = await client.CreateDraftAsync(ValidCommand(), CancellationToken.None);
+
+        first.IsSuccess.Should().BeTrue();
+        second.IsSuccess.Should().BeTrue();
+        requests.Should().HaveCount(2);
+        requests[1].Headers.GetValues("Idempotency-Key").Single()
+            .Should().NotBe(requests[0].Headers.GetValues("Idempotency-Key").Single());
+    }
+
+    [Fact]
+    public async Task UpdateSessionAsync_WhenRetriedAfterFailedAttempt_ReusesSameIdempotencyKey()
+    {
+        var sessionId = Guid.Parse("88888888-8888-8888-8888-888888888888");
+        var requests = new List<HttpRequestMessage>();
+        var callCount = 0;
+        var client = CreateClient(request =>
+        {
+            requests.Add(request);
+            callCount++;
+            return callCount == 1
+                ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                : JsonResponse(
+                    $$"""
+                    {
+                      "isSuccess": true,
+                      "sessionId": "{{sessionId}}",
+                      "errorCode": null,
+                      "errorMessage": null
+                    }
+                    """);
+        });
+
+        var failedAttempt = () => client.UpdateSessionAsync(sessionId, ValidCommand(), CancellationToken.None);
+        await failedAttempt.Should().ThrowAsync<HttpRequestException>();
+        var retried = await client.UpdateSessionAsync(sessionId, ValidCommand(), CancellationToken.None);
+
+        retried.IsSuccess.Should().BeTrue();
+        requests.Should().HaveCount(2);
+        requests[1].Headers.GetValues("Idempotency-Key").Single()
+            .Should().Be(requests[0].Headers.GetValues("Idempotency-Key").Single());
+    }
+
+    [Fact]
+    public async Task UpdateSessionAsync_ForDifferentSession_PresentsDifferentIdempotencyKey()
+    {
+        // Editing a different session in the same page-model/client instance must not reuse the prior
+        // session's still-pending key, or the server rejects the new body as "used with a different
+        // request" (409) even though nothing actually conflicts.
+        var sessionId1 = Guid.Parse("99999999-9999-9999-9999-999999999999");
+        var sessionId2 = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        var requests = new List<HttpRequestMessage>();
+        var client = CreateClient(request =>
+        {
+            requests.Add(request);
+            return JsonResponse(
+                $$"""
+                {
+                  "isSuccess": true,
+                  "sessionId": "{{Guid.NewGuid()}}",
+                  "errorCode": null,
+                  "errorMessage": null
+                }
+                """);
+        });
+
+        await client.UpdateSessionAsync(sessionId1, ValidCommand(), CancellationToken.None);
+        await client.UpdateSessionAsync(sessionId2, ValidCommand(), CancellationToken.None);
+
+        requests.Should().HaveCount(2);
+        requests[1].Headers.GetValues("Idempotency-Key").Single()
+            .Should().NotBe(requests[0].Headers.GetValues("Idempotency-Key").Single());
+    }
+
+    [Fact]
+    public async Task PublishAsync_WhenRetriedAfterFailedAttempt_ReusesSameIdempotencyKeyForSameDraft()
+    {
+        var draftId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        var sessionId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        var requests = new List<HttpRequestMessage>();
+        var callCount = 0;
+        var client = CreateClient(request =>
+        {
+            requests.Add(request);
+            callCount++;
+            return callCount == 1
+                ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                : JsonResponse(
+                    $$"""
+                    {
+                      "isSuccess": true,
+                      "sessionId": "{{sessionId}}",
+                      "errorCode": null,
+                      "errorMessage": null
+                    }
+                    """);
+        });
+
+        var failedAttempt = () => client.PublishAsync(draftId, CancellationToken.None);
+        await failedAttempt.Should().ThrowAsync<HttpRequestException>();
+        var retried = await client.PublishAsync(draftId, CancellationToken.None);
+
+        retried.IsSuccess.Should().BeTrue();
+        requests.Should().HaveCount(2);
+        requests[1].Headers.GetValues("Idempotency-Key").Single()
+            .Should().Be(requests[0].Headers.GetValues("Idempotency-Key").Single());
+    }
+
+    [Fact]
+    public async Task PublishAsync_ForDifferentDraft_PresentsDifferentIdempotencyKey()
+    {
+        var draftId1 = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+        var draftId2 = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+        var requests = new List<HttpRequestMessage>();
+        var client = CreateClient(request =>
+        {
+            requests.Add(request);
+            return JsonResponse(
+                $$"""
+                {
+                  "isSuccess": true,
+                  "sessionId": "{{Guid.NewGuid()}}",
+                  "errorCode": null,
+                  "errorMessage": null
+                }
+                """);
+        });
+
+        await client.PublishAsync(draftId1, CancellationToken.None);
+        await client.PublishAsync(draftId2, CancellationToken.None);
+
+        requests.Should().HaveCount(2);
+        requests[1].Headers.GetValues("Idempotency-Key").Single()
+            .Should().NotBe(requests[0].Headers.GetValues("Idempotency-Key").Single());
+    }
+
+    [Fact]
     public async Task CreateDraftAsync_WhenServerError_PropagatesApiRequestException_ThroughPipeline()
     {
         // 5xx is not a client-fixable validation error, so it should NOT be swallowed into a

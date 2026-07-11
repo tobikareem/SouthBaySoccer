@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using SouthBaySoccer.Contracts.Sessions;
@@ -6,6 +7,19 @@ namespace SouthBaySoccer.Services.Clients;
 
 public sealed class ApiSessionAdminClient(HttpClient httpClient) : ISessionAdminClient
 {
+    // ADMIN-4 idempotency: the server's IdempotentRequestExecutor replays the stored response when the
+    // SAME Idempotency-Key is presented again, and rejects a key reused with a different request body.
+    // A fresh key per HTTP call defeated that protection on retry (a lost response looked like a brand
+    // new operation, so a retried create could mint a duplicate draft). Each logical operation therefore
+    // owns exactly one key, created lazily on first attempt and cleared only once that operation
+    // succeeds, so a retry after a dropped response reuses the key (server replays instead of
+    // duplicating) while a genuinely new operation gets a fresh one. Update/publish are keyed per
+    // target id (not a single field) because one client instance can update or publish several
+    // different sessions across the page's lifetime.
+    private string? _createDraftIdempotencyKey;
+    private readonly ConcurrentDictionary<Guid, string> _updateIdempotencyKeysBySessionId = new();
+    private readonly ConcurrentDictionary<Guid, string> _publishIdempotencyKeysByDraftId = new();
+
     public async Task<CreateSessionDefaultsDto> GetDefaultsAsync(CancellationToken cancellationToken)
     {
         using var response = await httpClient.GetAsync("sessions/admin/create-defaults", cancellationToken);
@@ -66,8 +80,8 @@ public sealed class ApiSessionAdminClient(HttpClient httpClient) : ISessionAdmin
             HttpMethod.Post,
             "venues",
             new CreateVenueRequest(name, locality, address),
-            cancellationToken,
-            includeIdempotencyKey: false);
+            idempotencyKey: null,
+            cancellationToken);
         response.EnsureSuccessStatusCode();
         var venue = await response.Content.ReadFromJsonAsync<VenueResponse>(
             cancellationToken: cancellationToken)
@@ -80,12 +94,20 @@ public sealed class ApiSessionAdminClient(HttpClient httpClient) : ISessionAdmin
         CancellationToken cancellationToken) =>
         ExecuteSessionResultAsync(async () =>
         {
+            var key = _createDraftIdempotencyKey ??= NewIdempotencyKey();
             using var response = await SendJsonAsync(
                 HttpMethod.Post,
                 "sessions/drafts",
                 command,
+                key,
                 cancellationToken);
-            return await ReadCreateSessionResultAsync(response, cancellationToken);
+            var result = await ReadCreateSessionResultAsync(response, cancellationToken);
+            if (result.IsSuccess)
+            {
+                _createDraftIdempotencyKey = null;
+            }
+
+            return result;
         });
 
     public Task<CreateSessionResult> UpdateSessionAsync(
@@ -94,21 +116,36 @@ public sealed class ApiSessionAdminClient(HttpClient httpClient) : ISessionAdmin
         CancellationToken cancellationToken) =>
         ExecuteSessionResultAsync(async () =>
         {
+            var key = _updateIdempotencyKeysBySessionId.GetOrAdd(sessionId, static _ => NewIdempotencyKey());
             using var response = await SendJsonAsync(
                 HttpMethod.Put,
                 $"sessions/{sessionId}",
                 command,
+                key,
                 cancellationToken);
-            return await ReadCreateSessionResultAsync(response, cancellationToken);
+            var result = await ReadCreateSessionResultAsync(response, cancellationToken);
+            if (result.IsSuccess)
+            {
+                _updateIdempotencyKeysBySessionId.TryRemove(sessionId, out _);
+            }
+
+            return result;
         });
 
     public Task<CreateSessionResult> PublishAsync(Guid draftId, CancellationToken cancellationToken) =>
         ExecuteSessionResultAsync(async () =>
         {
+            var key = _publishIdempotencyKeysByDraftId.GetOrAdd(draftId, static _ => NewIdempotencyKey());
             using var request = new HttpRequestMessage(HttpMethod.Post, $"sessions/{draftId}/publish");
-            request.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString("N"));
+            request.Headers.TryAddWithoutValidation("Idempotency-Key", key);
             using var response = await httpClient.SendAsync(request, cancellationToken);
-            return await ReadCreateSessionResultAsync(response, cancellationToken);
+            var result = await ReadCreateSessionResultAsync(response, cancellationToken);
+            if (result.IsSuccess)
+            {
+                _publishIdempotencyKeysByDraftId.TryRemove(draftId, out _);
+            }
+
+            return result;
         });
 
     /// <summary>
@@ -139,20 +176,22 @@ public sealed class ApiSessionAdminClient(HttpClient httpClient) : ISessionAdmin
         HttpMethod method,
         string path,
         T body,
-        CancellationToken cancellationToken,
-        bool includeIdempotencyKey = true)
+        string? idempotencyKey,
+        CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(method, path)
         {
             Content = JsonContent.Create(body),
         };
-        if (includeIdempotencyKey)
+        if (idempotencyKey is not null)
         {
-            request.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString("N"));
+            request.Headers.TryAddWithoutValidation("Idempotency-Key", idempotencyKey);
         }
 
         return await httpClient.SendAsync(request, cancellationToken);
     }
+
+    private static string NewIdempotencyKey() => Guid.NewGuid().ToString("N");
 
     private static async Task<CreateSessionResult> ReadCreateSessionResultAsync(
         HttpResponseMessage response,

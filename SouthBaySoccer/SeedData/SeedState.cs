@@ -332,18 +332,21 @@ public sealed class SeedState
     }
     public IReadOnlyList<VenueDto> SearchVenues(string? query)
     {
-        if (string.IsNullOrWhiteSpace(query))
+        lock (syncRoot)
         {
-            return Array.AsReadOnly(AllVenues().ToArray());
-        }
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return Array.AsReadOnly(AllVenues().ToArray());
+            }
 
-        var trimmed = query.Trim();
-        return Array.AsReadOnly(
-            AllVenues()
-                .Where(venue =>
-                    venue.Name.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
-                    || venue.Locality.Contains(trimmed, StringComparison.OrdinalIgnoreCase))
-                .ToArray());
+            var trimmed = query.Trim();
+            return Array.AsReadOnly(
+                AllVenues()
+                    .Where(venue =>
+                        venue.Name.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+                        || venue.Locality.Contains(trimmed, StringComparison.OrdinalIgnoreCase))
+                    .ToArray());
+        }
     }
 
     public VenueDto CreateVenue(string name, string locality, string? address)

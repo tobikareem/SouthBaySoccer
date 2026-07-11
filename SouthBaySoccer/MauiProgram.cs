@@ -112,12 +112,12 @@ public static class MauiProgram
 #else
         var pickupPalOptions = new PickupPalOptions();
 #endif
-#if DEBUG && ANDROID
-        var clientDataSourceOptions = new ClientDataSourceOptions { DataSource = ClientDataSource.Seed };
-#else
+        // Config-first: an explicit ClientDataSource setting always wins (e.g. ClientDataSource=Api
+        // on an Android debug build so it targets the emulator ApiBaseUri above). FromValue falls
+        // back to Seed only when the value is null/whitespace, which is the desired default on every
+        // platform including Android debug.
         var configuredClientDataSource = builder.Configuration["ClientDataSource"];
         var clientDataSourceOptions = ClientDataSourceOptions.FromValue(configuredClientDataSource);
-#endif
         builder.Services.AddSingleton(pickupPalOptions);
         builder.Services.AddSouthBaySoccerClients(
             clientDataSourceOptions,
