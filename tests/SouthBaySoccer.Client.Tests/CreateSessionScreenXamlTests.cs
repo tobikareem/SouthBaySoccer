@@ -178,6 +178,7 @@ public class CreateSessionScreenXamlTests
     [Fact]
     public void CreateSessionScreen_AddVenueButtonSemanticDescriptionReflectsDynamicText() =>
         ReadXaml().Should().Contain("SemanticProperties.Description=\"{Binding CreateVenueActionText}\"");
+
     private static bool IsEmoji(int codePoint) =>
         codePoint is (>= 0x1F000 and <= 0x1FAFF)
             or (>= 0x2600 and <= 0x26FF)

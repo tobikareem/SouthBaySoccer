@@ -21,6 +21,8 @@ public partial class CreateSessionPage : ContentPage
     {
         base.OnAppearing();
 
+        _isDisappearing = false;
+
         if (BindingContext is CreateSessionPageModel pageModel
             && pageModel.LoadCommand.CanExecute(null))
         {
@@ -36,6 +38,11 @@ public partial class CreateSessionPage : ContentPage
         _venueSearchDebounceCts?.Cancel();
         _venueSearchDebounceCts?.Dispose();
         _venueSearchDebounceCts = null;
+
+        if (BindingContext is CreateSessionPageModel pageModel)
+        {
+            pageModel.SearchVenuesCommand.Cancel();
+        }
     }
 
     private void OnVenueSearchTextChanged(object? sender, TextChangedEventArgs e)
