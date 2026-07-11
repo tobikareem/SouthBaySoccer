@@ -85,6 +85,169 @@ public sealed class ApiSessionAdminClientTests
     }
 
     [Fact]
+    public async Task GetDefaultsAsync_SendsCreateDefaultsRouteAndMapsResponse()
+    {
+        HttpRequestMessage? observed = null;
+        var venueId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        var client = CreateClient(request =>
+        {
+            observed = request;
+            return JsonResponse(
+                $$"""
+                {
+                  "canManageSessions": true,
+                  "defaultGameDateLocal": "2026-07-18T00:00:00",
+                  "defaultStartTimeLocal": "19:40:00",
+                  "checkInLeadMinutes": 10,
+                  "checkInCloseOffsetMinutes": 0,
+                  "formats": ["5v5", "7v7", "9v9"],
+                  "defaultFormatIndex": 1,
+                  "defaultCapacity": 20,
+                  "minimumCapacity": 1,
+                  "maximumCapacity": 40,
+                  "teamOptions": ["2 teams", "3 teams", "4 teams"],
+                  "defaultTeamIndex": 0,
+                  "savedVenue": {
+                    "id": "{{venueId}}",
+                    "name": "Marina Field",
+                    "locality": "Redondo Beach",
+                    "isSaved": true
+                  },
+                  "feedLabel": "Team feed",
+                  "defaultRsvpDeadlineLocal": "18:30:00"
+                }
+                """);
+        });
+
+        var defaults = await client.GetDefaultsAsync(CancellationToken.None);
+
+        observed!.Method.Should().Be(HttpMethod.Get);
+        observed.RequestUri!.PathAndQuery.Should().Be("/sessions/admin/create-defaults");
+        defaults.CanManageSessions.Should().BeTrue();
+        defaults.DefaultGameDateLocal.Should().Be(new DateTime(2026, 7, 18));
+        defaults.Formats.Should().Equal("5v5", "7v7", "9v9");
+        defaults.SavedVenue.Id.Should().Be(venueId);
+        defaults.SavedVenue.Name.Should().Be("Marina Field");
+        defaults.FeedLabel.Should().Be("Team feed");
+    }
+
+    [Fact]
+    public async Task ListManagedSessionsAsync_SendsManagedRouteAndMapsResponse()
+    {
+        HttpRequestMessage? observed = null;
+        var sessionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var client = CreateClient(request =>
+        {
+            observed = request;
+            return JsonResponse(
+                $$"""
+                [
+                  {
+                    "sessionId": "{{sessionId}}",
+                    "title": "Marina Field - Saturday pickup",
+                    "dateLabel": "Jul 11",
+                    "timeLabel": "12:40 PM",
+                    "venueName": "Marina Field",
+                    "format": "7v7",
+                    "capacity": 20,
+                    "statusLabel": "Draft"
+                  }
+                ]
+                """);
+        });
+
+        var sessions = await client.ListManagedSessionsAsync(CancellationToken.None);
+
+        observed!.Method.Should().Be(HttpMethod.Get);
+        observed.RequestUri!.PathAndQuery.Should().Be("/sessions/admin/managed");
+        sessions.Should().ContainSingle();
+        sessions[0].SessionId.Should().Be(sessionId);
+        sessions[0].Title.Should().Be("Marina Field - Saturday pickup");
+        sessions[0].StatusLabel.Should().Be("Draft");
+    }
+
+    [Fact]
+    public async Task UpdateSessionAsync_SendsUpdateRouteWithIdempotencyKey()
+    {
+        HttpRequestMessage? observed = null;
+        string? observedBody = null;
+        var sessionId = Guid.Parse("11111111-2222-3333-4444-555555555555");
+        var client = CreateClient(request =>
+        {
+            observed = request;
+            observedBody = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse(
+                $$"""
+                {
+                  "isSuccess": true,
+                  "sessionId": "{{sessionId}}",
+                  "errorCode": null,
+                  "errorMessage": null
+                }
+                """);
+        });
+
+        var result = await client.UpdateSessionAsync(sessionId, ValidCommand(), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.SessionId.Should().Be(sessionId);
+        observed!.Method.Should().Be(HttpMethod.Put);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/sessions/{sessionId}");
+        observed.Headers.Contains("Idempotency-Key").Should().BeTrue();
+        observedBody.Should().Contain("\"venueName\":\"Marina Field\"");
+    }
+
+    [Fact]
+    public async Task CreateDraftAsync_WhenRetriedAfterBadRequestFailure_ReusesSameIdempotencyKey_ThroughPipeline()
+    {
+        // A 4xx problem-details response is mapped to CreateSessionResult.Failure (not an exception) by
+        // ExecuteSessionResultAsync, so the operation-key clearing logic — which only runs on success —
+        // must still leave the key intact for the retry. Otherwise a validation failure the user fixes
+        // and resubmits would present a brand-new key and lose the server's replay protection.
+        var sessionId = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
+        var requests = new List<HttpRequestMessage>();
+        var callCount = 0;
+        var client = CreatePipelineClient(request =>
+        {
+            requests.Add(request);
+            callCount++;
+            return callCount == 1
+                ? new HttpResponseMessage(HttpStatusCode.BadRequest)
+                {
+                    Content = new StringContent(
+                        """
+                        {
+                            "title": "Validation failed",
+                            "detail": "Capacity must be at least 1.",
+                            "status": 400
+                        }
+                        """,
+                        System.Text.Encoding.UTF8,
+                        "application/problem+json"),
+                }
+                : JsonResponse(
+                    $$"""
+                    {
+                      "isSuccess": true,
+                      "sessionId": "{{sessionId}}",
+                      "errorCode": null,
+                      "errorMessage": null
+                    }
+                    """);
+        });
+
+        var failedAttempt = await client.CreateDraftAsync(ValidCommand(), CancellationToken.None);
+        var retried = await client.CreateDraftAsync(ValidCommand(), CancellationToken.None);
+
+        failedAttempt.IsSuccess.Should().BeFalse();
+        failedAttempt.ErrorMessage.Should().Be("Capacity must be at least 1.");
+        retried.IsSuccess.Should().BeTrue();
+        requests.Should().HaveCount(2);
+        requests[1].Headers.GetValues("Idempotency-Key").Single()
+            .Should().Be(requests[0].Headers.GetValues("Idempotency-Key").Single());
+    }
+
+    [Fact]
     public async Task CreateVenueAsync_SendsVenueRouteAndMapsResponse()
     {
         HttpRequestMessage? observed = null;
