@@ -9,22 +9,14 @@ using Xunit;
 namespace SouthBaySoccer.Functions.Tests;
 
 /// <summary>
-/// Covers the missing-<c>Idempotency-Key</c> rejection shared by <c>SchedulingFunctions.CreateSessionDraft</c>,
-/// <c>UpdateSession</c>, and <c>PublishSession</c> (see <c>SchedulingFunctions.GetIdempotencyKey</c>).
+/// Validates <c>IdempotentRequestExecutor.ExecuteAsync</c> rejection of invalid Idempotency-Key values.
 /// </summary>
 /// <remarks>
-/// <see cref="SchedulingFunctions.GetIdempotencyKey"/> is a private static helper that reads the header
-/// straight off an <see cref="Microsoft.Azure.Functions.Worker.Http.HttpRequestData"/>; that type is
-/// abstract and requires a live <see cref="Microsoft.Azure.Functions.Worker.FunctionContext"/> to
-/// construct, and no test double for it exists anywhere in this project (every other test here is either
-/// reflection-based endpoint metadata or a workflow-level unit test that never touches
-/// <c>HttpRequestData</c>). Building one bespoke to this test would introduce a testing pattern not used
-/// elsewhere in Functions.Tests. All three endpoints route a missing/blank key through the identical
-/// rejection here: <see cref="IdempotentRequestExecutor.ExecuteAsync{TResponse}"/> independently validates
-/// a non-empty, &lt;=160-character key and throws the same <see cref="ValidationProblemException"/> (RFC
-/// 7807-mapped by the exception-handling middleware) that <c>GetIdempotencyKey</c> throws when the header
-/// itself is absent — this is the closest reachable seam, and the assertions below prove the operation
-/// never runs for an invalid key.
+/// In production, missing/blank keys are rejected by <c>SchedulingFunctions.GetIdempotencyKey</c> (private static,
+/// requires live <c>HttpRequestData</c>, untestable here). The null/blank cases exercise a defensive branch in
+/// <c>ExecuteAsync</c> unreachable in production via those endpoints; the &gt;160-character case is a faithful
+/// behavioral proxy because <c>GetIdempotencyKey</c> does not enforce length limits. <c>GetIdempotencyKey</c>
+/// itself remains untested—regressions in it would not be caught.
 /// </remarks>
 public sealed class IdempotentRequestExecutorIdempotencyKeyTests
 {
