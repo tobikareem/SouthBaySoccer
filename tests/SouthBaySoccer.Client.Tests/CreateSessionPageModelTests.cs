@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http;
 using FluentAssertions;
 using Moq;
@@ -32,6 +33,21 @@ public class CreateSessionPageModelTests
         state = new SeedState();
         navigator = new Mock<ISessionsNavigator>();
         return new CreateSessionPageModel(new SeedSessionAdminClient(state), navigator.Object);
+    }
+
+    private static CreateSessionPageModel MockBackedModel(
+        out Mock<ISessionAdminClient> adminClient,
+        out Mock<ISessionsNavigator> navigator)
+    {
+        adminClient = new Mock<ISessionAdminClient>();
+        adminClient
+            .Setup(client => client.GetDefaultsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.CreateSessionDefaults);
+        adminClient
+            .Setup(client => client.ListManagedSessionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        navigator = new Mock<ISessionsNavigator>();
+        return new CreateSessionPageModel(adminClient.Object, navigator.Object);
     }
 
     private static CreateSessionDefaultsDto DeniedDefaults() =>
@@ -104,6 +120,26 @@ public class CreateSessionPageModelTests
     }
 
     [Fact]
+    public async Task EditManagedSession_ApiRequestException_ShowsServerMessage()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        var session = new ManagedSessionDto(
+            Guid.NewGuid(), "Test session", "Jul 11", "7:40 PM", "Marina Field", "7v7", 20, "Published");
+        adminClient
+            .Setup(client => client.GetSessionForEditAsync(session.SessionId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ApiRequestException(
+                HttpStatusCode.Forbidden,
+                "API request failed with status 403.",
+                "Forbidden",
+                "You do not have permission to edit this session."));
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        await pageModel.EditManagedSessionCommand.ExecuteAsync(session);
+
+        pageModel.ValidationMessage.Should().Be("You do not have permission to edit this session.");
+    }
+
+    [Fact]
     public async Task Load_WithoutManagePermission_ShowsDeniedStateAndBlocksPublish()
     {
         var adminClient = new Mock<ISessionAdminClient>();
@@ -150,6 +186,29 @@ public class CreateSessionPageModelTests
 
         await act.Should().NotThrowAsync();
         pageModel.State.Should().Be(ViewState.Error);
+    }
+
+    [Fact]
+    public async Task Load_ApiRequestException_ShowsServerMessageNotOfflineCopy()
+    {
+        // The server responded (it's an ApiRequestException, not a bare connectivity failure), so the
+        // page should show its problem-details message rather than the "you're offline" copy.
+        var adminClient = new Mock<ISessionAdminClient>();
+        adminClient
+            .Setup(client => client.GetDefaultsAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ApiRequestException(
+                HttpStatusCode.InternalServerError,
+                "API request failed with status 500.",
+                "Unexpected error",
+                "The session admin service is temporarily unavailable."));
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object);
+
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Error);
+        pageModel.StateMessage.Should().Be("The session admin service is temporarily unavailable.");
+        pageModel.StateMessage.Should().NotBe(CreateSessionPageModel.OfflineMessage);
     }
 
     [Fact]
@@ -209,6 +268,43 @@ public class CreateSessionPageModelTests
         pageModel.SavedVenueHint.Should().Be("Torrance");
         pageModel.CanPublish.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task AddVenue_ApiRequestException_ShowsServerMessage()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        adminClient
+            .Setup(client => client.CreateVenueAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ApiRequestException(
+                HttpStatusCode.BadRequest,
+                "API request failed with status 400.",
+                "Validation failed",
+                "A venue with that name already exists."));
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        pageModel.VenueQuery = "New Park, Torrance";
+
+        await pageModel.AddVenueCommand.ExecuteAsync(null);
+
+        pageModel.ValidationMessage.Should().Be("A venue with that name already exists.");
+    }
+
+    [Fact]
+    public async Task AddVenue_StatusLessHttpRequestException_ShowsVenueOfflineMessage()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        adminClient
+            .Setup(client => client.CreateVenueAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("No network connection."));
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        pageModel.VenueQuery = "New Park, Torrance";
+
+        await pageModel.AddVenueCommand.ExecuteAsync(null);
+
+        pageModel.ValidationMessage.Should().Be(CreateSessionPageModel.OfflineVenueMessage);
+    }
+
     [Fact]
     public async Task SelectVenue_FromResults_SetsSelectionAndCollapsesList()
     {
@@ -339,6 +435,80 @@ public class CreateSessionPageModelTests
             Times.Once);
         navigator.Verify(item => item.GoToSessionAsync(sessionId), Times.Once);
         pageModel.ValidationMessage.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task PublishToTeam_ApiRequestException_ShowsServerMessageNotOfflineCopy()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        adminClient
+            .Setup(client => client.CreateDraftAsync(It.IsAny<CreateSessionCommand>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ApiRequestException(
+                HttpStatusCode.InternalServerError,
+                "API request failed with status 500.",
+                "Unexpected error",
+                "The session admin service hit an unexpected error."));
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        await pageModel.PublishToTeamCommand.ExecuteAsync(null);
+
+        pageModel.ValidationMessage.Should().Be("The session admin service hit an unexpected error.");
+        pageModel.ValidationMessage.Should().NotBe(CreateSessionPageModel.OfflinePublishMessage);
+    }
+
+    [Fact]
+    public async Task PublishToTeam_StatusLessHttpRequestException_ShowsOfflineMessage()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        adminClient
+            .Setup(client => client.CreateDraftAsync(It.IsAny<CreateSessionCommand>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("No network connection."));
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        await pageModel.PublishToTeamCommand.ExecuteAsync(null);
+
+        pageModel.ValidationMessage.Should().Be(CreateSessionPageModel.OfflinePublishMessage);
+    }
+
+    [Fact]
+    public async Task PublishToTeam_EditingSessionApiRequestException_ShowsServerMessageNotOfflineCopy()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        var venueId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        var session = new ManagedSessionDto(
+            Guid.NewGuid(), "Test session", "Jul 11", "7:40 PM", "Marina Field", "7v7", 20, "Published");
+        var editable = new ManagedSessionEditDto(
+            session.SessionId,
+            new CreateSessionCommand(
+                new DateTime(2026, 7, 11, 0, 0, 0, DateTimeKind.Unspecified),
+                new TimeSpan(19, 40, 0),
+                new TimeSpan(19, 30, 0),
+                new TimeSpan(19, 40, 0),
+                venueId,
+                "Marina Field",
+                "7v7",
+                20,
+                2,
+                new TimeSpan(18, 30, 0)),
+            IsPublished: true);
+        adminClient
+            .Setup(client => client.GetSessionForEditAsync(session.SessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(editable);
+        adminClient
+            .Setup(client => client.UpdateSessionAsync(
+                session.SessionId, It.IsAny<CreateSessionCommand>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ApiRequestException(
+                HttpStatusCode.Conflict,
+                "API request failed with status 409.",
+                "Conflict",
+                "This session was already updated."));
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        await pageModel.EditManagedSessionCommand.ExecuteAsync(session);
+
+        await pageModel.PublishToTeamCommand.ExecuteAsync(null);
+
+        pageModel.ValidationMessage.Should().Be("This session was already updated.");
+        pageModel.ValidationMessage.Should().NotBe(CreateSessionPageModel.OfflinePublishMessage);
     }
 
     [Fact]

@@ -148,11 +148,140 @@ public sealed class ApiSessionAdminClientTests
         venues[0].IsSaved.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task GetSessionForEditAsync_WhenFound_ReturnsSession_ThroughPipeline()
+    {
+        var sessionId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+        var client = CreatePipelineClient(_ => JsonResponse(
+            $$"""
+            {
+              "sessionId": "{{sessionId}}",
+              "command": {
+                "gameDateLocal": "2026-07-11T00:00:00",
+                "startTimeLocal": "19:40:00",
+                "checkInOpenLocal": "19:30:00",
+                "checkInCloseLocal": "19:40:00",
+                "venueId": "44444444-4444-4444-4444-444444444444",
+                "venueName": "Marina Field",
+                "format": "7v7",
+                "capacity": 20,
+                "teamCount": 2,
+                "rsvpDeadlineLocal": "18:30:00"
+              },
+              "isPublished": true
+            }
+            """));
+
+        var session = await client.GetSessionForEditAsync(sessionId, CancellationToken.None);
+
+        session.Should().NotBeNull();
+        session!.SessionId.Should().Be(sessionId);
+        session.Command.VenueName.Should().Be("Marina Field");
+    }
+
+    [Fact]
+    public async Task GetSessionForEditAsync_WhenNotFound_ReturnsNull_ThroughPipeline()
+    {
+        // ApiSessionAdminClient is registered behind ApiExceptionHandler in production, which throws
+        // ApiRequestException for the 404 instead of returning the response object. Compose the real
+        // handler here so this test would fail against the old dead `response.StatusCode == NotFound`
+        // check (that check never runs because the pipeline already threw).
+        var client = CreatePipelineClient(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        var session = await client.GetSessionForEditAsync(Guid.NewGuid(), CancellationToken.None);
+
+        session.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CreateDraftAsync_WhenBadRequestProblemDetails_ReturnsFailureWithServerMessage_ThroughPipeline()
+    {
+        var client = CreatePipelineClient(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent(
+                """
+                {
+                    "title": "Validation failed",
+                    "detail": "Capacity must be at least 1.",
+                    "status": 400
+                }
+                """,
+                System.Text.Encoding.UTF8,
+                "application/problem+json"),
+        });
+
+        var result = await client.CreateDraftAsync(ValidCommand(), CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Be("Capacity must be at least 1.");
+    }
+
+    [Fact]
+    public async Task PublishAsync_WhenConflictProblemDetails_ReturnsFailureWithServerMessage_ThroughPipeline()
+    {
+        var client = CreatePipelineClient(_ => new HttpResponseMessage(HttpStatusCode.Conflict)
+        {
+            Content = new StringContent(
+                """
+                {
+                    "title": "Conflict",
+                    "detail": "This draft was already published.",
+                    "status": 409
+                }
+                """,
+                System.Text.Encoding.UTF8,
+                "application/problem+json"),
+        });
+
+        var result = await client.PublishAsync(Guid.NewGuid(), CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Be("This draft was already published.");
+    }
+
+    [Fact]
+    public async Task CreateDraftAsync_WhenServerError_PropagatesApiRequestException_ThroughPipeline()
+    {
+        // 5xx is not a client-fixable validation error, so it should NOT be swallowed into a
+        // CreateSessionResult.Failure — it must keep propagating so the caller's generic error handling
+        // (not the offline copy, not a silent failure result) applies.
+        var client = CreatePipelineClient(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError)
+        {
+            Content = new StringContent(
+                """
+                {
+                    "title": "Unexpected error",
+                    "detail": "An unexpected error occurred.",
+                    "status": 500
+                }
+                """,
+                System.Text.Encoding.UTF8,
+                "application/problem+json"),
+        });
+
+        var act = () => client.CreateDraftAsync(ValidCommand(), CancellationToken.None);
+
+        var thrown = await act.Should().ThrowAsync<ApiRequestException>();
+        thrown.Which.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+    }
+
     private static ApiSessionAdminClient CreateClient(Func<HttpRequestMessage, HttpResponseMessage> send) =>
         new(new HttpClient(new StubHttpMessageHandler(send))
         {
             BaseAddress = new Uri("https://api.test/"),
         });
+
+    private static ApiSessionAdminClient CreatePipelineClient(Func<HttpRequestMessage, HttpResponseMessage> send)
+    {
+        var handler = new ApiExceptionHandler
+        {
+            InnerHandler = new StubHttpMessageHandler(send),
+        };
+        return new ApiSessionAdminClient(new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.test/"),
+        });
+    }
 
     private static CreateSessionCommand ValidCommand() =>
         new(

@@ -28,15 +28,17 @@ public sealed class ApiSessionAdminClient(HttpClient httpClient) : ISessionAdmin
         Guid sessionId,
         CancellationToken cancellationToken)
     {
-        using var response = await httpClient.GetAsync($"sessions/{sessionId}/admin-edit", cancellationToken);
-        if (response.StatusCode == HttpStatusCode.NotFound)
+        try
+        {
+            using var response = await httpClient.GetAsync($"sessions/{sessionId}/admin-edit", cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<ManagedSessionEditDto>(
+                cancellationToken: cancellationToken);
+        }
+        catch (ApiRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
             return null;
         }
-
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<ManagedSessionEditDto>(
-            cancellationToken: cancellationToken);
     }
 
     public async Task<IReadOnlyList<VenueDto>> SearchVenuesAsync(
@@ -73,38 +75,65 @@ public sealed class ApiSessionAdminClient(HttpClient httpClient) : ISessionAdmin
         return ToVenueDto(venue);
     }
 
-    public async Task<CreateSessionResult> CreateDraftAsync(
+    public Task<CreateSessionResult> CreateDraftAsync(
         CreateSessionCommand command,
-        CancellationToken cancellationToken)
-    {
-        using var response = await SendJsonAsync(
-            HttpMethod.Post,
-            "sessions/drafts",
-            command,
-            cancellationToken);
-        return await ReadCreateSessionResultAsync(response, cancellationToken);
-    }
+        CancellationToken cancellationToken) =>
+        ExecuteSessionResultAsync(async () =>
+        {
+            using var response = await SendJsonAsync(
+                HttpMethod.Post,
+                "sessions/drafts",
+                command,
+                cancellationToken);
+            return await ReadCreateSessionResultAsync(response, cancellationToken);
+        });
 
-    public async Task<CreateSessionResult> UpdateSessionAsync(
+    public Task<CreateSessionResult> UpdateSessionAsync(
         Guid sessionId,
         CreateSessionCommand command,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        ExecuteSessionResultAsync(async () =>
+        {
+            using var response = await SendJsonAsync(
+                HttpMethod.Put,
+                $"sessions/{sessionId}",
+                command,
+                cancellationToken);
+            return await ReadCreateSessionResultAsync(response, cancellationToken);
+        });
+
+    public Task<CreateSessionResult> PublishAsync(Guid draftId, CancellationToken cancellationToken) =>
+        ExecuteSessionResultAsync(async () =>
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"sessions/{draftId}/publish");
+            request.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString("N"));
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            return await ReadCreateSessionResultAsync(response, cancellationToken);
+        });
+
+    /// <summary>
+    /// Runs a create/update/publish operation, converting a 4xx <see cref="ApiRequestException"/> (the
+    /// server's problem-details response) into a <see cref="CreateSessionResult.Failure"/> carrying the
+    /// server's message. 401 never reaches here (handled upstream); 5xx and non-API failures propagate
+    /// so the caller's generic/offline handling applies.
+    /// </summary>
+    private static async Task<CreateSessionResult> ExecuteSessionResultAsync(
+        Func<Task<CreateSessionResult>> operation)
     {
-        using var response = await SendJsonAsync(
-            HttpMethod.Put,
-            $"sessions/{sessionId}",
-            command,
-            cancellationToken);
-        return await ReadCreateSessionResultAsync(response, cancellationToken);
+        try
+        {
+            return await operation();
+        }
+        catch (ApiRequestException ex) when (IsClientError(ex.StatusCode))
+        {
+            // ApiRequestException's constructor always takes a non-nullable HttpStatusCode, so
+            // StatusCode is never null here; the ! only satisfies the inherited nullable signature.
+            return CreateSessionResult.Failure($"http_{(int)ex.StatusCode!.Value}", ex.UserMessage);
+        }
     }
 
-    public async Task<CreateSessionResult> PublishAsync(Guid draftId, CancellationToken cancellationToken)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"sessions/{draftId}/publish");
-        request.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString("N"));
-        using var response = await httpClient.SendAsync(request, cancellationToken);
-        return await ReadCreateSessionResultAsync(response, cancellationToken);
-    }
+    private static bool IsClientError(HttpStatusCode? statusCode) =>
+        statusCode is >= HttpStatusCode.BadRequest and < HttpStatusCode.InternalServerError;
 
     private async Task<HttpResponseMessage> SendJsonAsync<T>(
         HttpMethod method,

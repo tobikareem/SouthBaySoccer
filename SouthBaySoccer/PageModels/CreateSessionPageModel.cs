@@ -32,6 +32,7 @@ public partial class CreateSessionPageModel(
     public const string OfflineTitle = "You're offline";
     public const string OfflineMessage = "Reconnect to create and publish a session.";
     public const string OfflinePublishMessage = "You're offline. Reconnect to publish this session.";
+    public const string OfflineVenueMessage = "You're offline. Reconnect to save this venue.";
     public const string GenericPublishError = "Something went wrong publishing the session. Please try again.";
     public const string PreviewStatusLabel = "Ready for RSVP";
 
@@ -280,6 +281,12 @@ public partial class CreateSessionPageModel(
         {
             throw;
         }
+        catch (ApiRequestException ex)
+        {
+            // The server responded (validation, forbidden, unexpected error) — show its message
+            // rather than the misleading "you're offline" copy reserved for connectivity failures.
+            ApplyState(ViewState.Error, ErrorTitle, ex.UserMessage);
+        }
         catch (HttpRequestException)
         {
             ApplyState(ViewState.Offline, OfflineTitle, OfflineMessage);
@@ -344,9 +351,13 @@ public partial class CreateSessionPageModel(
         {
             throw;
         }
+        catch (ApiRequestException ex)
+        {
+            ValidationMessage = ex.UserMessage;
+        }
         catch (HttpRequestException)
         {
-            ValidationMessage = OfflinePublishMessage;
+            ValidationMessage = OfflineVenueMessage;
         }
         catch (Exception)
         {
@@ -398,6 +409,10 @@ public partial class CreateSessionPageModel(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (ApiRequestException ex)
+        {
+            ValidationMessage = ex.UserMessage;
         }
         catch (HttpRequestException)
         {
@@ -469,6 +484,10 @@ public partial class CreateSessionPageModel(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (ApiRequestException ex)
+        {
+            ValidationMessage = ex.UserMessage;
         }
         catch (HttpRequestException)
         {
@@ -552,6 +571,10 @@ public partial class CreateSessionPageModel(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (ApiRequestException ex)
+        {
+            ValidationMessage = ex.UserMessage;
         }
         catch (HttpRequestException)
         {

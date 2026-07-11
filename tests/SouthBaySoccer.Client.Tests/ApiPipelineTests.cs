@@ -203,18 +203,104 @@ public sealed class ApiPipelineTests
     [Fact]
     public async Task ApiProfileClient_GetProfileAsync_WhenNotFound_ReturnsNull()
     {
-        var httpClient = new HttpClient(new StubHttpMessageHandler(_ =>
-            new HttpResponseMessage(HttpStatusCode.NotFound)))
-        {
-            BaseAddress = new Uri("https://api.test/"),
-        };
-        var client = new ApiProfileClient(httpClient);
+        // Composed through the real ApiExceptionHandler (as the client is in production) rather than a
+        // bare HttpClient: the handler throws ApiRequestException for the 404, and GetProfileAsync must
+        // catch it and return null instead of letting it propagate.
+        var client = new ApiProfileClient(CreatePipelineHttpClient(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
 
         var profile = await client.GetProfileAsync(
             Guid.Parse("44444444-4444-4444-4444-444444444444"),
             CancellationToken.None);
 
         profile.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ApiProfileClient_GetCurrentProfileAsync_WhenNotFound_ReturnsNull()
+    {
+        var client = new ApiProfileClient(CreatePipelineHttpClient(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
+
+        var profile = await client.GetCurrentProfileAsync(CancellationToken.None);
+
+        profile.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ApiExceptionHandler_BadRequestWithProblemDetailsBody_ThrowsApiRequestExceptionWithTitleAndDetail()
+    {
+        var handler = new ApiExceptionHandler
+        {
+            InnerHandler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent(
+                    """
+                    {
+                        "type": "https://api.southbaysoccer.local/problems/validation",
+                        "title": "Validation failed",
+                        "status": 400,
+                        "detail": "Capacity must be at least 1.",
+                        "correlationId": "abc123"
+                    }
+                    """,
+                    System.Text.Encoding.UTF8,
+                    "application/problem+json"),
+            }),
+        };
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.test/") };
+
+        var act = () => client.GetAsync("sessions/drafts");
+
+        var thrown = await act.Should().ThrowAsync<ApiRequestException>();
+        thrown.Which.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        thrown.Which.Title.Should().Be("Validation failed");
+        thrown.Which.Detail.Should().Be("Capacity must be at least 1.");
+        thrown.Which.UserMessage.Should().Be("Capacity must be at least 1.");
+    }
+
+    [Fact]
+    public async Task ApiExceptionHandler_UnauthorizedResponse_ReturnsResponseWithoutThrowing()
+    {
+        var handler = new ApiExceptionHandler
+        {
+            InnerHandler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized)),
+        };
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.test/") };
+
+        using var response = await client.GetAsync("profiles/me");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task ApiExceptionHandler_NonJsonErrorBody_UsesRawBodyAsUserMessage()
+    {
+        var handler = new ApiExceptionHandler
+        {
+            InnerHandler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError)
+            {
+                Content = new StringContent("boom", System.Text.Encoding.UTF8, "text/plain"),
+            }),
+        };
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.test/") };
+
+        var act = () => client.GetAsync("sessions/drafts");
+
+        var thrown = await act.Should().ThrowAsync<ApiRequestException>();
+        thrown.Which.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        thrown.Which.Title.Should().BeNull();
+        thrown.Which.Detail.Should().BeNull();
+        thrown.Which.UserMessage.Should().Be("boom");
+    }
+
+    private static HttpClient CreatePipelineHttpClient(Func<HttpRequestMessage, HttpResponseMessage> send)
+    {
+        var handler = new ApiExceptionHandler
+        {
+            InnerHandler = new StubHttpMessageHandler(send),
+        };
+        return new HttpClient(handler) { BaseAddress = new Uri("https://api.test/") };
     }
 
     private static HttpResponseMessage JsonResponse(string json) =>
