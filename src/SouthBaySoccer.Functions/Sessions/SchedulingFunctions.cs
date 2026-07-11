@@ -436,5 +436,3 @@ public sealed class SchedulingFunctions(
         return response;
     }
 }
-
-

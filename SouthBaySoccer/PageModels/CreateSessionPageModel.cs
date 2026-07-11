@@ -809,4 +809,3 @@ public partial class CreateSessionPageModel(
     private static string FormatTime(TimeSpan time) =>
         (DateTime.MinValue + time).ToString("h:mm tt", CultureInfo.InvariantCulture);
 }
-

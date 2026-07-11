@@ -309,4 +309,3 @@ public static class SeedFixtures
     private static IReadOnlyList<T> ReadOnly<T>(params T[] items) =>
         Array.AsReadOnly(items);
 }
-

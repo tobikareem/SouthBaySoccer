@@ -64,12 +64,13 @@ public class SeedSessionAdminClientTests
 
         var venue = await client.CreateVenueAsync("New Park", "Torrance", null, CancellationToken.None);
         var results = await client.SearchVenuesAsync("new", CancellationToken.None);
- 
+
         venue.Name.Should().Be("New Park");
         venue.Locality.Should().Be("Torrance");
         venue.IsSaved.Should().BeTrue();
         results.Should().ContainSingle(item => item.Id == venue.Id);
     }
+
     [Fact]
     public async Task CreateDraftAsync_InvalidCapacity_ReturnsFailureWithoutPublishing()
     {

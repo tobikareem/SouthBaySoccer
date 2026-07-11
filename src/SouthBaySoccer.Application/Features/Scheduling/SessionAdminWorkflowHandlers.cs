@@ -279,4 +279,3 @@ public sealed class PublishSessionCommandHandler(
         return SchedulingMappers.ToModel(session);
     }
 }
-

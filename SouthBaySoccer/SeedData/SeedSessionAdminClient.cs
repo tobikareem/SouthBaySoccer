@@ -47,6 +47,7 @@ public sealed class SeedSessionAdminClient(SeedState state) : ISessionAdminClien
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(state.CreateVenue(name, locality, address));
     }
+
     public Task<CreateSessionResult> CreateDraftAsync(
         CreateSessionCommand command,
         CancellationToken cancellationToken)
@@ -70,4 +71,3 @@ public sealed class SeedSessionAdminClient(SeedState state) : ISessionAdminClien
         return Task.FromResult(state.Publish(draftId));
     }
 }
-

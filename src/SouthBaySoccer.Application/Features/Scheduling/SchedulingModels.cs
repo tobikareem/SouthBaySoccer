@@ -56,7 +56,6 @@ public sealed record CreateSessionCommand(
     string? OccurrenceKey = null,
     SessionStatus Status = SessionStatus.Published);
 
-
 public sealed record CreateSessionAdminDefaultsModel(
     bool CanManageSessions,
     DateTime DefaultGameDateLocal,
@@ -146,4 +145,3 @@ public sealed record CreateSessionOccurrenceCommand(
     DateTime CheckInOpensAtUtc,
     DateTime CheckInClosesAtUtc,
     DateTime RsvpDeadlineUtc);
-
