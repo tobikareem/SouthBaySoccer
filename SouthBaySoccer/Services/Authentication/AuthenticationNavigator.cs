@@ -1,9 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.ApplicationModel;
+using SouthBaySoccer.Services;
 
 namespace SouthBaySoccer.Services.Authentication;
 
-public sealed class AuthenticationNavigator(IServiceProvider services) : IAuthenticationNavigator
+public sealed class AuthenticationNavigator(
+    IServiceProvider services,
+    StartupErrorHandler errorHandler) : IAuthenticationNavigator
 {
     public Task ShowAuthenticatedAppAsync(CancellationToken cancellationToken = default)
     {
@@ -17,10 +20,19 @@ public sealed class AuthenticationNavigator(IServiceProvider services) : IAuthen
                 ?? throw new InvalidOperationException("The application window is not available.");
 
             // AppShell is registered transient, so this is always a fresh shell with no prior
-            // navigation state, and Sessions is the first ShellContent in the TabBar — assigning it
-            // as the window page lands on the Sessions tab (//sessions) by default. Do NOT call
-            // GoToAsync here: invoking Shell navigation before the shell handler exists crashes.
-            window.Page = services.GetRequiredService<AppShell>();
+            // navigation state. Subscribe before assigning the window's page so we cannot miss
+            // Loaded firing as part of that assignment, then navigate exactly once the Shell's
+            // handler has actually attached instead of guessing with a fixed delay.
+            var shell = services.GetRequiredService<AppShell>();
+
+            void OnShellLoaded(object? sender, EventArgs e)
+            {
+                shell.Loaded -= OnShellLoaded;
+                shell.GoToAsync("//sessions").FireAndForgetSafeAsync(errorHandler);
+            }
+
+            shell.Loaded += OnShellLoaded;
+            window.Page = shell;
         });
     }
 }

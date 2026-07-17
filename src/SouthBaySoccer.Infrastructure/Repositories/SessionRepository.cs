@@ -24,6 +24,16 @@ internal sealed class SessionRepository(SouthBaySoccerDbContext dbContext) : ISe
             .Take(take)
             .ToArrayAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Session>> ListManagedAsync(
+        DateTime fromUtc,
+        int take,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.Sessions
+            .Where(x => x.StartsAtUtc >= fromUtc && x.Status != SessionStatus.Canceled)
+            .OrderBy(x => x.StartsAtUtc)
+            .Take(take)
+            .ToArrayAsync(cancellationToken);
+
     public Task<RecurrenceRule?> FindRecurrenceRuleAsync(Guid recurrenceRuleId, CancellationToken cancellationToken = default) =>
         dbContext.RecurrenceRules.SingleOrDefaultAsync(x => x.Id == recurrenceRuleId, cancellationToken);
 

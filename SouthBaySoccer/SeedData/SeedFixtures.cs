@@ -11,7 +11,6 @@ namespace SouthBaySoccer.SeedData;
 public static class SeedFixtures
 {
     public static readonly Guid CurrentPlayerId = Guid.Parse("10000000-0000-0000-0000-000000000001");
-    public static readonly Guid CurrentIdentityId = Guid.Parse("11000000-0000-0000-0000-000000000001");
     public static readonly Guid MarinaSessionId = Guid.Parse("20000000-0000-0000-0000-000000000001");
     public static readonly Guid StanfordSessionId = Guid.Parse("20000000-0000-0000-0000-000000000002");
     public static readonly Guid FeaturedMatchId = Guid.Parse("30000000-0000-0000-0000-000000000001");
@@ -24,7 +23,7 @@ public static class SeedFixtures
         new(2026, 6, 27, 17, 0, 0, DateTimeKind.Utc);
 
     public static IReadOnlyList<PlayerSummaryDto> Players { get; } = ReadOnly(
-        Player(CurrentPlayerId, "Tobi Kareem", "TK", "Midfielder", CurrentIdentityId),
+        Player(CurrentPlayerId, "Tobi Kareem", "TK", "Midfielder"),
         Player("10000000-0000-0000-0000-000000000002", "Kola T.", "KT", "Forward"),
         Player("10000000-0000-0000-0000-000000000003", "Jide D.", "JD", "Midfielder"),
         Player("10000000-0000-0000-0000-000000000004", "Sade M.", "SM", "Goalkeeper"),
@@ -117,7 +116,7 @@ public static class SeedFixtures
         DefaultGameDateLocal: new DateTime(2026, 6, 27, 0, 0, 0, DateTimeKind.Unspecified),
         DefaultStartTimeLocal: new TimeSpan(19, 40, 0),
         CheckInLeadMinutes: 10,
-        CheckInCloseOffsetMinutes: 5,
+        CheckInCloseOffsetMinutes: 0,
         Formats: ReadOnly("5v5", "7v7", "9v9"),
         DefaultFormatIndex: 1,
         DefaultCapacity: 20,
@@ -273,18 +272,16 @@ public static class SeedFixtures
         string displayName,
         string initials,
         string position,
-        Guid? identityId = null,
         bool isGuest = false) =>
-        new(id, displayName, initials, position, isGuest, identityId);
+        new(id, displayName, initials, position, isGuest);
 
     private static PlayerSummaryDto Player(
         string id,
         string displayName,
         string initials,
         string position,
-        Guid? identityId = null,
         bool isGuest = false) =>
-        Player(Guid.Parse(id), displayName, initials, position, identityId, isGuest);
+        Player(Guid.Parse(id), displayName, initials, position, isGuest);
 
     private static RosterEntryDto Going(int playerIndex, bool isCurrentPlayer = false) =>
         new(Players[playerIndex], isCurrentPlayer);

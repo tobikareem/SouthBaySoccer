@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -32,7 +33,10 @@ public partial class CreateSessionPageModel(
     public const string OfflineTitle = "You're offline";
     public const string OfflineMessage = "Reconnect to create and publish a session.";
     public const string OfflinePublishMessage = "You're offline. Reconnect to publish this session.";
+    public const string OfflineVenueMessage = "You're offline. Reconnect to save this venue.";
     public const string GenericPublishError = "Something went wrong publishing the session. Please try again.";
+    public const string SessionExpiredTitle = "Session expired";
+    public const string SessionExpiredMessage = "Your session has expired. Sign in again to continue.";
     public const string PreviewStatusLabel = "Ready for RSVP";
 
     private int _checkInLeadMinutes;
@@ -44,6 +48,9 @@ public partial class CreateSessionPageModel(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanPublish))]
+    [NotifyPropertyChangedFor(nameof(IsVenueQueryNovel))]
+    [NotifyPropertyChangedFor(nameof(CanCreateVenue))]
+    [NotifyCanExecuteChangedFor(nameof(AddVenueCommand))]
     private ViewState _state = ViewState.Loading;
 
     [ObservableProperty]
@@ -86,14 +93,24 @@ public partial class CreateSessionPageModel(
     private TimeSpan _checkInClose = new(19, 5, 0);
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsVenueQueryNovel))]
+    [NotifyPropertyChangedFor(nameof(CanCreateVenue))]
+    [NotifyPropertyChangedFor(nameof(CreateVenueActionText))]
+    [NotifyCanExecuteChangedFor(nameof(AddVenueCommand))]
     private string _venueQuery = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasVenueResults))]
+    [NotifyPropertyChangedFor(nameof(IsVenueQueryNovel))]
+    [NotifyPropertyChangedFor(nameof(CanCreateVenue))]
+    [NotifyCanExecuteChangedFor(nameof(AddVenueCommand))]
     private IReadOnlyList<VenueDto> _venueResults = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelectedVenue))]
+    [NotifyPropertyChangedFor(nameof(IsVenueQueryNovel))]
+    [NotifyPropertyChangedFor(nameof(CanCreateVenue))]
+    [NotifyCanExecuteChangedFor(nameof(AddVenueCommand))]
     [NotifyPropertyChangedFor(nameof(PreviewTitle))]
     [NotifyPropertyChangedFor(nameof(CanPublish))]
     private VenueDto? _selectedVenue;
@@ -150,11 +167,36 @@ public partial class CreateSessionPageModel(
     [NotifyPropertyChangedFor(nameof(CanPublish))]
     private bool _isPublishing;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCreateVenue))]
+    [NotifyCanExecuteChangedFor(nameof(AddVenueCommand))]
+    private bool _isCreatingVenue;
+
     /// <summary>True when at least one venue search result is available to choose from.</summary>
     public bool HasVenueResults => VenueResults.Count > 0;
 
     /// <summary>True once a venue has been selected for the session.</summary>
     public bool HasSelectedVenue => SelectedVenue is not null;
+
+    /// <summary>
+    /// True when the typed query does not match an existing venue, independent of whether a
+    /// create-venue request is currently in flight. Drives the add-venue button's visibility so it
+    /// does not vanish under the admin's finger the moment <see cref="IsCreatingVenue"/> flips.
+    /// </summary>
+    public bool IsVenueQueryNovel =>
+        State == ViewState.Content
+        && !HasSelectedVenue
+        && !string.IsNullOrWhiteSpace(VenueQuery)
+        && !VenueResults.Any(venue => string.Equals(venue.Name, VenueQuery.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>True when the current typed venue can be saved from the form right now.</summary>
+    public bool CanCreateVenue => IsVenueQueryNovel && !IsCreatingVenue;
+
+    /// <summary>Label for creating a saved venue from the current typed query.</summary>
+    public string CreateVenueActionText =>
+        string.IsNullOrWhiteSpace(VenueQuery)
+            ? "Add venue"
+            : $"Add \"{VenueQuery.Trim()}\"";
 
     /// <summary>True when a validation message should be surfaced under the form.</summary>
     public bool HasValidationMessage => !string.IsNullOrEmpty(ValidationMessage);
@@ -209,6 +251,8 @@ public partial class CreateSessionPageModel(
         && Capacity >= MinimumCapacity
         && Capacity <= MaximumCapacity
         && CheckInOpen < CheckInClose
+        // Check-in-close-after-start is deliberately NOT gated here: Validate() surfaces that message
+        // on tap instead of silently disabling the button (see Validate() below).
         && RsvpCloseDate != default
         && RsvpDeadline is not null
         && RsvpCloseTime != default
@@ -251,6 +295,19 @@ public partial class CreateSessionPageModel(
         {
             throw;
         }
+        catch (ApiRequestException ex)
+        {
+            // The server responded (validation, forbidden, unexpected error) — show its message
+            // rather than the misleading "you're offline" copy reserved for connectivity failures.
+            ApplyState(ViewState.Error, ErrorTitle, ex.UserMessage);
+        }
+        catch (HttpRequestException ex) when (IsSessionExpired(ex))
+        {
+            // AuthenticationHandler's synthetic 401 (refresh failed on a non-replayable request)
+            // surfaces here as a plain HttpRequestException with StatusCode populated by
+            // EnsureSuccessStatusCode — not a connectivity failure, so don't show the offline copy.
+            ApplyState(ViewState.Error, SessionExpiredTitle, SessionExpiredMessage);
+        }
         catch (HttpRequestException)
         {
             ApplyState(ViewState.Offline, OfflineTitle, OfflineMessage);
@@ -261,13 +318,30 @@ public partial class CreateSessionPageModel(
         }
     }
 
-    /// <summary>Searches venues for the current <see cref="VenueQuery"/> and refreshes the results list.</summary>
+    /// <summary>Searches venues for the current typed query and refreshes the results list.</summary>
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private async Task SearchVenues(CancellationToken cancellationToken)
+    private async Task SearchVenues(string? query, CancellationToken cancellationToken)
     {
+        var searchQuery = string.IsNullOrWhiteSpace(query) ? VenueQuery : query;
+
+        // Selecting a venue (or creating one) sets VenueQuery to the selection's name, which re-fires
+        // this search via the TextChanged handler. Skip it so the results list stays collapsed
+        // instead of repopulating right after the admin made their choice.
+        if (SelectedVenue is not null
+            && string.Equals(searchQuery.Trim(), SelectedVenue.Name, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         try
         {
-            VenueResults = await adminClient.SearchVenuesAsync(VenueQuery, cancellationToken);
+            if (string.IsNullOrWhiteSpace(searchQuery))
+            {
+                VenueResults = [];
+                return;
+            }
+
+            VenueResults = await adminClient.SearchVenuesAsync(searchQuery, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -277,6 +351,52 @@ public partial class CreateSessionPageModel(
         {
             // Venue search is a convenience; a transient failure should not break the form.
             VenueResults = [];
+        }
+    }
+
+    /// <summary>Creates a saved venue from the typed venue/location text and selects it.</summary>
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanCreateVenue))]
+    private async Task AddVenue(CancellationToken cancellationToken)
+    {
+        if (!CanCreateVenue)
+        {
+            return;
+        }
+
+        var (name, locality) = SplitVenueQuery(VenueQuery);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        IsCreatingVenue = true;
+        ValidationMessage = string.Empty;
+
+        try
+        {
+            var venue = await adminClient.CreateVenueAsync(name, locality, null, cancellationToken);
+            SelectVenue(venue);
+            VenueResults = [];
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (ApiRequestException ex)
+        {
+            ValidationMessage = ex.UserMessage;
+        }
+        catch (HttpRequestException ex)
+        {
+            ValidationMessage = ResolveConnectivityMessage(ex, OfflineVenueMessage);
+        }
+        catch (Exception)
+        {
+            ValidationMessage = "Something went wrong saving the venue.";
+        }
+        finally
+        {
+            IsCreatingVenue = false;
         }
     }
 
@@ -321,9 +441,13 @@ public partial class CreateSessionPageModel(
         {
             throw;
         }
-        catch (HttpRequestException)
+        catch (ApiRequestException ex)
         {
-            ValidationMessage = OfflinePublishMessage;
+            ValidationMessage = ex.UserMessage;
+        }
+        catch (HttpRequestException ex)
+        {
+            ValidationMessage = ResolveConnectivityMessage(ex, OfflinePublishMessage);
         }
         catch (Exception)
         {
@@ -392,9 +516,13 @@ public partial class CreateSessionPageModel(
         {
             throw;
         }
-        catch (HttpRequestException)
+        catch (ApiRequestException ex)
         {
-            ValidationMessage = OfflinePublishMessage;
+            ValidationMessage = ex.UserMessage;
+        }
+        catch (HttpRequestException ex)
+        {
+            ValidationMessage = ResolveConnectivityMessage(ex, OfflinePublishMessage);
         }
         catch (Exception)
         {
@@ -426,9 +554,19 @@ public partial class CreateSessionPageModel(
         CheckInClose = value + TimeSpan.FromMinutes(_checkInCloseOffsetMinutes);
     }
 
-    partial void OnGameDateChanged(DateTime value)
+    partial void OnGameDateChanged(DateTime oldValue, DateTime newValue)
     {
-        RsvpCloseDate = value.Date;
+        if (_isApplyingSession)
+        {
+            return;
+        }
+
+        // Shift the RSVP close date by the same delta the game date just moved, rather than resetting
+        // it to game day. Because both fields start out equal (DateTime.Today), this reproduces the
+        // previous "defaults to game day" behavior for a fresh pick while also preserving an
+        // established day-before offset (e.g. loaded from an existing session via ApplyCommand) when
+        // the admin subsequently changes the game date — see task-5-brief.md Fix 2.
+        RsvpCloseDate = RsvpCloseDate.Date.AddDays((newValue.Date - oldValue.Date).Days);
     }
 
     partial void OnRsvpDeadlineChanged(TimeSpan? value)
@@ -475,9 +613,13 @@ public partial class CreateSessionPageModel(
         {
             throw;
         }
-        catch (HttpRequestException)
+        catch (ApiRequestException ex)
         {
-            ValidationMessage = OfflinePublishMessage;
+            ValidationMessage = ex.UserMessage;
+        }
+        catch (HttpRequestException ex)
+        {
+            ValidationMessage = ResolveConnectivityMessage(ex, OfflinePublishMessage);
         }
         catch (Exception)
         {
@@ -526,7 +668,9 @@ public partial class CreateSessionPageModel(
     {
         GameDate = command.GameDateLocal.Date;
         StartTime = command.StartTimeLocal;
-        RsvpCloseDate = command.GameDateLocal.Date;
+        // RsvpDeadlineDayOffset preserves a deadline set on a day other than game day (e.g. the
+        // evening before) across this load/save round-trip instead of coercing it onto game day.
+        RsvpCloseDate = command.GameDateLocal.Date.AddDays(command.RsvpDeadlineDayOffset);
         RsvpDeadline = command.RsvpDeadlineLocal;
         RsvpCloseTime = command.RsvpDeadlineLocal ?? command.StartTimeLocal - TimeSpan.FromHours(1);
         CheckInOpen = command.CheckInOpenLocal;
@@ -612,6 +756,11 @@ public partial class CreateSessionPageModel(
             return "Check-in must open before it closes.";
         }
 
+        if (CheckInClose > StartTime)
+        {
+            return "Check-in close cannot be after session start.";
+        }
+
         if (RsvpCloseDate == default || RsvpDeadline is null || RsvpCloseTime == default)
         {
             return "Set an RSVP deadline.";
@@ -636,13 +785,52 @@ public partial class CreateSessionPageModel(
             SelectedFormat,
             Capacity,
             SelectedTeamCount,
-            RsvpDeadline);
+            RsvpDeadline,
+            RsvpDeadlineDayOffset: (RsvpCloseDate.Date - GameDate.Date).Days);
 
     private void ApplyState(ViewState state, string title, string message)
     {
         StateTitle = title;
         StateMessage = message;
         State = state;
+    }
+
+    /// <summary>
+    /// True when <paramref name="exception"/> is AuthenticationHandler's synthetic 401 (refresh failed
+    /// on a non-replayable request, e.g. AddVenue/publish/update). It never reaches
+    /// <see cref="ApiExceptionHandler"/> (that handler passes 401 through unchanged so
+    /// AuthenticationHandler can attempt a refresh+replay), so it surfaces here as a plain
+    /// <see cref="HttpRequestException"/> whose <see cref="HttpRequestException.StatusCode"/> is
+    /// populated by <c>EnsureSuccessStatusCode</c> — not the connectivity failure the offline copy is
+    /// meant for.
+    /// </summary>
+    private static bool IsSessionExpired(HttpRequestException exception) =>
+        exception.StatusCode == HttpStatusCode.Unauthorized;
+
+    /// <summary>
+    /// Resolves the message to show for a caught <see cref="HttpRequestException"/>: a session-expired
+    /// prompt for the synthetic 401 case, otherwise the caller's offline copy for a genuine
+    /// connectivity failure.
+    /// </summary>
+    private static string ResolveConnectivityMessage(HttpRequestException exception, string offlineMessage) =>
+        IsSessionExpired(exception) ? SessionExpiredMessage : offlineMessage;
+
+    private static (string Name, string Locality) SplitVenueQuery(string query)
+    {
+        var trimmed = query.Trim();
+        var parts = trimmed.Split(',', 2, StringSplitOptions.TrimEntries);
+        var name = parts.Length > 0 ? parts[0] : string.Empty;
+        var locality = parts.Length > 1 ? parts[1] : string.Empty;
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            // A leading comma (e.g. ", Torrance") leaves the name empty - fall back to whatever
+            // non-empty text is present rather than saving a venue literally named ", Torrance".
+            name = !string.IsNullOrWhiteSpace(locality) ? locality : trimmed;
+            locality = string.Empty;
+        }
+
+        return (name, string.IsNullOrWhiteSpace(locality) ? "South Bay" : locality);
     }
 
     private static string FormatDate(DateTime date) =>

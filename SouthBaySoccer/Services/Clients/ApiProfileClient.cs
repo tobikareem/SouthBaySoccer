@@ -9,21 +9,40 @@ public sealed class ApiProfileClient(HttpClient httpClient) : IProfileClient
     public Task<PlayerProfileDto?> GetProfileAsync(
         Guid playerId,
         CancellationToken cancellationToken) =>
-        Task.FromResult<PlayerProfileDto?>(null);
+        GetProfileByPathAsync($"profiles/{playerId}", cancellationToken);
 
     public async Task<PlayerProfileDto?> GetCurrentProfileAsync(CancellationToken cancellationToken)
     {
-        using var response = await httpClient.GetAsync("profiles/me", cancellationToken);
-        if (response.StatusCode == HttpStatusCode.NotFound)
+        try
+        {
+            using var response = await httpClient.GetAsync("profiles/me", cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var profile = await response.Content.ReadFromJsonAsync<MyProfileResponse>(
+                cancellationToken: cancellationToken);
+
+            return profile is null ? null : ToPlayerProfileDto(profile);
+        }
+        catch (ApiRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
             return null;
         }
+    }
 
-        response.EnsureSuccessStatusCode();
-        var profile = await response.Content.ReadFromJsonAsync<MyProfileResponse>(
-            cancellationToken: cancellationToken);
-
-        return profile is null ? null : ToPlayerProfileDto(profile);
+    private async Task<PlayerProfileDto?> GetProfileByPathAsync(
+        string path,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await httpClient.GetAsync(path, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<PlayerProfileDto>(
+                cancellationToken: cancellationToken);
+        }
+        catch (ApiRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
     }
 
     private static PlayerProfileDto ToPlayerProfileDto(MyProfileResponse profile) =>

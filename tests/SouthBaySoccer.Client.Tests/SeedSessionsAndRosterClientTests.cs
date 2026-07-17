@@ -62,7 +62,6 @@ public class SeedSessionsAndRosterClientTests
         var guest = roster.Waitlist[0].Player;
         guest.DisplayName.Should().Be("Tunde B.");
         guest.IsGuest.Should().BeTrue();
-        guest.IdentityId.Should().BeNull();
     }
 
     [Fact]

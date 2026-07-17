@@ -39,9 +39,23 @@ public sealed class CreateVenueCommandHandler(
 
 public sealed class ListVenuesQueryHandler(IVenueRepository venueRepository)
 {
-    public async Task<IReadOnlyList<VenueModel>> HandleAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Lists active venues, optionally filtered by a case-insensitive substring match against name or
+    /// locality. A null or whitespace-only <paramref name="query"/> returns every active venue.
+    /// </summary>
+    public async Task<IReadOnlyList<VenueModel>> HandleAsync(
+        string? query = null,
+        CancellationToken cancellationToken = default)
     {
         var venues = await venueRepository.ListActiveAsync(cancellationToken);
-        return venues.Select(SchedulingMappers.ToModel).ToArray();
+        var models = venues.Select(SchedulingMappers.ToModel);
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            models = models.Where(venue =>
+                venue.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || venue.Locality.Contains(query, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return models.ToArray();
     }
 }

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
+using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Authentication;
 using SouthBaySoccer.Functions.Pipeline;
 using Xunit;
@@ -46,6 +47,21 @@ public sealed class ProblemDetailsMapperTests
 
         problem.Extensions.Should().ContainKey("errors");
         problem.Extensions["errors"].Should().BeEquivalentTo(exception.Errors);
+    }
+
+    [Fact]
+    public void Map_WhenApplicationConflictException_PassesThroughItsOwnMessageAsDetail()
+    {
+        // ApplicationConflictException messages are application-authored, user-safe strings (e.g. "No
+        // season covers the session start date.") - the client should see the specific reason instead
+        // of the generic "The request conflicts with the current state." detail.
+        var exception = new ApplicationConflictException("No season covers the session start date.");
+
+        var problem = _mapper.Map(exception, "correlation-123");
+
+        problem.Status.Should().Be(409);
+        problem.Title.Should().Be("Conflict");
+        problem.Detail.Should().Be("No season covers the session start date.");
     }
 
     [Fact]

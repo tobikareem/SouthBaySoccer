@@ -304,7 +304,7 @@ public class SessionDetailPageModelTests
             SeedFixtures.MarinaSessionId,
             [.. Enumerable.Range(0, count).Select(index => new RosterEntryDto(
                 new PlayerSummaryDto(
-                    Guid.NewGuid(), $"Player {index}", "P", "Midfielder", false, null),
+                    Guid.NewGuid(), $"Player {index}", "P", "Midfielder", false),
                 index == 0))],
             []);
 

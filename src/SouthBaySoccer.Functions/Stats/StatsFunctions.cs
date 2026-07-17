@@ -281,8 +281,7 @@ public sealed class StatsFunctions(
                     row.Player.DisplayName,
                     row.Player.Initials,
                     row.Player.Position,
-                    row.Player.IsGuest,
-                    row.Player.IdentityId),
+                    row.Player.IsGuest),
                 row.Appearances,
                 row.Value)).ToArray());
 

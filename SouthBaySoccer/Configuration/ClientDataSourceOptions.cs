@@ -10,11 +10,13 @@ public sealed class ClientDataSourceOptions
 {
     public ClientDataSource DataSource { get; init; } = ClientDataSource.Seed;
 
-    public static ClientDataSourceOptions FromValue(string? configuredValue)
+    public static ClientDataSourceOptions FromValue(
+        string? configuredValue,
+        ClientDataSource defaultDataSource = ClientDataSource.Seed)
     {
         if (string.IsNullOrWhiteSpace(configuredValue))
         {
-            return new ClientDataSourceOptions();
+            return new ClientDataSourceOptions { DataSource = defaultDataSource };
         }
 
         if (!Enum.TryParse<ClientDataSource>(

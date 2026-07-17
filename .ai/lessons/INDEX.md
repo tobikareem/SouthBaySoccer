@@ -8,3 +8,4 @@ One line per lesson. Skim this at the start of a task; read the full entry when 
 - [android-visual-state-target-scope](2026-06-23-android-visual-state-target-scope.md) â€” Cross-element VisualState TargetName setters can build successfully but crash when Android Shell creates a tab
 - [maui-xaml-commandparameter-types](2026-06-25-maui-xaml-commandparameter-types.md) — XAML CommandParameter literals are strings and can crash typed CommunityToolkit commands at runtime
 
+- [android-defer-session-restore](2026-07-06-android-defer-session-restore.md) - Defer stored-token restore until after the startup page loads to avoid Android ANRs

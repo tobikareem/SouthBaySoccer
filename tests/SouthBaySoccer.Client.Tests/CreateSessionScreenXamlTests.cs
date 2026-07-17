@@ -133,6 +133,24 @@ public class CreateSessionScreenXamlTests
     }
 
     [Fact]
+    public void CreateSessionScreen_VenueSearchUsesCodeBehindTextChangedHandler()
+    {
+        var xaml = ReadXaml();
+
+        xaml.Should().Contain("x:Name=\"VenueSearchEntry\"");
+        xaml.Should().Contain("TextChanged=\"OnVenueSearchTextChanged\"");
+        xaml.Should().NotContain("Command=\"{Binding SearchVenuesCommand}\"", "Android should not depend on toolkit behavior command binding for Entry text changes");
+    }
+
+    [Fact]
+    public void CreateSessionScreen_DoesNotUseToolkitEventBehaviorForAppearing()
+    {
+        ReadXaml().Should().NotContain(
+            "EventToCommandBehavior",
+            "Create Session uses code-behind lifecycle wiring to avoid Android behavior binding crashes");
+    }
+
+    [Fact]
     public void CreateSessionScreen_RsvpDeadlineIsEditable()
     {
         Elements(LoadXaml(), "TimePicker")
@@ -140,6 +158,27 @@ public class CreateSessionScreenXamlTests
             .Should()
             .Contain("RSVP close time");
     }
+
+    [Fact]
+    public void CreateSessionScreen_DoesNotDeclareUnusedToolkitNamespace() =>
+        ReadXaml().Should().NotContain(
+            "xmlns:toolkit",
+            "the toolkit namespace is unused now that Entry text changes are code-behind wired");
+
+    [Fact]
+    public void CreateSessionScreen_AddVenueButtonVisibilityTracksQueryNoveltyNotCreationState()
+    {
+        var xaml = ReadXaml();
+
+        xaml.Should().Contain("IsVisible=\"{Binding IsVenueQueryNovel}\"",
+            "the add-venue button must stay visible while IsCreatingVenue flips so it does not vanish under the admin's finger");
+        xaml.Should().NotContain("IsVisible=\"{Binding CanCreateVenue}\"");
+    }
+
+    [Fact]
+    public void CreateSessionScreen_AddVenueButtonSemanticDescriptionReflectsDynamicText() =>
+        ReadXaml().Should().Contain("SemanticProperties.Description=\"{Binding CreateVenueActionText}\"");
+
     private static bool IsEmoji(int codePoint) =>
         codePoint is (>= 0x1F000 and <= 0x1FAFF)
             or (>= 0x2600 and <= 0x26FF)

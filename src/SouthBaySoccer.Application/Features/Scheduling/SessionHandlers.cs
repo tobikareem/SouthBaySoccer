@@ -62,7 +62,7 @@ public sealed class CreateSessionCommandHandler(
             CheckInClosesAtUtc = command.CheckInClosesAtUtc,
             RsvpDeadlineUtc = command.RsvpDeadlineUtc,
             OccurrenceKey = string.IsNullOrWhiteSpace(command.OccurrenceKey) ? null : command.OccurrenceKey.Trim(),
-            Status = SessionStatus.Published,
+            Status = command.Status,
         };
 }
 

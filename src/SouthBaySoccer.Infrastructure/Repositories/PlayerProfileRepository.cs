@@ -16,6 +16,23 @@ internal sealed class PlayerProfileRepository(SouthBaySoccerDbContext dbContext)
     public Task<PlayerProfile?> FindProfileAsync(Guid playerProfileId, CancellationToken cancellationToken = default) =>
         dbContext.PlayerProfiles.SingleOrDefaultAsync(x => x.Id == playerProfileId, cancellationToken);
 
+    public async Task<IReadOnlyList<PlayerDirectoryReadModel>> ListDirectoryAsync(CancellationToken cancellationToken = default) =>
+        await (
+            from profile in dbContext.PlayerProfiles
+            let matches = dbContext.PlayerMatchStats
+                .Where(stat => stat.PlayerProfileId == profile.Id)
+                .Select(stat => stat.MatchId)
+                .Distinct()
+                .Count()
+            orderby profile.NormalizedDisplayName, profile.DisplayName
+            select new PlayerDirectoryReadModel(
+                profile.Id,
+                profile.DisplayName,
+                profile.PreferredPosition,
+                profile.IsGuest,
+                matches))
+        .ToArrayAsync(cancellationToken);
+
     public Task<EmergencyContact?> FindEmergencyContactAsync(Guid playerProfileId, CancellationToken cancellationToken = default) =>
         dbContext.EmergencyContacts.SingleOrDefaultAsync(x => x.PlayerProfileId == playerProfileId, cancellationToken);
 

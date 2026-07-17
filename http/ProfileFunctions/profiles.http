@@ -1,11 +1,16 @@
 @baseUrl = http://localhost:7071/api
 @accessToken = paste-local-dev-jwt-here
 @adminToken = {{accessToken}}
+@playerProfileId = paste-player-profile-id-here
 @sourceGuestPlayerProfileId = paste-source-guest-player-profile-id-here
 @targetPlayerProfileId = paste-target-player-profile-id-here
 
 ### Get the current authenticated player's profile.
 GET {{baseUrl}}/profiles/me
+Authorization: Bearer {{accessToken}}
+
+### Get a player profile by id for the Players tab profile navigation path.
+GET {{baseUrl}}/profiles/{{playerProfileId}}
 Authorization: Bearer {{accessToken}}
 
 ### Update the current authenticated player's profile.

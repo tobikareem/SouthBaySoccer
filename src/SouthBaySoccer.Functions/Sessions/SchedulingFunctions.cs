@@ -1,10 +1,14 @@
+using System.Globalization;
 using System.Net;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using SouthBaySoccer.Application.Features.Scheduling;
 using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Functions.Authentication;
 using SouthBaySoccer.Functions.Pipeline;
+using ApplicationCreateSessionCommand = SouthBaySoccer.Application.Features.Scheduling.CreateSessionCommand;
+using ContractCreateSessionCommand = SouthBaySoccer.Contracts.Sessions.CreateSessionCommand;
 
 namespace SouthBaySoccer.Functions.Sessions;
 
@@ -17,7 +21,14 @@ public sealed class SchedulingFunctions(
     ListUpcomingSessionsQueryHandler listUpcomingSessionsHandler,
     CancelSessionCommandHandler cancelSessionHandler,
     CreateRecurrenceRuleCommandHandler createRecurrenceRuleHandler,
-    CreateSessionOccurrenceCommandHandler createSessionOccurrenceHandler)
+    CreateSessionOccurrenceCommandHandler createSessionOccurrenceHandler,
+    GetCreateSessionAdminDefaultsQueryHandler getCreateSessionAdminDefaultsHandler,
+    ListManagedSessionsQueryHandler listManagedSessionsHandler,
+    GetSessionForAdminEditQueryHandler getSessionForAdminEditHandler,
+    CreateSessionDraftCommandHandler createSessionDraftHandler,
+    UpdateSessionAdminCommandHandler updateSessionAdminHandler,
+    PublishSessionCommandHandler publishSessionHandler,
+    IdempotentRequestExecutor idempotentRequestExecutor)
 {
     [Function(nameof(ListSeasons))]
     [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
@@ -49,7 +60,8 @@ public sealed class SchedulingFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "venues")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var venues = await listVenuesHandler.HandleAsync(cancellationToken);
+        var query = QueryHelpers.ParseQuery(request.Url.Query);
+        var venues = await listVenuesHandler.HandleAsync(ReadOptionalString(query, "query"), cancellationToken);
         return await WriteJsonAsync(request, HttpStatusCode.OK, venues.Select(ToResponse).ToArray(), cancellationToken);
     }
 
@@ -77,6 +89,57 @@ public sealed class SchedulingFunctions(
         return await WriteJsonAsync(request, HttpStatusCode.OK, sessions.Select(ToResponse).ToArray(), cancellationToken);
     }
 
+    [Function(nameof(GetCreateSessionDefaults))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> GetCreateSessionDefaults(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "sessions/admin/create-defaults")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var defaults = await getCreateSessionAdminDefaultsHandler.HandleAsync(cancellationToken);
+        return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(defaults), cancellationToken);
+    }
+
+    [Function(nameof(ListManagedSessions))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> ListManagedSessions(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "sessions/admin/managed")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var sessions = await listManagedSessionsHandler.HandleAsync(cancellationToken: cancellationToken);
+        return await WriteJsonAsync(request, HttpStatusCode.OK, sessions.Select(ToResponse).ToArray(), cancellationToken);
+    }
+
+    [Function(nameof(GetSessionForAdminEdit))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> GetSessionForAdminEdit(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "sessions/{sessionId:guid}/admin-edit")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var session = await getSessionForAdminEditHandler.HandleAsync(sessionId, cancellationToken);
+        return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(session), cancellationToken);
+    }
+
+    [Function(nameof(CreateSessionDraft))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> CreateSessionDraft(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "sessions/drafts")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadRequiredJsonAsync<ContractCreateSessionCommand>(request, cancellationToken);
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(CreateSessionDraft),
+            GetIdempotencyKey(request),
+            body,
+            async token =>
+            {
+                var result = await createSessionDraftHandler.HandleAsync(ToDraftCommand(body), token);
+                return new IdempotentResponse<CreateSessionResult>(HttpStatusCode.Created, CreateSessionResult.Success(result.SessionId));
+            },
+            cancellationToken);
+    }
+
     [Function(nameof(CreateSession))]
     [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
     public async Task<HttpResponseData> CreateSession(
@@ -85,7 +148,7 @@ public sealed class SchedulingFunctions(
     {
         var body = await ReadRequiredJsonAsync<CreateSessionAdminRequest>(request, cancellationToken);
         var session = await createSessionHandler.HandleAsync(
-            new SouthBaySoccer.Application.Features.Scheduling.CreateSessionCommand(
+            new ApplicationCreateSessionCommand(
                 body.SeasonId,
                 body.VenueId,
                 body.Title,
@@ -101,6 +164,47 @@ public sealed class SchedulingFunctions(
             cancellationToken);
 
         return await WriteJsonAsync(request, HttpStatusCode.Created, ToResponse(session), cancellationToken);
+    }
+
+    [Function(nameof(UpdateSession))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> UpdateSession(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "sessions/{sessionId:guid}")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadRequiredJsonAsync<ContractCreateSessionCommand>(request, cancellationToken);
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(UpdateSession),
+            GetIdempotencyKey(request),
+            new { sessionId, body },
+            async token =>
+            {
+                var result = await updateSessionAdminHandler.HandleAsync(ToUpdateCommand(sessionId, body), token);
+                return new IdempotentResponse<CreateSessionResult>(HttpStatusCode.OK, CreateSessionResult.Success(result.SessionId));
+            },
+            cancellationToken);
+    }
+
+    [Function(nameof(PublishSession))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> PublishSession(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "sessions/{sessionId:guid}/publish")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(PublishSession),
+            GetIdempotencyKey(request),
+            new { sessionId },
+            async token =>
+            {
+                var result = await publishSessionHandler.HandleAsync(sessionId, token);
+                return new IdempotentResponse<CreateSessionResult>(HttpStatusCode.OK, CreateSessionResult.Success(result.SessionId));
+            },
+            cancellationToken);
     }
 
     [Function(nameof(CancelSession))]
@@ -168,6 +272,75 @@ public sealed class SchedulingFunctions(
     private static VenueResponse ToResponse(VenueModel venue) =>
         new(venue.VenueId, venue.Name, venue.Locality, venue.Address, venue.MapsProviderReference);
 
+    private static VenueDto ToVenueDto(VenueModel venue) =>
+        new(venue.VenueId, venue.Name, venue.Locality, true);
+
+    private static CreateSessionDefaultsDto ToResponse(CreateSessionAdminDefaultsModel defaults) =>
+        new(
+            defaults.CanManageSessions,
+            defaults.DefaultGameDateLocal,
+            defaults.DefaultStartTimeLocal,
+            defaults.CheckInLeadMinutes,
+            defaults.CheckInCloseOffsetMinutes,
+            defaults.Formats,
+            defaults.DefaultFormatIndex,
+            defaults.DefaultCapacity,
+            defaults.MinimumCapacity,
+            defaults.MaximumCapacity,
+            defaults.TeamOptions,
+            defaults.DefaultTeamIndex,
+            ToVenueDto(defaults.SavedVenue),
+            defaults.FeedLabel,
+            defaults.DefaultRsvpDeadlineLocal);
+
+    private static ManagedSessionDto ToResponse(ManagedSessionModel session)
+    {
+        var localStart = SessionAdminTimeZone.ToLocal(session.StartsAtUtc);
+        return new ManagedSessionDto(
+            session.SessionId,
+            session.Title,
+            localStart.ToString("MMM d", CultureInfo.InvariantCulture),
+            localStart.ToString("h:mm tt", CultureInfo.InvariantCulture),
+            session.VenueName,
+            session.Format,
+            session.Capacity,
+            session.Status);
+    }
+
+    private static ManagedSessionEditDto ToResponse(ManagedSessionEditModel session)
+    {
+        var localStart = SessionAdminTimeZone.ToLocal(session.StartsAtUtc);
+        var localCheckInOpen = SessionAdminTimeZone.ToLocal(session.CheckInOpensAtUtc);
+        var localCheckInClose = SessionAdminTimeZone.ToLocal(session.CheckInClosesAtUtc);
+        var localRsvpDeadline = SessionAdminTimeZone.ToLocal(session.RsvpDeadlineUtc);
+        return new ManagedSessionEditDto(
+            session.SessionId,
+            new ContractCreateSessionCommand(
+                DateTime.SpecifyKind(localStart.Date, DateTimeKind.Unspecified),
+                localStart.TimeOfDay,
+                localCheckInOpen.TimeOfDay,
+                localCheckInClose.TimeOfDay,
+                session.VenueId,
+                session.VenueName,
+                session.Format,
+                session.Capacity,
+                session.TeamCount,
+                localRsvpDeadline.TimeOfDay,
+                DayOffset(localCheckInOpen, localStart),
+                DayOffset(localCheckInClose, localStart),
+                DayOffset(localRsvpDeadline, localStart)),
+            string.Equals(session.Status, "Published", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Days between <paramref name="local"/>'s calendar date and <paramref name="gameDayLocal"/>'s
+    /// (negative when <paramref name="local"/> falls before the game day). Preserving this alongside
+    /// the time-of-day is what lets a deadline set the evening before the game survive an edit
+    /// round-trip instead of being coerced onto game day.
+    /// </summary>
+    private static int DayOffset(DateTime local, DateTime gameDayLocal) =>
+        (local.Date - gameDayLocal.Date).Days;
+
     private static SessionAdminResponse ToResponse(SessionModel session) =>
         new(
             session.SessionId,
@@ -185,6 +358,40 @@ public sealed class SchedulingFunctions(
             session.OccurrenceKey,
             session.Status);
 
+    private static CreateSessionDraftCommand ToDraftCommand(ContractCreateSessionCommand command) =>
+        new(
+            command.VenueId,
+            command.VenueName,
+            command.Format,
+            command.Capacity,
+            command.TeamCount,
+            SessionAdminTimeZone.ToUtc(command.GameDateLocal, command.StartTimeLocal),
+            SessionAdminTimeZone.ToUtc(command.GameDateLocal.AddDays(command.CheckInOpenDayOffset), command.CheckInOpenLocal),
+            SessionAdminTimeZone.ToUtc(command.GameDateLocal.AddDays(command.CheckInCloseDayOffset), command.CheckInCloseLocal),
+            SessionAdminTimeZone.ToUtc(
+                command.GameDateLocal.AddDays(command.RsvpDeadlineDayOffset),
+                command.RsvpDeadlineLocal ?? command.StartTimeLocal.Subtract(TimeSpan.FromHours(1))));
+
+    private static UpdateSessionAdminCommand ToUpdateCommand(Guid sessionId, ContractCreateSessionCommand command) =>
+        new(
+            sessionId,
+            command.VenueId,
+            command.VenueName,
+            command.Format,
+            command.Capacity,
+            command.TeamCount,
+            SessionAdminTimeZone.ToUtc(command.GameDateLocal, command.StartTimeLocal),
+            SessionAdminTimeZone.ToUtc(command.GameDateLocal.AddDays(command.CheckInOpenDayOffset), command.CheckInOpenLocal),
+            SessionAdminTimeZone.ToUtc(command.GameDateLocal.AddDays(command.CheckInCloseDayOffset), command.CheckInCloseLocal),
+            SessionAdminTimeZone.ToUtc(
+                command.GameDateLocal.AddDays(command.RsvpDeadlineDayOffset),
+                command.RsvpDeadlineLocal ?? command.StartTimeLocal.Subtract(TimeSpan.FromHours(1))));
+
+    private static string? ReadOptionalString(
+        IDictionary<string, Microsoft.Extensions.Primitives.StringValues> query,
+        string key) =>
+        query.TryGetValue(key, out var values) ? values.FirstOrDefault() : null;
+
     private static async Task<T> ReadRequiredJsonAsync<T>(
         HttpRequestData request,
         CancellationToken cancellationToken)
@@ -199,6 +406,23 @@ public sealed class SchedulingFunctions(
         }
 
         return body;
+    }
+
+    private static string GetIdempotencyKey(HttpRequestData request)
+    {
+        if (request.Headers.TryGetValues("Idempotency-Key", out var values))
+        {
+            var value = values.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        throw new ValidationProblemException(new Dictionary<string, string[]>
+        {
+            ["Idempotency-Key"] = ["The Idempotency-Key header is required for this operation."],
+        });
     }
 
     private static async Task<HttpResponseData> WriteJsonAsync<T>(
