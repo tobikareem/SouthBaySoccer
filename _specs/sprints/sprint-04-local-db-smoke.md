@@ -28,6 +28,27 @@ Before rerunning the live smoke, remove the duplicate `AZURE_FUNCTIONS_ENVIRONME
 local process environment, user secrets, or `local.settings.json`. Do not commit the local settings
 file or paste its values into this runbook.
 
+This blocker is local to Azure Functions Core Tools startup. It means the local Function host saw
+the same `AZURE_FUNCTIONS_ENVIRONMENT` key from more than one configuration source and crashed before
+serving HTTP requests. It does not affect an iOS app build that points at a deployed API.
+
+## iOS deployed API smoke
+
+For an iOS debug or release build that should talk to the deployed test API, configure the MAUI app
+without committing secrets or local-only files:
+
+```json
+{
+  "ClientDataSource": "Api",
+  "PrdApiBaseUrl": "https://carepath-api-hvhxgvhxejc0fmg3.westus2-01.azurewebsites.net"
+}
+```
+
+`ClientDataSource=Api` selects the typed API clients instead of seed providers.
+`PrdApiBaseUrl` is read by the MAUI client and normalized to include `/api/` when needed, so the
+above host value resolves to the Function App API root. Release builds default to API mode, but keep
+the explicit setting for test packages so the data source is unambiguous.
+
 ## API smoke
 
 1. Start the Function App from `src/SouthBaySoccer.Functions`.

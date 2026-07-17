@@ -113,6 +113,9 @@ public static class MauiProgram
         // app package. Deployed mobile packages still need deploy-time configuration.
         builder.Configuration.AddUserSecrets<App>(optional: true);
 
+        // Environment variables are useful for CI/simulator launches and win over user secrets.
+        builder.Configuration.AddEnvironmentVariables();
+
         var defaultApiBaseUrl =
 #if DEBUG && ANDROID
             PickupPalOptions.AndroidDebugApiBaseUrl;
@@ -176,4 +179,3 @@ public static class MauiProgram
     }
 #endif
 }
-

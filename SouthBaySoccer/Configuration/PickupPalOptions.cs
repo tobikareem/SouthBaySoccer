@@ -21,7 +21,8 @@ public sealed class PickupPalOptions
 
     public static PickupPalOptions FromConfiguration(
         IConfiguration configuration,
-        string defaultApiBaseUrl = DefaultApiBaseUrl)
+        string defaultApiBaseUrl = DefaultApiBaseUrl
+    )
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
@@ -30,23 +31,36 @@ public sealed class PickupPalOptions
                 configuration[ProductionApiBaseUrlKey],
                 configuration[ApiBaseUrlKey],
                 configuration[$"PickupPal:{ApiBaseUrlKey}"],
-                configuration["PickupPal:ApiBaseUri"]) ?? defaultApiBaseUrl;
+                configuration["PickupPal:ApiBaseUri"]
+            ) ?? defaultApiBaseUrl;
+
+        // log the configuredApiBaseUrl for debugging purposes
+        Console.WriteLine($"... Configured API Base URL: {configuredApiBaseUrl}");
 
         return new PickupPalOptions
         {
             ApiBaseUri = CreateApiBaseUri(configuredApiBaseUrl),
-            BotDisplayNumber = FirstNonBlank(
-                configuration["BotDisplayNumber"],
-                configuration["PickupPal:BotDisplayNumber"]) ?? DefaultBotDisplayNumber,
+            BotDisplayNumber =
+                FirstNonBlank(
+                    configuration["BotDisplayNumber"],
+                    configuration["PickupPal:BotDisplayNumber"]
+                ) ?? DefaultBotDisplayNumber,
+            
             BotUri = CreateUri(
-                FirstNonBlank(configuration["BotUri"], configuration["PickupPal:BotUri"]) ?? DefaultBotUri,
-                nameof(BotUri)),
+                FirstNonBlank(configuration["BotUri"], configuration["PickupPal:BotUri"])
+                    ?? DefaultBotUri,
+                nameof(BotUri)
+            ),
             SignupUri = CreateUri(
-                FirstNonBlank(configuration["SignupUri"], configuration["PickupPal:SignupUri"]) ?? DefaultSignupUri,
-                nameof(SignupUri)),
+                FirstNonBlank(configuration["SignupUri"], configuration["PickupPal:SignupUri"])
+                    ?? DefaultSignupUri,
+                nameof(SignupUri)
+            ),
             CallbackUri = CreateUri(
-                FirstNonBlank(configuration["CallbackUri"], configuration["PickupPal:CallbackUri"]) ?? DefaultCallbackUri,
-                nameof(CallbackUri)),
+                FirstNonBlank(configuration["CallbackUri"], configuration["PickupPal:CallbackUri"])
+                    ?? DefaultCallbackUri,
+                nameof(CallbackUri)
+            ),
         };
     }
 
@@ -58,7 +72,9 @@ public sealed class PickupPalOptions
         var uri = CreateUri(value, nameof(ApiBaseUri));
         if (!string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
         {
-            throw new InvalidOperationException($"{nameof(ApiBaseUri)} must not include query string or fragment values.");
+            throw new InvalidOperationException(
+                $"{nameof(ApiBaseUri)} must not include query string or fragment values."
+            );
         }
 
         var builder = new UriBuilder(uri);
@@ -84,4 +100,3 @@ public sealed class PickupPalOptions
         return uri;
     }
 }
-

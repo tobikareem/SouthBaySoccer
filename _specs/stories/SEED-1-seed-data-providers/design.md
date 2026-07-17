@@ -18,7 +18,7 @@ can implement the same contract unchanged. Methods are asynchronous and cancella
 
 | Interface | Consumed by | Responsibility |
 |---|---|---|
-| `IAuthenticationClient` (**already exists**) | AUTH-7/8/9 | Request/verify the WhatsApp sign-in challenge. The seed stub simulates a successful challenge so the authenticated route opens. |
+| `IAuthenticationClient` (**already exists**) | AUTH-7/8/9 | Phone-number sign-in backed by Pickup Pal lookup. The seed stub simulates a successful phone match so the authenticated route opens. |
 | `ISessionsClient` | SES / RSVP | Sessions-dashboard projection (greeting, dues, featured next match, stats prompt, coming-up list), session detail, and join-waitlist command. |
 | `IRosterClient` | RSVP / session detail | Going + ordered waitlist reads and record/withdraw RSVP intent. |
 | `IStatsClient` | STAT-7 / STAT-8 | Match-stat entry/confirmation and teammate rating/like/MVP workflows. |
@@ -71,8 +71,8 @@ Rules for every `Seed*Client`:
   baseline, so tests do not leak state across cases.
 - **No I/O** — no network, file, or database access. Methods complete synchronously behind a
   `Task`/`ValueTask` (a small fixed delay may be used only to exercise loading states; default none).
-- **No real PII** — names, numbers, and identifiers are invented. The seed WhatsApp challenge accepts
-  any input and reports success; it never contacts Pickup Pal.
+- **No real PII** — names, numbers, and identifiers are invented. The seed phone sign-in accepts any
+  valid-looking input and reports success; it never contacts Pickup Pal.
 - **`Guid` identifiers are stable constants** so cross-fixture references (a roster entry → a player,
   a leaderboard row → a player) resolve consistently.
 - **Release-guarded** — the `SeedData/` folder compiles only outside Release (build-configuration

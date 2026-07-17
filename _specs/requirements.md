@@ -8,10 +8,11 @@ Spec-driven requirements for the whole product. Grounded in
 - A story is **Done** only when every scenario is covered by an automated test and the behavior
   works through the Function App (and, where relevant, the MAUI client).
 - Authority rules from the architecture are restated as invariants, not re-decided here.
-- **Delivery is UI-first (current phase):** the MAUI/XAML client is built first against **seed data**;
-  the backend (Function App, web services, database — milestones M1–M10) comes later. Backend-dependent
-  scenarios are validated in the client against seed providers now and re-verified server-side when the
-  backend milestone lands. See `design.md` §12.
+- **Delivery began UI-first and is now in API integration:** the MAUI/XAML client was built first
+  against **seed data**. Backend features are now substantially implemented through M9, and current
+  work wires screen service interfaces to the Functions API while keeping Seed mode for deterministic
+  demos/tests. Backend-dependent scenarios validated against seeds should be re-verified server-side
+  as each API slice lands. See `design.md` §12.
 
 ## Personas / Roles
 
@@ -201,6 +202,9 @@ Scenario: Screen remains usable with large text and a narrow viewport
 ### AUTH-8 - Pickup Pal phone sign-in from Welcome Back
 *As a* returning player, *I want* to sign in with the phone number on my Pickup Pal account, *so that*
 SouthBaySoccer can verify my account and issue app tokens without a password.
+
+Current scope: this is direct phone-number sign-in backed by a Pickup Pal API lookup. WhatsApp
+challenge/link authentication is deferred.
 
 ```gherkin
 Scenario: Valid phone number starts password-free sign-in
@@ -805,6 +809,4 @@ AUTH-3/4, RSVP-2/4, PAY-2, SES-3, STAT-3, LEAD-1, PROF-4, and NOTIF-1.
 
 The first-screen client trace is `AUTH-7/8/9 + INV-13` → `design.md` §11 →
 `tasks.md` M11.0a and M11.3a–M11.3d.
-
-
 

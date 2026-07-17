@@ -11,6 +11,7 @@
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="FluentAssertions" Version="7.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
@@ -88,7 +89,6 @@
     <None Include="..\..\SouthBaySoccer\Services\Profile\ProfileFeatureServiceCollectionExtensions.cs" Link="Client\Source\ProfileFeatureServiceCollectionExtensions.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
-
 
 
 

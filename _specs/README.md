@@ -4,12 +4,13 @@ This folder is the executable specification for SouthBaySoccer. It turns the arc
 build-ready work: **what** we're building (requirements), **how** it maps to the system (design),
 **in what order** (tasks), and the **client UI** design system.
 
-## Current delivery strategy — UI-first
+## Current delivery strategy - API integration
 
-Build the MAUI/XAML client first. The Function App, web services, and database (milestones **M1–M10**)
-are deferred; anything that needs the backend uses a **seed-data provider** behind a client service
-interface, swapped for the real typed API client later (M11.1) with no screen change. See
-`design.md` §12.
+The first MAUI/XAML screens were built UI-first against seed-data providers. The backend is now
+substantially implemented through M9, with M5 Stripe payments, M10 notifications, M12 hardening, and
+some client API-mode wiring still open. Current product work should preserve Seed mode for demos and
+tests while wiring MAUI service interfaces to the Functions API. See the Sprint 03 and Sprint 04
+boards under `sprints/`.
 
 ## Documents
 
@@ -63,15 +64,18 @@ scenarios (§17) are first-class acceptance tests.
 | ADMIN — Admin/live | ADMIN-1..3 | M11 | Spec ready |
 | Client reusable UI | design system | M11.0 | Complete; product adoption tracked by separate M11 story tasks |
 
-All epics are specified; implementation has not started (solution skeleton builds; backend features,
-domain entities, and meaningful tests are pending). Begin at **M0** in `tasks.md`.
+The original skeleton phase is past. Backend features through M9 are largely present, the MAUI
+client has seed-backed product screens plus partial API-mode clients, and the active near-finish
+slice is Sprint 04 Players tab API/database wiring. Use `tasks.md` and the sprint boards as the
+status source of truth before starting work.
 
 ## Open decisions (resolve in M0.4)
 
 Membership model (subscription vs. per-session vs. both) · SMS in v1 or later · team-balancing
 algorithm · goalkeeper clean-sheet minutes threshold. See `design.md` §10.
 
-> Product-direction updates still to fold into `requirements.md` (AUTH, STAT) and `design.md`:
-> sign-in is **WhatsApp-based SSO via the Pickup Pal platform** (Pickup Pal is the identity source)
-> rather than in-app ASP.NET Identity, and match goals/assists are **self-submitted then
-> captain/admin-confirmed** (a `Pending → Confirmed` state). See `client-ui.md` and the wireframes.
+> Product-direction updates still to fold into older overview docs:
+> sign-in is direct **phone-number sign-in backed by Pickup Pal lookup**. Users enter a phone
+> number; SouthBaySoccer calls Pickup Pal to confirm the number exists, then issues local app tokens.
+> WhatsApp challenge/link authentication is deferred. Match goals/assists are **self-submitted then
+> captain/admin-confirmed** (a `Pending -> Confirmed` state). See `client-ui.md` and the wireframes.

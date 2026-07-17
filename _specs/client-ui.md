@@ -96,7 +96,7 @@ Controls namespace: `SouthBaySoccer.Controls`; in XAML
 | `Success` | `#1FB573` | `#52D39A` | Positive status |
 | `Warning` | `#BA7517` | `#E0A33A` | Caution (waitlist, deadline) |
 | `Danger` | `#A32D2D` | `#E26B6B` | Full/error/loss |
-| `WhatsApp` | `#25D366` | `#25D366` | WhatsApp SSO button only |
+| `WhatsApp` | `#25D366` | `#25D366` | Pickup Pal / WhatsApp-branded external actions only |
 
 Each is an `AppThemeBinding`-backed `Color`; provide a matching `SolidColorBrush` (`…Brush`) where a brush is needed. Keep the template `Primary`/`Gray*` keys for unmigrated template screens.
 

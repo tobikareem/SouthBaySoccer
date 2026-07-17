@@ -140,7 +140,7 @@
   <div class="statusbar"><span>9:41</span><span class="ic"><i class="ti ti-signal-4g"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
   <div class="body">
 
-    <!-- SIGN IN — WhatsApp SSO via Pickup Pal -->
+    <!-- SIGN IN — phone lookup via Pickup Pal -->
     <section class="screen" data-s="signin">
       <div class="ghdr" style="padding:34px 16px 30px"><span class="flag"></span>
         <div class="row" style="gap:9px"><div class="avatar" style="width:42px;height:42px;background:rgba(255,255,255,.16);color:#fff"><i class="ti ti-ball-football" style="font-size:23px"></i></div>
@@ -148,15 +148,15 @@
       </div>
       <div class="scroll" style="padding-top:20px">
         <div class="label">Welcome back</div><div class="h">Your next game starts here.</div>
-        <p class="muted" style="margin:4px 0 12px;line-height:1.5">Sign in securely with the WhatsApp number connected to your Pickup Pal account.</p>
+        <p class="muted" style="margin:4px 0 12px;line-height:1.5">Sign in securely with the phone number connected to your Pickup Pal account.</p>
         <div class="input" style="display:flex;align-items:center;gap:9px;background:#fbfcfb"><i class="ti ti-brand-whatsapp" style="color:var(--wa);font-size:20px"></i><span style="font-size:15px">+1 (516) 344-7233</span></div>
-        <button class="btn wa" style="margin-top:12px" onclick="show('home')"><i class="ti ti-brand-whatsapp" style="font-size:20px"></i> Continue with WhatsApp</button>
-        <div class="notice" style="margin-top:14px"><i class="ti ti-shield-check"></i><div><strong>Password-free and secure</strong><br>We use a one-time link through WhatsApp. SouthBaySoccer never sees your WhatsApp password.</div></div>
+        <button class="btn wa" style="margin-top:12px" onclick="show('home')"><i class="ti ti-brand-whatsapp" style="font-size:20px"></i> Sign in with phone</button>
+        <div class="notice" style="margin-top:14px"><i class="ti ti-shield-check"></i><div><strong>Password-free and secure</strong><br>Pickup Pal verifies your account. SouthBaySoccer stores only app session tokens on this device.</div></div>
         <div class="card" style="margin:14px 0 6px;background:#fbfcfb"><div class="row" style="justify-content:space-between"><div><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.4px">Pickup Pal bot</div><div style="font-weight:600">+1 (650) 220-5416</div></div><span class="link"><i class="ti ti-external-link"></i> Open</span></div>
           <p class="muted" style="margin:8px 0 0">Or message the bot a link code to connect this device.</p></div>
         <div style="display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--sage);font-size:12px"><span style="flex:1;height:1px;background:var(--line)"></span>not on pickup pal?<span style="flex:1;height:1px;background:var(--line)"></span></div>
         <button class="btn ghost" onclick="show('home')"><i class="ti ti-external-link"></i> Sign up on Pickup Pal</button>
-        <p class="muted" style="text-align:center;margin-top:14px">Create your account on the web, then come back and continue with WhatsApp.</p>
+        <p class="muted" style="text-align:center;margin-top:14px">Create your account on the web, then come back and sign in with your phone number.</p>
       </div>
     </section>
 
@@ -340,7 +340,7 @@
       </div>
       <div class="scroll">
         <div class="row" style="justify-content:space-between;margin:4px 0 12px">
-          <span class="pill ok" data-profile="status"><i class="ti ti-brand-whatsapp"></i> Linked via WhatsApp</span>
+          <span class="pill ok" data-profile="status"><i class="ti ti-brand-whatsapp"></i> Linked via Pickup Pal</span>
           <span class="link" data-profile-edit>Edit on Pickup Pal</span>
         </div>
         <div class="label">Career stats</div>
@@ -439,7 +439,7 @@
 <script>
   var selectedPlayer='TK';
   var PLAYERS={
-    TK:{name:'Tobi Kareem',subtitle:'Captain · #8',initials:'TK',status:'Linked via WhatsApp',stats:['24','12','9','7.8','3','41'],form:['W','W','D','W','L'],note:'2 goals from Sat awaiting confirmation'},
+    TK:{name:'Tobi Kareem',subtitle:'Captain · #8',initials:'TK',status:'Linked via Pickup Pal',stats:['24','12','9','7.8','3','41'],form:['W','W','D','W','L'],note:'2 goals from Sat awaiting confirmation'},
     KT:{name:'Kola T.',subtitle:'Forward · #2',initials:'KT',status:'Player profile',stats:['23','14','10','8.3','4','42'],form:['D','W','L','W','D'],note:''},
     JD:{name:'Jide D.',subtitle:'Midfielder · #3',initials:'JD',status:'Player profile',stats:['22','13','10','8.2','4','40'],form:['L','W','W','D','W'],note:''},
     SM:{name:'Sade M.',subtitle:'Goalkeeper · #4',initials:'SM',status:'Player profile',stats:['21','13','9','8.2','4','38'],form:['W','D','W','W','L'],note:''},

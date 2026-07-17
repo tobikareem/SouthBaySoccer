@@ -77,7 +77,7 @@ Scenario: A guest is represented in the seed roster fixtures
 ## Related stories
 
 - [`AUTH-7`](../AUTH-7-welcome-back-screen/requirements.md) — consumes `IAuthenticationClient`; its
-  seed stub simulates a successful WhatsApp challenge so navigation works end-to-end.
+  seed stub simulates a successful Pickup Pal phone match so navigation works end-to-end.
 - `SES`, `RSVP`, `STAT`, `LEAD`, `PROF` client screens — consume `ISessionsClient`, `IRosterClient`,
   `IStatsClient`, `ILeaderboardClient`, and `IProfileClient`; their backend-dependent scenarios are
   validated against these seeds in the UI-first phase.

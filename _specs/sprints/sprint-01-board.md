@@ -33,7 +33,7 @@ Every story requirement, one line each. `[x]` = Definition of Done met · `[ ]` 
 
 **Authentication (sign-in)**
 - [ ] **AUTH-7** — Welcome Back Pickup Pal phone sign-in screen, the first app route. _(client screen done; automated large-text/narrow visual check remains)_
-- [ ] **AUTH-8** — Request + verify the one-time WhatsApp sign-in challenge. _(client slice done; verify/exchange + Functions tests deferred to the backend phase)_
+- [ ] **AUTH-8** — Phone-number sign-in backed by Pickup Pal lookup. _(client slice done; broader API-mode hardening continues in Sprint 03)_
 - [x] **AUTH-9** — Open the Pickup Pal bot / signup external actions.
 
 **Sprint 01 — UI foundations & core session flow**
@@ -137,5 +137,4 @@ Week 1. Screens start once `SEED-1` + `M11.0c` + `NAV-1` are merged.
 3. A card is **Done** only when its story's Definition of Done in `tasks.md` is met
    (builds, seed-backed `Client.Tests` green, wireframe match, no emoji/raw hex, accessibility + light/dark).
 4. Note new blockers under **Blocked** with the reason.
-
 

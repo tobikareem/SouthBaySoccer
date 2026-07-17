@@ -9,6 +9,10 @@ see [`../../requirements.md`](../../requirements.md). **Screen:** [`AUTH-7`](../
 *As a* returning player, *I want* to sign in with the phone number on my Pickup Pal account, *so that*
 SouthBaySoccer can verify my account and issue app tokens without a password.
 
+Current scope: the user enters a phone number, SouthBaySoccer calls Pickup Pal to confirm that the
+number exists, then SouthBaySoccer issues local app tokens. WhatsApp challenge/link authentication is
+deferred.
+
 ## Acceptance criteria
 
 ```gherkin

@@ -33,6 +33,19 @@ public class PickupPalOptionsTests
     }
 
     [Fact]
+    public void FromConfiguration_WhenProductionApiBaseUrlIsDeployedFunctionsHost_UsesFunctionsApiRoot()
+    {
+        var configuration = Configuration([
+            new(PickupPalOptions.ProductionApiBaseUrlKey, "https://carepath-api-hvhxgvhxejc0fmg3.westus2-01.azurewebsites.net"),
+        ]);
+
+        var options = PickupPalOptions.FromConfiguration(configuration);
+
+        options.ApiBaseUri.ToString().Should()
+            .Be("https://carepath-api-hvhxgvhxejc0fmg3.westus2-01.azurewebsites.net/api/");
+    }
+
+    [Fact]
     public void FromConfiguration_WhenApiBaseUrlIncludesPath_PreservesConfiguredPathWithTrailingSlash()
     {
         var configuration = Configuration([
@@ -74,4 +87,3 @@ public class PickupPalOptionsTests
             .AddInMemoryCollection(values)
             .Build();
 }
-

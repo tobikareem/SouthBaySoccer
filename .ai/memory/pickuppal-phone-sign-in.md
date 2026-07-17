@@ -5,6 +5,10 @@ SouthBaySoccer Functions to look up the submitted phone number through Pickup Pa
 `GET /api/users/phone/{digits}` and, when found, syncs a local `ApplicationIdentityUser` plus
 `PlayerProfile` before issuing SouthBaySoccer JWT access and rotating refresh tokens.
 
+This is not currently WhatsApp authentication. Users sign in by entering their phone number in the
+SouthBaySoccer app; the backend confirms the number exists in Pickup Pal. WhatsApp challenge links,
+callbacks, and one-time-token verification are deferred.
+
 Persist Pickup Pal email on `ApplicationIdentityUser.Email` for future notifications. Do not store
 raw phone numbers locally; store hashes and masked phone display only. SouthBaySoccer roles remain
 local (`PlayerProfile.Role`) and are not overwritten by Pickup Pal profile sync.
