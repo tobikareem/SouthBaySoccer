@@ -1,7 +1,10 @@
+using System.Net;
+using FluentAssertions;
 using Moq;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Contracts.Authentication;
 using SouthBaySoccer.Services.Authentication;
+using SouthBaySoccer.Services.Clients;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -72,8 +75,11 @@ public class AppStartupServiceTests
     }
 
     [Fact]
-    public async Task TryRestoreSession_InvalidRefreshToken_ClearsStoredCredentials()
+    public async Task TryRestoreSession_RefreshTokenRejectedByServer_ClearsStoredCredentials()
     {
+        // A definitive rejection: the auth/refresh endpoint's explicit 401 refusal (ApiExceptionHandler
+        // passes 401 through unchanged, so it surfaces as a plain HttpRequestException with StatusCode
+        // populated by EnsureSuccessStatusCode). The refresh token is genuinely dead here.
         var tokenStore = new Mock<ISecureTokenStore>();
         tokenStore.Setup(store => store.GetRefreshTokenAsync()).ReturnsAsync("invalid-refresh");
         var authenticationClient = new Mock<IAuthenticationClient>();
@@ -81,7 +87,7 @@ public class AppStartupServiceTests
             .Setup(client => client.RefreshAsync(
                 "invalid-refresh",
                 It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new HttpRequestException("unauthorized"));
+            .ThrowsAsync(new HttpRequestException("unauthorized", null, HttpStatusCode.Unauthorized));
         var navigator = new Mock<IAuthenticationNavigator>(MockBehavior.Strict);
         var coordinator = NotAuthenticatedCoordinator();
         var service = new AppStartupService(
@@ -95,6 +101,102 @@ public class AppStartupServiceTests
 
         tokenStore.Verify(store => store.ClearAsync(), Times.Once);
         navigator.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task TryRestoreSession_RefreshRejectedWithClientError_ClearsStoredCredentials()
+    {
+        var tokenStore = new Mock<ISecureTokenStore>();
+        tokenStore.Setup(store => store.GetRefreshTokenAsync()).ReturnsAsync("invalid-refresh");
+        var authenticationClient = new Mock<IAuthenticationClient>();
+        authenticationClient
+            .Setup(client => client.RefreshAsync(
+                "invalid-refresh",
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ApiRequestException(
+                HttpStatusCode.BadRequest,
+                "API request failed with status 400.",
+                "Bad request",
+                "The refresh token is invalid."));
+        var navigator = new Mock<IAuthenticationNavigator>(MockBehavior.Strict);
+        var coordinator = NotAuthenticatedCoordinator();
+        var service = new AppStartupService(
+            tokenStore.Object,
+            authenticationClient.Object,
+            navigator.Object,
+            coordinator.Object,
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+
+        await service.TryRestoreSessionAsync();
+
+        tokenStore.Verify(store => store.ClearAsync(), Times.Once);
+        navigator.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task TryRestoreSession_RefreshFailsWithConnectivityError_KeepsStoredCredentials()
+    {
+        // A briefly-offline phone must not lose its refresh token: a bare HttpRequestException with no
+        // status code (offline, DNS, timeout, or a 5xx from the refresh endpoint) is not evidence the
+        // token was rejected.
+        var tokenStore = new Mock<ISecureTokenStore>();
+        tokenStore.Setup(store => store.GetRefreshTokenAsync()).ReturnsAsync("existing-refresh");
+        var authenticationClient = new Mock<IAuthenticationClient>();
+        authenticationClient
+            .Setup(client => client.RefreshAsync(
+                "existing-refresh",
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("No network connection."));
+        var navigator = new Mock<IAuthenticationNavigator>(MockBehavior.Strict);
+        var coordinator = NotAuthenticatedCoordinator();
+        var service = new AppStartupService(
+            tokenStore.Object,
+            authenticationClient.Object,
+            navigator.Object,
+            coordinator.Object,
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+
+        await service.TryRestoreSessionAsync();
+
+        tokenStore.Verify(store => store.ClearAsync(), Times.Never);
+        navigator.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task TryRestoreSession_StoreAsyncThrowsAfterSuccessfulRefresh_StillShowsAuthenticatedApp()
+    {
+        // Regression for the "wedge" failure mode: TryClaimAuthenticationAsync has already claimed
+        // completion by the time StoreAsync runs, so there is no way back to a re-claimable state. If
+        // persisting the refreshed tokens fails, the app must still navigate to the authenticated Shell
+        // for this session rather than leaving the coordinator claimed with no UI transition.
+        var rotatedTokens = new AuthenticationTokensResponse(
+            "new-access",
+            "new-refresh",
+            DateTime.UtcNow.AddMinutes(15));
+        var tokenStore = new Mock<ISecureTokenStore>();
+        tokenStore.Setup(store => store.GetRefreshTokenAsync()).ReturnsAsync("existing-refresh");
+        tokenStore
+            .Setup(store => store.StoreAsync(rotatedTokens))
+            .ThrowsAsync(new InvalidOperationException("secure storage unavailable"));
+        var authenticationClient = new Mock<IAuthenticationClient>();
+        authenticationClient
+            .Setup(client => client.RefreshAsync(
+                "existing-refresh",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(rotatedTokens);
+        var navigator = new Mock<IAuthenticationNavigator>();
+        var coordinator = NotAuthenticatedCoordinator();
+        var service = new AppStartupService(
+            tokenStore.Object,
+            authenticationClient.Object,
+            navigator.Object,
+            coordinator.Object,
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+
+        var act = () => service.TryRestoreSessionAsync();
+
+        await act.Should().NotThrowAsync();
+        navigator.Verify(item => item.ShowAuthenticatedAppAsync(), Times.Once);
     }
 
     [Fact]

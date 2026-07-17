@@ -48,10 +48,13 @@ public sealed class ProblemDetailsMapper : IProblemDetailsMapper
                 "Not found",
                 "The requested resource was not found.",
                 "not-found"),
-            ApplicationConflictException => Create(
+            ApplicationConflictException conflict => Create(
                 HttpStatusCode.Conflict,
                 "Conflict",
-                "The request conflicts with the current state.",
+                // Application-authored, user-safe message (e.g. "No season covers the session start
+                // date.") - pass it through instead of the generic detail so the client can surface
+                // specifically what conflicted.
+                conflict.Message,
                 "conflict"),
             ApplicationForbiddenException => Create(
                 HttpStatusCode.Forbidden,

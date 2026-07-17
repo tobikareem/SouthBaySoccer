@@ -27,4 +27,12 @@ public class ClientDataSourceOptionsTests
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*LocalDatabase*Seed or Api*");
     }
+
+    [Fact]
+    public void FromValue_WhenMissingAndDefaultIsApi_ReturnsApi()
+    {
+        var options = ClientDataSourceOptions.FromValue(null, ClientDataSource.Api);
+
+        options.DataSource.Should().Be(ClientDataSource.Api);
+    }
 }

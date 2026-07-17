@@ -139,6 +139,22 @@ public class CreateSessionPageModelTests
         pageModel.ValidationMessage.Should().Be("You do not have permission to edit this session.");
     }
 
+    [Fact]
+    public async Task EditManagedSession_SyntheticUnauthorizedHttpRequestException_ShowsSessionExpiredMessage()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        var session = new ManagedSessionDto(
+            Guid.NewGuid(), "Test session", "Jul 11", "7:40 PM", "Marina Field", "7v7", 20, "Published");
+        adminClient
+            .Setup(client => client.GetSessionForEditAsync(session.SessionId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Response status code does not indicate success: 401.", null, HttpStatusCode.Unauthorized));
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        await pageModel.EditManagedSessionCommand.ExecuteAsync(session);
+
+        pageModel.ValidationMessage.Should().Be(CreateSessionPageModel.SessionExpiredMessage);
+    }
+
     private static ManagedSessionEditDto EditableSessionWithRsvpDeadlineDayBeforeGame(Guid sessionId, Guid venueId) =>
         new(
             sessionId,
@@ -265,6 +281,27 @@ public class CreateSessionPageModelTests
 
         pageModel.State.Should().Be(ViewState.Offline);
         pageModel.StateTitle.Should().Be(CreateSessionPageModel.OfflineTitle);
+    }
+
+    [Fact]
+    public async Task Load_SyntheticUnauthorizedHttpRequestException_ShowsSessionExpiredState()
+    {
+        // AuthenticationHandler's synthetic 401 (refresh failed on a non-replayable request) never
+        // reaches ApiExceptionHandler, so it surfaces as a plain HttpRequestException whose StatusCode
+        // is populated by EnsureSuccessStatusCode. It must not show the misleading "you're offline"
+        // copy - the fix is to sign in again, not to reconnect.
+        var adminClient = new Mock<ISessionAdminClient>();
+        adminClient
+            .Setup(client => client.GetDefaultsAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Response status code does not indicate success: 401.", null, HttpStatusCode.Unauthorized));
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object);
+
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Error);
+        pageModel.StateTitle.Should().Be(CreateSessionPageModel.SessionExpiredTitle);
+        pageModel.StateMessage.Should().Be(CreateSessionPageModel.SessionExpiredMessage);
     }
 
     [Fact]
@@ -437,6 +474,22 @@ public class CreateSessionPageModelTests
     }
 
     [Fact]
+    public async Task AddVenue_SyntheticUnauthorizedHttpRequestException_ShowsSessionExpiredMessage()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        adminClient
+            .Setup(client => client.CreateVenueAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Response status code does not indicate success: 401.", null, HttpStatusCode.Unauthorized));
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        pageModel.VenueQuery = "New Park, Torrance";
+
+        await pageModel.AddVenueCommand.ExecuteAsync(null);
+
+        pageModel.ValidationMessage.Should().Be(CreateSessionPageModel.SessionExpiredMessage);
+    }
+
+    [Fact]
     public async Task SelectVenue_FromResults_SetsSelectionAndCollapsesList()
     {
         var pageModel = SeedBackedModel(out _, out _);
@@ -602,6 +655,20 @@ public class CreateSessionPageModelTests
     }
 
     [Fact]
+    public async Task PublishToTeam_SyntheticUnauthorizedHttpRequestException_ShowsSessionExpiredMessage()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        adminClient
+            .Setup(client => client.CreateDraftAsync(It.IsAny<CreateSessionCommand>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Response status code does not indicate success: 401.", null, HttpStatusCode.Unauthorized));
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        await pageModel.PublishToTeamCommand.ExecuteAsync(null);
+
+        pageModel.ValidationMessage.Should().Be(CreateSessionPageModel.SessionExpiredMessage);
+    }
+
+    [Fact]
     public async Task PublishToTeam_EditingSessionApiRequestException_ShowsServerMessageNotOfflineCopy()
     {
         var pageModel = MockBackedModel(out var adminClient, out _);
@@ -640,6 +707,42 @@ public class CreateSessionPageModelTests
 
         pageModel.ValidationMessage.Should().Be("This session was already updated.");
         pageModel.ValidationMessage.Should().NotBe(CreateSessionPageModel.OfflinePublishMessage);
+    }
+
+    [Fact]
+    public async Task PublishToTeam_EditingSessionSyntheticUnauthorizedHttpRequestException_ShowsSessionExpiredMessage()
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        var venueId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        var session = new ManagedSessionDto(
+            Guid.NewGuid(), "Test session", "Jul 11", "7:40 PM", "Marina Field", "7v7", 20, "Published");
+        var editable = new ManagedSessionEditDto(
+            session.SessionId,
+            new CreateSessionCommand(
+                new DateTime(2026, 7, 11, 0, 0, 0, DateTimeKind.Unspecified),
+                new TimeSpan(19, 40, 0),
+                new TimeSpan(19, 30, 0),
+                new TimeSpan(19, 40, 0),
+                venueId,
+                "Marina Field",
+                "7v7",
+                20,
+                2,
+                new TimeSpan(18, 30, 0)),
+            IsPublished: true);
+        adminClient
+            .Setup(client => client.GetSessionForEditAsync(session.SessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(editable);
+        adminClient
+            .Setup(client => client.UpdateSessionAsync(
+                session.SessionId, It.IsAny<CreateSessionCommand>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Response status code does not indicate success: 401.", null, HttpStatusCode.Unauthorized));
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        await pageModel.EditManagedSessionCommand.ExecuteAsync(session);
+
+        await pageModel.PublishToTeamCommand.ExecuteAsync(null);
+
+        pageModel.ValidationMessage.Should().Be(CreateSessionPageModel.SessionExpiredMessage);
     }
 
     [Fact]

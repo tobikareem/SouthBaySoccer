@@ -104,6 +104,75 @@ public sealed class ApiPipelineTests
     }
 
     [Fact]
+    public async Task AuthenticationSessionRefresher_WhenRefreshRejectedWithClientError_ClearsTokensAndReturnsNull()
+    {
+        // A definitive 4xx rejection (e.g. the refresh token itself is invalid) means the token is
+        // genuinely dead - clearing it and forcing a fresh sign-in is correct here.
+        var store = new InMemoryTokenStore(
+            accessToken: "expired-access",
+            refreshToken: "refresh-token",
+            expiresAtUtc: DateTime.UtcNow.AddMinutes(-5));
+        var authenticationClient = new Mock<IAuthenticationClient>();
+        authenticationClient
+            .Setup(x => x.RefreshAsync("refresh-token", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ApiRequestException(
+                HttpStatusCode.BadRequest,
+                "API request failed with status 400.",
+                "Bad request",
+                "The refresh token is invalid."));
+        var refresher = new AuthenticationSessionRefresher(store, authenticationClient.Object);
+
+        var result = await refresher.GetValidAccessTokenAsync();
+
+        result.Should().BeNull();
+        store.RefreshToken.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AuthenticationSessionRefresher_WhenRefreshEndpointReturns401_ClearsTokensAndReturnsNull()
+    {
+        // ApiExceptionHandler passes 401 through unchanged, so the refresh endpoint's explicit refusal
+        // surfaces as a plain HttpRequestException with StatusCode populated by EnsureSuccessStatusCode.
+        // This is still a definitive rejection and must clear the token.
+        var store = new InMemoryTokenStore(
+            accessToken: "expired-access",
+            refreshToken: "refresh-token",
+            expiresAtUtc: DateTime.UtcNow.AddMinutes(-5));
+        var authenticationClient = new Mock<IAuthenticationClient>();
+        authenticationClient
+            .Setup(x => x.RefreshAsync("refresh-token", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("unauthorized", null, HttpStatusCode.Unauthorized));
+        var refresher = new AuthenticationSessionRefresher(store, authenticationClient.Object);
+
+        var result = await refresher.GetValidAccessTokenAsync();
+
+        result.Should().BeNull();
+        store.RefreshToken.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AuthenticationSessionRefresher_WhenRefreshFailsWithConnectivityError_KeepsTokensAndReturnsNull()
+    {
+        // A briefly-offline phone must not permanently lose its refresh token: a bare
+        // HttpRequestException with no status code (offline, DNS, timeout) is not evidence the token
+        // was rejected, so the stored tokens must survive for a later retry.
+        var store = new InMemoryTokenStore(
+            accessToken: "expired-access",
+            refreshToken: "refresh-token",
+            expiresAtUtc: DateTime.UtcNow.AddMinutes(-5));
+        var authenticationClient = new Mock<IAuthenticationClient>();
+        authenticationClient
+            .Setup(x => x.RefreshAsync("refresh-token", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("No network connection."));
+        var refresher = new AuthenticationSessionRefresher(store, authenticationClient.Object);
+
+        var result = await refresher.GetValidAccessTokenAsync();
+
+        result.Should().BeNull();
+        store.RefreshToken.Should().Be("refresh-token");
+    }
+
+    [Fact]
     public async Task CorrelationIdHandler_WhenMissing_AddsCorrelationHeader()
     {
         HttpRequestMessage? observedRequest = null;
@@ -256,6 +325,44 @@ public sealed class ApiPipelineTests
         thrown.Which.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         thrown.Which.Title.Should().Be("Validation failed");
         thrown.Which.Detail.Should().Be("Capacity must be at least 1.");
+        thrown.Which.UserMessage.Should().Be("Capacity must be at least 1.");
+    }
+
+    [Fact]
+    public async Task ApiExceptionHandler_BadRequestWithErrorsExtension_PrefersFirstFieldMessageForUserMessage()
+    {
+        // ProblemDetailsMapper keeps the generic "One or more request values are invalid." detail for
+        // validation failures and puts the specific field messages in the "errors" extension instead -
+        // the client must prefer the first field message over that generic detail.
+        var handler = new ApiExceptionHandler
+        {
+            InnerHandler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent(
+                    """
+                    {
+                        "type": "https://api.southbaysoccer.local/problems/validation",
+                        "title": "Validation failed",
+                        "status": 400,
+                        "detail": "One or more request values are invalid.",
+                        "errors": {
+                            "capacity": ["Capacity must be at least 1."],
+                            "venueId": ["A venue is required."]
+                        },
+                        "correlationId": "abc123"
+                    }
+                    """,
+                    System.Text.Encoding.UTF8,
+                    "application/problem+json"),
+            }),
+        };
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.test/") };
+
+        var act = () => client.GetAsync("sessions/drafts");
+
+        var thrown = await act.Should().ThrowAsync<ApiRequestException>();
+        thrown.Which.Detail.Should().Be("One or more request values are invalid.");
+        thrown.Which.FirstFieldError.Should().Be("Capacity must be at least 1.");
         thrown.Which.UserMessage.Should().Be("Capacity must be at least 1.");
     }
 

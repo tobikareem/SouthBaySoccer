@@ -25,10 +25,10 @@ public sealed class ApiExceptionHandler : DelegatingHandler
         }
 
         var body = await ReadBodyAsync(response, cancellationToken);
-        var (title, detail) = ParseProblemDetails(body);
-        var message = detail ?? title ?? DefaultMessage(response.StatusCode, body);
+        var (title, detail, firstFieldError) = ParseProblemDetails(body);
+        var message = firstFieldError ?? detail ?? title ?? DefaultMessage(response.StatusCode, body);
         response.Dispose();
-        throw new ApiRequestException(response.StatusCode, message, title, detail);
+        throw new ApiRequestException(response.StatusCode, message, title, detail, firstFieldError);
     }
 
     private static async Task<string?> ReadBodyAsync(
@@ -46,26 +46,32 @@ public sealed class ApiExceptionHandler : DelegatingHandler
         }
     }
 
-    private static (string? Title, string? Detail) ParseProblemDetails(string? body)
+    private static (string? Title, string? Detail, string? FirstFieldError) ParseProblemDetails(string? body)
     {
         if (body is null)
         {
-            return (null, null);
+            return (null, null, null);
         }
 
         try
         {
             var problem = JsonSerializer.Deserialize<ProblemDetailsPayload>(body, ProblemDetailsJsonOptions);
-            return (problem?.Title, problem?.Detail);
+            var firstFieldError = problem?.Errors?
+                .Values
+                .FirstOrDefault(messages => messages is { Length: > 0 })
+                ?.FirstOrDefault();
+            return (problem?.Title, problem?.Detail, firstFieldError);
         }
         catch (JsonException)
         {
-            return (null, null);
+            return (null, null, null);
         }
     }
 
     private static string DefaultMessage(HttpStatusCode statusCode, string? body) =>
         body ?? $"API request failed with status {(int)statusCode}.";
 
-    private sealed record ProblemDetailsPayload(string? Title, string? Detail);
+    /// <summary><see cref="Errors"/> mirrors RFC 7807's "errors" validation extension: field name to
+    /// an array of messages for that field.</summary>
+    private sealed record ProblemDetailsPayload(string? Title, string? Detail, Dictionary<string, string[]>? Errors);
 }

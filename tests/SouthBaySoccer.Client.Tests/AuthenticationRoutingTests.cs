@@ -68,14 +68,17 @@ public class AppStartupRoutingTests
     }
 
     [Fact]
-    public async Task TryRestoreSession_WhenRefreshFails_ClearsTokensAndStaysOnWelcomeBack()
+    public async Task TryRestoreSession_WhenRefreshRejectedByServer_ClearsTokensAndStaysOnWelcomeBack()
     {
+        // A definitive rejection (auth/refresh's explicit 401 refusal - ApiExceptionHandler passes 401
+        // through unchanged, so it surfaces as a plain HttpRequestException with StatusCode populated
+        // by EnsureSuccessStatusCode) means the refresh token is genuinely dead.
         var tokenStore = new Mock<ISecureTokenStore>();
         tokenStore.Setup(s => s.GetRefreshTokenAsync()).ReturnsAsync("stored-refresh");
         var authClient = new Mock<IAuthenticationClient>();
         authClient
             .Setup(c => c.RefreshAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("refresh rejected"));
+            .ThrowsAsync(new HttpRequestException("refresh rejected", null, System.Net.HttpStatusCode.Unauthorized));
         var navigator = new Mock<IAuthenticationNavigator>();
         var coordinator = NotAuthenticatedCoordinator();
 
@@ -84,6 +87,49 @@ public class AppStartupRoutingTests
         await service.TryRestoreSessionAsync();
 
         tokenStore.Verify(s => s.ClearAsync(), Times.Once);
+        navigator.Verify(n => n.ShowAuthenticatedAppAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task TryRestoreSession_WhenRefreshFailsWithNonHttpError_KeepsTokensAndStaysOnWelcomeBack()
+    {
+        // A non-HTTP failure (e.g. a malformed refresh response) is not evidence the refresh token was
+        // rejected by the server - keep it stored so a later retry can still succeed instead of forcing
+        // the phone to sign in again for an unrelated bug.
+        var tokenStore = new Mock<ISecureTokenStore>();
+        tokenStore.Setup(s => s.GetRefreshTokenAsync()).ReturnsAsync("stored-refresh");
+        var authClient = new Mock<IAuthenticationClient>();
+        authClient
+            .Setup(c => c.RefreshAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("The sign-in service returned an empty response."));
+        var navigator = new Mock<IAuthenticationNavigator>();
+        var coordinator = NotAuthenticatedCoordinator();
+
+        var service = new AppStartupService(tokenStore.Object, authClient.Object, navigator.Object, coordinator.Object, new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+
+        await service.TryRestoreSessionAsync();
+
+        tokenStore.Verify(s => s.ClearAsync(), Times.Never);
+        navigator.Verify(n => n.ShowAuthenticatedAppAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task TryRestoreSession_WhenRefreshFailsWithConnectivityError_KeepsTokensAndStaysOnWelcomeBack()
+    {
+        var tokenStore = new Mock<ISecureTokenStore>();
+        tokenStore.Setup(s => s.GetRefreshTokenAsync()).ReturnsAsync("stored-refresh");
+        var authClient = new Mock<IAuthenticationClient>();
+        authClient
+            .Setup(c => c.RefreshAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("No network connection."));
+        var navigator = new Mock<IAuthenticationNavigator>();
+        var coordinator = NotAuthenticatedCoordinator();
+
+        var service = new AppStartupService(tokenStore.Object, authClient.Object, navigator.Object, coordinator.Object, new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+
+        await service.TryRestoreSessionAsync();
+
+        tokenStore.Verify(s => s.ClearAsync(), Times.Never);
         navigator.Verify(n => n.ShowAuthenticatedAppAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 

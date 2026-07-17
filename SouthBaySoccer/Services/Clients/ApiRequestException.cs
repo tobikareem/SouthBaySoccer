@@ -14,11 +14,13 @@ public sealed class ApiRequestException : HttpRequestException
         HttpStatusCode statusCode,
         string message,
         string? title = null,
-        string? detail = null)
+        string? detail = null,
+        string? firstFieldError = null)
         : base(message, null, statusCode)
     {
         Title = title;
         Detail = detail;
+        FirstFieldError = firstFieldError;
     }
 
     /// <summary>The RFC 7807 "title" from the server's problem-details body, if present.</summary>
@@ -28,8 +30,15 @@ public sealed class ApiRequestException : HttpRequestException
     public string? Detail { get; }
 
     /// <summary>
-    /// Best available user-safe message: the server's <see cref="Detail"/>, falling back to
-    /// <see cref="Title"/>, falling back to the raw <see cref="Exception.Message"/>.
+    /// The first field-level message from the RFC 7807 "errors" validation extension (map of field
+    /// name to message array), if the server included one.
     /// </summary>
-    public string UserMessage => Detail ?? Title ?? Message;
+    public string? FirstFieldError { get; }
+
+    /// <summary>
+    /// Best available user-safe message: the server's <see cref="FirstFieldError"/> (a specific field
+    /// message beats the generic validation summary), falling back to <see cref="Detail"/>, falling
+    /// back to <see cref="Title"/>, falling back to the raw <see cref="Exception.Message"/>.
+    /// </summary>
+    public string UserMessage => FirstFieldError ?? Detail ?? Title ?? Message;
 }

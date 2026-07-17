@@ -1,4 +1,5 @@
 using CommunityToolkit.Maui;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.LifecycleEvents;
 using SouthBaySoccer.Configuration;
@@ -107,17 +108,34 @@ public static class MauiProgram
         builder.Services.AddSingleton(new RateTeammatesOptions());
         builder.Services.AddSingleton<IRateTeammatesNavigator, ShellRateTeammatesNavigator>();
 
+        // Wires the UserSecretsId from the csproj as an optional local configuration source.
+        // This reads secrets when present on the running machine, but does not embed them into the
+        // app package. Deployed mobile packages still need deploy-time configuration.
+        builder.Configuration.AddUserSecrets<App>(optional: true);
+
+        var defaultApiBaseUrl =
 #if DEBUG && ANDROID
-        var pickupPalOptions = new PickupPalOptions { ApiBaseUri = new Uri("http://10.0.2.2:7071/api/") };
+            PickupPalOptions.AndroidDebugApiBaseUrl;
 #else
-        var pickupPalOptions = new PickupPalOptions();
+            PickupPalOptions.DefaultApiBaseUrl;
 #endif
-        // Config-first: an explicit ClientDataSource setting always wins (e.g. ClientDataSource=Api
-        // on an Android debug build so it targets the emulator ApiBaseUri above). FromValue falls
-        // back to Seed only when the value is null/whitespace, which is the desired default on every
-        // platform including Android debug.
+        var pickupPalOptions = PickupPalOptions.FromConfiguration(
+            builder.Configuration,
+            defaultApiBaseUrl);
+
+        // Config-first: an explicit ClientDataSource setting always wins. Debug defaults to Seed for
+        // deterministic local demos; Release defaults to Api because seed clients are excluded from
+        // Release builds.
         var configuredClientDataSource = builder.Configuration["ClientDataSource"];
-        var clientDataSourceOptions = ClientDataSourceOptions.FromValue(configuredClientDataSource);
+        var defaultClientDataSource =
+#if RELEASE
+            ClientDataSource.Api;
+#else
+            ClientDataSource.Seed;
+#endif
+        var clientDataSourceOptions = ClientDataSourceOptions.FromValue(
+            configuredClientDataSource,
+            defaultClientDataSource);
         builder.Services.AddSingleton(pickupPalOptions);
         builder.Services.AddSouthBaySoccerClients(
             clientDataSourceOptions,

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -34,6 +35,8 @@ public partial class CreateSessionPageModel(
     public const string OfflinePublishMessage = "You're offline. Reconnect to publish this session.";
     public const string OfflineVenueMessage = "You're offline. Reconnect to save this venue.";
     public const string GenericPublishError = "Something went wrong publishing the session. Please try again.";
+    public const string SessionExpiredTitle = "Session expired";
+    public const string SessionExpiredMessage = "Your session has expired. Sign in again to continue.";
     public const string PreviewStatusLabel = "Ready for RSVP";
 
     private int _checkInLeadMinutes;
@@ -298,6 +301,13 @@ public partial class CreateSessionPageModel(
             // rather than the misleading "you're offline" copy reserved for connectivity failures.
             ApplyState(ViewState.Error, ErrorTitle, ex.UserMessage);
         }
+        catch (HttpRequestException ex) when (IsSessionExpired(ex))
+        {
+            // AuthenticationHandler's synthetic 401 (refresh failed on a non-replayable request)
+            // surfaces here as a plain HttpRequestException with StatusCode populated by
+            // EnsureSuccessStatusCode — not a connectivity failure, so don't show the offline copy.
+            ApplyState(ViewState.Error, SessionExpiredTitle, SessionExpiredMessage);
+        }
         catch (HttpRequestException)
         {
             ApplyState(ViewState.Offline, OfflineTitle, OfflineMessage);
@@ -376,9 +386,9 @@ public partial class CreateSessionPageModel(
         {
             ValidationMessage = ex.UserMessage;
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
-            ValidationMessage = OfflineVenueMessage;
+            ValidationMessage = ResolveConnectivityMessage(ex, OfflineVenueMessage);
         }
         catch (Exception)
         {
@@ -435,9 +445,9 @@ public partial class CreateSessionPageModel(
         {
             ValidationMessage = ex.UserMessage;
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
-            ValidationMessage = OfflinePublishMessage;
+            ValidationMessage = ResolveConnectivityMessage(ex, OfflinePublishMessage);
         }
         catch (Exception)
         {
@@ -510,9 +520,9 @@ public partial class CreateSessionPageModel(
         {
             ValidationMessage = ex.UserMessage;
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
-            ValidationMessage = OfflinePublishMessage;
+            ValidationMessage = ResolveConnectivityMessage(ex, OfflinePublishMessage);
         }
         catch (Exception)
         {
@@ -607,9 +617,9 @@ public partial class CreateSessionPageModel(
         {
             ValidationMessage = ex.UserMessage;
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
-            ValidationMessage = OfflinePublishMessage;
+            ValidationMessage = ResolveConnectivityMessage(ex, OfflinePublishMessage);
         }
         catch (Exception)
         {
@@ -784,6 +794,26 @@ public partial class CreateSessionPageModel(
         StateMessage = message;
         State = state;
     }
+
+    /// <summary>
+    /// True when <paramref name="exception"/> is AuthenticationHandler's synthetic 401 (refresh failed
+    /// on a non-replayable request, e.g. AddVenue/publish/update). It never reaches
+    /// <see cref="ApiExceptionHandler"/> (that handler passes 401 through unchanged so
+    /// AuthenticationHandler can attempt a refresh+replay), so it surfaces here as a plain
+    /// <see cref="HttpRequestException"/> whose <see cref="HttpRequestException.StatusCode"/> is
+    /// populated by <c>EnsureSuccessStatusCode</c> — not the connectivity failure the offline copy is
+    /// meant for.
+    /// </summary>
+    private static bool IsSessionExpired(HttpRequestException exception) =>
+        exception.StatusCode == HttpStatusCode.Unauthorized;
+
+    /// <summary>
+    /// Resolves the message to show for a caught <see cref="HttpRequestException"/>: a session-expired
+    /// prompt for the synthetic 401 case, otherwise the caller's offline copy for a genuine
+    /// connectivity failure.
+    /// </summary>
+    private static string ResolveConnectivityMessage(HttpRequestException exception, string offlineMessage) =>
+        IsSessionExpired(exception) ? SessionExpiredMessage : offlineMessage;
 
     private static (string Name, string Locality) SplitVenueQuery(string query)
     {
