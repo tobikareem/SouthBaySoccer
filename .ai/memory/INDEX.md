@@ -8,7 +8,7 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [membership-and-drop-in-eligibility](membership-and-drop-in-eligibility.md) — Eligibility supports monthly members and session-specific guests
 - [spec-driven-development](spec-driven-development.md) — Specs live in _specs/ (requirements, design, tasks, client-ui); Gherkin
 - [client-reusable-ui](client-reusable-ui.md) — MAUI client uses a token-driven reusable UI design system; spec in _specs/client-ui.md
-- [ui-first-seed-data](ui-first-seed-data.md) — UI-first delivery: build MAUI/XAML against seed data; backend (M1–M10) deferred
+- [ui-first-seed-data](ui-first-seed-data.md) — API integration phase with Seed mode retained for deterministic demos/tests
 - [mobile-wireframes-design-source](mobile-wireframes-design-source.md) — mobile-wireframes.html is the authoritative visual and interaction reference for the MAUI client
 - [maui-shell-route-ownership](maui-shell-route-ownership.md) — Shell roots belong in AppShell; register only detail routes globally
 - [inter-ui-font](inter-ui-font.md) � MAUI product UI uses Inter from Google Fonts
@@ -18,7 +18,7 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [controlled-migrations](controlled-migrations.md) - EF migrations run only as controlled deployment steps, never Function cold start
 - [functions-pipeline-authz](functions-pipeline-authz.md) - Functions pipeline order and fail-closed endpoint access metadata
 - [functions-problem-details](functions-problem-details.md) - Functions RFC 7807 status mapping, correlation IDs, and safe error details
-- [m3-whatsapp-session-auth](m3-whatsapp-session-auth.md) - M3 is WhatsApp challenge/session auth, not email/password authentication
+- [m3-whatsapp-session-auth](m3-whatsapp-session-auth.md) - M3 is phone-number sign-in via Pickup Pal lookup; WhatsApp challenge auth is deferred
 - [m4-profiles-waivers](m4-profiles-waivers.md) - M4 profile anchor, guest profile, emergency contact privacy, and current-waiver eligibility rules
 - [m6-scheduling](m6-scheduling.md) - M5 payment deferral, M6 UTC scheduling, recurrence occurrence keys, and cancellation notification boundary
 - [m7-rsvp-waitlist](m7-rsvp-waitlist.md) - M7 waitlist source of truth, serializable RSVP writes, and deferred payment eligibility seam

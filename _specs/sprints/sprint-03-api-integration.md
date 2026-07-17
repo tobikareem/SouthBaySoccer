@@ -64,7 +64,7 @@ No page or page model should take a raw `HttpClient` dependency.
 | # | Item | Story | Pts | Depends on | Notes |
 |---|------|-------|----:|------------|-------|
 | 1 | API client inventory and contract-gap cleanup | `API-0` | 3 | M11.1 | Decide whether to add missing read endpoints, compose existing endpoints, or adjust Contracts DTOs. |
-| 2 | Auth/session API client hardening | `AUTH-8`, `AUTH-9`, `M11.1` | 3 | M3, M11.1 | Ensure phone sign-in, WhatsApp challenge, refresh, sign-out, and Pickup Pal actions work in API mode. |
+| 2 | Auth/session API client hardening | `AUTH-8`, `AUTH-9`, `M11.1` | 3 | M3, M11.1 | Ensure phone sign-in, refresh, sign-out, and Pickup Pal actions work in API mode. WhatsApp challenge auth is deferred. |
 | 3 | Sessions, roster, RSVP, payment eligibility API clients | `SES-6`, `RSVP-8`, `PAY-5` | 8 | M6, M7, M11.1 | Wire `ISessionsClient` and `IRosterClient`; keep RSVP as intent, not attendance. |
 | 4 | Stats and leaderboard API clients | `LEAD-4`, `STAT-7`, `STAT-8`, `STAT-9` | 8 | M8, M9, M11.1 | Wire `IStatsClient` and `ILeaderboardClient`; projections derive from approved raw facts. |
 | 5 | Admin and game-day API clients | `ADMIN-4`, `GDAY-1`, `TEAM-4`, `STAT-9` | 8 | M6.5, M7.5, M8 | Wire create/edit/publish, check-in, captain assignment/draft, post-game approval. |
@@ -81,7 +81,7 @@ records the current route/interface gaps and the Create Session API contract dec
 
 | MAUI interface | Current API state | Sprint 03 work |
 |----------------|-------------------|----------------|
-| `IAuthenticationClient` | Backend auth endpoints exist. | Ensure API provider covers phone sign-in, WhatsApp challenge request/verify, refresh, and sign-out with safe token persistence. |
+| `IAuthenticationClient` | Backend auth endpoints exist. | Ensure API provider covers Pickup Pal phone sign-in, refresh, and sign-out with safe token persistence. WhatsApp challenge request/verify is deferred/legacy, not the active sign-in path. |
 | `IProfileClient` | `ApiProfileClient.GetCurrentProfileAsync()` exists. | Fill any missing profile/stat/recent-form composition needed by `PROF-5` and Sessions greeting. |
 | `ISessionsClient` | `GET sessions`, `POST sessions`, recurrence endpoints exist. | Build dashboard/detail projections from real session, payment eligibility, profile, and stats prompt data. |
 | `IRosterClient` | RSVP endpoints exist; roster read contract exists but endpoint coverage must be verified. | Add or compose going/waitlist reads; wire RSVP submit/cancel with idempotency where required. |

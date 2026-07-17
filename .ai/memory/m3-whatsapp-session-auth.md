@@ -1,10 +1,14 @@
-# M3 WhatsApp Session Authentication
+# M3 Phone Number Session Authentication
 
-Sprint 02 M3 is WhatsApp-number session authentication, not email/password auth. Email/password
-registration, confirm-email, sign-in, and password reset are out of scope. The backend authority is
-a verified WhatsApp challenge exchanged for server-issued JWT access tokens and rotating refresh
-tokens.
+Sprint 02 M3 is phone-number session authentication, not email/password auth and not WhatsApp
+challenge/link authentication. Email/password registration, confirm-email, sign-in, and password
+reset are out of scope.
 
-M3.4 keeps the public challenge-request response non-secret: it returns only challenge metadata.
-Raw one-time challenge tokens must stay inside the WhatsApp delivery/provider path, and persistence
-stores only hashes for challenge tokens, phone numbers, and callback URIs.
+The current backend authority is a direct phone lookup through Pickup Pal: SouthBaySoccer receives
+the submitted phone number, calls Pickup Pal to confirm that the phone exists in its user database,
+syncs local identity/profile records, then issues SouthBaySoccer JWT access tokens and rotating
+refresh tokens.
+
+WhatsApp challenge delivery, one-time links, and callback verification remain deferred. Existing
+`WhatsApp*` names in code are legacy naming from the earlier design and should not be treated as the
+current product authentication model.

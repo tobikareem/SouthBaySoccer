@@ -23,7 +23,7 @@ Scenario: The profile screen matches the wireframe composition
   Given my profile, career stats, and recent form have loaded
   When the profile screen is displayed
   Then a brand header shows my avatar, my name "Tobi Kareem", and the subtitle "\"Captain\" · #8"
-  And a "Linked via WhatsApp" success badge and an "Edit on Pickup Pal" link appear below the header
+  And a "Linked via Pickup Pal" success badge and an "Edit on Pickup Pal" link appear below the header
   And a "Career stats" section header precedes a three-column stat-tile grid
   And the stat tiles show Matches 24, Goals 12, Assists 9, Avg rating 7.8, MVP 3, and Likes 41
   And a "Recent form" card shows the last five results as W, W, D, W, L badges
@@ -68,7 +68,7 @@ Scenario: The screen surfaces loading, empty, error, and offline states
   And retrying re-requests the profile from the client
 
 Scenario: Iconography uses Font Awesome instead of emoji
-  Given the profile screen contains WhatsApp, pending-clock, and tab-bar pictograms
+  Given the profile screen contains Pickup Pal/link, pending-clock, and tab-bar pictograms
   Then each pictogram is rendered from a bundled Font Awesome Free font
   And no Unicode emoji is used
   And every informational or interactive icon has a semantic description

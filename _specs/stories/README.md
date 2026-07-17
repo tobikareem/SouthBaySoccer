@@ -27,7 +27,7 @@ depends on, rather than copying them (so invariants/NFRs never drift).
 | Story | Directory | Summary |
 |-------|-----------|---------|
 | `AUTH-7` | [`AUTH-7-welcome-back-screen/`](AUTH-7-welcome-back-screen/requirements.md) | The Welcome Back (sign-in) screen — first app route. |
-| `AUTH-8` | [`AUTH-8-continue-with-whatsapp/`](AUTH-8-continue-with-whatsapp/requirements.md) | Request + verify the one-time WhatsApp sign-in challenge. |
+| `AUTH-8` | [`AUTH-8-continue-with-whatsapp/`](AUTH-8-continue-with-whatsapp/requirements.md) | Phone-number sign-in backed by Pickup Pal lookup; WhatsApp challenge auth is deferred. |
 | `AUTH-9` | [`AUTH-9-pickup-pal-actions/`](AUTH-9-pickup-pal-actions/requirements.md) | Pickup Pal bot / signup external actions. |
 
 ### UI-first client screens (built against seed data — see [`../design.md`](../design.md) §12)

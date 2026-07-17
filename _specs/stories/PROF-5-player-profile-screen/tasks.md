@@ -6,7 +6,7 @@ the PROF-5 slice of milestone **M11**; the full milestone roadmap and dependency
 
 - [x] **M11.PROF5.a** Implement `ProfilePage` and `ProfilePageModel` directly from the `profile`
   wireframe using the SEED-1 `IProfileClient`: `BrandHeader` (54-dip avatar, name,
-  `"Captain" · #8`), the "Linked via WhatsApp" badge +
+  `"Captain" · #8`), the "Linked via Pickup Pal" badge +
   "Edit on Pickup Pal" link, `SectionHeader` "Career stats", the three-column `StatTile` grid, the
   "Recent form" `BrandCard` with W/D/L badges, the muted pending note, and the "View season
   leaderboard" `GhostButton`. Bind all values from `IProfileClient`; use only shared brand resources

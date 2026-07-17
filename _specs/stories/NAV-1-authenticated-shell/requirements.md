@@ -20,7 +20,7 @@ a `StateView` empty/coming-soon surface.
 
 ```gherkin
 Scenario: Successful sign-in enters the authenticated shell
-  Given a verified sign-in (the seed WhatsApp challenge) completes
+  Given a verified sign-in (the seed Pickup Pal phone match) completes
   When the authentication navigator routes forward
   Then the Welcome Back route is replaced by the authenticated Shell
   And a bottom tab bar shows Sessions, Stats, and Profile
@@ -60,5 +60,4 @@ Scenario: Shell uses the brand system and accessible tab icons
 
 - [`AUTH-8`](../AUTH-8-continue-with-whatsapp/requirements.md) - its successful phone sign-in calls the authentication navigator that NAV-1 routes into the Shell.
 - `SES-6` (Sessions tab), `LEAD-4` (Stats tab), `PROF-5` (Profile tab) — the tab destinations.
-
 

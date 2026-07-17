@@ -20,8 +20,8 @@ the Shell `TabBar` (Profile active). It composes only shared controls (`client-u
 1. **`BrandHeader`** — green-to-pine header with a 54-dip `Avatar` (`Variant=OnGreen`, player
    initials/image), the player `Title` (name "Tobi Kareem"), and `Subtitle` (`"Captain" · #8`) supplied
    via `LeadingContent`/header binding. No back button (it is a root tab).
-2. **Identity row** (`SpaceLg` content padding) — a `Badge` (`Variant=Success`, WhatsApp brands
-   glyph) reading "Linked via WhatsApp" on the left, and a `LinkButton` "Edit on Pickup Pal" on the
+2. **Identity row** (`SpaceLg` content padding) — a `Badge` (`Variant=Success`, link/brand glyph)
+   reading "Linked via Pickup Pal" on the left, and a `LinkButton` "Edit on Pickup Pal" on the
    right (`OpenPickupPalEditCommand`, external-link glyph), space-between.
 3. **`SectionHeader`** "Career stats".
 4. **`StatTile` grid** — a three-column responsive grid (`SpaceMd` gutters) of six `StatTile`s bound
@@ -50,7 +50,7 @@ Reuses the registered `FontAwesomeSolid` / `FontAwesomeBrands` families and the 
 
 | Purpose | Family | Icon |
 |---|---|---|
-| Linked-via-WhatsApp badge | Brands | `whatsapp` |
+| Linked-via-Pickup-Pal badge | Brands | `whatsapp` |
 | Edit on Pickup Pal | Solid | `arrow-up-right-from-square` |
 | Pending-confirmation note | Solid | `clock` |
 | Tab bar (Sessions / Stats / Profile) | Solid | `calendar` / `trophy` / `user` |

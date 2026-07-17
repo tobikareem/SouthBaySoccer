@@ -1,5 +1,9 @@
 # AUTH-8 - Pickup Pal phone sign-in - Design
 
+Current model: this is direct phone-number sign-in backed by Pickup Pal lookup. It is not WhatsApp
+challenge/link authentication. WhatsApp delivery, callback links, and one-time-token verification are
+deferred.
+
 Realizes [`requirements.md`](requirements.md). Screen composition is in
 [`AUTH-7 design`](../AUTH-7-welcome-back-screen/design.md); token issue/refresh mechanics are in
 [`../../design.md`](../../design.md) section 6; this file specifies the phone sign-in flow.
@@ -7,7 +11,7 @@ Realizes [`requirements.md`](requirements.md). Screen composition is in
 ## Flow
 
 ```text
-WelcomeBackPageModel.RequestWhatsAppChallengeCommand
+WelcomeBackPageModel.RequestWhatsAppChallengeCommand (legacy command name)
   -> validate PhoneNumber (international format); else set PhoneNumberError, send nothing
   -> IsBusy = true (block re-submit)
   -> IAuthenticationClient.SignInByPhoneAsync(phone)
@@ -21,7 +25,7 @@ WelcomeBackPageModel.RequestWhatsAppChallengeCommand
 
 ## Components
 
-- **Client:** `RequestWhatsAppChallengeCommand` currently owns the sign-in button behavior for XAML compatibility; it calls `IAuthenticationClient.SignInByPhoneAsync`, then `IAuthenticationCoordinator.CompleteSignInAsync` on success. International phone validation remains presentation validation only; server validation is authoritative.
+- **Client:** `RequestWhatsAppChallengeCommand` currently owns the sign-in button behavior for XAML compatibility; despite the legacy name, it calls `IAuthenticationClient.SignInByPhoneAsync`, then `IAuthenticationCoordinator.CompleteSignInAsync` on success. International phone validation remains presentation validation only; server validation is authoritative.
 - **Backend (Contracts/Functions/Application):** anonymous `POST /auth/pickuppal/phone/sign-in`, `SignInByPhoneRequest`, Pickup Pal user lookup, local identity/profile sync, SouthBaySoccer access-token issuance, and refresh-token rotation from `AUTH-3/AUTH-4`.
 - **Infrastructure:** `IPickupPalUserClient` uses configurable `PickupPal:BaseUrl` and treats Pickup Pal as the profile source of truth. SouthBaySoccer stores local identity, email, role, token state, masked/hash phone, and `PickupPalUserId`; it does not store raw phone numbers.
 

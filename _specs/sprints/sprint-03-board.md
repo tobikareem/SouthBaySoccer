@@ -35,7 +35,7 @@ while preserving the mobile wireframe.
 
 | Card | Story | Pts | Tasks | Notes |
 |------|-------|----:|-------|-------|
-| **Auth/session API hardening** | `AUTH-8`, `AUTH-9` | 3 | sign-in `[ ]` / challenge `[ ]` / refresh `[ ]` / sign-out `[ ]` / tests `[ ]` | Keep auth endpoints anonymous where intended; protected clients use bearer + refresh pipeline. |
+| **Auth/session API hardening** | `AUTH-8`, `AUTH-9` | 3 | phone sign-in `[ ]` / refresh `[ ]` / sign-out `[ ]` / tests `[ ]` | Current sign-in is phone lookup through Pickup Pal; WhatsApp challenge/link auth is deferred. Keep auth endpoints anonymous where intended; protected clients use bearer + refresh pipeline. |
 | **Sessions/roster/RSVP API clients** | `SES-6`, `RSVP-8`, `PAY-5` | 8 | dashboard `[ ]` / detail `[ ]` / roster `[ ]` / RSVP `[ ]` / eligibility `[ ]` / tests `[ ]` | Preserve the `home` and `session` wireframes; RSVP remains intent only. |
 | **Stats/leaderboard API clients** | `LEAD-4`, `STAT-7`, `STAT-8`, `STAT-9` | 8 | leaderboard `[ ]` / match stats `[ ]` / confirm `[ ]` / feedback `[ ]` / tests `[ ]` | Stats must derive from approved raw match facts; no mutable profile totals. |
 | **API-mode smoke and docs** | `M11` | 5 | config `[ ]` / runbook `[ ]` / local smoke `[ ]` / no-secret check `[ ]` | Document local Function App + MAUI API mode setup without committing secrets. |
@@ -90,5 +90,4 @@ _(none)_
 2. Move to **In review** only after implementation and tests are ready for review.
 3. Move to **Done** only when the sprint Definition of Done and the story-specific checks pass.
 4. Record blockers here with the exact endpoint, contract, test, or wireframe conflict.
-
 

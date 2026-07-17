@@ -27,7 +27,7 @@ wiring is completed in the backend phase. See `design.md` Â§12.
 1. **M0 Foundation** â€” shared kernel, `BaseEntity`, cross-cutting abstractions, CI.
 2. **M1 Persistence & Identity core** â€” EF Core `DbContext`, audit/soft-delete, ASP.NET Identity stores, migrations.
 3. **M2 Functions pipeline** â€” middleware (correlation/exception/authn/authz), fail-closed classification, ProblemDetails.
-4. **M3 WhatsApp Session Authentication** ï¿½ phone-number challenge verification, JWT/session issuance, refresh rotation, and backend auth authority. Email/password registration, confirm-email, sign-in, and password reset flows are explicitly out of Sprint 02 scope.
+4. **M3 Phone Number Session Authentication** - Pickup Pal phone lookup, JWT/session issuance, refresh rotation, and backend auth authority. WhatsApp challenge/link authentication, email/password registration, confirm-email, sign-in, and password reset flows are explicitly out of current scope.
 5. **M4 Player profiles & waivers** â€” profiles, guests, emergency contact, waiver accept + gating (PROF, WAIV).
 6. **M5 Payments** â€” Stripe checkout + idempotent webhooks + membership/ledger (PAY).
 7. **M6 Seasons, venues & sessions** â€” seasons, venues, recurring sessions timer (SES).
@@ -59,20 +59,21 @@ wiring is completed in the backend phase. See `design.md` Â§12.
 - [x] **M2.3** RFC 7807 `ProblemDetails` exception mapping (400/401/403/404/409/429/500); correlation-ID logging; no sensitive data in responses/logs. - Done: `ProblemDetailsMapper` maps required statuses, exception middleware writes safe problem responses with correlation IDs, correlation IDs are accepted/generated safely, and tests cover status mapping plus sensitive-detail suppression.
 - [x] **M2.4** `Functions.Tests`: classification, authz, ProblemDetails, correlation. - Done: resolver tests cover fail-closed classification, authorizer tests cover anonymous/unauthenticated/forbidden/authorized paths with Moq, ProblemDetails tests cover required status mappings and safe unexpected errors, and correlation tests cover accepted/generated IDs.
 
-## M3 ï¿½ WhatsApp Session Authentication
+## M3 - Phone Number Session Authentication
 
 Email/password registration, confirm-email, sign-in, and password reset flows are explicitly out of
-Sprint 02 scope. The backend authentication authority for this sprint is a verified WhatsApp-number
-challenge exchanged for server-issued access and refresh tokens.
+Sprint 02 scope. The current backend authentication authority is a submitted phone number confirmed
+against Pickup Pal, followed by server-issued access and refresh tokens. WhatsApp challenge/link
+authentication is deferred.
 
 - [x] **M3.1** `ITokenService` for JWT issue/validate, access-token claims, and signing-key rotation
   via configuration/Key Vault overlap. - Done: `JwtTokenService` issues and validates HMAC JWTs with `kid`, issuer/audience, roles, policies, expiry, and retired-key validation tests. ï¿½ Stories: AUTH-3.
-- [x] **M3.2** `Features/Authentication`: WhatsApp challenge request/verify Application use cases
-  with FluentValidation. - Done: request/verify handlers, validators, safe phone masking, challenge/identity/token issuer seams, and Application tests. External return alone does not authenticate. ï¿½ Stories: AUTH-8, AUTH-3.
+- [x] **M3.2** `Features/Authentication`: phone-number sign-in Application use cases with
+  FluentValidation. - Done: direct phone sign-in validates and masks phone input, confirms the phone through Pickup Pal, syncs identity/profile records, and issues local SouthBaySoccer tokens. Legacy WhatsApp challenge handlers remain deferred/legacy seams, not the current sign-in model. - Stories: AUTH-8, AUTH-3.
 - [x] **M3.3** Refresh-token exchange with atomic rotation, reuse detection, and family revocation.
   Done: EF-backed serializable rotation service hashes raw tokens, consumes/replaces active tokens, marks reuse, and revokes token families. Client-side single-flight refresh is implemented in M11.1. ï¿½ Stories: AUTH-4.
-- [x] **M3.4** HTTP Functions + Contracts for WhatsApp challenge request, WhatsApp challenge verify,
-  and refresh-token exchange only (`[AllowAnonymous]` where intended). - Done: anonymous endpoint contracts are wired to a concrete `IWhatsAppAuthenticationWorkflow`, EF-backed WhatsApp challenge issue/verify providers persist only hashed secrets, the raw opaque challenge token is handed only to a delivery sender seam with a fail-closed default provider, verified phone hashes resolve to player identities, refresh-token rotation issues fresh JWT access tokens, and Application/Infrastructure/Functions tests cover the scenarios. - Stories: AUTH-3, AUTH-4, AUTH-8.
+- [x] **M3.4** HTTP Functions + Contracts for Pickup Pal phone sign-in and refresh-token exchange
+  (`[AllowAnonymous]` where intended). - Done: `POST /auth/pickuppal/phone/sign-in` confirms the submitted phone through Pickup Pal, syncs local identity/profile data, issues SouthBaySoccer access and refresh tokens, and refresh-token rotation issues fresh JWT access tokens. WhatsApp challenge request/verify endpoints are deferred/legacy compatibility and are not the current product sign-in path. - Stories: AUTH-3, AUTH-4, AUTH-8.
 
 ## M4 â€” Player profiles & waivers
 - [x] **M4.1** `PlayerProfile` (+`IsGuest`), `EmergencyContact`; configs + repository. - Done: entities/configs exist, profile/waiver repositories are registered, and schema tests remain green. - Stories: PROF-1,2,3.

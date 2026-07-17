@@ -137,10 +137,13 @@ first-class acceptance tests, traced to the story IDs in `requirements.md`.
 - **Resolved — membership model:** support both monthly membership eligibility and
   session-specific guest/drop-in eligibility. They are separate ledger/eligibility concepts;
   neither is manually marked paid.
-- **Resolved — UI-first delivery with seed data:** build the MAUI/XAML client first; the Function
-  App, web services, and database (milestones M1–M10) are deferred. Any story needing the backend is
-  satisfied in the client phase by a **seed-data provider** behind the same client service interface,
-  later swapped for the typed API client (M11.1) with no page/page-model change. See §12.
+- **Resolved - UI-first delivery with seed data:** the first MAUI/XAML screens were built against
+  seed-data providers behind client service interfaces. The backend is now substantially implemented
+  through M9; current work preserves Seed mode while wiring those same interfaces to API-mode clients.
+- **Resolved - current sign-in model:** users sign in by entering a phone number. SouthBaySoccer
+  calls Pickup Pal to confirm that the submitted phone number exists in Pickup Pal's database, syncs
+  local identity/profile records, and issues SouthBaySoccer access/refresh tokens. WhatsApp
+  challenge links and callback verification are deferred.
 - Whether SMS (Twilio) ships in v1 or later (cost + A2P 10DLC registration).
 - Team-balancing algorithm for TEAM-2 (manual vs. rating-weighted auto-balance).
 - **Resolved - 4-captain topology:** three captains means three separate teams and four captains means four separate teams. Two-captain nights
@@ -177,7 +180,7 @@ appear behind it.
 2. Content area with 16-dip horizontal padding and 20-dip top padding.
    - `WELCOME BACK` using `TextLabel`.
    - `Your next game starts here.` using `TextH1`.
-   - explanatory WhatsApp/Pickup Pal copy using `TextCaption`.
+   - explanatory phone/Pickup Pal copy using `TextCaption`.
 3. Phone-number input surface.
    - Font Awesome phone glyph.
    - phone input with telephone keyboard and international-format validation.
@@ -238,7 +241,7 @@ the repository.
 ```text
 WelcomeBackPage
   -> WelcomeBackPageModel
-       -> IAuthenticationClient.RequestWhatsAppChallengeAsync(...)
+       -> IAuthenticationClient.SignInByPhoneAsync(...)
        -> IExternalLauncher.OpenPickupPalBotAsync(...)
        -> IExternalLauncher.OpenPickupPalSignupAsync(...)
        -> ISecureTokenStore
@@ -250,7 +253,7 @@ WelcomeBackPage
 - `PhoneNumber`;
 - `PhoneNumberError`;
 - `IsBusy`;
-- `RequestWhatsAppChallengeCommand`;
+- `RequestWhatsAppChallengeCommand` (legacy command name; current behavior is phone sign-in);
 - `OpenPickupPalBotCommand`;
 - `OpenPickupPalSignupCommand`;
 - phone sign-in completion through an injected authentication coordinator.
@@ -297,9 +300,10 @@ navigation or browser return alone; only a successful Pickup Pal phone lookup fo
 
 ## 12. Seed-data strategy (UI-first phase)
 
-Delivery is **UI-first**: build and demo the MAUI screens before the backend exists. The backend
-milestones (M1–M10: Domain, Application, Infrastructure, Functions, Azure SQL) are deferred. To keep
-the client unblocked:
+Delivery began **UI-first**: the first MAUI screens were built and demoed against seed providers
+before the backend was ready. Backend features are now substantially implemented through M9, but the
+seed strategy still matters because Seed mode remains the deterministic demo/test provider while API
+mode is wired screen by screen. To keep the client stable:
 
 - **Depend on interfaces, not the API.** Page models depend only on client service abstractions
   (e.g. `IAuthenticationClient`, `ISessionsClient`, `IRosterClient`, `IStatsClient`,
@@ -320,6 +324,5 @@ the client unblocked:
   (transactions, webhooks, idempotency, authorization) is re-run when the corresponding backend
   milestone is implemented. UI-only scenarios (e.g. AUTH-7 composition, accessibility) are fully
   verifiable now.
-
 
 
