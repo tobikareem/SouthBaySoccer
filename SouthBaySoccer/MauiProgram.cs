@@ -150,6 +150,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IExternalLauncher, ExternalLauncher>();
 
         builder.Services.AddTransientWithShellRoute<SessionDetailPage, SessionDetailPageModel>("session");
+        builder.Services.AddTransientWithShellRoute<SchedulePage, SchedulePageModel>("schedule");
         builder.Services.AddTransientWithShellRoute<CreateSessionPage, CreateSessionPageModel>("create-session");
         builder.Services.AddTransientWithShellRoute<CaptainAssignmentPage, CaptainAssignmentPageModel>("captains");
         builder.Services.AddTransientWithShellRoute<TeamDraftPage, TeamDraftPageModel>("draft");

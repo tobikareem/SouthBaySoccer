@@ -160,10 +160,15 @@ public class CreateSessionScreenXamlTests
     }
 
     [Fact]
-    public void CreateSessionScreen_DoesNotDeclareUnusedToolkitNamespace() =>
-        ReadXaml().Should().NotContain(
-            "xmlns:toolkit",
-            "the toolkit namespace is unused now that Entry text changes are code-behind wired");
+    public void CreateSessionScreen_ToolkitNamespaceIsUsedByDeclaredResources()
+    {
+        // The toolkit namespace exists solely for the InvertedBoolConverter that the cancelled-state
+        // bindings reference; if that usage ever goes away the namespace must go with it.
+        var xaml = ReadXaml();
+
+        xaml.Should().Contain("toolkit:InvertedBoolConverter", "the cancelled-state bindings need the converter");
+        xaml.Should().Contain("Converter={StaticResource InvertedBool}", "declared resources must be consumed");
+    }
 
     [Fact]
     public void CreateSessionScreen_AddVenueButtonVisibilityTracksQueryNoveltyNotCreationState()

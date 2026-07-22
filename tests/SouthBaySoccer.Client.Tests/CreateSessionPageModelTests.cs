@@ -6,12 +6,69 @@ using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
+using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Contracts.Common;
 
 namespace SouthBaySoccer.Client.Tests;
 
 public class CreateSessionPageModelTests
 {
+    [Fact]
+    public async Task DeleteManagedSession_WhenConfirmed_DeletesAndRefreshesList()
+    {
+        var session = new ManagedSessionDto(
+            Guid.NewGuid(), "Saturday pickup", "Jul 25", "7:00 PM", "Marina Field", "7v7", 20, "Published");
+        var adminClient = new Mock<ISessionAdminClient>();
+        adminClient.SetupSequence(x => x.ListManagedSessionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session])
+            .ReturnsAsync([]);
+        adminClient.Setup(x => x.GetDefaultsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.CreateSessionDefaults);
+        adminClient.Setup(x => x.DeleteSessionAsync(session.SessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Success);
+        var dialog = new Mock<IUserDialogService>();
+        dialog.Setup(x => x.ShowConfirmationAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var pageModel = new CreateSessionPageModel(
+            adminClient.Object,
+            Mock.Of<ISessionsNavigator>(),
+            dialog.Object);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        await pageModel.DeleteManagedSessionCommand.ExecuteAsync(session);
+
+        adminClient.Verify(
+            x => x.DeleteSessionAsync(session.SessionId, It.IsAny<CancellationToken>()),
+            Times.Once);
+        pageModel.ManagedSessions.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task DeleteManagedSession_WhenConfirmationDeclined_DoesNotDelete()
+    {
+        var session = new ManagedSessionDto(
+            Guid.NewGuid(), "Saturday pickup", "Jul 25", "7:00 PM", "Marina Field", "7v7", 20, "Published");
+        var dialog = new Mock<IUserDialogService>();
+        dialog.Setup(x => x.ShowConfirmationAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        var adminClient = new Mock<ISessionAdminClient>();
+        var pageModel = new CreateSessionPageModel(
+            adminClient.Object,
+            Mock.Of<ISessionsNavigator>(),
+            dialog.Object);
+
+        await pageModel.DeleteManagedSessionCommand.ExecuteAsync(session);
+
+        adminClient.Verify(
+            x => x.DeleteSessionAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static T? GetContractProperty<T>(object target, string propertyName)
     {
         var property = target.GetType().GetProperty(propertyName);
@@ -32,7 +89,7 @@ public class CreateSessionPageModelTests
     {
         state = new SeedState();
         navigator = new Mock<ISessionsNavigator>();
-        return new CreateSessionPageModel(new SeedSessionAdminClient(state), navigator.Object);
+        return new CreateSessionPageModel(new SeedSessionAdminClient(state), navigator.Object, Mock.Of<IUserDialogService>());
     }
 
     private static CreateSessionPageModel MockBackedModel(
@@ -47,7 +104,7 @@ public class CreateSessionPageModelTests
             .Setup(client => client.ListManagedSessionsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         navigator = new Mock<ISessionsNavigator>();
-        return new CreateSessionPageModel(adminClient.Object, navigator.Object);
+        return new CreateSessionPageModel(adminClient.Object, navigator.Object, Mock.Of<IUserDialogService>());
     }
 
     private static CreateSessionDefaultsDto DeniedDefaults() =>
@@ -258,7 +315,7 @@ public class CreateSessionPageModelTests
             .Setup(client => client.GetDefaultsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(DeniedDefaults());
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
-        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object);
+        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object, Mock.Of<IUserDialogService>());
 
         await pageModel.LoadCommand.ExecuteAsync(null);
 
@@ -275,7 +332,7 @@ public class CreateSessionPageModelTests
             .Setup(client => client.GetDefaultsAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("offline"));
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
-        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object);
+        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object, Mock.Of<IUserDialogService>());
 
         await pageModel.LoadCommand.ExecuteAsync(null);
 
@@ -295,7 +352,7 @@ public class CreateSessionPageModelTests
             .Setup(client => client.GetDefaultsAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Response status code does not indicate success: 401.", null, HttpStatusCode.Unauthorized));
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
-        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object);
+        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object, Mock.Of<IUserDialogService>());
 
         await pageModel.LoadCommand.ExecuteAsync(null);
 
@@ -312,7 +369,7 @@ public class CreateSessionPageModelTests
             .Setup(client => client.GetDefaultsAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("boom"));
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
-        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object);
+        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object, Mock.Of<IUserDialogService>());
 
         var act = () => pageModel.LoadCommand.ExecuteAsync(null);
 
@@ -334,7 +391,7 @@ public class CreateSessionPageModelTests
                 "Unexpected error",
                 "The session admin service is temporarily unavailable."));
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
-        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object);
+        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object, Mock.Of<IUserDialogService>());
 
         await pageModel.LoadCommand.ExecuteAsync(null);
 
@@ -372,7 +429,7 @@ public class CreateSessionPageModelTests
             .Callback<string?, CancellationToken>((query, _) => searched = query)
             .ReturnsAsync([SeedFixtures.Venues.Single(venue => venue.Name == "Stanford Turf")]);
         var navigator = new Mock<ISessionsNavigator>();
-        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object);
+        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object, Mock.Of<IUserDialogService>());
         await pageModel.LoadCommand.ExecuteAsync(null);
 
         await pageModel.SearchVenuesCommand.ExecuteAsync("stanford");
@@ -606,7 +663,7 @@ public class CreateSessionPageModelTests
         navigator
             .Setup(item => item.GoToSessionAsync(sessionId))
             .Returns(Task.CompletedTask);
-        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object);
+        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object, Mock.Of<IUserDialogService>());
         await pageModel.LoadCommand.ExecuteAsync(null);
 
         await pageModel.PublishToTeamCommand.ExecuteAsync(null);
@@ -786,7 +843,7 @@ public class CreateSessionPageModelTests
         navigator
             .Setup(item => item.GoToSessionAsync(sessionId))
             .Returns(Task.CompletedTask);
-        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object);
+        var pageModel = new CreateSessionPageModel(adminClient.Object, navigator.Object, Mock.Of<IUserDialogService>());
         await pageModel.LoadCommand.ExecuteAsync(null);
 
         pageModel.CheckInOpen = new TimeSpan(19, 25, 0);
@@ -928,4 +985,3 @@ public class CreateSessionPageModelTests
             Times.Never);
     }
 }
-

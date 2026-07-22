@@ -1,4 +1,5 @@
 using SouthBaySoccer.Contracts.Sessions;
+using SouthBaySoccer.Contracts.Common;
 
 namespace SouthBaySoccer.Services.Clients;
 
@@ -43,5 +44,10 @@ public interface ISessionAdminClient
     /// draft again returns the original session id without creating a duplicate.
     /// </summary>
     Task<CreateSessionResult> PublishAsync(Guid draftId, CancellationToken cancellationToken);
-}
 
+    /// <summary>Cancels/disables a session while keeping it visible to players.</summary>
+    Task<ClientCommandResult> CancelSessionAsync(Guid sessionId, CancellationToken cancellationToken);
+
+    /// <summary>Soft-deletes a session so ordinary admin and player queries no longer return it.</summary>
+    Task<ClientCommandResult> DeleteSessionAsync(Guid sessionId, CancellationToken cancellationToken);
+}

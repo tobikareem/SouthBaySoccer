@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using SouthBaySoccer.Contracts.Sessions;
+using SouthBaySoccer.Contracts.Common;
 
 namespace SouthBaySoccer.Services.Clients;
 
@@ -148,6 +149,27 @@ public sealed class ApiSessionAdminClient(HttpClient httpClient) : ISessionAdmin
             return result;
         });
 
+    public Task<ClientCommandResult> CancelSessionAsync(Guid sessionId, CancellationToken cancellationToken) =>
+        ExecuteCommandAsync(async () =>
+        {
+            using var response = await SendJsonAsync(
+                HttpMethod.Post,
+                $"sessions/{sessionId}/cancel",
+                new CancelSessionRequest("Cancelled by administrator."),
+                idempotencyKey: null,
+                cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return ClientCommandResult.Success;
+        });
+
+    public Task<ClientCommandResult> DeleteSessionAsync(Guid sessionId, CancellationToken cancellationToken) =>
+        ExecuteCommandAsync(async () =>
+        {
+            using var response = await httpClient.DeleteAsync($"sessions/{sessionId}", cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return ClientCommandResult.Success;
+        });
+
     /// <summary>
     /// Runs a create/update/publish operation, converting a 4xx <see cref="ApiRequestException"/> (the
     /// server's problem-details response) into a <see cref="CreateSessionResult.Failure"/> carrying the
@@ -171,6 +193,18 @@ public sealed class ApiSessionAdminClient(HttpClient httpClient) : ISessionAdmin
 
     private static bool IsClientError(HttpStatusCode? statusCode) =>
         statusCode is >= HttpStatusCode.BadRequest and < HttpStatusCode.InternalServerError;
+
+    private static async Task<ClientCommandResult> ExecuteCommandAsync(Func<Task<ClientCommandResult>> operation)
+    {
+        try
+        {
+            return await operation();
+        }
+        catch (ApiRequestException ex) when (IsClientError(ex.StatusCode))
+        {
+            return ClientCommandResult.Failure($"http_{(int)ex.StatusCode!.Value}", ex.UserMessage);
+        }
+    }
 
     private async Task<HttpResponseMessage> SendJsonAsync<T>(
         HttpMethod method,
@@ -206,4 +240,3 @@ public sealed class ApiSessionAdminClient(HttpClient httpClient) : ISessionAdmin
     private static VenueDto ToVenueDto(VenueResponse venue) =>
         new(venue.VenueId, venue.Name, venue.Locality, true);
 }
-

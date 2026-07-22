@@ -125,6 +125,12 @@ public sealed class CreateSessionDraftCommandHandler(
         var createCommand = ToCreateSessionCommand(command, season.Id, venue.Id, SessionStatus.Draft);
 
         await validator.ValidateAndThrowAsync(createCommand, cancellationToken);
+        await CreateSessionCommandHandler.EnsureNotDuplicateAsync(
+            sessionRepository,
+            createCommand.VenueId,
+            createCommand.Title,
+            createCommand.StartsAtUtc,
+            cancellationToken);
         var session = new Session
         {
             Id = Guid.NewGuid(),

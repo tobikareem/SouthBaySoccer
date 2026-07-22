@@ -34,6 +34,23 @@ Scenario: Admin updates an existing created session
   And no duplicate session is created
   And the session remains open for future updates
 
+Scenario: Admin cancels a session without removing it
+  Given I have CanManageSessions
+  And a created or published session exists
+  When I cancel or disable that session
+  Then the session status is changed to Canceled
+  And the session remains visible in the admin list and player Sessions feed
+  And the session card and detail screen show "Session has been cancelled"
+  And players cannot RSVP to the canceled session
+
+Scenario: Admin deletes a session
+  Given I have CanManageSessions
+  And a created, published, or canceled session exists
+  When I delete that session
+  Then the session is soft-deleted with its audit history preserved
+  And it no longer appears in the admin list or player Sessions feed
+  And requesting it by id returns not found
+
 Scenario: Required fields are validated
   Given I am creating a session
   When game date, start time, location, capacity, or format is missing
@@ -58,5 +75,7 @@ Scenario: Unauthorized user cannot create a session
 - Publishing creates the player-facing session card used by `SES-6` and `RSVP-8`.
 - Created sessions are listed on the admin screen and can be reopened for updates; updates modify the
   existing session rather than creating another one.
+- Cancel/disable is reversible in persistence terms and keeps the session visible with a cancellation
+  placard. Delete is a soft delete and removes the session from all ordinary queries.
 - Check-in defaults can be generated from start time, but admins can adjust them before publish.
 - The backend stores UTC timestamps; the UI displays venue-local date/time.

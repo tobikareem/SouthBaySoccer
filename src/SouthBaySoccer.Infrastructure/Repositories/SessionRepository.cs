@@ -14,12 +14,27 @@ internal sealed class SessionRepository(SouthBaySoccerDbContext dbContext) : ISe
     public Task<Session?> FindByOccurrenceKeyAsync(string occurrenceKey, CancellationToken cancellationToken = default) =>
         dbContext.Sessions.SingleOrDefaultAsync(x => x.OccurrenceKey == occurrenceKey, cancellationToken);
 
+    // Title equality relies on the database's default case-insensitive collation; canceled
+    // sessions are excluded so a replacement for a canceled game is not treated as a duplicate.
+    public Task<bool> ExistsDuplicateAsync(
+        Guid venueId,
+        string title,
+        DateTime startsAtUtc,
+        CancellationToken cancellationToken = default) =>
+        dbContext.Sessions.AnyAsync(
+            x => x.VenueId == venueId
+                && x.Title == title
+                && x.StartsAtUtc == startsAtUtc
+                && x.Status != SessionStatus.Canceled,
+            cancellationToken);
+
     public async Task<IReadOnlyList<Session>> ListUpcomingAsync(
         DateTime fromUtc,
         int take,
         CancellationToken cancellationToken = default) =>
         await dbContext.Sessions
-            .Where(x => x.StartsAtUtc >= fromUtc && x.Status != SessionStatus.Canceled)
+            .Where(x => x.StartsAtUtc >= fromUtc
+                && (x.Status == SessionStatus.Published || x.Status == SessionStatus.Canceled))
             .OrderBy(x => x.StartsAtUtc)
             .Take(take)
             .ToArrayAsync(cancellationToken);
@@ -29,7 +44,7 @@ internal sealed class SessionRepository(SouthBaySoccerDbContext dbContext) : ISe
         int take,
         CancellationToken cancellationToken = default) =>
         await dbContext.Sessions
-            .Where(x => x.StartsAtUtc >= fromUtc && x.Status != SessionStatus.Canceled)
+            .Where(x => x.StartsAtUtc >= fromUtc)
             .OrderBy(x => x.StartsAtUtc)
             .Take(take)
             .ToArrayAsync(cancellationToken);

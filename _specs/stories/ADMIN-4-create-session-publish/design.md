@@ -23,6 +23,9 @@ Layout:
    - team count/captain mode selector for 2, 3, or 4 teams.
 6. Publish preview card showing how the session will appear to players.
 7. Primary action: `Publish to team` for a new session or `Update session` after an admin opens an existing session.
+8. Each created-session row exposes `Cancel session` (for active sessions) and `Delete session`.
+   Cancel keeps the row visible with a `Session has been cancelled` placard; delete requires
+   confirmation and removes the row after the server soft-deletes it.
 
 ## State and services
 
@@ -35,6 +38,8 @@ CreateSessionPageModel
   -> ISessionAdminClient.CreateDraftAsync(command)
   -> ISessionAdminClient.PublishAsync(sessionId)
   -> ISessionAdminClient.UpdateSessionAsync(sessionId, command)
+  -> ISessionAdminClient.CancelSessionAsync(sessionId)
+  -> ISessionAdminClient.DeleteSessionAsync(sessionId)
   -> ISessionsNavigator.OpenSessionDetail(sessionId)
 ```
 
@@ -51,3 +56,7 @@ server UTC timestamps, and audited create/publish/update commands.
 - RSVP deadline cannot be after session start.
 - Publishing is idempotent; duplicate taps should not create duplicate sessions.
 - Updating an existing session must preserve the session id and should not create another feed card.
+- Cancel and delete actions are server-authorized with `CanManageSessions`; hidden client controls are
+  not an authorization boundary.
+- Delete uses HTTP `DELETE /sessions/{sessionId}` and soft deletion. Cancel/disable uses
+  `POST /sessions/{sessionId}/cancel` and the existing `Canceled` status.

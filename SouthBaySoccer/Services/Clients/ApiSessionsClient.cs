@@ -21,6 +21,8 @@ namespace SouthBaySoccer.Services.Clients;
 public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timeProvider) : ISessionsClient
 {
     private const string PublishedStatus = "Published";
+    private const string CanceledStatus = "Canceled";
+    private const string CanceledLabel = "Cancelled";
     private const string GoingState = "Going";
     private const string YouAreGoingLabel = "You're going";
     private const string OpenLabel = "Open";
@@ -33,7 +35,7 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
     public async Task<SessionsDashboardDto> GetDashboardAsync(CancellationToken cancellationToken)
     {
         var upcoming = await GetPublishedUpcomingAsync(cancellationToken);
-        var featured = upcoming.FirstOrDefault();
+        var featured = upcoming.FirstOrDefault(session => !IsCanceled(session));
 
         SessionSummaryDto? featuredSummary = null;
         if (featured is not null)
@@ -51,7 +53,13 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
             StatsPrompt: null,
             "Coming up",
             "See schedule",
-            upcoming.Skip(1).Select(session => ToSummary(session, OpenLabel, relativeLabel: null)).ToArray(),
+            upcoming
+                .Where(session => session.SessionId != featured?.SessionId)
+                .Select(session => ToSummary(
+                    session,
+                    IsCanceled(session) ? CanceledLabel : OpenLabel,
+                    relativeLabel: null))
+                .ToArray(),
             CanManageSessions: false);
     }
 
@@ -66,7 +74,8 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
             return null;
         }
 
-        var myRsvp = await GetMyRsvpAsync(sessionId, cancellationToken);
+        var isCanceled = IsCanceled(session);
+        var myRsvp = isCanceled ? null : await GetMyRsvpAsync(sessionId, cancellationToken);
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         var localStart = ToLocal(session.StartsAtUtc);
 
@@ -82,8 +91,9 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
             session.Capacity,
             DeadlineLabel: BuildDeadlineLabel(session.RsvpDeadlineUtc, nowUtc),
             IsFull: false,
-            IsRsvpAvailable: nowUtc < session.RsvpDeadlineUtc,
-            IsGoing: myRsvp?.State == GoingState);
+            IsRsvpAvailable: !isCanceled && nowUtc < session.RsvpDeadlineUtc,
+            IsGoing: myRsvp?.State == GoingState,
+            IsCanceled: isCanceled);
     }
 
     public Task<ClientCommandResult> JoinWaitlistAsync(
@@ -119,7 +129,9 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
             ?? Array.Empty<SessionAdminResponse>();
 
         return sessions
-            .Where(session => string.Equals(session.Status, PublishedStatus, StringComparison.OrdinalIgnoreCase))
+            .Where(session =>
+                string.Equals(session.Status, PublishedStatus, StringComparison.OrdinalIgnoreCase)
+                || IsCanceled(session))
             .OrderBy(session => session.StartsAtUtc)
             .ToArray();
     }
@@ -183,8 +195,29 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
             session.Capacity,
             IsFull: false,
             WaitlistCount: 0,
-            relativeLabel);
+            relativeLabel,
+            IsCanceled(session),
+            DeadlineLabel: BuildSummaryDeadlineLabel(session));
     }
+
+    private string? BuildSummaryDeadlineLabel(SessionAdminResponse session)
+    {
+        if (IsCanceled(session))
+        {
+            return null;
+        }
+
+        if (timeProvider.GetUtcNow().UtcDateTime >= session.RsvpDeadlineUtc)
+        {
+            return "RSVP closed";
+        }
+
+        var localDeadline = ToLocal(session.RsvpDeadlineUtc);
+        return $"RSVP closes {localDeadline.ToString("ddd h:mm tt", CultureInfo.InvariantCulture)}";
+    }
+
+    private static bool IsCanceled(SessionAdminResponse session) =>
+        string.Equals(session.Status, CanceledStatus, StringComparison.OrdinalIgnoreCase);
 
     private string? BuildRelativeLabel(DateTime startsAtUtc)
     {

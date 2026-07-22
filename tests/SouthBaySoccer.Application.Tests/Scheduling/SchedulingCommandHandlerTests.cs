@@ -1,6 +1,7 @@
 using FluentAssertions;
 using FluentValidation;
 using Moq;
+using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Scheduling;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Enumerations;
@@ -31,6 +32,48 @@ public sealed class SchedulingCommandHandlerTests
         var act = () => handler.HandleAsync(command);
 
         await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenDuplicateSessionExists_ThrowsConflictWithoutSaving()
+    {
+        var command = ValidCreateSessionCommand();
+        var sessionRepository = new Mock<ISessionRepository>();
+        sessionRepository
+            .Setup(x => x.ExistsDuplicateAsync(
+                command.VenueId,
+                command.Title,
+                command.StartsAtUtc,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var unitOfWork = CreateSavingUnitOfWork();
+        var handler = CreateSessionHandler(sessionRepository, unitOfWork);
+
+        var act = () => handler.HandleAsync(command);
+
+        await act.Should().ThrowAsync<ApplicationConflictException>();
+        unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenNoDuplicateExists_CreatesSession()
+    {
+        var command = ValidCreateSessionCommand();
+        var sessionRepository = new Mock<ISessionRepository>();
+        sessionRepository
+            .Setup(x => x.ExistsDuplicateAsync(
+                It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        var unitOfWork = CreateSavingUnitOfWork();
+        var handler = CreateSessionHandler(sessionRepository, unitOfWork);
+
+        var result = await handler.HandleAsync(command);
+
+        result.Title.Should().Be(command.Title);
+        sessionRepository.Verify(
+            x => x.AddAsync(It.IsAny<Session>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -87,6 +130,37 @@ public sealed class SchedulingCommandHandlerTests
         result.SessionId.Should().Be(existingSession.Id);
         result.OccurrenceKey.Should().Be(expectedOccurrenceKey);
         sessionRepository.Verify(x => x.AddAsync(It.IsAny<Session>(), It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenDeletingExistingSession_SoftDeletesAndSaves()
+    {
+        var session = new Session { Id = Guid.NewGuid(), Title = "Saturday pickup" };
+        var sessionRepository = new Mock<ISessionRepository>();
+        sessionRepository
+            .Setup(x => x.GetByIdAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+        var unitOfWork = CreateSavingUnitOfWork();
+        var handler = new DeleteSessionCommandHandler(sessionRepository.Object, unitOfWork.Object);
+
+        await handler.HandleAsync(new DeleteSessionCommand(session.Id));
+
+        sessionRepository.Verify(x => x.SoftDelete(session), Times.Once);
+        unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenDeletingMissingSession_ThrowsNotFoundWithoutSaving()
+    {
+        var sessionRepository = new Mock<ISessionRepository>();
+        var unitOfWork = CreateSavingUnitOfWork();
+        var handler = new DeleteSessionCommandHandler(sessionRepository.Object, unitOfWork.Object);
+
+        var act = () => handler.HandleAsync(new DeleteSessionCommand(Guid.NewGuid()));
+
+        await act.Should().ThrowAsync<ApplicationNotFoundException>();
+        sessionRepository.Verify(x => x.SoftDelete(It.IsAny<Session>()), Times.Never);
         unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 

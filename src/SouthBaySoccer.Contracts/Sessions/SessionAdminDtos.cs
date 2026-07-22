@@ -39,7 +39,8 @@ public sealed record ManagedSessionDto(
     string VenueName,
     string Format,
     int Capacity,
-    string StatusLabel);
+    string StatusLabel,
+    bool IsCanceled = false);
 
 /// <summary>Editable session details loaded into the admin create/update form.</summary>
 public sealed record ManagedSessionEditDto(
@@ -90,4 +91,3 @@ public sealed record CreateSessionResult(
     public static CreateSessionResult Failure(string errorCode, string errorMessage) =>
         new(false, Guid.Empty, errorCode, errorMessage);
 }
-

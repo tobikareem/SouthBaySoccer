@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.SchedulePage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:sessions="clr-namespace:SouthBaySoccer.Contracts.Sessions;assembly=SouthBaySoccer.Contracts"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="ScheduleRoot"
+    x:DataType="pageModels:SchedulePageModel"
+    Shell.FlyoutBehavior="Disabled"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Schedule">
+
+    <ContentPage.Resources>
+        <toolkit:InvertedBoolConverter x:Key="InvertedBool" />
+        <toolkit:IsStringNotNullOrEmptyConverter x:Key="IsNotNullOrEmpty" />
+    </ContentPage.Resources>
+
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference ScheduleRoot}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+
+    <Grid RowDefinitions="Auto,*">
+        <controls:BrandHeader Grid.Row="0"
+                              Title="Schedule"
+                              Subtitle="Upcoming sessions"
+                              ShowBack="True"
+                              BackCommand="{Binding GoBackCommand}" />
+
+        <controls:StateView Grid.Row="1"
+                            State="{Binding State}"
+                            Title="{Binding StateTitle}"
+                            Message="{Binding StateMessage}"
+                            Glyph="{x:Static fonts:FontAwesomeGlyphs.Calendar}"
+                            GlyphFontFamily="FontAwesomeSolid"
+                            RetryCommand="{Binding RefreshCommand}">
+            <RefreshView Command="{Binding RefreshCommand}"
+                         IsRefreshing="{Binding IsRefreshing, Mode=TwoWay}">
+                <ScrollView>
+                    <!-- BindableLayout (not CollectionView): this list lives inside the page's
+                         ScrollView, and a vertically-scrolling CollectionView nested in a vertical
+                         ScrollView causes an unbounded measure pass / ANR on Android. The schedule
+                         list is small, so a BindableLayout is the correct, scroll-safe container. -->
+                    <VerticalStackLayout Padding="{StaticResource LayoutPadding}"
+                                         Spacing="{StaticResource SpaceMd}"
+                                         BindableLayout.ItemsSource="{Binding Groups}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="pageModels:ScheduleGroup">
+                                <VerticalStackLayout Spacing="{StaticResource SpaceMd}">
+                                    <Label Text="{Binding Title}"
+                                           Style="{StaticResource TextLabel}"
+                                           SemanticProperties.HeadingLevel="Level2" />
+                                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Sessions}"
+                                                         Spacing="{StaticResource SpaceMd}">
+                                        <BindableLayout.ItemTemplate>
+                                            <DataTemplate x:DataType="sessions:SessionSummaryDto">
+                                                <controls:BrandCard>
+                                                    <SemanticProperties.Description>
+                                                        <MultiBinding StringFormat="{}{0} — {1}">
+                                                            <Binding Path="Title" />
+                                                            <Binding Path="StatusLabel" />
+                                                        </MultiBinding>
+                                                    </SemanticProperties.Description>
+                                                    <controls:BrandCard.Triggers>
+                                                        <DataTrigger TargetType="controls:BrandCard"
+                                                                     Binding="{Binding IsCanceled}"
+                                                                     Value="True">
+                                                            <Setter Property="Opacity" Value="0.7" />
+                                                        </DataTrigger>
+                                                    </controls:BrandCard.Triggers>
+                                                    <controls:BrandCard.GestureRecognizers>
+                                                        <TapGestureRecognizer
+                                                            Command="{Binding Source={x:Reference ScheduleRoot}, Path=BindingContext.ViewSessionDetailCommand, x:DataType=ContentPage}"
+                                                            CommandParameter="{Binding Id}" />
+                                                    </controls:BrandCard.GestureRecognizers>
+                                                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                                            <Label Text="{Binding Title}"
+                                                                   Style="{StaticResource TextBodyStrong}"
+                                                                   VerticalOptions="Center">
+                                                                <Label.Triggers>
+                                                                    <DataTrigger TargetType="Label"
+                                                                                 Binding="{Binding IsCanceled}"
+                                                                                 Value="True">
+                                                                        <Setter Property="TextDecorations" Value="Strikethrough" />
+                                                                    </DataTrigger>
+                                                                </Label.Triggers>
+                                                            </Label>
+                                                            <controls:Badge Grid.Column="1"
+                                                                            Text="{Binding StatusLabel}"
+                                                                            Variant="Success">
+                                                                <controls:Badge.Triggers>
+                                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding IsFull}" Value="True">
+                                                                        <Setter Property="Variant" Value="Danger" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding IsCanceled}" Value="True">
+                                                                        <Setter Property="Variant" Value="Danger" />
+                                                                    </DataTrigger>
+                                                                </controls:Badge.Triggers>
+                                                            </controls:Badge>
+                                                        </Grid>
+                                                        <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
+                                                            <Border Style="{StaticResource MetadataChip}">
+                                                                <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                                                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.Calendar}"
+                                                                           FontFamily="FontAwesomeSolid"
+                                                                           Style="{StaticResource TextCaption}" />
+                                                                    <Label Text="{Binding DateLabel}" Style="{StaticResource TextCaption}" />
+                                                                </HorizontalStackLayout>
+                                                            </Border>
+                                                            <Border Style="{StaticResource MetadataChip}">
+                                                                <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                                                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}"
+                                                                           FontFamily="FontAwesomeSolid"
+                                                                           Style="{StaticResource TextCaption}" />
+                                                                    <Label Text="{Binding TimeLabel}" Style="{StaticResource TextCaption}" />
+                                                                </HorizontalStackLayout>
+                                                            </Border>
+                                                            <Border Style="{StaticResource MetadataChip}">
+                                                                <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                                                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.Users}"
+                                                                           FontFamily="FontAwesomeSolid"
+                                                                           Style="{StaticResource TextCaption}" />
+                                                                    <Label Text="{Binding Format}" Style="{StaticResource TextCaption}" />
+                                                                </HorizontalStackLayout>
+                                                            </Border>
+                                                        </HorizontalStackLayout>
+                                                        <controls:CapacityBar Current="{Binding GoingCount}"
+                                                                              Max="{Binding Capacity}"
+                                                                              IsVisible="{Binding IsCanceled, Converter={StaticResource InvertedBool}}" />
+                                                        <Label Text="{Binding DeadlineLabel}"
+                                                               Style="{StaticResource TextCaption}"
+                                                               HorizontalOptions="End"
+                                                               IsVisible="{Binding DeadlineLabel, Converter={StaticResource IsNotNullOrEmpty}}" />
+                                                        <Label Text="Cancelled by the organizer — watch the team feed for a replacement."
+                                                               Style="{StaticResource TextCaption}"
+                                                               IsVisible="{Binding IsCanceled}" />
+                                                    </VerticalStackLayout>
+                                                </controls:BrandCard>
+                                            </DataTemplate>
+                                        </BindableLayout.ItemTemplate>
+                                    </VerticalStackLayout>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </ScrollView>
+            </RefreshView>
+        </controls:StateView>
+    </Grid>
+</ContentPage>

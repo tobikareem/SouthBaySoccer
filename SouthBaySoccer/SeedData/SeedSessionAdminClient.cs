@@ -1,4 +1,5 @@
 using SouthBaySoccer.Contracts.Sessions;
+using SouthBaySoccer.Contracts.Common;
 using SouthBaySoccer.Services.Clients;
 
 namespace SouthBaySoccer.SeedData;
@@ -69,5 +70,17 @@ public sealed class SeedSessionAdminClient(SeedState state) : ISessionAdminClien
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(state.Publish(draftId));
+    }
+
+    public Task<ClientCommandResult> CancelSessionAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(state.CancelSession(sessionId));
+    }
+
+    public Task<ClientCommandResult> DeleteSessionAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(state.DeleteSession(sessionId));
     }
 }

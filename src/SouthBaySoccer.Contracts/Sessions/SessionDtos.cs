@@ -24,7 +24,9 @@ public sealed record SessionSummaryDto(
     int Capacity,
     bool IsFull,
     int WaitlistCount,
-    string? RelativeLabel);
+    string? RelativeLabel,
+    bool IsCanceled = false,
+    string? DeadlineLabel = null);
 
 public sealed record StatsPromptDto(
     Guid MatchId,
@@ -44,4 +46,5 @@ public sealed record SessionDetailDto(
     string DeadlineLabel,
     bool IsFull,
     bool IsRsvpAvailable,
-    bool IsGoing);
+    bool IsGoing,
+    bool IsCanceled = false);

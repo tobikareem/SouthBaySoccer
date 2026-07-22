@@ -35,6 +35,7 @@
     <Compile Include="..\..\SouthBaySoccer\PageModels\WelcomeBackPageModel.cs" Link="Client\PageModels\WelcomeBackPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\SessionsHomePageModel.cs" Link="Client\PageModels\SessionsHomePageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\SessionDetailPageModel.cs" Link="Client\PageModels\SessionDetailPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\SchedulePageModel.cs" Link="Client\PageModels\SchedulePageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\CreateSessionPageModel.cs" Link="Client\PageModels\CreateSessionPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\ProfilePageModel.cs" Link="Client\PageModels\ProfilePageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\LeaderboardPageModel.cs" Link="Client\PageModels\LeaderboardPageModel.cs" />

@@ -124,7 +124,7 @@
     <div>
       <div class="eyebrow">Product design benchmark</div>
       <h1>SouthBaySoccer mobile experience</h1>
-      <p class="sub">Clickable wireframes for sign-in, session RSVP, game-day check-in, captain team selection, player stats, confirmation, ratings, and leaderboards. The design follows the reusable MAUI control system and the green-and-white Pickup Soccer brand.</p>
+      <p class="sub">Clickable wireframes for sign-in, session RSVP, the upcoming-session schedule, game-day check-in, captain team selection, player stats, confirmation, ratings, and leaderboards. The design follows the reusable MAUI control system and the green-and-white Pickup Soccer brand.</p>
     </div>
     <div class="controls" aria-label="Wireframe view">
       <button class="ctl active" id="c-flow" aria-pressed="true" onclick="setView('flow')"><i class="ti ti-device-mobile"></i> Interactive</button>
@@ -177,7 +177,7 @@
           <div class="row"><span class="mini-action" style="background:var(--g);color:#fff"><i class="ti ti-chart-bar"></i></span><div style="flex:1"><div style="font-size:14px;font-weight:700">Submit your latest stats</div><div class="muted">2 goals entered · captain confirmation pending</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div>
         </div>
         <div class="section-row"><div class="label">Admin</div><span class="link" onclick="show('adminsession')"><i class="ti ti-plus"></i> Create session</span></div>
-        <div class="section-row"><div class="label">Coming up</div><span class="link">See schedule</span></div>
+        <div class="section-row"><div class="label">Coming up</div><span class="link" onclick="show('schedule')">See schedule</span></div>
         <div class="card interactive" onclick="show('session')" style="cursor:pointer">
           <div class="row" style="justify-content:space-between"><div style="font-weight:700">Stanford Turf · 5v5</div><span class="pill full">Full</span></div>
           <div class="meta-row"><span class="meta-chip"><i class="ti ti-calendar"></i> Wed Jun 24</span><span class="meta-chip"><i class="ti ti-clock"></i> 7:00 PM</span></div>
@@ -217,7 +217,51 @@
       </div>
     </section>
 
+    <!-- SCHEDULE — full upcoming list grouped by week; reached from home "See schedule".
+         Shows every published session in start order with the same card/pill/capacity grammar as
+         the home "Coming up" cards, plus cancelled sessions kept visible for transparency. -->
+    <section class="screen" data-s="schedule">
+      <div class="ghdr"><span class="flag"></span>
+        <div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div style="flex:1"><div style="font-size:12px;opacity:.85">Upcoming sessions</div><div style="font-size:17px;font-weight:500">Schedule</div></div><span class="pill" style="background:rgba(255,255,255,.16);color:#fff"><i class="ti ti-calendar-event"></i> 5</span></div>
+      </div>
+      <div class="scroll">
+        <div class="label" style="margin-top:6px">This week</div>
+        <div class="card interactive" onclick="show('session')" style="cursor:pointer">
+          <div class="row" style="justify-content:space-between"><div style="font-weight:700">Marina Field · Saturday pickup</div><span class="pill ok"><i class="ti ti-circle-check"></i> You're going</span></div>
+          <div class="meta-row"><span class="meta-chip"><i class="ti ti-calendar"></i> Sat Jun 20</span><span class="meta-chip"><i class="ti ti-clock"></i> 9:00 AM</span><span class="meta-chip"><i class="ti ti-users"></i> 7v7</span></div>
+          <div class="bar"><i style="width:80%"></i></div>
+          <div class="row" style="justify-content:space-between;margin-top:9px"><span class="muted">16 / 20 going</span><span class="muted"><i class="ti ti-clock-hour-4"></i> RSVP closes Fri 5 PM</span></div>
+        </div>
+        <div class="card interactive" onclick="show('session')" style="cursor:pointer">
+          <div class="row" style="justify-content:space-between"><div style="font-weight:700">Stanford Turf · 5v5</div><span class="pill full">Full</span></div>
+          <div class="meta-row"><span class="meta-chip"><i class="ti ti-calendar"></i> Wed Jun 24</span><span class="meta-chip"><i class="ti ti-clock"></i> 7:00 PM</span><span class="meta-chip"><i class="ti ti-users"></i> 5v5</span></div>
+          <div class="bar"><i style="width:100%"></i></div>
+          <div class="row" style="justify-content:space-between;margin-top:9px"><span class="muted">20 / 20 · waitlist 3</span><span class="pill warn">Join waitlist <i class="ti ti-chevron-right"></i></span></div>
+        </div>
 
+        <div class="label" style="margin-top:12px">Next week</div>
+        <div class="card interactive" onclick="show('session')" style="cursor:pointer">
+          <div class="row" style="justify-content:space-between"><div style="font-weight:700">Marina Field · Saturday pickup</div><span class="pill ok">Open</span></div>
+          <div class="meta-row"><span class="meta-chip"><i class="ti ti-calendar"></i> Sat Jun 27</span><span class="meta-chip"><i class="ti ti-clock"></i> 7:40 PM</span><span class="meta-chip"><i class="ti ti-users"></i> 7v7</span></div>
+          <div class="bar"><i style="width:15%"></i></div>
+          <div class="row" style="justify-content:space-between;margin-top:9px"><span class="muted">3 / 20 going</span><span class="muted"><i class="ti ti-clock-hour-4"></i> RSVP closes Sat 6:30 PM</span></div>
+        </div>
+        <div class="card" style="opacity:.72">
+          <div class="row" style="justify-content:space-between"><div style="font-weight:700;text-decoration:line-through">Cuesta Park · 5v5</div><span class="pill full"><i class="ti ti-ban"></i> Cancelled</span></div>
+          <div class="meta-row"><span class="meta-chip"><i class="ti ti-calendar"></i> Tue Jun 30</span><span class="meta-chip"><i class="ti ti-clock"></i> 6:30 PM</span></div>
+          <div class="muted"><i class="ti ti-info-circle"></i> Cancelled by the organizer — watch the team feed for a replacement.</div>
+        </div>
+
+        <div class="label" style="margin-top:12px">July</div>
+        <div class="card interactive" onclick="show('session')" style="cursor:pointer">
+          <div class="row" style="justify-content:space-between"><div style="font-weight:700">Mitchell Park · 9v9</div><span class="pill ok">Open</span></div>
+          <div class="meta-row"><span class="meta-chip"><i class="ti ti-calendar"></i> Sat Jul 4</span><span class="meta-chip"><i class="ti ti-clock"></i> 9:00 AM</span><span class="meta-chip"><i class="ti ti-users"></i> 9v9</span></div>
+          <div class="bar"><i style="width:5%"></i></div>
+          <div class="row" style="justify-content:space-between;margin-top:9px"><span class="muted">1 / 22 going</span><span class="muted"><i class="ti ti-clock-hour-4"></i> RSVP closes Fri 5 PM</span></div>
+        </div>
+        <p class="muted" style="text-align:center;margin-top:14px">Sessions appear here as soon as an admin publishes them.</p>
+      </div>
+    </section>
 
     <!-- ADMIN CREATE SESSION - publish to team RSVP feed -->
     <section class="screen" data-s="adminsession">
@@ -546,7 +590,7 @@
   function rotStep(el,key,d){ var card=el.closest('[data-team-count]'); var max=parseInt(card.dataset.teamCount,10)-1; var box=card.querySelector('[data-rot="'+key+'"]'); var vals={w:0,d:0,l:0}; ['w','d','l'].forEach(function(k){ vals[k]=parseInt(card.querySelector('[data-rot="'+k+'"]').textContent,10); }); var next=Math.max(0,vals[key]+d); var total=vals.w+vals.d+vals.l-vals[key]+next; if(total>max) return; box.textContent=next; total=vals.w+vals.d+vals.l-vals[key]+next; var note=card.querySelector('[data-rot-note] div'); if(note) note.textContent=total+' of '+max+' results recorded. Combined W/D/L cannot exceed teams minus 1.'; }
   function approveStat(btn){ var s=document.createElement('i'); s.className='ti ti-circle-check'; s.style.cssText='color:var(--g);font-size:22px'; btn.replaceWith(s); }
 
-  var order=['signin','home','session','adminsession','gameday','captains','draft','postgame','leaderboard','players','profile','matchstats','rate'];
+  var order=['signin','home','session','schedule','adminsession','gameday','captains','draft','postgame','leaderboard','players','profile','matchstats','rate'];
   function setView(v){
     var stage=document.getElementById('stage'); stage.dataset.view=v; hist=[];
     document.getElementById('c-flow').classList.toggle('active', v==='flow');
