@@ -117,7 +117,9 @@ public static class MauiProgram
         builder.Configuration.AddEnvironmentVariables();
 
         var defaultApiBaseUrl =
-#if DEBUG && ANDROID
+#if RELEASE
+            PickupPalOptions.ProductionApiBaseUrl;
+#elif DEBUG && ANDROID
             PickupPalOptions.AndroidDebugApiBaseUrl;
 #else
             PickupPalOptions.DefaultApiBaseUrl;
