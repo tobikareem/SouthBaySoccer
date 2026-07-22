@@ -96,13 +96,17 @@ public partial class SessionDetailPageModel(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRsvp))]
+    private bool _isCanceled;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanRsvp))]
     private bool _isUpdatingRsvp;
 
     /// <summary>True when a venue is known and a map link can be offered.</summary>
     public bool HasMap => !string.IsNullOrWhiteSpace(Venue);
 
     /// <summary>True when the RSVP toggle may be invoked (content loaded, RSVP open, no update in flight).</summary>
-    public bool CanRsvp => State == ViewState.Content && RsvpAvailable && !IsUpdatingRsvp;
+    public bool CanRsvp => State == ViewState.Content && RsvpAvailable && !IsCanceled && !IsUpdatingRsvp;
 
     /// <summary>Label for the primary RSVP button, reflecting the current intent.</summary>
     public string RsvpButtonText => IsGoing ? "Going — tap to withdraw" : "RSVP — I'm going";
@@ -250,6 +254,7 @@ public partial class SessionDetailPageModel(
         DeadlineLabel = session.DeadlineLabel;
         IsGoing = session.IsGoing;
         RsvpAvailable = session.IsRsvpAvailable;
+        IsCanceled = session.IsCanceled;
     }
 
     private void ApplyRoster(RosterDto? roster)

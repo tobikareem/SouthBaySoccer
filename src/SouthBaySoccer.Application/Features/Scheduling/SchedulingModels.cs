@@ -122,6 +122,8 @@ public sealed record CancelSessionCommand(
     Guid SessionId,
     string Reason);
 
+public sealed record DeleteSessionCommand(Guid SessionId);
+
 public sealed record CreateRecurrenceRuleCommand(
     string Name,
     string TimeZoneId,

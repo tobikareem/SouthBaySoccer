@@ -37,6 +37,8 @@ and brand tokens — no page-local hex, font sizes, or emoji.
    - a `CapacityBar` (`Current`/`Max`, label `16 / 20 going`);
    - a `View` affordance for going/open sessions, or, when the session is full, a `Join waitlist`
      action bound to `JoinWaitlistCommand` with the remaining waitlist count.
+   - canceled sessions remain in chronological order and replace RSVP/waitlist affordances with a
+     danger treatment placard reading `Session has been cancelled`.
 6. **Shell `TabBar`** — Sessions (active) / Stats / Profile, themed by `BrandStyles` (not a custom
    control). Tab pictograms use Font Awesome glyphs with semantic names.
 
@@ -77,7 +79,7 @@ seed-backed `ISessionsClient` abstraction and a navigation service — never on 
 - `FeaturedSession` — the next-match hero projection.
 - `StatsPrompt` — the latest-match stats prompt projection.
 - `ComingUpSessions` — remaining session cards (title, badge variant/text, date/time,
-  current/max capacity, waitlist count, `IsFull`);
+  current/max capacity, waitlist count, `IsFull`, `IsCanceled`);
 - `DuesStatus` — the player's dues badge state;
 - `IsBusy` — request-in-flight flag driving the `StateView` Loading state;
 - `State` — drives the `StateView` (Loading / Empty / Error / Offline / Content);

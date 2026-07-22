@@ -56,6 +56,13 @@ Scenario: RSVP records attendance intent only
   Then the action records attendance intent for the session
   And it does not check me in or record an attendance outcome
 
+Scenario: Canceled session detail is read-only
+  Given an admin canceled the session
+  When I open its detail screen
+  Then a placard says "Session has been cancelled"
+  And the date, venue, capacity, and roster remain visible
+  And the RSVP action is hidden or disabled
+
 Scenario: Loading, empty, error, and offline are shown through StateView
   Given the session detail screen is loading its roster and capacity
   Then a StateView loading state is shown until the data resolves

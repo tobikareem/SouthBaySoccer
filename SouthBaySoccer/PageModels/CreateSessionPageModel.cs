@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services;
 using ViewState = SouthBaySoccer.Controls.ViewState;
 
 namespace SouthBaySoccer.PageModels;
@@ -24,7 +25,8 @@ namespace SouthBaySoccer.PageModels;
 /// </remarks>
 public partial class CreateSessionPageModel(
     ISessionAdminClient adminClient,
-    ISessionsNavigator navigator) : ObservableObject
+    ISessionsNavigator navigator,
+    IUserDialogService dialogService) : ObservableObject
 {
     public const string DeniedTitle = "Admin access required";
     public const string DeniedMessage = "You need session-management permission to create a session.";
@@ -35,6 +37,8 @@ public partial class CreateSessionPageModel(
     public const string OfflinePublishMessage = "You're offline. Reconnect to publish this session.";
     public const string OfflineVenueMessage = "You're offline. Reconnect to save this venue.";
     public const string GenericPublishError = "Something went wrong publishing the session. Please try again.";
+    public const string GenericCancelError = "Something went wrong cancelling the session. Please try again.";
+    public const string GenericDeleteError = "Something went wrong deleting the session. Please try again.";
     public const string SessionExpiredTitle = "Session expired";
     public const string SessionExpiredMessage = "Your session has expired. Sign in again to continue.";
     public const string PreviewStatusLabel = "Ready for RSVP";
@@ -452,6 +456,94 @@ public partial class CreateSessionPageModel(
         catch (Exception)
         {
             ValidationMessage = "Something went wrong opening the session for updates.";
+        }
+    }
+
+    /// <summary>Cancels a managed session and leaves it visible with its canceled status.</summary>
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task CancelManagedSession(ManagedSessionDto? session, CancellationToken cancellationToken)
+    {
+        if (session is null || session.IsCanceled || IsPublishing)
+        {
+            return;
+        }
+
+        await ExecuteManagedSessionActionAsync(
+            session,
+            adminClient.CancelSessionAsync,
+            GenericCancelError,
+            cancellationToken);
+    }
+
+    /// <summary>Soft-deletes a managed session and removes it from ordinary lists.</summary>
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task DeleteManagedSession(ManagedSessionDto? session, CancellationToken cancellationToken)
+    {
+        if (session is null || IsPublishing)
+        {
+            return;
+        }
+
+        if (!await dialogService.ShowConfirmationAsync(
+                "Delete session?",
+                $"Delete {session.Title}? It will no longer appear in session lists.",
+                "Delete session",
+                "Keep session",
+                cancellationToken))
+        {
+            return;
+        }
+
+        await ExecuteManagedSessionActionAsync(
+            session,
+            adminClient.DeleteSessionAsync,
+            GenericDeleteError,
+            cancellationToken);
+    }
+
+    private async Task ExecuteManagedSessionActionAsync(
+        ManagedSessionDto session,
+        Func<Guid, CancellationToken, Task<SouthBaySoccer.Contracts.Common.ClientCommandResult>> action,
+        string genericError,
+        CancellationToken cancellationToken)
+    {
+        ValidationMessage = string.Empty;
+        IsPublishing = true;
+        try
+        {
+            var result = await action(session.SessionId, cancellationToken);
+            if (!result.IsSuccess)
+            {
+                ValidationMessage = result.ErrorMessage ?? genericError;
+                return;
+            }
+
+            if (EditingSessionId == session.SessionId)
+            {
+                EditingSessionId = null;
+            }
+
+            await RefreshManagedSessionsAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (ApiRequestException ex)
+        {
+            ValidationMessage = ex.UserMessage;
+        }
+        catch (HttpRequestException ex)
+        {
+            ValidationMessage = ResolveConnectivityMessage(ex, genericError);
+        }
+        catch (Exception)
+        {
+            ValidationMessage = genericError;
+        }
+        finally
+        {
+            IsPublishing = false;
         }
     }
 

@@ -240,18 +240,31 @@
                                             CommandParameter="{Binding Id}" />
                                     </controls:BrandCard.GestureRecognizers>
                                     <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                                        <Border Padding="{StaticResource SpaceSm}"
+                                                BackgroundColor="{AppThemeBinding Light={StaticResource DangerSurfaceLight}, Dark={StaticResource DangerSurfaceDark}}"
+                                                StrokeShape="RoundRectangle 8"
+                                                IsVisible="{Binding IsCanceled}">
+                                            <Label Text="Session has been cancelled"
+                                                   Style="{StaticResource TextBodyStrong}"
+                                                   TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                                                   SemanticProperties.Description="Session has been cancelled" />
+                                        </Border>
                                         <Grid ColumnDefinitions="*,Auto">
                                             <Label Text="{Binding Title}"
                                                    Style="{StaticResource TextBodyStrong}"
                                                    VerticalOptions="Center" />
                                             <controls:Badge Grid.Column="1"
                                                             Text="{Binding StatusLabel}"
-                                                            Variant="Danger"
-                                                            IsVisible="{Binding IsFull}" />
-                                            <controls:Badge Grid.Column="1"
-                                                            Text="{Binding StatusLabel}"
-                                                            Variant="Success"
-                                                            IsVisible="{Binding IsFull, Converter={StaticResource InvertedBool}}" />
+                                                            Variant="Success">
+                                                <controls:Badge.Triggers>
+                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding IsFull}" Value="True">
+                                                        <Setter Property="Variant" Value="Danger" />
+                                                    </DataTrigger>
+                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding IsCanceled}" Value="True">
+                                                        <Setter Property="Variant" Value="Danger" />
+                                                    </DataTrigger>
+                                                </controls:Badge.Triggers>
+                                            </controls:Badge>
                                         </Grid>
                                         <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
                                             <Border Style="{StaticResource MetadataChip}">
@@ -281,7 +294,13 @@
                                                 IsVisible="{Binding IsFull}"
                                                 Command="{Binding Source={x:Reference SessionsHome}, Path=BindingContext.JoinWaitlistCommand, x:DataType=ContentPage}"
                                                 CommandParameter="{Binding Id}"
-                                                SemanticProperties.Description="Join the waitlist" />
+                                                SemanticProperties.Description="Join the waitlist">
+                                            <Button.Triggers>
+                                                <DataTrigger TargetType="Button" Binding="{Binding IsCanceled}" Value="True">
+                                                    <Setter Property="IsVisible" Value="False" />
+                                                </DataTrigger>
+                                            </Button.Triggers>
+                                        </Button>
                                     </VerticalStackLayout>
                                 </controls:BrandCard>
                             </DataTemplate>

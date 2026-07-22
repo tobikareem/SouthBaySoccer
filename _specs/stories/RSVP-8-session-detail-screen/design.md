@@ -34,6 +34,10 @@ matches the wireframe order:
 6. `PrimaryButton` "RSVP — I'm going" that toggles to its confirmed state, followed by a subtle
    "Confirmed via Pickup Pal" caption (`TextCaption`) with a plug/connected glyph.
 
+For a canceled session, a danger placard reading `Session has been cancelled` appears directly
+below the header. The informational content and roster remain visible, while RSVP controls are not
+available.
+
 Colors, radii, typography, spacing, and touch sizes come from `BrandColors.xaml` /
 `BrandTokens.xaml` / `BrandStyles.xaml`; the page adds no raw hex or emoji. Times arrive UTC and are
 formatted to local only at this UI boundary (`NFR-Time`).
@@ -77,6 +81,7 @@ State exposed by `SessionDetailPageModel`:
 - `WaitlistRoster` — the ordered waitlist (position number, name, guest flag, "next up").
 - `IsGoing` — whether the current player is confirmed; drives the `PrimaryButton` label/confirmed
   state and the "Confirmed via Pickup Pal" note.
+- `IsCanceled` — drives the cancellation placard and suppresses RSVP interaction.
 - `IsBusy` — blocks duplicate RSVP taps and reload re-entrancy.
 - `State` — the `StateView` state (Loading / Empty / Error / Offline / Content).
 

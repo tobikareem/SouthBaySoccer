@@ -50,6 +50,50 @@ public sealed class RsvpCommandHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenSessionCanceled_ThrowsConflictBeforeEligibilityCheck()
+    {
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = "Ada" };
+        var session = FutureSession();
+        session.Status = SessionStatus.Canceled;
+        var eligibilityService = new Mock<IPlayerSessionEligibilityService>();
+        var rsvpRepository = new Mock<IRsvpRepository>();
+        var handler = CreateSubmitHandler(profile, session, eligibilityService.Object, rsvpRepository.Object);
+
+        var act = () => handler.HandleAsync(new SubmitRsvpCommand(session.Id, RsvpStatus.Going));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("RSVP is not available for this session.");
+        eligibilityService.Verify(
+            x => x.CheckAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        rsvpRepository.Verify(
+            x => x.SubmitRsvpAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<RsvpStatus>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenCancelingRsvpOnCanceledSession_ThrowsConflictWithoutMutating()
+    {
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = "Ada" };
+        var session = FutureSession();
+        session.Status = SessionStatus.Canceled;
+        var rsvpRepository = new Mock<IRsvpRepository>();
+        var handler = CreateCancelHandler(profile, session, rsvpRepository.Object);
+
+        var act = () => handler.HandleAsync(new CancelRsvpCommand(session.Id));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("RSVP is not available for this session.");
+        rsvpRepository.Verify(
+            x => x.CancelAndPromoteAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Func<Guid, CancellationToken, Task<bool>>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenEligible_CallsRepositoryAndReturnsWaitlistPosition()
     {
         var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = "Ada" };
@@ -165,6 +209,33 @@ public sealed class RsvpCommandHandlerTests
             playerProfileRepository.Object,
             sessionRepository.Object,
             playerSessionEligibilityService,
+            rsvpRepository);
+    }
+
+    private static CancelRsvpCommandHandler CreateCancelHandler(
+        PlayerProfile profile,
+        Session session,
+        IRsvpRepository rsvpRepository)
+    {
+        var currentUser = new Mock<ICurrentUser>();
+        currentUser.SetupGet(x => x.UserId).Returns(profile.IdentityUserId);
+        var playerProfileRepository = new Mock<IPlayerProfileRepository>();
+        playerProfileRepository
+            .Setup(x => x.FindByIdentityUserIdAsync(profile.IdentityUserId!.Value, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(profile);
+        var sessionRepository = new Mock<ISessionRepository>();
+        sessionRepository
+            .Setup(x => x.GetByIdAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(Utc(2026, 7, 7, 16, 0));
+
+        return new CancelRsvpCommandHandler(
+            currentUser.Object,
+            clock.Object,
+            playerProfileRepository.Object,
+            sessionRepository.Object,
+            Mock.Of<IPlayerSessionEligibilityService>(),
             rsvpRepository);
     }
 

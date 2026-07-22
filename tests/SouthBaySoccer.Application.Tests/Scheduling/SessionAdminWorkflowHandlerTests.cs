@@ -37,6 +37,32 @@ public sealed class SessionAdminWorkflowHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenDuplicateDraftSessionExists_ThrowsConflictWithoutAdding()
+    {
+        var sessionRepository = new Mock<ISessionRepository>();
+        sessionRepository
+            .Setup(x => x.ExistsDuplicateAsync(
+                Guid.Parse("22222222-2222-2222-2222-222222222222"),
+                "Marina Field - Saturday pickup",
+                Utc(2026, 7, 11, 19, 40),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var handler = new CreateSessionDraftCommandHandler(
+            new CreateSessionCommandValidator(),
+            SeasonRepository(),
+            VenueRepository(),
+            sessionRepository.Object,
+            SavingUnitOfWork().Object);
+
+        var act = () => handler.HandleAsync(ValidDraftCommand());
+
+        await act.Should().ThrowAsync<ApplicationConflictException>();
+        sessionRepository.Verify(
+            x => x.AddAsync(It.IsAny<Session>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenCreatingDraft_TitleUsesSessionsActualLocalWeekday()
     {
         var sessionRepository = new Mock<ISessionRepository>();

@@ -3,6 +3,7 @@ using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Domain.Entities.Scheduling;
+using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 
 namespace SouthBaySoccer.Application.Features.Rsvps;
@@ -50,6 +51,11 @@ public sealed class SubmitRsvpCommandHandler(
     {
         var session = await sessionRepository.GetByIdAsync(sessionId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Session was not found.");
+
+        if (session.Status != SessionStatus.Published)
+        {
+            throw new ApplicationConflictException("RSVP is not available for this session.");
+        }
 
         if (session.RsvpDeadlineUtc <= nowUtc)
         {

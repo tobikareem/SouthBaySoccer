@@ -25,6 +25,7 @@ public sealed class SchedulingEndpointMetadataTests
     [InlineData(nameof(SchedulingFunctions.UpdateSession), "sessions/{sessionId:guid}", AuthenticationPolicies.CanManageSessions)]
     [InlineData(nameof(SchedulingFunctions.PublishSession), "sessions/{sessionId:guid}/publish", AuthenticationPolicies.CanManageSessions)]
     [InlineData(nameof(SchedulingFunctions.CancelSession), "sessions/{sessionId:guid}/cancel", AuthenticationPolicies.CanManageSessions)]
+    [InlineData(nameof(SchedulingFunctions.DeleteSession), "sessions/{sessionId:guid}", AuthenticationPolicies.CanManageSessions)]
     [InlineData(nameof(SchedulingFunctions.CreateRecurrenceRule), "recurrence-rules", AuthenticationPolicies.CanManageSessions)]
     [InlineData(nameof(SchedulingFunctions.CreateSessionOccurrence), "sessions/occurrences", AuthenticationPolicies.CanManageSessions)]
     public void SchedulingEndpoint_WhenMetadataResolved_RequiresExpectedPolicy(

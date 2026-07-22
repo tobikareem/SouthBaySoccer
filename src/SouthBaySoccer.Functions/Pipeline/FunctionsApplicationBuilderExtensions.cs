@@ -49,6 +49,7 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<CreateSessionCommandHandler>();
         builder.Services.AddScoped<ListUpcomingSessionsQueryHandler>();
         builder.Services.AddScoped<CancelSessionCommandHandler>();
+        builder.Services.AddScoped<DeleteSessionCommandHandler>();
         builder.Services.AddScoped<CreateRecurrenceRuleCommandHandler>();
         builder.Services.AddScoped<CreateSessionOccurrenceCommandHandler>();
         builder.Services.AddScoped<GetCreateSessionAdminDefaultsQueryHandler>();

@@ -29,9 +29,8 @@ public sealed class ShellSessionsNavigator : ISessionsNavigator
         return Shell.Current.GoToAsync($"matchstats?matchId={matchId}");
     }
 
-    // Interim: the full schedule screen is a future ticket; the Sessions tab is the schedule home.
     public Task GoToScheduleAsync() =>
-        Shell.Current.GoToAsync("//sessions");
+        Shell.Current.GoToAsync("schedule");
 
     public Task GoToCreateSessionAsync() =>
         Shell.Current.GoToAsync("create-session");

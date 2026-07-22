@@ -27,6 +27,9 @@ public sealed class CreateSessionCommandHandler(
             }
         }
 
+        await EnsureNotDuplicateAsync(
+            sessionRepository, command.VenueId, command.Title, command.StartsAtUtc, cancellationToken);
+
         var session = CreateSession(command);
         await sessionRepository.AddAsync(session, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -43,6 +46,20 @@ public sealed class CreateSessionCommandHandler(
         if (await venueRepository.GetByIdAsync(venueId, cancellationToken) is null)
         {
             throw new ApplicationNotFoundException("Venue was not found.");
+        }
+    }
+
+    internal static async Task EnsureNotDuplicateAsync(
+        ISessionRepository sessionRepository,
+        Guid venueId,
+        string title,
+        DateTime startsAtUtc,
+        CancellationToken cancellationToken)
+    {
+        if (await sessionRepository.ExistsDuplicateAsync(venueId, title.Trim(), startsAtUtc, cancellationToken))
+        {
+            throw new ApplicationConflictException(
+                "A session with the same venue, name, and start time already exists.");
         }
     }
 
@@ -96,6 +113,20 @@ public sealed class CancelSessionCommandHandler(
         sessionRepository.Update(session);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return SchedulingMappers.ToModel(session);
+    }
+}
+
+public sealed class DeleteSessionCommandHandler(
+    ISessionRepository sessionRepository,
+    IUnitOfWork unitOfWork)
+{
+    public async Task HandleAsync(DeleteSessionCommand command, CancellationToken cancellationToken = default)
+    {
+        var session = await sessionRepository.GetByIdAsync(command.SessionId, cancellationToken)
+            ?? throw new ApplicationNotFoundException("Session was not found.");
+
+        sessionRepository.SoftDelete(session);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }
 

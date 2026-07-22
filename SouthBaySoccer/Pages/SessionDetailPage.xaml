@@ -6,10 +6,15 @@
     xmlns:c="clr-namespace:SouthBaySoccer.Controls"
     xmlns:fonts="clr-namespace:Fonts"
     xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
     x:DataType="pageModels:SessionDetailPageModel"
     Shell.FlyoutBehavior="Disabled"
     Shell.NavBarIsVisible="False"
     Style="{StaticResource BrandPage}">
+
+    <ContentPage.Resources>
+        <toolkit:InvertedBoolConverter x:Key="InvertedBool" />
+    </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto,*">
         <c:BrandHeader Grid.Row="0"
@@ -28,6 +33,16 @@
             <ScrollView>
                 <VerticalStackLayout Padding="{StaticResource WelcomeContentPadding}"
                                      Spacing="{StaticResource SpaceMd}">
+
+                    <Border Padding="{StaticResource CardPadding}"
+                            BackgroundColor="{AppThemeBinding Light={StaticResource DangerSurfaceLight}, Dark={StaticResource DangerSurfaceDark}}"
+                            StrokeShape="RoundRectangle 12"
+                            IsVisible="{Binding IsCanceled}">
+                        <Label Text="Session has been cancelled"
+                               Style="{StaticResource TextH2}"
+                               TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                               SemanticProperties.Description="Session has been cancelled" />
+                    </Border>
 
                     <!-- When / where card -->
                     <c:BrandCard>
@@ -165,9 +180,11 @@
                             IsEnabled="{Binding CanRsvp}"
                             Style="{StaticResource PrimaryButton}"
                             Margin="{StaticResource WelcomeDividerMargin}"
+                            IsVisible="{Binding IsCanceled, Converter={StaticResource InvertedBool}}"
                             SemanticProperties.Description="{Binding RsvpButtonText}" />
 
                     <HorizontalStackLayout HorizontalOptions="Center"
+                                           IsVisible="{Binding IsCanceled, Converter={StaticResource InvertedBool}}"
                                            Spacing="{StaticResource SpaceXs}">
                         <Label Text="{x:Static fonts:FontAwesomeGlyphs.Plug}"
                                FontFamily="FontAwesomeSolid"

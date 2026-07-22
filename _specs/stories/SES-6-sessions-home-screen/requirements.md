@@ -58,6 +58,18 @@ Scenario: A full session offers joining the waitlist
   When I activate its "Join waitlist" action
   Then the JoinWaitlist command is invoked for that session
 
+Scenario: A canceled session remains visible
+  Given an upcoming session has been canceled by an admin
+  When the Sessions feed loads
+  Then the session remains in its scheduled position
+  And its card shows a "Session has been cancelled" placard
+  And RSVP and waitlist actions are unavailable
+
+Scenario: A deleted session is absent
+  Given an admin soft-deleted a session
+  When the Sessions feed loads
+  Then that session is not returned or displayed
+
 Scenario: Iconography uses Font Awesome instead of emoji
   Given the home screen contains dues, bell, stats, calendar, capacity, and tab pictograms
   Then each pictogram is rendered from a bundled Font Awesome Free font via a typed glyph constant

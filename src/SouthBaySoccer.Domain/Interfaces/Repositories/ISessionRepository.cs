@@ -13,6 +13,16 @@ public interface ISessionRepository : IRepository<Session>
     Task<Session?> FindByOccurrenceKeyAsync(string occurrenceKey, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Determines whether an active (non-canceled) session already exists at the same venue with
+    /// the same title and the same start time.
+    /// </summary>
+    Task<bool> ExistsDuplicateAsync(
+        Guid venueId,
+        string title,
+        DateTime startsAtUtc,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Lists upcoming sessions with a bounded result count.
     /// </summary>
     Task<IReadOnlyList<Session>> ListUpcomingAsync(

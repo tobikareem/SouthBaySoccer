@@ -7,11 +7,16 @@
     xmlns:fonts="clr-namespace:Fonts"
     xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
     xmlns:sessions="clr-namespace:SouthBaySoccer.Contracts.Sessions;assembly=SouthBaySoccer.Contracts"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
     x:Name="CreateSession"
     x:DataType="pageModels:CreateSessionPageModel"
     Shell.FlyoutBehavior="Disabled"
     Shell.NavBarIsVisible="False"
     Style="{StaticResource BrandPage}">
+
+    <ContentPage.Resources>
+        <toolkit:InvertedBoolConverter x:Key="InvertedBool" />
+    </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto,*">
         <c:BrandHeader Grid.Row="0"
@@ -57,8 +62,9 @@
                         <BindableLayout.ItemTemplate>
                             <DataTemplate x:DataType="sessions:ManagedSessionDto">
                                 <c:BrandCard SemanticProperties.Description="{Binding Title}">
-                                    <Grid ColumnDefinitions="*,Auto"
-                                          ColumnSpacing="{StaticResource SpaceSm}">
+                                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                                      <Grid ColumnDefinitions="*,Auto"
+                                            ColumnSpacing="{StaticResource SpaceSm}">
                                         <VerticalStackLayout Spacing="{StaticResource SpaceXs}"
                                                              VerticalOptions="Center">
                                             <Label Text="{Binding Title}" Style="{StaticResource TextBodyStrong}" />
@@ -70,13 +76,36 @@
                                             <Label Text="{Binding Capacity, StringFormat='Capacity {0}'}"
                                                    Style="{StaticResource TextCaption}" />
                                         </VerticalStackLayout>
-                                        <Button Grid.Column="1"
-                                                Text="Edit"
-                                                Style="{StaticResource GhostButton}"
-                                                Command="{Binding Source={x:Reference CreateSession}, Path=BindingContext.EditManagedSessionCommand, x:DataType=ContentPage}"
-                                                CommandParameter="{Binding .}"
-                                                SemanticProperties.Description="Edit session" />
-                                    </Grid>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
+                                            <Button Text="Edit"
+                                                    Style="{StaticResource GhostButton}"
+                                                    IsVisible="{Binding IsCanceled, Converter={StaticResource InvertedBool}}"
+                                                    Command="{Binding Source={x:Reference CreateSession}, Path=BindingContext.EditManagedSessionCommand, x:DataType=ContentPage}"
+                                                    CommandParameter="{Binding .}"
+                                                    SemanticProperties.Description="Edit session" />
+                                            <Button Text="Cancel session"
+                                                    Style="{StaticResource GhostButton}"
+                                                    IsVisible="{Binding IsCanceled, Converter={StaticResource InvertedBool}}"
+                                                    Command="{Binding Source={x:Reference CreateSession}, Path=BindingContext.CancelManagedSessionCommand, x:DataType=ContentPage}"
+                                                    CommandParameter="{Binding .}"
+                                                    SemanticProperties.Description="Cancel session" />
+                                            <Button Text="Delete session"
+                                                    Style="{StaticResource GhostButton}"
+                                                    Command="{Binding Source={x:Reference CreateSession}, Path=BindingContext.DeleteManagedSessionCommand, x:DataType=ContentPage}"
+                                                    CommandParameter="{Binding .}"
+                                                    SemanticProperties.Description="Delete session" />
+                                        </VerticalStackLayout>
+                                      </Grid>
+                                      <Border Padding="{StaticResource SpaceSm}"
+                                              BackgroundColor="{AppThemeBinding Light={StaticResource DangerSurfaceLight}, Dark={StaticResource DangerSurfaceDark}}"
+                                              StrokeShape="RoundRectangle 8"
+                                              IsVisible="{Binding IsCanceled}">
+                                        <Label Text="Session has been cancelled"
+                                               Style="{StaticResource TextBodyStrong}"
+                                               TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                                               SemanticProperties.Description="Session has been cancelled" />
+                                      </Border>
+                                    </VerticalStackLayout>
                                 </c:BrandCard>
                             </DataTemplate>
                         </BindableLayout.ItemTemplate>

@@ -23,6 +23,8 @@ public sealed class SeedState
     private List<VenueDto> customVenues = [];
     private Dictionary<Guid, SessionSummaryDto> managedSummaryOverrides = [];
     private Dictionary<Guid, SessionDetailDto> managedDetailOverrides = [];
+    private HashSet<Guid> canceledSessionIds = [];
+    private HashSet<Guid> deletedSessionIds = [];
 
     public SeedState()
     {
@@ -45,6 +47,8 @@ public sealed class SeedState
             customVenues = [];
             managedSummaryOverrides = [];
             managedDetailOverrides = [];
+            canceledSessionIds = [];
+            deletedSessionIds = [];
             managedSessionCommands = SeedFixtures.Sessions.Values
                 .ToDictionary(session => session.Id, ToEditableCommand);
         }
@@ -56,13 +60,16 @@ public sealed class SeedState
         {
             // The seed fixture always populates FeaturedSession; the contract is nullable only for
             // API mode, where an empty database has no session to feature.
-            var featuredSource = ResolveSummary(SeedFixtures.Dashboard.FeaturedSession!);
-            var featured = ApplyRosterState(featuredSource);
-            var comingUp = SeedFixtures.Dashboard.ComingUpSessions
+            var allSessions = SeedFixtures.Dashboard.ComingUpSessions
+                .Prepend(SeedFixtures.Dashboard.FeaturedSession!)
                 .Select(ResolveSummary)
                 .Concat(publishedSummaries.Values)
+                .Where(session => !deletedSessionIds.Contains(session.Id))
+                .Select(ApplyCancellationState)
                 .Select(ApplyRosterState)
                 .ToArray();
+            var featured = allSessions.FirstOrDefault(session => !session.IsCanceled);
+            var comingUp = allSessions.Where(session => session.Id != featured?.Id).ToArray();
 
             return SeedFixtures.Dashboard with
             {
@@ -83,13 +90,19 @@ public sealed class SeedState
                 return null;
             }
 
+            if (deletedSessionIds.Contains(sessionId))
+            {
+                return null;
+            }
+
             var roster = rosters[sessionId];
             return session with
             {
                 GoingCount = roster.Going.Count,
                 IsFull = roster.Going.Count >= session.Capacity,
-                IsRsvpAvailable = roster.Going.Count < session.Capacity,
-                IsGoing = roster.Going.Any(entry => entry.Player.Id == SeedFixtures.CurrentPlayerId)
+                IsRsvpAvailable = !canceledSessionIds.Contains(sessionId) && roster.Going.Count < session.Capacity,
+                IsGoing = roster.Going.Any(entry => entry.Player.Id == SeedFixtures.CurrentPlayerId),
+                IsCanceled = canceledSessionIds.Contains(sessionId)
             };
         }
     }
@@ -318,6 +331,8 @@ public sealed class SeedState
             return Array.AsReadOnly(
                 fixedSessions
                     .Concat(publishedSummaries.Values)
+                    .Where(session => !deletedSessionIds.Contains(session.Id))
+                    .Select(ApplyCancellationState)
                     .Select(ApplyRosterState)
                     .OrderBy(session => session.StartsAtUtc)
                     .Select(ToManagedSession)
@@ -453,6 +468,33 @@ public sealed class SeedState
         }
     }
 
+    public ClientCommandResult CancelSession(Guid sessionId)
+    {
+        lock (syncRoot)
+        {
+            if (deletedSessionIds.Contains(sessionId) || !managedSessionCommands.ContainsKey(sessionId))
+            {
+                return ClientCommandResult.Failure("session_not_found", "The session was not found.");
+            }
+
+            canceledSessionIds.Add(sessionId);
+            return ClientCommandResult.Success;
+        }
+    }
+
+    public ClientCommandResult DeleteSession(Guid sessionId)
+    {
+        lock (syncRoot)
+        {
+            if (!managedSessionCommands.ContainsKey(sessionId) || !deletedSessionIds.Add(sessionId))
+            {
+                return ClientCommandResult.Failure("session_not_found", "The session was not found.");
+            }
+
+            return ClientCommandResult.Success;
+        }
+    }
+
     private static CreateSessionResult? ValidateCommand(CreateSessionCommand command)
     {
         if (command.GameDateLocal.Date == DateTime.MinValue.Date)
@@ -540,7 +582,8 @@ public sealed class SeedState
             session.Venue,
             session.Format,
             session.Capacity,
-            session.StatusLabel);
+            session.StatusLabel,
+            session.IsCanceled);
 
     private static CreateSessionCommand ToEditableCommand(SessionDetailDto session)
     {
@@ -642,9 +685,16 @@ public sealed class SeedState
             GoingCount = goingCount,
             IsFull = isFull,
             WaitlistCount = roster.Waitlist.Count,
-            StatusLabel = currentPlayerGoing ? "You're going" : isFull ? "Full" : "Open"
+            StatusLabel = session.IsCanceled
+                ? "Cancelled"
+                : currentPlayerGoing ? "You're going" : isFull ? "Full" : "Open"
         };
     }
+
+    private SessionSummaryDto ApplyCancellationState(SessionSummaryDto session) =>
+        canceledSessionIds.Contains(session.Id)
+            ? session with { IsCanceled = true, StatusLabel = "Cancelled" }
+            : session;
 
     private static IReadOnlyList<WaitlistEntryDto> ReorderWaitlist(
         IReadOnlyList<WaitlistEntryDto> waitlist) =>

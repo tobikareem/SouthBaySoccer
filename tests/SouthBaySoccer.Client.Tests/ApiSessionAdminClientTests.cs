@@ -198,6 +198,42 @@ public sealed class ApiSessionAdminClientTests
     }
 
     [Fact]
+    public async Task CancelSessionAsync_SendsCancelRoute()
+    {
+        HttpRequestMessage? observed = null;
+        var sessionId = Guid.NewGuid();
+        var client = CreateClient(request =>
+        {
+            observed = request;
+            return JsonResponse("{}");
+        });
+
+        var result = await client.CancelSessionAsync(sessionId, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        observed!.Method.Should().Be(HttpMethod.Post);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/sessions/{sessionId}/cancel");
+    }
+
+    [Fact]
+    public async Task DeleteSessionAsync_SendsDeleteRoute()
+    {
+        HttpRequestMessage? observed = null;
+        var sessionId = Guid.NewGuid();
+        var client = CreateClient(request =>
+        {
+            observed = request;
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        });
+
+        var result = await client.DeleteSessionAsync(sessionId, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        observed!.Method.Should().Be(HttpMethod.Delete);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/sessions/{sessionId}");
+    }
+
+    [Fact]
     public async Task CreateDraftAsync_WhenRetriedAfterBadRequestFailure_ReusesSameIdempotencyKey_ThroughPipeline()
     {
         // A 4xx problem-details response is mapped to CreateSessionResult.Failure (not an exception) by
@@ -665,4 +701,3 @@ public sealed class ApiSessionAdminClientTests
             Task.FromResult(send(request));
     }
 }
-

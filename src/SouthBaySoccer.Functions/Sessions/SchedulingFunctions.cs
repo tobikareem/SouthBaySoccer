@@ -20,6 +20,7 @@ public sealed class SchedulingFunctions(
     CreateSessionCommandHandler createSessionHandler,
     ListUpcomingSessionsQueryHandler listUpcomingSessionsHandler,
     CancelSessionCommandHandler cancelSessionHandler,
+    DeleteSessionCommandHandler deleteSessionHandler,
     CreateRecurrenceRuleCommandHandler createRecurrenceRuleHandler,
     CreateSessionOccurrenceCommandHandler createSessionOccurrenceHandler,
     GetCreateSessionAdminDefaultsQueryHandler getCreateSessionAdminDefaultsHandler,
@@ -219,6 +220,17 @@ public sealed class SchedulingFunctions(
         return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(session), cancellationToken);
     }
 
+    [Function(nameof(DeleteSession))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> DeleteSession(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "sessions/{sessionId:guid}")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        await deleteSessionHandler.HandleAsync(new DeleteSessionCommand(sessionId), cancellationToken);
+        return request.CreateResponse(HttpStatusCode.NoContent);
+    }
+
     [Function(nameof(CreateRecurrenceRule))]
     [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
     public async Task<HttpResponseData> CreateRecurrenceRule(
@@ -304,7 +316,8 @@ public sealed class SchedulingFunctions(
             session.VenueName,
             session.Format,
             session.Capacity,
-            session.Status);
+            session.Status,
+            string.Equals(session.Status, "Canceled", StringComparison.OrdinalIgnoreCase));
     }
 
     private static ManagedSessionEditDto ToResponse(ManagedSessionEditModel session)
