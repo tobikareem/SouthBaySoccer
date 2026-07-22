@@ -34,6 +34,9 @@ public static class ClientServiceCollectionExtensions
 
     private static IServiceCollection AddApiClients(IServiceCollection services, PickupPalOptions pickupPalOptions)
     {
+        // ApiSessionsClient formats display labels in device-local time from a TimeProvider; the
+        // app registers TimeProvider.System in MauiProgram, and TryAdd keeps bare test hosts working.
+        services.TryAddSingleton(TimeProvider.System);
         services.AddTransient<CorrelationIdHandler>();
         services.AddTransient<AuthenticationHandler>();
         services.AddTransient<ApiExceptionHandler>();
@@ -57,6 +60,36 @@ public static class ClientServiceCollectionExtensions
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
         services.AddHttpClient<IPlayersClient, ApiPlayersClient>(
+            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<AuthenticationHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+
+        services.AddHttpClient<ISessionsClient, ApiSessionsClient>(
+            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<AuthenticationHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+
+        services.AddHttpClient<IRosterClient, ApiRosterClient>(
+            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<AuthenticationHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+
+        services.AddHttpClient<IStatsClient, ApiStatsClient>(
+            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<AuthenticationHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+
+        services.AddHttpClient<ILeaderboardClient, ApiLeaderboardClient>(
+            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<AuthenticationHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+
+        services.AddHttpClient<IGameDayClient, ApiGameDayClient>(
             client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
@@ -107,12 +140,12 @@ public static class ClientServiceCollectionExtensions
     {
         services.TryAddSingleton<SeedState>();
         services.TryAddSingleton<SeedGameDayState>();
-        services.AddSingleton<ISessionsClient, SeedSessionsClient>();
-        services.AddSingleton<IRosterClient, SeedRosterClient>();
-        services.AddSingleton<IStatsClient, SeedStatsClient>();
-        services.AddSingleton<ILeaderboardClient, SeedLeaderboardClient>();
+        services.TryAddSingleton<ISessionsClient, SeedSessionsClient>();
+        services.TryAddSingleton<IRosterClient, SeedRosterClient>();
+        services.TryAddSingleton<IStatsClient, SeedStatsClient>();
+        services.TryAddSingleton<ILeaderboardClient, SeedLeaderboardClient>();
         services.TryAddSingleton<IPlayersClient, SeedPlayersClient>();
-        services.AddSingleton<IGameDayClient, SeedGameDayClient>();
+        services.TryAddSingleton<IGameDayClient, SeedGameDayClient>();
     }
 #endif
 

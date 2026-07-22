@@ -75,6 +75,16 @@ public class SeedClientRegistrationTests
             .Should().BeOfType<ApiProfileClient>();
         provider.GetRequiredService<IPlayersClient>()
             .Should().BeOfType<ApiPlayersClient>();
+        provider.GetRequiredService<ISessionsClient>()
+            .Should().BeOfType<ApiSessionsClient>();
+        provider.GetRequiredService<IRosterClient>()
+            .Should().BeOfType<ApiRosterClient>();
+        provider.GetRequiredService<IStatsClient>()
+            .Should().BeOfType<ApiStatsClient>();
+        provider.GetRequiredService<ILeaderboardClient>()
+            .Should().BeOfType<ApiLeaderboardClient>();
+        provider.GetRequiredService<IGameDayClient>()
+            .Should().BeOfType<ApiGameDayClient>();
     }
 
     [Fact]
@@ -88,5 +98,4 @@ public class SeedClientRegistrationTests
             .WithMessage("*Seed*Release*");
     }
 }
-
 

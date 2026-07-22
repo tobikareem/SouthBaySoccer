@@ -38,8 +38,11 @@ No page or page model should take a raw `HttpClient` dependency.
 - **Typed API foundation is done.** `M11.1` registered the API-mode `HttpClientFactory` pipeline:
   `CorrelationIdHandler -> AuthenticationHandler -> ApiExceptionHandler`, plus secure token storage
   and single-flight refresh.
-- **One API provider is wired.** `IProfileClient` resolves to `ApiProfileClient` in API mode and
-  calls `GET profiles/me`.
+- **API-mode client registration is complete for committed MAUI interfaces.** `IAuthenticationClient`,
+  `IProfileClient`, `IPlayersClient`, `ISessionAdminClient`, `ISessionsClient`, `IRosterClient`,
+  `ILeaderboardClient`, `IStatsClient`, and `IGameDayClient` resolve to API-backed providers in API
+  mode. Some screen-specific read projections remain explicitly marked as missing contracts rather
+  than falling back to seed data.
 - **Backend API surface is broadly present.** The Functions project exposes authentication,
   profile/waiver, scheduling/session, RSVP/check-in, payment eligibility/drop-in checkout, stats
   mutation, and leaderboard endpoints.
@@ -83,12 +86,12 @@ records the current route/interface gaps and the Create Session API contract dec
 |----------------|-------------------|----------------|
 | `IAuthenticationClient` | Backend auth endpoints exist. | Ensure API provider covers Pickup Pal phone sign-in, refresh, and sign-out with safe token persistence. WhatsApp challenge request/verify is deferred/legacy, not the active sign-in path. |
 | `IProfileClient` | `ApiProfileClient.GetCurrentProfileAsync()` exists. | Fill any missing profile/stat/recent-form composition needed by `PROF-5` and Sessions greeting. |
-| `ISessionsClient` | `GET sessions`, `POST sessions`, recurrence endpoints exist. | Build dashboard/detail projections from real session, payment eligibility, profile, and stats prompt data. |
-| `IRosterClient` | RSVP endpoints exist; roster read contract exists but endpoint coverage must be verified. | Add or compose going/waitlist reads; wire RSVP submit/cancel with idempotency where required. |
-| `ILeaderboardClient` | `GET stats/leaderboards` exists. | Map metric segments, pagination defaults, tie-break order, empty/error states. |
-| `IStatsClient` | Stats mutation endpoints exist; read shape gaps likely remain. | Wire match stats, submit/confirm, rateable teammates, and peer feedback without leaking raw backend complexity into page models. |
+| `ISessionsClient` | `GET sessions`, `POST sessions`, recurrence endpoints exist. | `ApiSessionsClient` is registered and composes the dashboard/detail from `GET sessions`; payment eligibility, profile-aware RSVP state, and stats prompts still need backend projections. |
+| `IRosterClient` | RSVP endpoints exist; roster read projection still missing. | `ApiRosterClient` posts/deletes RSVP with idempotency. Going/waitlist reads still need a backend roster projection. |
+| `ILeaderboardClient` | `GET stats/leaderboards` exists. | `ApiLeaderboardClient` is registered and calls `GET stats/leaderboards?seasonId=...&metric=...`; broader paging/error tests can still be expanded. |
+| `IStatsClient` | Stats mutation endpoints exist; read shape gaps remain. | `ApiStatsClient` submits peer feedback to `POST stats/matches/{matchId}/feedback`. Match stats, self-submit, and confirmation need backend read/write projections carrying current-player and submission ids. |
 | `ISessionAdminClient` | Scheduling endpoints exist. | Wire defaults, created-session list/edit/update/publish semantics; reconcile story task status for completed M6.5 behavior. |
-| `IGameDayClient` | Check-in and stats endpoints exist; dedicated game-day read endpoints may be missing. | Decide whether to add read endpoints for game-day context, captain assignment/draft, and post-game approval or compose existing data safely. |
+| `IGameDayClient` | Check-in and stats endpoints exist; dedicated game-day read endpoints are still missing. | `ApiGameDayClient` is registered so Release API mode no longer has a DI gap, but game-day context, captain assignment/draft, self check-in, and post-game approval need backend projections/routes before the UI can be fully API-driven. |
 
 ## Definition of Done
 
