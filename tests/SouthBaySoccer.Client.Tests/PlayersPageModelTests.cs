@@ -119,6 +119,53 @@ public class PlayersPageModelTests
     }
 
     [Fact]
+    public async Task Refresh_AfterOffline_ReRequestsAndRecoversToContent()
+    {
+        var directory = await new SeedPlayersClient().GetDirectoryAsync(CancellationToken.None);
+        var client = new Mock<IPlayersClient>();
+        client.SetupSequence(service => service.GetDirectoryAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException())
+            .ReturnsAsync(directory);
+        var pageModel = CreatePageModel(client: client);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.RefreshCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.Players.Should().HaveCount(directory.Players.Count);
+        pageModel.IsBusy.Should().BeFalse();
+        client.Verify(
+            service => service.GetDirectoryAsync(It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task Refresh_WhenCanceled_PropagatesCancellationAndClearsBusyState()
+    {
+        var requestStarted = new TaskCompletionSource<CancellationToken>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new Mock<IPlayersClient>();
+        client.Setup(service => service.GetDirectoryAsync(It.IsAny<CancellationToken>()))
+            .Returns<CancellationToken>(async cancellationToken =>
+            {
+                requestStarted.SetResult(cancellationToken);
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                throw new InvalidOperationException("The canceled request should not complete.");
+            });
+        var pageModel = CreatePageModel(client: client);
+
+        var refresh = pageModel.RefreshCommand.ExecuteAsync(null);
+        var observedToken = await requestStarted.Task;
+        pageModel.RefreshCommand.Cancel();
+
+        var act = async () => await refresh;
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        observedToken.IsCancellationRequested.Should().BeTrue();
+        pageModel.IsBusy.Should().BeFalse();
+    }
+
+    [Fact]
     public void PlayersPageXaml_UsesDirectoryControlsSearchAndFontAwesome()
     {
         var page = LoadXaml("PlayersPage.xaml");

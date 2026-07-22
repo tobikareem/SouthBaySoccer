@@ -12,10 +12,10 @@ preserving the mobile wireframe.
 |--------|----:|
 | Committed | 21 |
 | Done | 16 |
-| In progress | 2 |
+| In progress | 5 |
 | In review | 0 |
 | To do | 0 |
-| Blocked | 3 |
+| Blocked | 0 |
 
 ## Sprint commitment
 
@@ -26,7 +26,7 @@ preserving the mobile wireframe.
 | MAUI `ApiPlayersClient` and API-mode registration | `PLAYERS-2` | 3 | Done | `PLAYERS-1`, M11.1 |
 | Players tab API-mode behavior tests | `PLAYERS-3` | 3 | Done | `PLAYERS-2` |
 | Player profile navigation follow-through | `PLAYERS-4` | 3 | Done | `PLAYERS-1` |
-| Local database smoke and runbook | `PLAYERS-5` | 3 | Blocked | `PLAYERS-2` |
+| Local database smoke and runbook | `PLAYERS-5` | 3 | In progress | `PLAYERS-2` |
 | Sprint closeout and spec reconciliation | `PLAYERS-6` | 2 | In progress | all sprint work |
 
 ## Board
@@ -39,7 +39,8 @@ _(none)_
 
 | Card | Story | Pts | Tasks | Notes |
 |------|-------|----:|-------|-------|
-| **Sprint closeout and spec reconciliation** | `PLAYERS-6` | 2 | board `[x]` / task refs `[~]` / memory `[x]` / review `[ ]` | Board updated after the implementation slices; final closeout waits for local Function host smoke unblock. |
+| **Local database smoke and runbook** | `PLAYERS-5` | 3 | API `[x]` / native MAUI `[ ]` | Authenticated API smoke passed with 127 database-backed rows; run the native Windows or Android Players tab checks for count, real rows, search, and profile navigation. |
+| **Sprint closeout and spec reconciliation** | `PLAYERS-6` | 2 | board `[x]` / task refs `[x]` / memory `[x]` / review `[x]` / native smoke `[ ]` | Automated verification, spec reconciliation, and review are complete; final closure waits only for native MAUI smoke evidence. |
 
 ### In review
 
@@ -50,28 +51,26 @@ _(none)_
 | Card | Story | Pts | Evidence |
 |------|-------|----:|----------|
 | **Players contract and data-shape inventory** | `PLAYERS-0` | 2 | Existing `PlayerDirectoryDto`, `PlayerDirectoryEntryDto`, and `PlayerSummaryDto` reused; route selected as `GET players/directory`; private identity/contact fields excluded. |
-| **Backend players directory query and endpoint** | `PLAYERS-1` | 5 | Added `IPlayerProfileRepository.ListDirectoryAsync`, EF projection from active `PlayerProfiles` plus linked `AspNetUsers`, `GetPlayerDirectoryQueryHandler`, `PlayersFunctions.GetPlayerDirectory`, and DI registration. |
+| **Backend players directory query and endpoint** | `PLAYERS-1` | 5 | Added `IPlayerProfileRepository.ListDirectoryAsync`, privacy-safe EF projection from active `PlayerProfiles`, `GetPlayerDirectoryQueryHandler`, `PlayersFunctions.GetPlayerDirectory`, and DI registration. |
 | **MAUI `ApiPlayersClient` and API-mode registration** | `PLAYERS-2` | 3 | Added `ApiPlayersClient`; API mode now resolves `IPlayersClient` to API while Seed mode keeps `SeedPlayersClient`. |
 | **Players tab API-mode behavior tests** | `PLAYERS-3` | 3 | Added API client route/response tests and registration tests; existing `PlayersPageModelTests` continue to cover load, search, refresh-related state, empty, offline, error, and navigation behavior through `IPlayersClient`. |
 | **Player profile navigation follow-through** | `PLAYERS-4` | 3 | Added `GetPlayerProfileQueryHandler`, `GET profiles/{playerProfileId:guid}`, and `ApiProfileClient.GetProfileAsync`; tests cover route metadata, not-found handling, stats/recent-form mapping, and profile route calls. |
 
 ### Blocked
 
-| Card | Story | Pts | Blocker | Next step |
-|------|-------|----:|---------|-----------|
-| **Local database smoke and runbook** | `PLAYERS-5` | 3 | Function Core Tools startup fails before requests with `An item with the same key has already been added. Key: AZURE_FUNCTIONS_ENVIRONMENT`. Clearing the inherited environment variable did not unblock it, and no Function host was left running. | Remove the duplicate `AZURE_FUNCTIONS_ENVIRONMENT` source from local environment/user secrets/local settings, then rerun [`sprint-04-local-db-smoke.md`](sprint-04-local-db-smoke.md). |
+_(none)_
 
 ## Requirements checklist
 
 - [x] Players tab uses `ApiPlayersClient` in API mode.
 - [x] Seed mode still uses `SeedPlayersClient`.
 - [x] Directory rows come from active, non-deleted `PlayerProfiles`.
-- [x] Linked identity data from `AspNetUsers` is used only where safe and necessary.
+- [x] Internal identity ids and contact data are excluded from the public directory contract.
 - [x] No phone numbers, emails, tokens, payment identifiers, or waiver details are returned by the directory endpoint.
 - [x] `PlayersPage.xaml` remains aligned to `documentation/mobile-wireframes.html`.
 - [x] `PlayersPageModel` keeps depending on `IPlayersClient`, not raw HTTP or backend types.
 - [x] Backend, client, and page-model tests cover the slice.
-- [ ] Local API-mode smoke confirms real database players appear in the app.
+- [ ] Local API-mode smoke confirms real database players appear in the running MAUI app.
 - [x] Windows and Android builds pass with no new warnings.
 
 ## Review notes from sprint creation
@@ -87,6 +86,17 @@ _(none)_
   [`sprint-03-board.md`](sprint-03-board.md) after this focused Players tab sprint.
 - Added [`sprint-04-local-db-smoke.md`](sprint-04-local-db-smoke.md) plus HTTP smoke requests in
   `http/ProfileFunctions/profiles.http` and `http/00-local-smoke/local-m9-sequence.http`.
+
+## Closeout evidence
+
+- Local authenticated API smoke: directory and profile routes passed; 127 database-backed player
+  rows returned; no phone, email, token, payment, waiver, or emergency-contact fields observed.
+- Automated tests: Domain 1, Application 64, Infrastructure 55, Functions 98, Client 381.
+- Added explicit coverage for repository projection/soft deletes, Function response serialization,
+  RFC 7807 client errors, request cancellation, refresh recovery, and page-model cancellation.
+- Dependency audit: no vulnerable packages reported for the Functions dependency graph.
+- MAUI builds: Windows and Android passed with zero warnings and zero errors.
+- Final review: automated implementation is clean; closure remains pending the required native MAUI smoke.
 
 ## How to keep this current
 

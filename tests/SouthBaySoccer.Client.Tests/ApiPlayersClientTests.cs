@@ -77,7 +77,72 @@ public sealed class ApiPlayersClientTests
             .WithMessage("*empty directory*");
     }
 
-    private static ApiPlayersClient CreateClient(Func<HttpRequestMessage, HttpResponseMessage> send) =>
+    [Fact]
+    public async Task GetDirectoryAsync_ProblemDetailsResponse_ThrowsApiRequestException()
+    {
+        var client = CreateClient(
+            _ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent(
+                    """
+                    {
+                      "title": "Invalid directory request",
+                      "detail": "The directory filter was invalid."
+                    }
+                    """,
+                    System.Text.Encoding.UTF8,
+                    "application/problem+json"),
+            },
+            useApiExceptionHandler: true);
+
+        var act = async () => await client.GetDirectoryAsync(CancellationToken.None);
+
+        var exception = await act.Should().ThrowAsync<ApiRequestException>();
+        exception.Which.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        exception.Which.Title.Should().Be("Invalid directory request");
+        exception.Which.Detail.Should().Be("The directory filter was invalid.");
+    }
+
+    [Fact]
+    public async Task GetDirectoryAsync_CancellationRequested_PropagatesCancellationToken()
+    {
+        using var cancellation = new CancellationTokenSource();
+        CancellationToken observedToken = default;
+        var client = CreateClientAsync(async (_, cancellationToken) =>
+        {
+            observedToken = cancellationToken;
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("The canceled request should not complete.");
+        });
+
+        var request = client.GetDirectoryAsync(cancellation.Token);
+        cancellation.Cancel();
+
+        var act = async () => await request;
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        observedToken.CanBeCanceled.Should().BeTrue();
+        observedToken.IsCancellationRequested.Should().BeTrue();
+    }
+
+    private static ApiPlayersClient CreateClient(
+        Func<HttpRequestMessage, HttpResponseMessage> send,
+        bool useApiExceptionHandler = false)
+    {
+        var terminalHandler = new StubHttpMessageHandler(
+            (request, _) => Task.FromResult(send(request)));
+        HttpMessageHandler handler = useApiExceptionHandler
+            ? new ApiExceptionHandler { InnerHandler = terminalHandler }
+            : terminalHandler;
+
+        return new(new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.test/"),
+        });
+    }
+
+    private static ApiPlayersClient CreateClientAsync(
+        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) =>
         new(new HttpClient(new StubHttpMessageHandler(send))
         {
             BaseAddress = new Uri("https://api.test/"),
@@ -89,12 +154,13 @@ public sealed class ApiPlayersClientTests
             Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json"),
         };
 
-    private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> send)
+    private sealed class StubHttpMessageHandler(
+        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send)
         : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken) =>
-            Task.FromResult(send(request));
+            send(request, cancellationToken);
     }
 }

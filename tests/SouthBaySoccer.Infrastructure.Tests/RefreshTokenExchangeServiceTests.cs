@@ -87,7 +87,9 @@ public sealed class RefreshTokenExchangeServiceTests
         result.Status.Should().Be(RefreshTokenExchangeStatus.Reused);
         result.Succeeded.Should().BeFalse();
         result.RefreshToken.Should().BeNull();
-        tokenGenerator.Verify(x => x.CreateToken(), Times.Never);
+        // A candidate replacement is generated before token classification so a retry after an
+        // ambiguous commit can recognize its own successful rotation without treating it as reuse.
+        tokenGenerator.Verify(x => x.CreateToken(), Times.Once);
 
         await using var assertionDb = database.CreateDbContext();
         var reused = await assertionDb.RefreshTokens.SingleAsync(x => x.Id == reusedToken.Id);
@@ -118,7 +120,9 @@ public sealed class RefreshTokenExchangeServiceTests
 
         result.Status.Should().Be(RefreshTokenExchangeStatus.Expired);
         result.Succeeded.Should().BeFalse();
-        tokenGenerator.Verify(x => x.CreateToken(), Times.Never);
+        // A candidate replacement is generated before token classification so a retry after an
+        // ambiguous commit can recognize its own successful rotation without consuming this token.
+        tokenGenerator.Verify(x => x.CreateToken(), Times.Once);
 
         await using var assertionDb = database.CreateDbContext();
         var expiredToken = await assertionDb.RefreshTokens.SingleAsync(x => x.Id == currentToken.Id);
