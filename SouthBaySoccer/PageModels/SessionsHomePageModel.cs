@@ -55,7 +55,10 @@ public partial class SessionsHomePageModel(
     private SessionSummaryDto? _featuredSession;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStatsPrompt))]
     private StatsPromptDto? _statsPrompt;
+
+    public bool HasStatsPrompt => StatsPrompt is not null;
 
     [ObservableProperty]
     private string _comingUpLabel = string.Empty;

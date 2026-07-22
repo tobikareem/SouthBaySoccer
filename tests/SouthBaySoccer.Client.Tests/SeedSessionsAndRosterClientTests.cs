@@ -15,9 +15,11 @@ public class SeedSessionsAndRosterClientTests
         var second = await secondClient.GetDashboardAsync(CancellationToken.None);
 
         first.Should().BeEquivalentTo(second);
-        first.FeaturedSession.Title.Should().Be("Marina Field · Saturday pickup");
-        first.FeaturedSession.GoingCount.Should().Be(16);
-        first.FeaturedSession.Capacity.Should().Be(20);
+        var featured = first.FeaturedSession;
+        featured.Should().NotBeNull();
+        featured!.Title.Should().Be("Marina Field · Saturday pickup");
+        featured.GoingCount.Should().Be(16);
+        featured.Capacity.Should().Be(20);
         first.ComingUpSessions.Single().Title.Should().Be("Stanford Turf · 5v5");
         first.ComingUpSessions.Single().WaitlistCount.Should().Be(3);
     }

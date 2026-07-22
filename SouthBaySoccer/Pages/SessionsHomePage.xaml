@@ -52,7 +52,15 @@
                                                VerticalOptions="Center">
                             <controls:Badge Text="{Binding DuesStatus}"
                                             Glyph="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}"
-                                            Variant="Success" />
+                                            Variant="Success">
+                                <controls:Badge.Triggers>
+                                    <DataTrigger TargetType="controls:Badge"
+                                                 Binding="{Binding DuesStatus}"
+                                                 Value="">
+                                        <Setter Property="IsVisible" Value="False" />
+                                    </DataTrigger>
+                                </controls:Badge.Triggers>
+                            </controls:Badge>
                             <Border Style="{StaticResource IconTileSurface}"
                                     SemanticProperties.Description="Notifications">
                                 <Image HorizontalOptions="Center"
@@ -168,14 +176,7 @@
                     </controls:BrandCard>
 
                     <!-- Stats prompt card -->
-                    <controls:BrandCard>
-                        <controls:BrandCard.Triggers>
-                            <DataTrigger TargetType="controls:BrandCard"
-                                         Binding="{Binding StatsPrompt}"
-                                         Value="{x:Null}">
-                                <Setter Property="IsVisible" Value="False" />
-                            </DataTrigger>
-                        </controls:BrandCard.Triggers>
+                    <controls:BrandCard IsVisible="{Binding HasStatsPrompt}">
                         <controls:BrandCard.GestureRecognizers>
                             <TapGestureRecognizer
                                 Command="{Binding OpenMatchStatsCommand}"

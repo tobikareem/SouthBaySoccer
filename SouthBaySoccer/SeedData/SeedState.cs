@@ -54,7 +54,9 @@ public sealed class SeedState
     {
         lock (syncRoot)
         {
-            var featuredSource = ResolveSummary(SeedFixtures.Dashboard.FeaturedSession);
+            // The seed fixture always populates FeaturedSession; the contract is nullable only for
+            // API mode, where an empty database has no session to feature.
+            var featuredSource = ResolveSummary(SeedFixtures.Dashboard.FeaturedSession!);
             var featured = ApplyRosterState(featuredSource);
             var comingUp = SeedFixtures.Dashboard.ComingUpSessions
                 .Select(ResolveSummary)
@@ -307,8 +309,10 @@ public sealed class SeedState
     {
         lock (syncRoot)
         {
+            // The seed fixture always populates FeaturedSession; the contract is nullable only for
+            // API mode, where an empty database has no session to feature.
             var fixedSessions = SeedFixtures.Dashboard.ComingUpSessions
-                .Prepend(SeedFixtures.Dashboard.FeaturedSession)
+                .Prepend(SeedFixtures.Dashboard.FeaturedSession!)
                 .Select(ResolveSummary);
 
             return Array.AsReadOnly(
@@ -665,4 +669,3 @@ public sealed class SeedState
         IEnumerable<RateableTeammateDto> teammates) =>
         Array.AsReadOnly(teammates.ToArray());
 }
-
