@@ -63,7 +63,31 @@ public interface IRsvpRepository
         Guid sessionId,
         Guid playerProfileId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the session's confirmed (Going) players with their profile display data.
+    /// </summary>
+    Task<IReadOnlyList<RosterMemberRecord>> ListGoingRosterAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the session's active waitlist in position order with profile display data.
+    /// </summary>
+    Task<IReadOnlyList<RosterMemberRecord>> ListActiveWaitlistRosterAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Represents one roster row backed by a local player profile.
+/// </summary>
+public sealed record RosterMemberRecord(
+    Guid PlayerProfileId,
+    string DisplayName,
+    string PreferredPosition,
+    bool IsGuest,
+    int? WaitlistPosition);
 
 /// <summary>
 /// Represents the result of mutating or reading RSVP state.

@@ -38,7 +38,7 @@ Scenario: The session list and dues status load from the seed client
 Scenario: Loading, empty, error, and offline states use StateView
   Given the Sessions home screen is loading its data
   Then a StateView Loading state is shown while the request is in flight
-  And when no upcoming sessions are returned a StateView Empty state is shown
+  And when no upcoming sessions are returned the stats entry point remains available
   And when the request fails a StateView Error state with a retry affordance is shown
   And when the device is offline a StateView Offline state is shown
   And the Refresh command re-runs the request from any non-content state
@@ -52,6 +52,12 @@ Scenario: Tapping the stats prompt opens the Match stats screen
   Given the "Submit your latest stats" card is displayed
   When I tap it
   Then the OpenMatchStats command navigates to the Match stats screen
+
+Scenario: Stats prompt remains available without a latest-match projection
+  Given the API dashboard does not provide a latest match id
+  When the Sessions home screen is displayed
+  Then the "Submit your latest stats" card remains visible
+  And tapping it opens the Stats tab
 
 Scenario: A full session offers joining the waitlist
   Given a session card shows a "Full" Badge and remaining waitlist count

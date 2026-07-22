@@ -1,5 +1,6 @@
 using FluentAssertions;
 using FluentValidation;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
@@ -402,7 +403,11 @@ public sealed class SessionAdminWorkflowHandlerTests
         var clock = new Mock<IClock>();
         // 2026-07-11 19:40 UTC is 12:40 PM Pacific — a Saturday.
         clock.SetupGet(x => x.UtcNow).Returns(Utc(2026, 7, 11, 19, 40));
-        var handler = new GetCreateSessionAdminDefaultsQueryHandler(clock.Object, venueRepository);
+        var handler = new GetCreateSessionAdminDefaultsQueryHandler(
+            clock.Object,
+            venueRepository,
+            NoOpImportHandler(),
+            NullLogger<GetCreateSessionAdminDefaultsQueryHandler>.Instance);
 
         var result = await handler.HandleAsync();
 
@@ -416,7 +421,11 @@ public sealed class SessionAdminWorkflowHandlerTests
         var clock = new Mock<IClock>();
         // 2026-07-10 19:40 UTC is 12:40 PM Pacific — a Friday, the day before the Saturday fixture above.
         clock.SetupGet(x => x.UtcNow).Returns(Utc(2026, 7, 10, 19, 40));
-        var handler = new GetCreateSessionAdminDefaultsQueryHandler(clock.Object, venueRepository);
+        var handler = new GetCreateSessionAdminDefaultsQueryHandler(
+            clock.Object,
+            venueRepository,
+            NoOpImportHandler(),
+            NullLogger<GetCreateSessionAdminDefaultsQueryHandler>.Instance);
 
         var result = await handler.HandleAsync();
 
@@ -430,7 +439,11 @@ public sealed class SessionAdminWorkflowHandlerTests
         var clock = new Mock<IClock>();
         // 2026-07-12 19:40 UTC is 12:40 PM Pacific — the Sunday right after the Saturday fixture above.
         clock.SetupGet(x => x.UtcNow).Returns(Utc(2026, 7, 12, 19, 40));
-        var handler = new GetCreateSessionAdminDefaultsQueryHandler(clock.Object, venueRepository);
+        var handler = new GetCreateSessionAdminDefaultsQueryHandler(
+            clock.Object,
+            venueRepository,
+            NoOpImportHandler(),
+            NullLogger<GetCreateSessionAdminDefaultsQueryHandler>.Instance);
 
         var result = await handler.HandleAsync();
 
@@ -457,6 +470,24 @@ public sealed class SessionAdminWorkflowHandlerTests
             .Setup(x => x.ListActiveAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<Venue>());
         return repository.Object;
+    }
+
+    // A real import handler whose games client returns no games, so the Pickup Pal import step in
+    // the defaults handler is a no-op and the defaults behavior under test stays isolated.
+    private static ImportPickupPalGamesCommandHandler NoOpImportHandler()
+    {
+        var gamesClient = new Mock<IPickupPalGamesClient>();
+        gamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<PickupPalGame>());
+        return new ImportPickupPalGamesCommandHandler(
+            gamesClient.Object,
+            Mock.Of<IPickupPalGameRepository>(),
+            Mock.Of<ISessionRepository>(),
+            Mock.Of<ISeasonRepository>(),
+            EmptyVenueRepository(),
+            SavingUnitOfWork().Object,
+            Mock.Of<IClock>());
     }
 
     private static CreateSessionDraftCommand ValidDraftCommand() =>

@@ -29,6 +29,9 @@ public sealed class ShellSessionsNavigator : ISessionsNavigator
         return Shell.Current.GoToAsync($"matchstats?matchId={matchId}");
     }
 
+    public Task GoToStatsAsync() =>
+        Shell.Current.GoToAsync("//stats");
+
     public Task GoToScheduleAsync() =>
         Shell.Current.GoToAsync("schedule");
 

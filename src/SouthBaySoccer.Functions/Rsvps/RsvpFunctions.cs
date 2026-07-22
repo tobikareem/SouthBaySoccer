@@ -13,6 +13,7 @@ public sealed class RsvpFunctions(
     SubmitRsvpCommandHandler submitRsvpHandler,
     CancelRsvpCommandHandler cancelRsvpHandler,
     GetMyRsvpQueryHandler getMyRsvpHandler,
+    GetSessionRosterQueryHandler getSessionRosterHandler,
     AdminOverrideRsvpCommandHandler adminOverrideRsvpHandler,
     CheckInPlayerCommandHandler checkInPlayerHandler,
     RecordNoShowsCommandHandler recordNoShowsHandler,
@@ -72,6 +73,17 @@ public sealed class RsvpFunctions(
         return result is null
             ? request.CreateResponse(HttpStatusCode.NoContent)
             : await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(result), cancellationToken);
+    }
+
+    [Function(nameof(GetSessionRoster))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> GetSessionRoster(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "sessions/{sessionId:guid}/roster")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var roster = await getSessionRosterHandler.HandleAsync(sessionId, cancellationToken);
+        return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(roster), cancellationToken);
     }
 
     [Function(nameof(AdminOverrideRsvp))]
@@ -138,6 +150,35 @@ public sealed class RsvpFunctions(
                 return new IdempotentResponse<NoShowResponseDto>(HttpStatusCode.OK, new NoShowResponseDto(result.SessionId, result.RecordedCount));
             },
             cancellationToken);
+    }
+
+    private static Contracts.Rosters.RosterDto ToResponse(SessionRosterModel roster) =>
+        new(
+            roster.SessionId,
+            roster.Going.Select(member => new Contracts.Rosters.RosterEntryDto(
+                ToPlayerSummary(member),
+                member.IsCurrentPlayer)).ToArray(),
+            roster.Waitlist.Select(member => new Contracts.Rosters.WaitlistEntryDto(
+                ToPlayerSummary(member),
+                member.WaitlistPosition ?? 0)).ToArray());
+
+    private static Contracts.Players.PlayerSummaryDto ToPlayerSummary(RosterMemberModel member) =>
+        new(
+            member.PlayerProfileId ?? Guid.Empty,
+            member.DisplayName,
+            ToInitials(member.DisplayName),
+            member.PreferredPosition,
+            member.IsGuest);
+
+    private static string ToInitials(string displayName)
+    {
+        var initials = string.Concat(
+            displayName
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Take(2)
+                .Select(part => char.ToUpperInvariant(part[0])));
+
+        return string.IsNullOrWhiteSpace(initials) ? "SB" : initials;
     }
 
     private static RsvpResponseDto ToResponse(RsvpResultModel result) =>
