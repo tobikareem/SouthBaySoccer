@@ -114,18 +114,24 @@ public partial class SessionDetailPageModel(
     /// <summary>Going section heading with count, e.g. "Going · 16".</summary>
     public string GoingHeading => $"Going · {Going.Count}";
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GoingPreview))]
+    [NotifyPropertyChangedFor(nameof(HasMoreGoing))]
+    private bool _isGoingExpanded;
+
     /// <summary>
     /// The first <see cref="GoingPreviewLimit"/> going players shown inline; the remainder collapse
-    /// behind <see cref="MoreGoingLabel"/>. Returns the full list when it fits within the limit.
+    /// behind <see cref="MoreGoingLabel"/> until it is tapped. Returns the full list when expanded
+    /// or when it fits within the limit.
     /// </summary>
     public IReadOnlyList<GoingRow> GoingPreview =>
-        Going.Count > GoingPreviewLimit ? [.. Going.Take(GoingPreviewLimit)] : Going;
+        !IsGoingExpanded && Going.Count > GoingPreviewLimit ? [.. Going.Take(GoingPreviewLimit)] : Going;
 
     /// <summary>Count of going players hidden behind the "+ N more going" affordance.</summary>
     public int MoreGoingCount => Math.Max(0, Going.Count - GoingPreviewLimit);
 
-    /// <summary>True when the going roster exceeds the inline preview and needs the affordance.</summary>
-    public bool HasMoreGoing => MoreGoingCount > 0;
+    /// <summary>True when collapsed going players exist and the expand affordance should show.</summary>
+    public bool HasMoreGoing => !IsGoingExpanded && MoreGoingCount > 0;
 
     /// <summary>Collapsed-roster affordance label, e.g. "+ 12 more going".</summary>
     public string MoreGoingLabel => $"+ {MoreGoingCount} more going";
@@ -237,11 +243,19 @@ public partial class SessionDetailPageModel(
         }
     }
 
+    /// <summary>Expands the collapsed going roster to show every confirmed player.</summary>
+    [RelayCommand]
+    private void ShowAllGoing() => IsGoingExpanded = true;
+
     private async Task RefreshRosterAsync(CancellationToken cancellationToken)
     {
         var roster = await rosterClient.GetRosterAsync(_sessionId, cancellationToken);
         ApplyRoster(roster);
     }
+
+    // The session DTO's availability covers the RSVP window (deadline, cancellation); capacity is
+    // re-evaluated from the roster because the composed detail has no reliable going count.
+    private bool _rsvpWindowOpen;
 
     private void ApplySession(SessionDetailDto session)
     {
@@ -253,6 +267,7 @@ public partial class SessionDetailPageModel(
         Capacity = session.Capacity;
         DeadlineLabel = session.DeadlineLabel;
         IsGoing = session.IsGoing;
+        _rsvpWindowOpen = session.IsRsvpAvailable;
         RsvpAvailable = session.IsRsvpAvailable;
         IsCanceled = session.IsCanceled;
     }
@@ -277,12 +292,17 @@ public partial class SessionDetailPageModel(
             entry.Player.DisplayName,
             entry.Player.IsGuest,
             entry.Position == 1))];
+
+        // Keep the capacity card and RSVP gate in sync with the authoritative roster.
+        GoingCount = roster.Going.Count;
+        RsvpAvailable = _rsvpWindowOpen && (Capacity <= 0 || roster.Going.Count < Capacity);
     }
 
     private void ResetContent()
     {
         Going = [];
         Waitlist = [];
+        IsGoingExpanded = false;
     }
 
     private void ApplyState(ViewState state, string title, string message)

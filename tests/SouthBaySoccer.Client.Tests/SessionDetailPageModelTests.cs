@@ -264,6 +264,48 @@ public class SessionDetailPageModelTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task Load_RosterLoaded_SyncsGoingCountAndFullSessionDisablesRsvp()
+    {
+        // The composed detail carries a stale count of 16; the roster is the authority with 20/20.
+        var roster = new Mock<IRosterClient>();
+        roster
+            .Setup(client => client.GetRosterAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RosterWithGoing(20));
+        var pageModel = new SessionDetailPageModel(
+            SessionsReturning(Detail(rsvpAvailable: true, isGoing: false)).Object,
+            roster.Object);
+
+        ApplyQuery(pageModel, SeedFixtures.MarinaSessionId);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        pageModel.GoingCount.Should().Be(20, "the roster count overrides the composed detail count");
+        pageModel.GoingHeading.Should().Be("Going · 20");
+        pageModel.CanRsvp.Should().BeFalse("a full session closes the RSVP toggle");
+    }
+
+    [Fact]
+    public async Task ShowAllGoing_CollapsedRoster_ExpandsToFullListAndHidesAffordance()
+    {
+        var roster = new Mock<IRosterClient>();
+        roster
+            .Setup(client => client.GetRosterAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RosterWithGoing(6));
+        var pageModel = new SessionDetailPageModel(
+            SessionsReturning(Detail(rsvpAvailable: true, isGoing: false)).Object,
+            roster.Object);
+        ApplyQuery(pageModel, SeedFixtures.MarinaSessionId);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        pageModel.GoingPreview.Should().HaveCount(SessionDetailPageModel.GoingPreviewLimit);
+        pageModel.HasMoreGoing.Should().BeTrue();
+        pageModel.MoreGoingLabel.Should().Be("+ 2 more going");
+
+        pageModel.ShowAllGoingCommand.Execute(null);
+
+        pageModel.GoingPreview.Should().HaveCount(6, "expanding shows every confirmed player");
+        pageModel.HasMoreGoing.Should().BeFalse("the affordance hides once expanded");
+    }
+
     private static string ReadXaml(string fileName)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Client", "Xaml", fileName);

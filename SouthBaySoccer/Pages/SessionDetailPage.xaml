@@ -130,12 +130,17 @@
                             </DataTemplate>
                         </BindableLayout.ItemTemplate>
                     </VerticalStackLayout>
-                    <!-- Non-interactive muted row (wireframe parity); its Text is already read by
-                         screen readers, so no extra SemanticProperties.Description is needed. -->
+                    <!-- Tapping expands the collapsed roster to show every confirmed player. -->
                     <Label Text="{Binding MoreGoingLabel}"
                            Style="{StaticResource TextCaption}"
+                           TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
                            Padding="{StaticResource RowPadding}"
-                           IsVisible="{Binding HasMoreGoing}" />
+                           IsVisible="{Binding HasMoreGoing}"
+                           SemanticProperties.Description="Show all going players">
+                        <Label.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding ShowAllGoingCommand}" />
+                        </Label.GestureRecognizers>
+                    </Label>
 
                     <!-- Ordered waitlist -->
                     <c:SectionHeader Text="{Binding WaitlistHeading}"
