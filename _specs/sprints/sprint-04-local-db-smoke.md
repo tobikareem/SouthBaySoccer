@@ -15,7 +15,7 @@ tokens, phone numbers, or copied response bodies that contain private data.
 - A local development JWT is available through `POST /api/dev/local-admin-session` or another
   dev-only auth path.
 
-## Known local host blocker
+## Resolved local host blocker
 
 On July 7, 2026, an automated smoke attempt could not start the local Function host because Function
 Core Tools failed before serving requests with:
@@ -24,13 +24,13 @@ Core Tools failed before serving requests with:
 An item with the same key has already been added. Key: AZURE_FUNCTIONS_ENVIRONMENT
 ```
 
-Before rerunning the live smoke, remove the duplicate `AZURE_FUNCTIONS_ENVIRONMENT` source from the
-local process environment, user secrets, or `local.settings.json`. Do not commit the local settings
-file or paste its values into this runbook.
+On July 21, 2026, the Function host started successfully and the authenticated directory/profile API
+smoke passed. The local settings contained one `AZURE_FUNCTIONS_ENVIRONMENT` key and the process,
+user, and machine environments contained no duplicate. If the startup error returns, inspect those
+sources without printing their values. Do not commit the local settings file.
 
-This blocker is local to Azure Functions Core Tools startup. It means the local Function host saw
-the same `AZURE_FUNCTIONS_ENVIRONMENT` key from more than one configuration source and crashed before
-serving HTTP requests. It does not affect an iOS app build that points at a deployed API.
+The original failure was local to Azure Functions Core Tools startup and did not affect deployed API
+builds.
 
 ## iOS deployed API smoke
 
@@ -63,7 +63,7 @@ the explicit setting for test packages so the data source is unambiguous.
    - The directory response has `totalPlayers > 0`.
    - At least one returned row has a `player.id` matching a `PlayerProfiles.Id` value from the local
      database.
-   - Linked registered players include `identityId`; guest profiles can have `identityId: null`.
+   - Rows use `player.id` as the public player-profile key and do not expose internal identity ids.
    - No response includes phone numbers, email addresses, token values, payment identifiers, or
      emergency contact data.
    - `GET /profiles/{playerProfileId}` returns display name, position, career stats, recent form,
