@@ -229,6 +229,9 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
         return new RsvpMutationResult(sessionId, playerProfileId, state, rsvp.Id);
     }
 
+    // Ordering happens on an anonymous projection before the record is constructed: EF Core cannot
+    // translate member access on a positional-record projection, so OrderBy-after-construct throws
+    // an untranslatable-LINQ InvalidOperationException at runtime.
     public async Task<IReadOnlyList<RosterMemberRecord>> ListGoingRosterAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default) =>
@@ -238,13 +241,9 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
                 dbContext.PlayerProfiles,
                 rsvp => rsvp.PlayerProfileId,
                 profile => profile.Id,
-                (rsvp, profile) => new RosterMemberRecord(
-                    profile.Id,
-                    profile.DisplayName,
-                    profile.PreferredPosition,
-                    profile.IsGuest,
-                    null))
+                (rsvp, profile) => new { profile.Id, profile.DisplayName, profile.PreferredPosition, profile.IsGuest })
             .OrderBy(x => x.DisplayName)
+            .Select(x => new RosterMemberRecord(x.Id, x.DisplayName, x.PreferredPosition, x.IsGuest, null))
             .ToArrayAsync(cancellationToken);
 
     public async Task<IReadOnlyList<RosterMemberRecord>> ListActiveWaitlistRosterAsync(
@@ -256,13 +255,9 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
                 dbContext.PlayerProfiles,
                 entry => entry.PlayerProfileId,
                 profile => profile.Id,
-                (entry, profile) => new RosterMemberRecord(
-                    profile.Id,
-                    profile.DisplayName,
-                    profile.PreferredPosition,
-                    profile.IsGuest,
-                    entry.Position))
-            .OrderBy(x => x.WaitlistPosition)
+                (entry, profile) => new { profile.Id, profile.DisplayName, profile.PreferredPosition, profile.IsGuest, entry.Position })
+            .OrderBy(x => x.Position)
+            .Select(x => new RosterMemberRecord(x.Id, x.DisplayName, x.PreferredPosition, x.IsGuest, x.Position))
             .ToArrayAsync(cancellationToken);
 
     private async Task<T> ExecuteInSerializableTransactionAsync<T>(
