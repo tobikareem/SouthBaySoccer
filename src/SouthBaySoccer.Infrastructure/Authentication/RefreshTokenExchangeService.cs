@@ -54,69 +54,102 @@ public sealed class RefreshTokenExchangeService : IRefreshTokenExchangeService
         var tokenHash = hasher.Hash(request.RefreshToken);
         var now = clock.UtcNow;
 
+        // Generated once, outside the retry delegate: after an ambiguous commit (the commit landed
+        // but the strategy saw a transient failure), the re-run reads its own consumed token and must
+        // recognize the rotation as its own via this id instead of treating it as reuse.
+        var replacementId = Guid.NewGuid();
+        var replacementSecret = tokenGenerator.CreateToken();
+
         // The exchange must be a single serializable unit: classify the presented token, mark reuse
         // or consumption, create the replacement, and persist the family state together.
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-
-        var currentToken = await dbContext.RefreshTokens
-            .SingleOrDefaultAsync(x => x.TokenHash == tokenHash, cancellationToken);
-
-        if (currentToken is null)
+        // SqlServerRetryingExecutionStrategy rejects user-initiated transactions unless they run
+        // inside the strategy, and it may re-run this delegate, so each attempt resets tracked state.
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
-            await transaction.CommitAsync(cancellationToken);
-            return new RefreshTokenExchangeResult(RefreshTokenExchangeStatus.Invalid);
-        }
+            dbContext.ChangeTracker.Clear();
 
-        if (currentToken.ConsumedAtUtc is not null)
-        {
-            await RevokeFamilyForReuseAsync(currentToken, now, cancellationToken);
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable,
+                cancellationToken);
+
+            var currentToken = await dbContext.RefreshTokens
+                .SingleOrDefaultAsync(x => x.TokenHash == tokenHash, cancellationToken);
+
+            if (currentToken is null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return new RefreshTokenExchangeResult(RefreshTokenExchangeStatus.Invalid);
+            }
+
+            if (currentToken.ConsumedAtUtc is not null)
+            {
+                if (currentToken.ReplacedByRefreshTokenId == replacementId)
+                {
+                    var committedReplacement = await dbContext.RefreshTokens
+                        .SingleAsync(x => x.Id == replacementId, cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+                    return new RefreshTokenExchangeResult(
+                        RefreshTokenExchangeStatus.Rotated,
+                        currentToken.IdentityUserId,
+                        currentToken.PlayerProfileId,
+                        replacementSecret,
+                        replacementId,
+                        committedReplacement.ExpiresAtUtc);
+                }
+
+                await RevokeFamilyForReuseAsync(currentToken, now, cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return new RefreshTokenExchangeResult(RefreshTokenExchangeStatus.Reused);
+            }
+
+            if (currentToken.RevokedAtUtc is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return new RefreshTokenExchangeResult(RefreshTokenExchangeStatus.Revoked);
+            }
+
+            if (currentToken.ExpiresAtUtc <= now)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return new RefreshTokenExchangeResult(RefreshTokenExchangeStatus.Expired);
+            }
+
+            var replacementToken = CreateReplacementToken(
+                currentToken,
+                request,
+                replacementSecret,
+                now,
+                replacementId);
+
+            currentToken.ConsumedAtUtc = now;
+            currentToken.ReplacedByRefreshTokenId = replacementToken.Id;
+
+            dbContext.RefreshTokens.Add(replacementToken);
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return new RefreshTokenExchangeResult(RefreshTokenExchangeStatus.Reused);
-        }
 
-        if (currentToken.RevokedAtUtc is not null)
-        {
-            await transaction.CommitAsync(cancellationToken);
-            return new RefreshTokenExchangeResult(RefreshTokenExchangeStatus.Revoked);
-        }
-
-        if (currentToken.ExpiresAtUtc <= now)
-        {
-            await transaction.CommitAsync(cancellationToken);
-            return new RefreshTokenExchangeResult(RefreshTokenExchangeStatus.Expired);
-        }
-
-        var replacementSecret = tokenGenerator.CreateToken();
-        var replacementToken = CreateReplacementToken(currentToken, request, replacementSecret, now);
-
-        currentToken.ConsumedAtUtc = now;
-        currentToken.ReplacedByRefreshTokenId = replacementToken.Id;
-
-        dbContext.RefreshTokens.Add(replacementToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-
-        return new RefreshTokenExchangeResult(
-            RefreshTokenExchangeStatus.Rotated,
-            currentToken.IdentityUserId,
-            currentToken.PlayerProfileId,
-            replacementSecret,
-            replacementToken.Id,
-            replacementToken.ExpiresAtUtc);
+            return new RefreshTokenExchangeResult(
+                RefreshTokenExchangeStatus.Rotated,
+                currentToken.IdentityUserId,
+                currentToken.PlayerProfileId,
+                replacementSecret,
+                replacementToken.Id,
+                replacementToken.ExpiresAtUtc);
+        });
     }
 
     private RefreshToken CreateReplacementToken(
         RefreshToken currentToken,
         RefreshTokenExchangeRequest request,
         string replacementSecret,
-        DateTime now)
+        DateTime now,
+        Guid replacementId)
     {
         return new RefreshToken
         {
-            Id = Guid.NewGuid(),
+            Id = replacementId,
             IdentityUserId = currentToken.IdentityUserId,
             PlayerProfileId = currentToken.PlayerProfileId,
             TokenHash = hasher.Hash(replacementSecret),
