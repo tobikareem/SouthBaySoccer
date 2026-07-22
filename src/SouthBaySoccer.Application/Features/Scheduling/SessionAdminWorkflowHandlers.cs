@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Domain.Entities.Scheduling;
@@ -9,14 +10,49 @@ namespace SouthBaySoccer.Application.Features.Scheduling;
 
 public sealed class GetCreateSessionAdminDefaultsQueryHandler(
     IClock clock,
-    IVenueRepository venueRepository)
+    IVenueRepository venueRepository,
+    ImportPickupPalGamesCommandHandler importPickupPalGamesHandler,
+    ILogger<GetCreateSessionAdminDefaultsQueryHandler> logger)
 {
     private static readonly string[] Formats = ["5v5", "7v7", "9v9"];
     private static readonly string[] TeamOptions = ["2 teams", "3 teams", "4 teams"];
+    private static readonly TimeSpan ImportTimeout = TimeSpan.FromSeconds(5);
 
     public async Task<CreateSessionAdminDefaultsModel> HandleAsync(
         CancellationToken cancellationToken = default)
     {
+        // Opening Create session refreshes reality from Pickup Pal first (source of truth for
+        // imported games). The import is fail-open and time-boxed: if Pickup Pal is unreachable or
+        // slow, the admin still gets defaults built from local data instead of blocking the screen.
+        using var importCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        importCts.CancelAfter(ImportTimeout);
+        try
+        {
+            var import = await importPickupPalGamesHandler.HandleAsync(importCts.Token);
+            if (import.Warnings.Count > 0)
+            {
+                logger.LogWarning(
+                    "Pickup Pal import finished with {WarningCount} warning(s): {Warnings}",
+                    import.Warnings.Count,
+                    string.Join("; ", import.Warnings));
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogWarning(
+                "Pickup Pal import timed out after {TimeoutSeconds}s; loading Create session with local data.",
+                ImportTimeout.TotalSeconds);
+        }
+        catch (Exception ex)
+        {
+            // Fail-open by design; the import is advisory and the screen must still load.
+            logger.LogWarning(ex, "Pickup Pal import failed; loading Create session with local data.");
+        }
+
         var venues = await venueRepository.ListActiveAsync(cancellationToken);
         var savedVenue = venues.FirstOrDefault();
         var localToday = SessionAdminTimeZone.ToLocal(clock.UtcNow).Date;

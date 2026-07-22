@@ -13,6 +13,9 @@ public interface ISessionsNavigator
     /// <summary>Opens the Match stats screen for the given match.</summary>
     Task GoToMatchStatsAsync(Guid matchId);
 
+    /// <summary>Opens the root Stats tab.</summary>
+    Task GoToStatsAsync();
+
     /// <summary>Opens the upcoming-session schedule screen.</summary>
     Task GoToScheduleAsync();
 

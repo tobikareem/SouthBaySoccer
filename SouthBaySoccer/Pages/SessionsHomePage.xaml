@@ -176,17 +176,13 @@
                     </controls:BrandCard>
 
                     <!-- Stats prompt card -->
-                    <controls:BrandCard IsVisible="{Binding HasStatsPrompt}">
+                    <controls:BrandCard SemanticProperties.Description="{Binding StatsPromptSemanticDescription}"
+                                        SemanticProperties.Hint="{Binding StatsPromptSemanticHint}">
                         <controls:BrandCard.GestureRecognizers>
-                            <TapGestureRecognizer
-                                Command="{Binding OpenMatchStatsCommand}"
-                                CommandParameter="{Binding StatsPrompt.MatchId}" />
+                            <TapGestureRecognizer Command="{Binding OpenStatsCommand}" />
                         </controls:BrandCard.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*,Auto"
-                              ColumnSpacing="{StaticResource SpaceMd}"
-                              BindingContext="{Binding StatsPrompt}"
-                              x:DataType="sessions:StatsPromptDto"
-                              SemanticProperties.Description="{Binding Title}">
+                              ColumnSpacing="{StaticResource SpaceMd}">
                             <Border Style="{StaticResource IconTileSurface}" VerticalOptions="Center">
                                 <Image HorizontalOptions="Center"
                                        VerticalOptions="Center">
@@ -201,8 +197,8 @@
                             <VerticalStackLayout Grid.Column="1"
                                                  Spacing="{StaticResource SpaceXs}"
                                                  VerticalOptions="Center">
-                                <Label Text="{Binding Title}" Style="{StaticResource TextBodyStrong}" />
-                                <Label Text="{Binding Caption}" Style="{StaticResource TextCaption}" />
+                                <Label Text="{Binding StatsPromptTitle}" Style="{StaticResource TextBodyStrong}" />
+                                <Label Text="{Binding StatsPromptCaption}" Style="{StaticResource TextCaption}" />
                             </VerticalStackLayout>
                             <Label Grid.Column="2"
                                    Text="{x:Static fonts:FontAwesomeGlyphs.ChevronRight}"

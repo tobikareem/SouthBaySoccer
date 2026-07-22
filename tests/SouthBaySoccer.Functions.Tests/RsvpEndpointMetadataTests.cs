@@ -16,6 +16,7 @@ public sealed class RsvpEndpointMetadataTests
     [InlineData(nameof(RsvpFunctions.SubmitRsvp), "sessions/{sessionId:guid}/rsvp", AuthenticationPolicies.AuthenticatedPlayer)]
     [InlineData(nameof(RsvpFunctions.CancelRsvp), "sessions/{sessionId:guid}/rsvp", AuthenticationPolicies.AuthenticatedPlayer)]
     [InlineData(nameof(RsvpFunctions.GetMyRsvp), "sessions/{sessionId:guid}/rsvp/me", AuthenticationPolicies.AuthenticatedPlayer)]
+    [InlineData(nameof(RsvpFunctions.GetSessionRoster), "sessions/{sessionId:guid}/roster", AuthenticationPolicies.AuthenticatedPlayer)]
     [InlineData(nameof(RsvpFunctions.AdminOverrideRsvp), "sessions/{sessionId:guid}/rsvp/admin-override", AuthenticationPolicies.CanManageSessions)]
     [InlineData(nameof(RsvpFunctions.CheckInPlayer), "sessions/{sessionId:guid}/check-ins", AuthenticationPolicies.CanCheckInPlayers)]
     [InlineData(nameof(RsvpFunctions.RecordNoShows), "sessions/{sessionId:guid}/check-ins/no-shows", AuthenticationPolicies.CanCheckInPlayers)]

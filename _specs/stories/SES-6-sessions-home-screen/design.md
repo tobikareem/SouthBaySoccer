@@ -25,9 +25,10 @@ and brand tokens — no page-local hex, font sizes, or emoji.
    `Marina Field · Saturday pickup`, date/time/format `MetadataChip`s, `You're going`, and
    `View details`.
    Bound to `OpenSessionCommand` for the featured session.
-3. **Stats prompt** — a compact tappable `BrandCard` with an `IconButton`-styled chart glyph, title
+3. **Stats prompt** — an always-visible compact tappable `BrandCard` with an `IconButton`-styled chart glyph, title
    `Submit your latest stats`, caption `2 goals entered · captain confirmation pending`, and a
-   chevron. Bound to `OpenMatchStatsCommand`.
+   chevron. When `StatsPrompt.MatchId` is available it opens that match through
+   `OpenMatchStatsCommand`; otherwise the same always-visible card opens the root Stats tab.
 4. **`SectionHeader`** — text `Coming up`, with `See schedule`.
 5. **Coming-up session list** — a `CollectionView` bound to `ComingUpSessions`. Each card is a
    tappable `BrandCard` (`OpenSessionCommand`, `CommandParameter` = the session item) showing:
@@ -85,11 +86,13 @@ seed-backed `ISessionsClient` abstraction and a navigation service — never on 
 - `State` — drives the `StateView` (Loading / Empty / Error / Offline / Content);
 - `OpenSessionCommand` (`ICommand`, parameter = session) — navigates to Session detail;
 - `OpenMatchStatsCommand` — navigates to Match stats;
+- `OpenStatsCommand` — opens the latest match submission when available, otherwise opens the Stats tab;
 - `JoinWaitlistCommand` (`ICommand`, parameter = session) — joins the waitlist for a full session;
 - `RefreshCommand` — reloads dues status and upcoming sessions from `ISessionsClient`.
 
 On appearance the page model sets Loading, calls `ISessionsClient` for the dues status and upcoming
-sessions, then maps results to `Content` (or `Empty` when none), `Error` on a recoverable failure,
+sessions, then maps successful results to `Content` so the stats entry point remains available even
+when there are no upcoming sessions, `Error` on a recoverable failure,
 or `Offline` when connectivity is unavailable. Navigation commands route through Shell to the Session
 detail and Match stats screens; tab switching is Shell `TabBar` navigation, not a command.
 

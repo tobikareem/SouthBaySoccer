@@ -53,6 +53,8 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<CreateRecurrenceRuleCommandHandler>();
         builder.Services.AddScoped<CreateSessionOccurrenceCommandHandler>();
         builder.Services.AddScoped<GetCreateSessionAdminDefaultsQueryHandler>();
+        builder.Services.AddScoped<ImportPickupPalGamesCommandHandler>();
+        builder.Services.AddScoped<GetSessionRosterQueryHandler>();
         builder.Services.AddScoped<ListManagedSessionsQueryHandler>();
         builder.Services.AddScoped<GetSessionForAdminEditQueryHandler>();
         builder.Services.AddScoped<CreateSessionDraftCommandHandler>();

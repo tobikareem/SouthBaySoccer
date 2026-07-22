@@ -214,7 +214,7 @@ public class SessionsHomePageModelTests
     }
 
     [Fact]
-    public async Task Appearing_NoSessionsReturned_ShowsEmptyState()
+    public async Task Appearing_NoSessionsReturned_KeepsStatsEntryPointVisible()
     {
         var sessionsClient = new Mock<ISessionsClient>();
         sessionsClient
@@ -225,8 +225,8 @@ public class SessionsHomePageModelTests
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
-        pageModel.State.Should().Be(ViewState.Empty);
-        pageModel.StateTitle.Should().Be(SessionsHomePageModel.EmptyTitle);
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.StatsPromptTitle.Should().Be("Submit your latest stats");
         pageModel.ComingUpSessions.Should().BeEmpty();
     }
 
@@ -297,18 +297,42 @@ public class SessionsHomePageModelTests
     }
 
     [Fact]
-    public async Task OpenMatchStats_Invoked_NavigatesToMatchStatsWithId()
+    public async Task OpenStats_WhenLatestMatchAvailable_NavigatesToMatchStatsWithId()
     {
-        var sessionsClient = new Mock<ISessionsClient>(MockBehavior.Strict);
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard);
         var navigator = new Mock<ISessionsNavigator>();
         navigator
             .Setup(item => item.GoToMatchStatsAsync(SeedFixtures.FeaturedMatchId))
             .Returns(Task.CompletedTask);
         var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
 
-        await pageModel.OpenMatchStatsCommand.ExecuteAsync(SeedFixtures.FeaturedMatchId);
+        await pageModel.OpenStatsCommand.ExecuteAsync(null);
 
         navigator.Verify(item => item.GoToMatchStatsAsync(SeedFixtures.FeaturedMatchId), Times.Once);
+        navigator.Verify(item => item.GoToStatsAsync(), Times.Never);
+    }
+
+    [Fact]
+    public async Task OpenStats_WhenLatestMatchUnavailable_NavigatesToStatsTab()
+    {
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with { StatsPrompt = null });
+        var navigator = new Mock<ISessionsNavigator>();
+        navigator.Setup(item => item.GoToStatsAsync()).Returns(Task.CompletedTask);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        await pageModel.OpenStatsCommand.ExecuteAsync(null);
+
+        pageModel.StatsPromptTitle.Should().Be("Submit your latest stats");
+        navigator.Verify(item => item.GoToStatsAsync(), Times.Once);
+        navigator.Verify(item => item.GoToMatchStatsAsync(It.IsAny<Guid>()), Times.Never);
     }
 
     [Fact]

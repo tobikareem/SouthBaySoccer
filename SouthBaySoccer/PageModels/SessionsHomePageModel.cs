@@ -23,8 +23,6 @@ public partial class SessionsHomePageModel(
     private string? _cachedProfileDisplayName;
     private string? _cachedProfileRole;
 
-    public const string EmptyTitle = "No upcoming sessions";
-    public const string EmptyMessage = "New game days will appear here as soon as they are scheduled.";
     public const string ErrorTitle = "Couldn't load your sessions";
     public const string ErrorMessage = "Something went wrong loading your home screen. Please try again.";
     public const string OfflineTitle = "You're offline";
@@ -55,10 +53,27 @@ public partial class SessionsHomePageModel(
     private SessionSummaryDto? _featuredSession;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasStatsPrompt))]
+    [NotifyPropertyChangedFor(nameof(StatsPromptTitle))]
+    [NotifyPropertyChangedFor(nameof(StatsPromptCaption))]
+    [NotifyPropertyChangedFor(nameof(StatsPromptSemanticDescription))]
+    [NotifyPropertyChangedFor(nameof(StatsPromptSemanticHint))]
     private StatsPromptDto? _statsPrompt;
 
-    public bool HasStatsPrompt => StatsPrompt is not null;
+    // True when the dashboard carries a specific latest match to open; otherwise the stats entry
+    // point falls back to the Stats tab. Kept as one predicate so the semantic hint and the actual
+    // navigation target can never diverge.
+    private bool HasLatestMatch => StatsPrompt is { MatchId: var matchId } && matchId != Guid.Empty;
+
+    public string StatsPromptTitle => StatsPrompt?.Title ?? "Submit your latest stats";
+
+    public string StatsPromptCaption =>
+        StatsPrompt?.Caption ?? "Add your goals and assists after the match";
+
+    public string StatsPromptSemanticDescription =>
+        $"{StatsPromptTitle}. {StatsPromptCaption}";
+
+    public string StatsPromptSemanticHint =>
+        HasLatestMatch ? "Opens match stats" : "Opens the Stats tab";
 
     [ObservableProperty]
     private string _comingUpLabel = string.Empty;
@@ -84,7 +99,11 @@ public partial class SessionsHomePageModel(
     private Task ViewSessionDetail(Guid sessionId) => navigator.GoToSessionAsync(sessionId);
 
     [RelayCommand]
-    private Task OpenMatchStats(Guid matchId) => navigator.GoToMatchStatsAsync(matchId);
+    private Task OpenStats() =>
+        HasLatestMatch
+            // HasLatestMatch guarantees StatsPrompt is non-null with a real match id.
+            ? navigator.GoToMatchStatsAsync(StatsPrompt!.MatchId)
+            : navigator.GoToStatsAsync();
 
     [RelayCommand]
     private Task ViewSchedule() => navigator.GoToScheduleAsync();
@@ -164,12 +183,6 @@ public partial class SessionsHomePageModel(
         ScheduleActionLabel = dashboard.ScheduleActionLabel;
         ComingUpSessions = dashboard.ComingUpSessions;
         CanManageSessions = canManageSessions;
-
-        if (dashboard.FeaturedSession is null && dashboard.ComingUpSessions.Count == 0)
-        {
-            ApplyErrorState(ViewState.Empty, EmptyTitle, EmptyMessage);
-            return;
-        }
 
         StateTitle = string.Empty;
         StateMessage = string.Empty;

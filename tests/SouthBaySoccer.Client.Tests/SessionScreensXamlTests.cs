@@ -108,6 +108,17 @@ public class SessionScreensXamlTests
     }
 
     [Fact]
+    public void SessionsHomePage_StatsCard_IsAlwaysVisibleAndNavigatesThroughPageModel()
+    {
+        var xaml = ReadXaml(HomePage);
+
+        xaml.Should().Contain("SemanticProperties.Description=\"{Binding StatsPromptSemanticDescription}\"");
+        xaml.Should().Contain("SemanticProperties.Hint=\"{Binding StatsPromptSemanticHint}\"");
+        xaml.Should().Contain("Command=\"{Binding OpenStatsCommand}\"");
+        xaml.Should().NotContain("IsVisible=\"{Binding HasStatsPrompt}\"");
+    }
+
+    [Fact]
     public void SessionDetailPage_InformationalIconsExposeSemanticDescriptions()
     {
         var xaml = ReadXaml(DetailPage);

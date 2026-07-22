@@ -153,34 +153,38 @@ public sealed class ApiSprint03ClientTests
     }
 
     [Fact]
-    public async Task ApiRosterClient_GetRosterAsync_WhenCallerIsGoing_ComposesSelfOnlyRoster()
+    public async Task ApiRosterClient_GetRosterAsync_ReadsRosterEndpointAndMapsBothLists()
     {
+        HttpRequestMessage? observed = null;
         var client = new ApiRosterClient(CreateHttpClient(request =>
-            request.RequestUri!.PathAndQuery.Contains("/rsvp/me")
-                ? JsonResponse(GoingRsvpJson)
-                : JsonResponse(MyProfileJson)));
+        {
+            observed = request;
+            return JsonResponse(RosterJson);
+        }));
 
         var roster = await client.GetRosterAsync(SessionId, CancellationToken.None);
 
+        observed!.Method.Should().Be(HttpMethod.Get);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/sessions/{SessionId}/roster");
         roster.Should().NotBeNull();
-        roster!.Going.Should().HaveCount(1);
+        roster!.Going.Should().HaveCount(2);
         roster.Going[0].IsCurrentPlayer.Should().BeTrue();
         roster.Going[0].Player.DisplayName.Should().Be("Tobi Kareem");
-        roster.Going[0].Player.Initials.Should().Be("TK");
-        roster.Waitlist.Should().BeEmpty();
+        roster.Going[1].Player.DisplayName.Should().Be("Mark A");
+        roster.Waitlist.Should().ContainSingle();
+        roster.Waitlist[0].Player.DisplayName.Should().Be("tope");
+        roster.Waitlist[0].Position.Should().Be(1);
     }
 
     [Fact]
-    public async Task ApiRosterClient_GetRosterAsync_WhenNoRsvp_ReturnsEmptyRoster()
+    public async Task ApiRosterClient_GetRosterAsync_WhenSessionUnknown_ReturnsNull()
     {
-        var client = new ApiRosterClient(CreateHttpClient(_ =>
-            new HttpResponseMessage(HttpStatusCode.NoContent)));
+        var client = new ApiRosterClient(CreatePipelineClient(_ =>
+            ProblemResponse(HttpStatusCode.NotFound, "Session was not found.")));
 
         var roster = await client.GetRosterAsync(SessionId, CancellationToken.None);
 
-        roster.Should().NotBeNull();
-        roster!.Going.Should().BeEmpty();
-        roster.Waitlist.Should().BeEmpty();
+        roster.Should().BeNull();
     }
 
     [Fact]
@@ -398,6 +402,47 @@ public sealed class ApiSprint03ClientTests
           "isGuest": false,
           "role": "GameAdmin",
           "emergencyContact": null
+        }
+        """;
+
+    private const string RosterJson =
+        """
+        {
+          "SessionId": "11111111-1111-1111-1111-111111111111",
+          "Going": [
+            {
+              "Player": {
+                "Id": "22222222-2222-2222-2222-222222222222",
+                "DisplayName": "Tobi Kareem",
+                "Initials": "TK",
+                "Position": "Midfielder",
+                "IsGuest": false
+              },
+              "IsCurrentPlayer": true
+            },
+            {
+              "Player": {
+                "Id": "00000000-0000-0000-0000-000000000000",
+                "DisplayName": "Mark A",
+                "Initials": "MA",
+                "Position": "",
+                "IsGuest": false
+              },
+              "IsCurrentPlayer": false
+            }
+          ],
+          "Waitlist": [
+            {
+              "Player": {
+                "Id": "00000000-0000-0000-0000-000000000000",
+                "DisplayName": "tope",
+                "Initials": "T",
+                "Position": "",
+                "IsGuest": true
+              },
+              "Position": 1
+            }
+          ]
         }
         """;
 

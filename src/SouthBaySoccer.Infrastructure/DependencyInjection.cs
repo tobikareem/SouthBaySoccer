@@ -10,6 +10,7 @@ using SouthBaySoccer.Application.Abstractions.Payments;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Features.Authentication;
 using SouthBaySoccer.Application.Features.Idempotency;
+using SouthBaySoccer.Application.Features.Scheduling;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 using SouthBaySoccer.Infrastructure.Authentication;
 using SouthBaySoccer.Infrastructure.Identity;
@@ -19,6 +20,7 @@ using SouthBaySoccer.Infrastructure.Persistence;
 using SouthBaySoccer.Infrastructure.Persistence.Interceptors;
 using SouthBaySoccer.Infrastructure.Payments;
 using SouthBaySoccer.Infrastructure.Repositories;
+using SouthBaySoccer.Infrastructure.Scheduling;
 using SouthBaySoccer.Infrastructure.Time;
 
 namespace SouthBaySoccer.Infrastructure;
@@ -64,6 +66,8 @@ public static class DependencyInjection
         services.AddSingleton<IWhatsAppChallengeDeliverySender, UnavailableWhatsAppChallengeDeliverySender>();
         services.AddScoped<IWhatsAppIdentityResolver, WhatsAppIdentityResolver>();
         services.AddHttpClient<IPickupPalUserClient, PickupPalUserClient>();
+        services.AddHttpClient<IPickupPalGamesClient, PickupPalGamesClient>();
+        services.AddScoped<IPickupPalGameRepository, PickupPalGameRepository>();
         services.AddSingleton<IConfiguredAdminPhoneNumberService, ConfiguredAdminPhoneNumberService>();
         services.AddScoped<IPickupPalUserSyncService, PickupPalUserSyncService>();
         services.AddScoped<IAuthenticationTokenIssuer, AuthenticationTokenIssuer>();

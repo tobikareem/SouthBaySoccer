@@ -2,19 +2,15 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using SouthBaySoccer.Contracts.Common;
-using SouthBaySoccer.Contracts.Players;
-using SouthBaySoccer.Contracts.Profiles;
 using SouthBaySoccer.Contracts.Rosters;
 using SouthBaySoccer.Contracts.Rsvps;
 
 namespace SouthBaySoccer.Services.Clients;
 
 /// <summary>
-/// API-backed roster client. The backend has no roster read endpoint yet (GET
-/// sessions/{sessionId}/roster is a recorded Sprint 03 API-0 gap), so the roster is composed from
-/// the caller's own RSVP state only: the current player appears in the going or waitlist list when
-/// applicable and every other player is omitted rather than faked. RSVP writes use the real
-/// endpoints with replay-protected idempotency keys.
+/// API-backed roster client. Rosters come from GET sessions/{sessionId}/roster, which unions the
+/// session's local RSVP/waitlist players with participants imported from Pickup Pal. RSVP writes
+/// use the real endpoints with replay-protected idempotency keys.
 /// </summary>
 public sealed class ApiRosterClient(HttpClient httpClient) : IRosterClient
 {
@@ -29,33 +25,17 @@ public sealed class ApiRosterClient(HttpClient httpClient) : IRosterClient
 
     public async Task<RosterDto?> GetRosterAsync(Guid sessionId, CancellationToken cancellationToken)
     {
-        RsvpResponseDto? myRsvp;
         try
         {
-            myRsvp = await GetMyRsvpAsync(sessionId, cancellationToken);
+            using var response = await httpClient.GetAsync($"sessions/{sessionId}/roster", cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<RosterDto>(
+                cancellationToken: cancellationToken);
         }
         catch (ApiRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
-            // GET rsvp/me 404s only when the caller's player profile is missing (unknown sessions
-            // return 204), so an empty roster is the honest shape; GetSessionAsync's null result
-            // owns the missing-session state.
-            return new RosterDto(sessionId, [], []);
+            return null;
         }
-
-        if (myRsvp is null || (myRsvp.State != GoingState && myRsvp.State != WaitlistedState))
-        {
-            return new RosterDto(sessionId, [], []);
-        }
-
-        var self = await GetSelfSummaryAsync(cancellationToken);
-        if (self is null)
-        {
-            return new RosterDto(sessionId, [], []);
-        }
-
-        return myRsvp.State == GoingState
-            ? new RosterDto(sessionId, [new RosterEntryDto(self, IsCurrentPlayer: true)], [])
-            : new RosterDto(sessionId, [], [new WaitlistEntryDto(self, myRsvp.WaitlistPosition ?? 1)]);
     }
 
     public async Task<ClientCommandResult> SetRsvpIntentAsync(
@@ -109,56 +89,6 @@ public sealed class ApiRosterClient(HttpClient httpClient) : IRosterClient
         response.EnsureSuccessStatusCode();
         _cancelIdempotencyKeysBySessionId.TryRemove(sessionId, out _);
         return ClientCommandResult.Success;
-    }
-
-    private async Task<RsvpResponseDto?> GetMyRsvpAsync(Guid sessionId, CancellationToken cancellationToken)
-    {
-        using var response = await httpClient.GetAsync($"sessions/{sessionId}/rsvp/me", cancellationToken);
-        if (response.StatusCode == HttpStatusCode.NoContent)
-        {
-            return null;
-        }
-
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<RsvpResponseDto>(
-            cancellationToken: cancellationToken);
-    }
-
-    private async Task<PlayerSummaryDto?> GetSelfSummaryAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var response = await httpClient.GetAsync("profiles/me", cancellationToken);
-            response.EnsureSuccessStatusCode();
-            var profile = await response.Content.ReadFromJsonAsync<MyProfileResponse>(
-                cancellationToken: cancellationToken);
-            if (profile is null)
-            {
-                return null;
-            }
-
-            return new PlayerSummaryDto(
-                profile.PlayerProfileId,
-                profile.DisplayName,
-                ToInitials(profile.DisplayName),
-                profile.PreferredPosition,
-                profile.IsGuest);
-        }
-        catch (ApiRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-        {
-            return null;
-        }
-    }
-
-    private static string ToInitials(string displayName)
-    {
-        var initials = string.Concat(
-            displayName
-                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                .Take(2)
-                .Select(part => char.ToUpperInvariant(part[0])));
-
-        return string.IsNullOrWhiteSpace(initials) ? "SB" : initials;
     }
 
     private static bool IsClientError(HttpStatusCode? statusCode) =>

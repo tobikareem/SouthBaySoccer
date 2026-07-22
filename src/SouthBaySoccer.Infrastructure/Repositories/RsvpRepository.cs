@@ -229,6 +229,42 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
         return new RsvpMutationResult(sessionId, playerProfileId, state, rsvp.Id);
     }
 
+    public async Task<IReadOnlyList<RosterMemberRecord>> ListGoingRosterAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.RsvpResponses
+            .Where(x => x.SessionId == sessionId && x.Status == RsvpStatus.Going)
+            .Join(
+                dbContext.PlayerProfiles,
+                rsvp => rsvp.PlayerProfileId,
+                profile => profile.Id,
+                (rsvp, profile) => new RosterMemberRecord(
+                    profile.Id,
+                    profile.DisplayName,
+                    profile.PreferredPosition,
+                    profile.IsGuest,
+                    null))
+            .OrderBy(x => x.DisplayName)
+            .ToArrayAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<RosterMemberRecord>> ListActiveWaitlistRosterAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.WaitlistEntries
+            .Where(x => x.SessionId == sessionId && x.Status == WaitlistEntryStatus.Active)
+            .Join(
+                dbContext.PlayerProfiles,
+                entry => entry.PlayerProfileId,
+                profile => profile.Id,
+                (entry, profile) => new RosterMemberRecord(
+                    profile.Id,
+                    profile.DisplayName,
+                    profile.PreferredPosition,
+                    profile.IsGuest,
+                    entry.Position))
+            .OrderBy(x => x.WaitlistPosition)
+            .ToArrayAsync(cancellationToken);
+
     private async Task<T> ExecuteInSerializableTransactionAsync<T>(
         Func<CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken)
