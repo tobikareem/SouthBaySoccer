@@ -1,6 +1,7 @@
 using System.Net.Http;
 using FluentAssertions;
 using Moq;
+using SouthBaySoccer.Contracts.Common;
 using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
@@ -120,6 +121,51 @@ public class SchedulePageModelTests
         await pageModel.ViewSessionDetailCommand.ExecuteAsync(sessionId);
 
         navigator.Verify(n => n.GoToSessionAsync(sessionId), Times.Once);
+    }
+
+    [Fact]
+    public async Task JoinWaitlist_FullSession_RefreshesScheduleWithActualWaitlistState()
+    {
+        var state = new SeedState();
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.JoinWaitlistAsync(
+                SeedFixtures.StanfordSessionId,
+                It.IsAny<CancellationToken>()))
+            .Returns((Guid sessionId, CancellationToken _) =>
+                Task.FromResult(state.JoinWaitlist(sessionId)));
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .Returns((CancellationToken _) => Task.FromResult(state.GetDashboard()));
+        var pageModel = CreatePageModel(sessionsClient.Object);
+
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
+
+        var session = pageModel.Groups
+            .SelectMany(group => group.Sessions)
+            .Single(item => item.Id == SeedFixtures.StanfordSessionId);
+        session.WaitlistCount.Should().Be(4);
+        session.IsWaitlisted.Should().BeTrue();
+        session.CanJoinWaitlist.Should().BeFalse();
+        session.StatusLabel.Should().Be("You're waitlisted");
+    }
+
+    [Fact]
+    public async Task JoinWaitlist_WhenClientRejects_ShowsActionableError()
+    {
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.JoinWaitlistAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Failure("rsvp_closed", "RSVP is closed."));
+        var pageModel = CreatePageModel(sessionsClient.Object);
+
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(Guid.NewGuid());
+
+        pageModel.State.Should().Be(ViewState.Error);
+        pageModel.StateTitle.Should().Be("Couldn't join the waitlist");
+        pageModel.StateMessage.Should().Be("RSVP is closed.");
     }
 
     private static SchedulePageModel CreatePageModel(

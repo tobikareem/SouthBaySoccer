@@ -24,6 +24,7 @@ public sealed class SchedulingFunctions(
     CreateRecurrenceRuleCommandHandler createRecurrenceRuleHandler,
     CreateSessionOccurrenceCommandHandler createSessionOccurrenceHandler,
     GetCreateSessionAdminDefaultsQueryHandler getCreateSessionAdminDefaultsHandler,
+    GameDayPickupPalRefreshService pickupPalRefreshService,
     ListManagedSessionsQueryHandler listManagedSessionsHandler,
     GetSessionForAdminEditQueryHandler getSessionForAdminEditHandler,
     CreateSessionDraftCommandHandler createSessionDraftHandler,
@@ -86,6 +87,7 @@ public sealed class SchedulingFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "sessions")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
+        await pickupPalRefreshService.RefreshIfStaleAsync(cancellationToken);
         var sessions = await listUpcomingSessionsHandler.HandleAsync(cancellationToken: cancellationToken);
         return await WriteJsonAsync(request, HttpStatusCode.OK, sessions.Select(ToResponse).ToArray(), cancellationToken);
     }
@@ -370,6 +372,30 @@ public sealed class SchedulingFunctions(
             session.RsvpDeadlineUtc,
             session.OccurrenceKey,
             session.Status);
+
+    private static SessionAdminResponse ToResponse(SessionFeedModel feed) =>
+        new(
+            feed.Session.SessionId,
+            feed.Session.SeasonId,
+            feed.Session.VenueId,
+            feed.Session.RecurrenceRuleId,
+            feed.Session.Title,
+            feed.Session.Format,
+            feed.Session.Capacity,
+            feed.Session.TeamCount,
+            feed.Session.StartsAtUtc,
+            feed.Session.CheckInOpensAtUtc,
+            feed.Session.CheckInClosesAtUtc,
+            feed.Session.RsvpDeadlineUtc,
+            feed.Session.OccurrenceKey,
+            feed.Session.Status,
+            feed.VenueName,
+            feed.GoingCount,
+            feed.WaitlistCount,
+            feed.IsFull,
+            feed.IsCurrentPlayerGoing,
+            feed.IsCurrentPlayerWaitlisted,
+            feed.CanJoinWaitlist);
 
     private static CreateSessionDraftCommand ToDraftCommand(ContractCreateSessionCommand command) =>
         new(

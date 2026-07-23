@@ -59,6 +59,43 @@ public sealed class RsvpRepositoryTests
     }
 
     [Fact]
+    public async Task SubmitRsvpAsync_WhenImportedRosterFillsCapacity_CreatesWaitlist()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (session, importedPlayer, waitlistedPlayer) = await SeedSessionAsync(db, capacity: 1);
+        await db.Set<PickupPalGameParticipant>().AddAsync(
+            new PickupPalGameParticipant
+            {
+                SessionId = session.Id,
+                PlayerProfileId = importedPlayer.Id,
+                PickupPalParticipantId = $"participant-{Guid.NewGuid():N}",
+                DisplayName = importedPlayer.DisplayName,
+                IsWaitlist = false,
+                DisplayOrder = 0,
+                JoinedAtUtc = Utc(2026, 7, 7, 15, 0)
+            });
+        await db.SaveChangesAsync();
+        var repository = scope.ServiceProvider.GetRequiredService<IRsvpRepository>();
+
+        var result = await repository.SubmitRsvpAsync(
+            session.Id,
+            waitlistedPlayer.Id,
+            RsvpStatus.Going);
+
+        result.State.Should().Be(RsvpMutationState.Waitlisted);
+        (await db.WaitlistEntries.AnyAsync(x =>
+            x.SessionId == session.Id
+            && x.PlayerProfileId == waitlistedPlayer.Id
+            && x.Status == WaitlistEntryStatus.Active)).Should().BeTrue();
+        (await db.RsvpResponses.AnyAsync(x =>
+            x.SessionId == session.Id
+            && x.PlayerProfileId == waitlistedPlayer.Id
+            && x.Status == RsvpStatus.Going)).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task CancelAndPromoteAsync_WhenConfirmedPlayerCancels_PromotesNextEligibleWaitlistEntryAndWritesOutboxMessage()
     {
         using var provider = CreateServiceProvider();

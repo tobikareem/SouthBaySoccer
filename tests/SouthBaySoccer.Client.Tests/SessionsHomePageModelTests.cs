@@ -36,6 +36,7 @@ public class SessionsHomePageModelTests
         comingUp.Title.Should().Be("Stanford Turf · 5v5");
         comingUp.IsFull.Should().BeTrue();
         comingUp.WaitlistCount.Should().Be(3);
+        comingUp.CanJoinWaitlist.Should().BeTrue();
         pageModel.CanManageSessions.Should().BeTrue();
     }
 
@@ -364,6 +365,8 @@ public class SessionsHomePageModelTests
             Times.Once);
         pageModel.State.Should().Be(ViewState.Content);
         pageModel.ComingUpSessions.Single().WaitlistCount.Should().Be(4);
+        pageModel.ComingUpSessions.Single().IsWaitlisted.Should().BeTrue();
+        pageModel.ComingUpSessions.Single().CanJoinWaitlist.Should().BeFalse();
     }
 
     [Fact]
@@ -383,6 +386,9 @@ public class SessionsHomePageModelTests
         sessionsClient.Verify(
             client => client.GetDashboardAsync(It.IsAny<CancellationToken>()),
             Times.Never);
+        pageModel.State.Should().Be(ViewState.Error);
+        pageModel.StateTitle.Should().Be("Couldn't join the waitlist");
+        pageModel.StateMessage.Should().Be("still space");
     }
 
     private static SessionsHomePageModel CreatePageModel(

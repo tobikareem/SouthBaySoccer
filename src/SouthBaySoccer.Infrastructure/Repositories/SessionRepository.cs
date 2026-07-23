@@ -39,6 +39,87 @@ internal sealed class SessionRepository(SouthBaySoccerDbContext dbContext) : ISe
             .Take(take)
             .ToArrayAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<SessionFeedRecord>> ListUpcomingFeedAsync(
+        DateTime fromUtc,
+        int take,
+        Guid currentPlayerProfileId,
+        CancellationToken cancellationToken = default)
+    {
+        var sessionRows = await (
+            from session in dbContext.Sessions
+            join venue in dbContext.Venues on session.VenueId equals venue.Id
+            where session.StartsAtUtc >= fromUtc
+                && (session.Status == SessionStatus.Published || session.Status == SessionStatus.Canceled)
+            orderby session.StartsAtUtc, session.Id
+            select new { Session = session, VenueName = venue.Name })
+            .Take(take)
+            .ToArrayAsync(cancellationToken);
+        if (sessionRows.Length == 0)
+        {
+            return [];
+        }
+
+        var sessionIds = sessionRows.Select(x => x.Session.Id).ToArray();
+        var localGoing = await dbContext.RsvpResponses
+            .Where(x => sessionIds.Contains(x.SessionId) && x.Status == RsvpStatus.Going)
+            .Select(x => new { x.SessionId, x.PlayerProfileId })
+            .ToArrayAsync(cancellationToken);
+        var localWaitlist = await dbContext.WaitlistEntries
+            .Where(x => sessionIds.Contains(x.SessionId) && x.Status == WaitlistEntryStatus.Active)
+            .Select(x => new { x.SessionId, x.PlayerProfileId })
+            .ToArrayAsync(cancellationToken);
+        var imported = await dbContext.Set<PickupPalGameParticipant>()
+            .Where(x => sessionIds.Contains(x.SessionId))
+            .Select(x => new
+            {
+                x.SessionId,
+                x.PlayerProfileId,
+                x.PickupPalParticipantId,
+                x.IsWaitlist,
+            })
+            .ToArrayAsync(cancellationToken);
+
+        var attendanceBySession = SessionAttendanceProjection.Build(
+            localGoing
+                .Select(x => new SessionAttendanceEntry(
+                    x.SessionId,
+                    SessionAttendanceProjection.ProfileKey(x.PlayerProfileId),
+                    SessionAttendanceState.Going,
+                    SessionAttendanceSource.Local))
+                .Concat(localWaitlist.Select(x => new SessionAttendanceEntry(
+                    x.SessionId,
+                    SessionAttendanceProjection.ProfileKey(x.PlayerProfileId),
+                    SessionAttendanceState.Waitlisted,
+                    SessionAttendanceSource.Local)))
+                .Concat(imported.Select(x => new SessionAttendanceEntry(
+                    x.SessionId,
+                    SessionAttendanceProjection.ParticipantKey(
+                        x.PlayerProfileId,
+                        x.PickupPalParticipantId),
+                    x.IsWaitlist
+                        ? SessionAttendanceState.Waitlisted
+                        : SessionAttendanceState.Going,
+                    SessionAttendanceSource.Imported))));
+
+        return sessionRows.Select(row =>
+        {
+            var attendance = attendanceBySession.TryGetValue(row.Session.Id, out var snapshot)
+                ? snapshot
+                : SessionAttendanceProjection.BuildForSession(
+                    row.Session.Id,
+                    Array.Empty<SessionAttendanceEntry>());
+            var currentPlayerKey = SessionAttendanceProjection.ProfileKey(currentPlayerProfileId);
+
+            return new SessionFeedRecord(
+                row.Session,
+                row.VenueName,
+                attendance.GoingKeys.Count,
+                attendance.WaitlistKeys.Count,
+                attendance.GoingKeys.Contains(currentPlayerKey),
+                attendance.WaitlistKeys.Contains(currentPlayerKey));
+        }).ToArray();
+    }
+
     public async Task<IReadOnlyList<Session>> ListManagedAsync(
         DateTime fromUtc,
         int take,
@@ -78,4 +159,5 @@ internal sealed class SessionRepository(SouthBaySoccerDbContext dbContext) : ISe
         entity.IsDeleted = true;
         dbContext.Sessions.Update(entity);
     }
+
 }

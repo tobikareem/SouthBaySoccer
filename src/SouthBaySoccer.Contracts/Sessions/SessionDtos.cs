@@ -1,5 +1,15 @@
 namespace SouthBaySoccer.Contracts.Sessions;
 
+public enum SessionCardStatus
+{
+    Open,
+    Going,
+    Waitlisted,
+    Full,
+    Closed,
+    Canceled
+}
+
 public sealed record SessionsDashboardDto(
     string GroupLabel,
     string Greeting,
@@ -26,7 +36,31 @@ public sealed record SessionSummaryDto(
     int WaitlistCount,
     string? RelativeLabel,
     bool IsCanceled = false,
-    string? DeadlineLabel = null);
+    string? DeadlineLabel = null,
+    bool IsGoing = false,
+    bool IsWaitlisted = false,
+    bool CanJoinWaitlist = false,
+    bool IsRsvpClosed = false)
+{
+    public string DisplayTitle =>
+        string.IsNullOrWhiteSpace(Venue)
+            ? Title
+            : string.IsNullOrWhiteSpace(Format)
+                ? Venue
+                : $"{Venue} · {Format}";
+
+    public SessionCardStatus CardStatus =>
+        IsCanceled ? SessionCardStatus.Canceled
+            : IsGoing ? SessionCardStatus.Going
+            : IsWaitlisted ? SessionCardStatus.Waitlisted
+            : IsFull ? SessionCardStatus.Full
+            : IsRsvpClosed ? SessionCardStatus.Closed
+            : SessionCardStatus.Open;
+
+    public string CardSemanticDescription => $"{DisplayTitle} — {StatusLabel}";
+
+    public string WaitlistActionDescription => $"Join the waitlist for {DisplayTitle}";
+}
 
 public sealed record StatsPromptDto(
     Guid MatchId,

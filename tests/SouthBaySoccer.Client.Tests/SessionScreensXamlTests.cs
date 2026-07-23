@@ -108,6 +108,23 @@ public class SessionScreensXamlTests
     }
 
     [Fact]
+    public void SessionsHomePage_SessionCardsAnnounceDisplayTitleAndStatus()
+    {
+        var sessionCards = Elements(LoadXaml(HomePage), "BrandCard")
+            .Where(card => card
+                .Descendants()
+                .Where(element => element.Name.LocalName == "TapGestureRecognizer")
+                .Select(element => Attr(element, "Command"))
+                .Any(command => command?.Contains("ViewSessionDetailCommand", StringComparison.Ordinal) == true))
+            .ToArray();
+
+        sessionCards.Should().HaveCount(2);
+        sessionCards.Should().OnlyContain(card =>
+            (Attr(card, "SemanticProperties.Description") ?? string.Empty)
+                .Contains("CardSemanticDescription", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void SessionsHomePage_StatsCard_IsAlwaysVisibleAndNavigatesThroughPageModel()
     {
         var xaml = ReadXaml(HomePage);

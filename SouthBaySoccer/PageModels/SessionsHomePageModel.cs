@@ -127,6 +127,10 @@ public partial class SessionsHomePageModel(
             var result = await sessionsClient.JoinWaitlistAsync(sessionId, cancellationToken);
             if (!result.IsSuccess)
             {
+                ApplyErrorState(
+                    ViewState.Error,
+                    "Couldn't join the waitlist",
+                    result.ErrorMessage ?? ErrorMessage);
                 return;
             }
 

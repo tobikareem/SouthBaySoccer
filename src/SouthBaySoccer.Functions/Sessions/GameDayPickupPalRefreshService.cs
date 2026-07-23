@@ -7,7 +7,7 @@ namespace SouthBaySoccer.Functions.Sessions;
 
 /// <summary>
 /// Refreshes Pickup Pal game data in an isolated dependency-injection scope. The short freshness
-/// window prevents repeated provider calls when several members open Game Day together.
+/// window prevents repeated provider calls when members open Sessions or Game Day together.
 /// </summary>
 public sealed class GameDayPickupPalRefreshService(
     IServiceScopeFactory scopeFactory,
@@ -41,7 +41,7 @@ public sealed class GameDayPickupPalRefreshService(
             if (result.Warnings.Count > 0)
             {
                 logger.LogWarning(
-                    "Game Day Pickup Pal refresh completed with {WarningCount} warning(s).",
+                    "Pickup Pal session refresh completed with {WarningCount} warning(s).",
                     result.Warnings.Count);
             }
         }
@@ -51,11 +51,11 @@ public sealed class GameDayPickupPalRefreshService(
         }
         catch (OperationCanceledException)
         {
-            logger.LogWarning("Game Day Pickup Pal refresh exceeded {TimeoutSeconds}s.", ImportTimeout.TotalSeconds);
+            logger.LogWarning("Pickup Pal session refresh exceeded {TimeoutSeconds}s.", ImportTimeout.TotalSeconds);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Game Day Pickup Pal refresh failed; using persisted sessions.");
+            logger.LogWarning(ex, "Pickup Pal session refresh failed; using persisted sessions.");
         }
         finally
         {
