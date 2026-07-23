@@ -9,14 +9,9 @@ using SouthBaySoccer.Contracts.Sessions;
 namespace SouthBaySoccer.Services.Clients;
 
 /// <summary>
-/// API-backed sessions client. The backend does not yet expose the dashboard/detail read
-/// projections recorded in the Sprint 03 API-0 inventory (GET sessions/dashboard,
-/// GET sessions/{sessionId}), so this client composes both screens from GET sessions plus the
-/// caller's own RSVP state. Fields those projections would provide degrade explicitly rather than
-/// faking data: venue names, going/waitlist counts, dues status, and the stats prompt stay
-/// empty/zero/null until the backend endpoints exist, and only the featured session gets an RSVP
-/// lookup (coming-up cards always read "Open" to avoid an N+1 request per card). Greeting and
-/// CanManageSessions are fallbacks the sessions home page model rebuilds from the profile.
+/// API-backed sessions client. The bounded GET sessions feed carries authoritative local +
+/// Pickup Pal attendance counts and the current player's session-scoped RSVP/waitlist state.
+/// This client only formats UTC values for the device and composes the home/schedule dashboard.
 /// </summary>
 public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timeProvider) : ISessionsClient
 {
@@ -40,9 +35,10 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
         SessionSummaryDto? featuredSummary = null;
         if (featured is not null)
         {
-            var myRsvp = await GetMyRsvpAsync(featured.SessionId, cancellationToken);
-            var statusLabel = myRsvp?.State == GoingState ? YouAreGoingLabel : OpenLabel;
-            featuredSummary = ToSummary(featured, statusLabel, BuildRelativeLabel(featured.StartsAtUtc));
+            featuredSummary = ToSummary(
+                featured,
+                BuildStatusLabel(featured),
+                BuildRelativeLabel(featured.StartsAtUtc));
         }
 
         return new SessionsDashboardDto(
@@ -57,7 +53,7 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
                 .Where(session => session.SessionId != featured?.SessionId)
                 .Select(session => ToSummary(
                     session,
-                    IsCanceled(session) ? CanceledLabel : OpenLabel,
+                    BuildStatusLabel(session),
                     relativeLabel: null))
                 .ToArray(),
             CanManageSessions: false);
@@ -75,24 +71,23 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
         }
 
         var isCanceled = IsCanceled(session);
-        var myRsvp = isCanceled ? null : await GetMyRsvpAsync(sessionId, cancellationToken);
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         var localStart = ToLocal(session.StartsAtUtc);
 
         return new SessionDetailDto(
             session.SessionId,
             Eyebrow: session.Title,
-            Venue: string.Empty,
+            Venue: session.VenueName,
             LocationLabel: $"{session.Format} pickup",
             session.Format,
             session.StartsAtUtc,
             DateTimeLabel: localStart.ToString("ddd MMM d · h:mm tt", CultureInfo.InvariantCulture),
-            GoingCount: 0,
+            GoingCount: session.GoingCount,
             session.Capacity,
             DeadlineLabel: BuildDeadlineLabel(session.RsvpDeadlineUtc, nowUtc),
-            IsFull: false,
-            IsRsvpAvailable: !isCanceled && nowUtc < session.RsvpDeadlineUtc,
-            IsGoing: myRsvp?.State == GoingState,
+            IsFull: session.IsFull,
+            IsRsvpAvailable: !isCanceled && !session.IsFull && nowUtc < session.RsvpDeadlineUtc,
+            IsGoing: session.IsCurrentPlayerGoing,
             IsCanceled: isCanceled);
     }
 
@@ -160,26 +155,6 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
         }
     }
 
-    private async Task<RsvpResponseDto?> GetMyRsvpAsync(Guid sessionId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var response = await httpClient.GetAsync($"sessions/{sessionId}/rsvp/me", cancellationToken);
-            if (response.StatusCode == HttpStatusCode.NoContent)
-            {
-                return null;
-            }
-
-            response.EnsureSuccessStatusCode();
-            return await response.Content.ReadFromJsonAsync<RsvpResponseDto>(
-                cancellationToken: cancellationToken);
-        }
-        catch (ApiRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-        {
-            return null;
-        }
-    }
-
     private static async Task<ClientCommandResult> ExecuteCommandAsync(
         Func<Task<ClientCommandResult>> operation)
     {
@@ -209,19 +184,24 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
         return new SessionSummaryDto(
             session.SessionId,
             session.Title,
-            Venue: string.Empty,
+            Venue: session.VenueName,
             session.Format,
             session.StartsAtUtc,
             DateLabel: localStart.ToString("MMM d", CultureInfo.InvariantCulture),
             TimeLabel: localStart.ToString("h:mm tt", CultureInfo.InvariantCulture),
             statusLabel,
-            GoingCount: 0,
+            GoingCount: session.GoingCount,
             session.Capacity,
-            IsFull: false,
-            WaitlistCount: 0,
+            session.IsFull,
+            session.WaitlistCount,
             relativeLabel,
             IsCanceled(session),
-            DeadlineLabel: BuildSummaryDeadlineLabel(session));
+            DeadlineLabel: BuildSummaryDeadlineLabel(session),
+            IsGoing: session.IsCurrentPlayerGoing,
+            IsWaitlisted: session.IsCurrentPlayerWaitlisted,
+            CanJoinWaitlist: session.CanJoinWaitlist,
+            IsRsvpClosed: !IsCanceled(session)
+                && timeProvider.GetUtcNow().UtcDateTime >= session.RsvpDeadlineUtc);
     }
 
     private string? BuildSummaryDeadlineLabel(SessionAdminResponse session)
@@ -242,6 +222,14 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
 
     private static bool IsCanceled(SessionAdminResponse session) =>
         string.Equals(session.Status, CanceledStatus, StringComparison.OrdinalIgnoreCase);
+
+    private string BuildStatusLabel(SessionAdminResponse session) =>
+        IsCanceled(session) ? CanceledLabel
+            : session.IsCurrentPlayerGoing ? YouAreGoingLabel
+            : session.IsCurrentPlayerWaitlisted ? "You're waitlisted"
+            : session.IsFull ? "Full"
+            : timeProvider.GetUtcNow().UtcDateTime >= session.RsvpDeadlineUtc ? "RSVP closed"
+            : OpenLabel;
 
     private string? BuildRelativeLabel(DateTime startsAtUtc)
     {

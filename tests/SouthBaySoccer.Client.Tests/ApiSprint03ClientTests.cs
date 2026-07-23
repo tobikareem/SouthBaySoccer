@@ -6,6 +6,7 @@ using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Contracts.Common;
 using SouthBaySoccer.Contracts.GameDay;
 using SouthBaySoccer.Contracts.Leaderboards;
+using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Contracts.Stats;
 using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
@@ -42,9 +43,7 @@ public sealed class ApiSprint03ClientTests
         var client = CreateSessionsClient(request =>
         {
             requests.Add(request);
-            return request.RequestUri!.PathAndQuery.Contains("/rsvp/me")
-                ? new HttpResponseMessage(HttpStatusCode.NoContent)
-                : JsonResponse(SessionsJson);
+            return JsonResponse(SessionsJson);
         });
 
         var dashboard = await client.GetDashboardAsync(CancellationToken.None);
@@ -67,10 +66,11 @@ public sealed class ApiSprint03ClientTests
     [Fact]
     public async Task ApiSessionsClient_GetDashboardAsync_WhenCallerIsGoing_MarksFeaturedSession()
     {
-        var client = CreateSessionsClient(request =>
-            request.RequestUri!.PathAndQuery.Contains("/rsvp/me")
-                ? JsonResponse(GoingRsvpJson)
-                : JsonResponse(SessionsJson));
+        var client = CreateSessionsClient(_ => JsonResponse(
+            SessionsJson.Replace(
+                "\"isCurrentPlayerGoing\": false",
+                "\"isCurrentPlayerGoing\": true",
+                StringComparison.Ordinal)));
 
         var dashboard = await client.GetDashboardAsync(CancellationToken.None);
 
@@ -80,10 +80,11 @@ public sealed class ApiSprint03ClientTests
     [Fact]
     public async Task ApiSessionsClient_GetSessionAsync_WhenCallerIsGoing_SetsIsGoing()
     {
-        var client = CreateSessionsClient(request =>
-            request.RequestUri!.PathAndQuery.Contains("/rsvp/me")
-                ? JsonResponse(GoingRsvpJson)
-                : JsonResponse(SessionsJson));
+        var client = CreateSessionsClient(_ => JsonResponse(
+            SessionsJson.Replace(
+                "\"isCurrentPlayerGoing\": false",
+                "\"isCurrentPlayerGoing\": true",
+                StringComparison.Ordinal)));
 
         var detail = await client.GetSessionAsync(SessionId, CancellationToken.None);
 
@@ -92,6 +93,80 @@ public sealed class ApiSprint03ClientTests
         detail.IsRsvpAvailable.Should().BeTrue();
         detail.DeadlineLabel.Should().Be("closes 2d 3h");
         detail.DateTimeLabel.Should().Be("Sat Jul 25 · 4:00 PM");
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_GetDashboardAsync_WhenFeedIsFull_MapsCountsAndJoinWaitlist()
+    {
+        var json = SessionsJson
+            .Replace("\"goingCount\": 16", "\"goingCount\": 20", StringComparison.Ordinal)
+            .Replace("\"waitlistCount\": 0", "\"waitlistCount\": 3", StringComparison.Ordinal)
+            .Replace("\"isFull\": false", "\"isFull\": true", StringComparison.Ordinal)
+            .Replace("\"canJoinWaitlist\": false", "\"canJoinWaitlist\": true", StringComparison.Ordinal);
+        var client = CreateSessionsClient(_ => JsonResponse(json));
+
+        var dashboard = await client.GetDashboardAsync(CancellationToken.None);
+
+        dashboard.FeaturedSession!.GoingCount.Should().Be(20);
+        dashboard.FeaturedSession.WaitlistCount.Should().Be(3);
+        dashboard.FeaturedSession.IsFull.Should().BeTrue();
+        dashboard.FeaturedSession.CanJoinWaitlist.Should().BeTrue();
+        dashboard.FeaturedSession.StatusLabel.Should().Be("Full");
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_GetDashboardAsync_WhenRsvpDeadlinePassed_LabelsSessionClosed()
+    {
+        var closedJson = SessionsJson.Replace(
+            "\"rsvpDeadlineUtc\": \"2026-07-25T15:00:00Z\"",
+            "\"rsvpDeadlineUtc\": \"2026-07-22T02:00:00Z\"",
+            StringComparison.Ordinal);
+        var client = CreateSessionsClient(_ => JsonResponse(closedJson));
+
+        var dashboard = await client.GetDashboardAsync(CancellationToken.None);
+
+        dashboard.FeaturedSession!.StatusLabel.Should().Be("RSVP closed");
+        dashboard.FeaturedSession.CanJoinWaitlist.Should().BeFalse();
+        dashboard.FeaturedSession.CardStatus.Should().Be(SessionCardStatus.Closed);
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_GetDashboardAsync_UsesVenueAndFormatDisplayTitle()
+    {
+        var client = CreateSessionsClient(_ => JsonResponse(SessionsJson));
+
+        var dashboard = await client.GetDashboardAsync(CancellationToken.None);
+
+        dashboard.FeaturedSession!.DisplayTitle.Should().Be("Marina Field · 7v7");
+        dashboard.FeaturedSession.CardSemanticDescription.Should()
+            .Be("Marina Field · 7v7 — Open");
+        dashboard.FeaturedSession.WaitlistActionDescription.Should()
+            .Be("Join the waitlist for Marina Field · 7v7");
+    }
+
+    [Fact]
+    public void SessionSummaryDto_CanceledStateTakesVisualPrecedence()
+    {
+        var session = new SessionSummaryDto(
+            SessionId,
+            "Saturday pickup",
+            "Marina Field",
+            "7v7",
+            new DateTime(2026, 7, 25, 16, 0, 0, DateTimeKind.Utc),
+            "Jul 25",
+            "4:00 PM",
+            "Cancelled",
+            20,
+            20,
+            true,
+            3,
+            null,
+            IsCanceled: true,
+            IsGoing: true,
+            IsWaitlisted: true,
+            IsRsvpClosed: true);
+
+        session.CardStatus.Should().Be(SessionCardStatus.Canceled);
     }
 
     [Fact]
@@ -608,7 +683,14 @@ public sealed class ApiSprint03ClientTests
             "checkInClosesAtUtc": "2026-07-25T16:05:00Z",
             "rsvpDeadlineUtc": "2026-07-25T15:00:00Z",
             "occurrenceKey": null,
-            "status": "Published"
+            "status": "Published",
+            "venueName": "Marina Field",
+            "goingCount": 16,
+            "waitlistCount": 0,
+            "isFull": false,
+            "isCurrentPlayerGoing": false,
+            "isCurrentPlayerWaitlisted": false,
+            "canJoinWaitlist": false
           },
           {
             "sessionId": "44444444-4444-4444-4444-444444444444",

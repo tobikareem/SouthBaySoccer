@@ -35,3 +35,4 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [pickuppal-games-import](pickuppal-games-import.md) - Pickup Pal active-games import: source-of-truth sessions, sanitized snapshots, roster union
 - [game-day-today-projection](game-day-today-projection.md) - Server-authoritative Pacific game-day selection, self check-in, and audited late overrides
 - [game-day-team-workflows](game-day-team-workflows.md) - Server-enforced captain, draft, explicit team-lock, and postgame workflow transitions
+- [session-feed-attendance-projection](session-feed-attendance-projection.md) - Shared local + Pickup Pal counts and capacity semantics for Sessions feeds and RSVP writes
