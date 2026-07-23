@@ -28,6 +28,8 @@ public sealed record CheckInPlayerCommand(
     AttendanceOutcome Outcome,
     string? LateOverrideReason = null);
 
+public sealed record SelfCheckInCommand(Guid SessionId);
+
 public sealed record RecordNoShowsCommand(Guid SessionId);
 
 public sealed record CheckInResultModel(

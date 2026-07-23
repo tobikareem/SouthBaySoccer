@@ -12,6 +12,19 @@ public interface IGameDayClient
         Guid idempotencyKey,
         CancellationToken cancellationToken);
 
+    Task<ClientCommandResult> LateCheckInAsync(
+        Guid sessionId,
+        Guid playerProfileId,
+        string reason,
+        Guid idempotencyKey,
+        CancellationToken cancellationToken);
+
+    Task<ClientCommandResult> AdminCheckInAsync(
+        Guid sessionId,
+        Guid playerProfileId,
+        Guid idempotencyKey,
+        CancellationToken cancellationToken);
+
     Task<CaptainAssignmentDto?> GetCaptainAssignmentAsync(
         Guid sessionId,
         CancellationToken cancellationToken);
@@ -30,6 +43,10 @@ public interface IGameDayClient
         Guid sessionId,
         Guid teamId,
         IReadOnlyList<Guid> playerIds,
+        CancellationToken cancellationToken);
+
+    Task<ClientCommandResult> LockTeamsAsync(
+        Guid sessionId,
         CancellationToken cancellationToken);
 
     Task<PostGameApprovalDto?> GetPostGameApprovalAsync(

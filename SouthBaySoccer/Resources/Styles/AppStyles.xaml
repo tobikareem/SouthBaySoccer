@@ -79,6 +79,11 @@
                      FontFamily="FontAwesomeSolid"
                      Size="{StaticResource IconSize}" />
 
+    <FontImageSource x:Key="IconGameDay"
+                     Glyph="{x:Static f:FontAwesomeGlyphs.Futbol}"
+                     FontFamily="FontAwesomeSolid"
+                     Size="{StaticResource IconSize}" />
+
     <FontImageSource x:Key="IconStats"
                      Glyph="{x:Static f:FontAwesomeGlyphs.Trophy}"
                      FontFamily="FontAwesomeSolid"

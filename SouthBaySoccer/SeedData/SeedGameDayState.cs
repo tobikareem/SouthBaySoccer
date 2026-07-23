@@ -17,12 +17,15 @@ public sealed class SeedGameDayState
     ];
 
     private HashSet<Guid> checkedInPlayerIds = [];
+    private HashSet<Guid> latePlayerIds = [];
+    private Dictionary<Guid, (Guid PlayerProfileId, string Reason)> lateCheckInKeys = [];
     private int captainCount;
     private List<Guid> captainIds = [];
     private Dictionary<Guid, List<Guid>> teamPlayerIds = [];
     private Dictionary<Guid, TeamResultDto> teamResults = [];
     private List<PendingStatApprovalDto> approvals = [];
     private List<RecentFormUpdateDto> recentFormUpdates = [];
+    private bool isTeamsLocked;
     private bool isPublished;
 
     public SeedGameDayState()
@@ -40,6 +43,8 @@ public sealed class SeedGameDayState
                 .Take(10)
                 .Select(entry => entry.Player.Id)
                 .ToHashSet();
+            latePlayerIds = [];
+            lateCheckInKeys = [];
             captainCount = 2;
             captainIds = [SeedFixtures.Players[1].Id, SeedFixtures.Players[2].Id];
             teamPlayerIds = ActiveTeamIds().ToDictionary(teamId => teamId, _ => new List<Guid>());
@@ -55,6 +60,7 @@ public sealed class SeedGameDayState
                 Approval(3, 0, 1, StatApprovalStatus.NeedsReview)
             ];
             recentFormUpdates = [];
+            isTeamsLocked = false;
             isPublished = false;
         }
     }
@@ -85,10 +91,12 @@ public sealed class SeedGameDayState
                 isCheckedIn,
                 SeedFixtures.Rosters[SeedFixtures.MarinaSessionId].Going.Count,
                 checkedInPlayerIds.Count,
-                0,
+                latePlayerIds.Count,
                 true,
                 true,
-                true);
+                true,
+                Roster: RosterEntries(),
+                CanManageCheckIns: true);
         }
     }
 
@@ -101,7 +109,12 @@ public sealed class SeedGameDayState
             StatusLabel = "Closed",
             IsSelfCheckInAvailable = false,
             PrimaryActionText = "GameAdmin override required",
-            BlockReason = "Check-in closed at 7:45 PM. A GameAdmin override is required for late arrivals."
+            BlockReason = "Check-in closed at 7:45 PM. A GameAdmin override is required for late arrivals.",
+            CanLateCheckIn = true,
+            LateCheckInPlayers = SeedFixtures.Rosters[SeedFixtures.MarinaSessionId].Going
+                .Where(entry => !checkedInPlayerIds.Contains(entry.Player.Id))
+                .Select(entry => new GameDayPlayerDto(entry.Player.Id, entry.Player.DisplayName, entry.Player.IsGuest))
+                .ToArray()
         };
     }
 
@@ -119,6 +132,58 @@ public sealed class SeedGameDayState
         }
     }
 
+    public ClientCommandResult AdminCheckIn(Guid sessionId, Guid playerProfileId)
+    {
+        lock (syncRoot)
+        {
+            if (sessionId != SeedFixtures.MarinaSessionId)
+            {
+                return ClientCommandResult.Failure("session_not_found", "The session was not found.");
+            }
+
+            // Idempotent: a repeat admin check-in for the same player is a no-op.
+            checkedInPlayerIds.Add(playerProfileId);
+            return ClientCommandResult.Success;
+        }
+    }
+
+    public ClientCommandResult LateCheckIn(
+        Guid sessionId,
+        Guid playerProfileId,
+        string reason,
+        Guid idempotencyKey)
+    {
+        lock (syncRoot)
+        {
+            if (sessionId != SeedFixtures.MarinaSessionId)
+            {
+                return ClientCommandResult.Failure("session_not_found", "The session was not found.");
+            }
+
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                return ClientCommandResult.Failure("reason_required", "Enter a reason for the late arrival.");
+            }
+
+            if (lateCheckInKeys.TryGetValue(idempotencyKey, out var replay))
+            {
+                return replay == (playerProfileId, reason.Trim())
+                    ? ClientCommandResult.Success
+                    : ClientCommandResult.Failure("idempotency_conflict", "The idempotency key was already used.");
+            }
+
+            if (!SeedFixtures.Rosters[SeedFixtures.MarinaSessionId].Going.Any(entry => entry.Player.Id == playerProfileId))
+            {
+                return ClientCommandResult.Failure("player_not_confirmed", "Only confirmed players can be checked in.");
+            }
+
+            lateCheckInKeys[idempotencyKey] = (playerProfileId, reason.Trim());
+            checkedInPlayerIds.Add(playerProfileId);
+            latePlayerIds.Add(playerProfileId);
+            return ClientCommandResult.Success;
+        }
+    }
+
     public CaptainAssignmentDto GetCaptainAssignment(Guid sessionId)
     {
         lock (syncRoot)
@@ -129,7 +194,9 @@ public sealed class SeedGameDayState
                 captainCount,
                 [2, 3, 4],
                 Array.AsReadOnly(captainIds.ToArray()),
-                CheckedInPlayers());
+                CheckedInPlayers(),
+                CanLockTeams: !isTeamsLocked,
+                IsLocked: isTeamsLocked);
         }
     }
 
@@ -162,6 +229,7 @@ public sealed class SeedGameDayState
                 teamId => teamId,
                 teamId => new TeamResultDto(teamId, TeamName(teamId), 0, 0, 0));
             isPublished = false;
+            isTeamsLocked = false;
             recentFormUpdates.Clear();
 
             return ClientCommandResult.Success;
@@ -182,8 +250,8 @@ public sealed class SeedGameDayState
                 currentTeam.TeamId,
                 currentTeam.Name,
                 currentTeam.CaptainName,
-                true,
-                isPublished,
+                !isTeamsLocked && !isPublished,
+                isTeamsLocked || isPublished,
                 captainCount,
                 CheckedInPlayers(),
                 teams);
@@ -199,7 +267,7 @@ public sealed class SeedGameDayState
                 return ClientCommandResult.Failure("team_not_found", "The team was not found.");
             }
 
-            if (isPublished)
+            if (isTeamsLocked || isPublished)
             {
                 return ClientCommandResult.Failure("teams_locked", "Teams are locked.");
             }
@@ -220,6 +288,20 @@ public sealed class SeedGameDayState
             }
 
             teamPlayerIds[teamId] = selected.ToList();
+            return ClientCommandResult.Success;
+        }
+    }
+
+    public ClientCommandResult LockTeams(Guid sessionId)
+    {
+        lock (syncRoot)
+        {
+            if (sessionId != SeedFixtures.MarinaSessionId)
+            {
+                return ClientCommandResult.Failure("session_not_found", "The session was not found.");
+            }
+
+            isTeamsLocked = true;
             return ClientCommandResult.Success;
         }
     }
@@ -314,6 +396,24 @@ public sealed class SeedGameDayState
         }
     }
 
+    private IReadOnlyList<GameDayRosterEntryDto> RosterEntries()
+    {
+        var roster = SeedFixtures.Rosters[SeedFixtures.MarinaSessionId];
+        var going = roster.Going.Select(entry => new GameDayRosterEntryDto(
+            entry.Player.Id,
+            entry.Player.DisplayName,
+            entry.Player.IsGuest,
+            false,
+            checkedInPlayerIds.Contains(entry.Player.Id)));
+        var waitlist = roster.Waitlist.Select(entry => new GameDayRosterEntryDto(
+            entry.Player.Id,
+            entry.Player.DisplayName,
+            entry.Player.IsGuest,
+            true,
+            checkedInPlayerIds.Contains(entry.Player.Id)));
+        return Array.AsReadOnly(going.Concat(waitlist).ToArray());
+    }
+
     private IReadOnlyList<CheckedInPlayerDto> CheckedInPlayers() =>
         Array.AsReadOnly(SeedFixtures.Rosters[SeedFixtures.MarinaSessionId]
             .Going
@@ -368,5 +468,3 @@ public sealed class SeedGameDayState
             .Concat(Enumerable.Repeat(MatchResult.Draw, result.Draws))
             .Concat(Enumerable.Repeat(MatchResult.Loss, result.Losses));
 }
-
-

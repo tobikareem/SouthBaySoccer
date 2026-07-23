@@ -28,6 +28,23 @@ public sealed class PickupPalUserSyncService(
         var phoneNumber = NormalizePhone(user.PhoneNumber);
         var displayName = BuildDisplayName(user);
 
+        if (profile is null)
+        {
+            // A games import may already have created an unclaimed profile for this person keyed
+            // by phone hash. Claim it on first sign-in instead of creating a duplicate.
+            var phoneNumberHash = AuthenticationHashing.Sha256(phoneNumber);
+            profile = await dbContext.PlayerProfiles
+                .Where(x => x.PickupPalUserId == null
+                    && x.IdentityUserId == null
+                    && x.PhoneNumberHash == phoneNumberHash)
+                .OrderBy(x => x.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (profile is { Role: PlayerRole.Guest })
+            {
+                profile.Role = PlayerRole.Player;
+            }
+        }
+
         ApplicationIdentityUser identityUser;
         bool identityUserExists;
         if (profile?.IdentityUserId is { } existingIdentityUserId)

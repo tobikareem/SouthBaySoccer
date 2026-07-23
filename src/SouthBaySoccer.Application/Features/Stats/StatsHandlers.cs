@@ -2,6 +2,7 @@
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
+using SouthBaySoccer.Application.Features.Scheduling;
 using SouthBaySoccer.Domain.Entities.Stats;
 using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
@@ -72,15 +73,45 @@ public sealed class CreateMatchCommandHandler(
 }
 
 public sealed class RecordMatchEventsCommandHandler(
+    ICurrentUser currentUser,
     IValidator<RecordMatchEventsCommand> validator,
+    IPlayerProfileRepository playerProfileRepository,
     IStatsRepository statsRepository,
     IUnitOfWork unitOfWork)
 {
     public async Task<StatMutationResult> HandleAsync(RecordMatchEventsCommand command, CancellationToken cancellationToken = default)
     {
         await validator.ValidateAndThrowAsync(command, cancellationToken);
-        _ = await statsRepository.FindMatchAsync(command.MatchId, cancellationToken)
+        var actor = await SubmitPeerFeedbackCommandHandler.GetCurrentProfileAsync(
+            currentUser,
+            playerProfileRepository,
+            cancellationToken);
+        var match = await statsRepository.FindMatchAsync(command.MatchId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Match was not found.");
+        if (match.Status is MatchStatus.Published or MatchStatus.Locked)
+        {
+            throw new ApplicationConflictException("Published match events can be changed only through a stat correction.");
+        }
+
+        var teams = await statsRepository.ListMatchTeamsAsync(command.MatchId, cancellationToken);
+        GameDayWorkflowAuthorization.EnsureCaptainOrGameAdmin(currentUser, actor.Id, teams);
+        if (match.Status == MatchStatus.Draft)
+        {
+            throw new ApplicationConflictException("Lock teams before recording match events.");
+        }
+
+        var assignments = await statsRepository.ListAssignmentsAsync(command.MatchId, cancellationToken);
+        var assignmentsByPlayerId = assignments.ToDictionary(x => x.PlayerProfileId);
+        var teamIds = teams.Select(x => x.Id).ToHashSet();
+        if (command.Events.Any(matchEvent =>
+            matchEvent.PlayerProfileId is not { } playerId
+            || !assignmentsByPlayerId.TryGetValue(playerId, out var assignment)
+            || matchEvent.AssistPlayerProfileId is { } assistId && !assignmentsByPlayerId.ContainsKey(assistId)
+            || matchEvent.MatchTeamId is { } teamId
+                && (!teamIds.Contains(teamId) || assignment.MatchTeamId != teamId)))
+        {
+            throw new ApplicationConflictException("Match events must reference players and teams in the locked roster.");
+        }
 
         var events = command.Events.Select(matchEvent => new MatchEvent
         {
@@ -91,6 +122,8 @@ public sealed class RecordMatchEventsCommandHandler(
             MatchTeamId = matchEvent.MatchTeamId,
             EventType = matchEvent.EventType,
             Minute = matchEvent.Minute,
+            SubmittedByPlayerProfileId = actor.Id,
+            ReviewStatus = MatchEventReviewStatus.Pending,
         }).ToArray();
 
         await statsRepository.ReplaceMatchEventsAsync(command.MatchId, events, cancellationToken);
@@ -113,8 +146,30 @@ public sealed class RecordMatchResultsCommandHandler(
         var match = await statsRepository.FindMatchAsync(command.MatchId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Match was not found.");
         var teams = await statsRepository.ListMatchTeamsAsync(command.MatchId, cancellationToken);
+        var actor = await SubmitPeerFeedbackCommandHandler.GetCurrentProfileAsync(
+            currentUser,
+            playerProfileRepository,
+            cancellationToken);
+        GameDayWorkflowAuthorization.EnsureCaptainOrGameAdmin(currentUser, actor.Id, teams);
+        if (match.Status is MatchStatus.Published or MatchStatus.Locked)
+        {
+            throw new ApplicationConflictException("Published results can be changed only through a stat correction.");
+        }
+
+        if (match.Status == MatchStatus.Draft)
+        {
+            throw new ApplicationConflictException("Lock teams before recording match results.");
+        }
+
+        if (match.Status == MatchStatus.NeedsReview)
+        {
+            throw new ApplicationConflictException("Resolve the match review conflict before recording more results.");
+        }
+
         var teamIds = teams.Select(x => x.Id).ToHashSet();
-        if (command.Results.Count != teams.Count || command.Results.Any(x => !teamIds.Contains(x.MatchTeamId)))
+        if (command.Results.Count != teams.Count
+            || command.Results.Select(x => x.MatchTeamId).Distinct().Count() != teams.Count
+            || command.Results.Any(x => !teamIds.Contains(x.MatchTeamId)))
         {
             throw new ApplicationConflictException("Results must include exactly one row for each match team.");
         }
@@ -140,7 +195,6 @@ public sealed class RecordMatchResultsCommandHandler(
         var existingResults = await statsRepository.ListMatchResultsAsync(command.MatchId, cancellationToken);
         if (existingResults.Count > 0 && ResultsDiffer(existingResults, results))
         {
-            var actor = await SubmitPeerFeedbackCommandHandler.GetCurrentProfileAsync(currentUser, playerProfileRepository, cancellationToken);
             match.Status = MatchStatus.NeedsReview;
             await statsRepository.AddStatCorrectionAsync(new StatCorrection
             {
@@ -156,7 +210,25 @@ public sealed class RecordMatchResultsCommandHandler(
             return new StatMutationResult(command.MatchId, 1);
         }
 
-        match.Status = MatchStatus.Completed;
+        var projectedResults = teams.Select(team =>
+        {
+            var result = results.Single(x => x.MatchTeamId == team.Id);
+            return new GameDayTeamResultModel(
+                team.Id,
+                team.Name,
+                result.Wins,
+                result.Draws,
+                result.Losses);
+        }).ToArray();
+        if (GameDayResultRules.AreComplete(projectedResults, teams.Count)
+            && !GameDayResultRules.AreConsistent(projectedResults))
+        {
+            throw new ApplicationConflictException("Team results describe contradictory rotation outcomes.");
+        }
+
+        match.Status = GameDayResultRules.AreComplete(projectedResults, teams.Count)
+            ? MatchStatus.Completed
+            : MatchStatus.InProgress;
         await statsRepository.UpsertMatchResultsAsync(command.MatchId, results, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return new StatMutationResult(command.MatchId, results.Length);
@@ -283,8 +355,6 @@ public sealed class ReviewMatchEventCommandHandler(
     IStatsRepository statsRepository,
     IUnitOfWork unitOfWork)
 {
-    private const string CanRecordStatsPolicy = "CanRecordStats";
-
     public async Task<StatMutationResult> HandleAsync(ReviewMatchEventCommand command, CancellationToken cancellationToken = default)
     {
         await validator.ValidateAndThrowAsync(command, cancellationToken);
@@ -299,9 +369,15 @@ public sealed class ReviewMatchEventCommandHandler(
         var match = await statsRepository.FindMatchAsync(command.MatchId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Match was not found.");
         var teams = await statsRepository.ListMatchTeamsAsync(command.MatchId, cancellationToken);
-        if (!currentUser.HasPolicy(CanRecordStatsPolicy) && !teams.Any(x => x.CaptainPlayerProfileId == actor.Id))
+        GameDayWorkflowAuthorization.EnsureCaptainOrGameAdmin(currentUser, actor.Id, teams);
+        if (match.Status is MatchStatus.Published or MatchStatus.Locked)
         {
-            throw new ApplicationForbiddenException("Only assigned captains or game admins can review match events.");
+            throw new ApplicationConflictException("Published match events can be changed only through a stat correction.");
+        }
+
+        if (match.Status == MatchStatus.Draft)
+        {
+            throw new ApplicationConflictException("Lock teams before reviewing match events.");
         }
 
         var requestedStatus = command.Approved ? MatchEventReviewStatus.Approved : MatchEventReviewStatus.Rejected;
@@ -340,15 +416,10 @@ public sealed class ResolveMatchReviewCommandHandler(
     IStatsRepository statsRepository,
     IUnitOfWork unitOfWork)
 {
-    private const string CanRecordStatsPolicy = "CanRecordStats";
-
     public async Task<StatMutationResult> HandleAsync(ResolveMatchReviewCommand command, CancellationToken cancellationToken = default)
     {
         await validator.ValidateAndThrowAsync(command, cancellationToken);
-        if (!currentUser.HasPolicy(CanRecordStatsPolicy))
-        {
-            throw new ApplicationForbiddenException("Only game admins can resolve match review conflicts.");
-        }
+        GameDayWorkflowAuthorization.EnsureGameAdmin(currentUser);
 
         var actor = await SubmitPeerFeedbackCommandHandler.GetCurrentProfileAsync(currentUser, playerProfileRepository, cancellationToken);
         var match = await statsRepository.FindMatchAsync(command.MatchId, cancellationToken)
@@ -395,7 +466,9 @@ public sealed class ReassignProfileStatsCommandHandler(
     }
 }
 public sealed class LockMatchStatsCommandHandler(
+    ICurrentUser currentUser,
     IValidator<LockMatchStatsCommand> validator,
+    IPlayerProfileRepository playerProfileRepository,
     IStatsRepository statsRepository,
     IUnitOfWork unitOfWork)
 {
@@ -404,6 +477,22 @@ public sealed class LockMatchStatsCommandHandler(
         await validator.ValidateAndThrowAsync(command, cancellationToken);
         var match = await statsRepository.FindMatchAsync(command.MatchId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Match was not found.");
+        var actor = await SubmitPeerFeedbackCommandHandler.GetCurrentProfileAsync(
+            currentUser,
+            playerProfileRepository,
+            cancellationToken);
+        var teams = await statsRepository.ListMatchTeamsAsync(command.MatchId, cancellationToken);
+        GameDayWorkflowAuthorization.EnsureCaptainOrGameAdmin(currentUser, actor.Id, teams);
+        if (match.Status == MatchStatus.NeedsReview)
+        {
+            throw new ApplicationConflictException("Resolve the match review conflict before locking stats.");
+        }
+
+
+        if (match.Status != MatchStatus.Published)
+        {
+            throw new ApplicationConflictException("Publish match stats before applying the final lock.");
+        }
 
         match.Status = MatchStatus.Locked;
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -424,17 +513,28 @@ public sealed class LockMatchStatsCommandHandler(
 public sealed class GetSeasonLeaderboardQueryHandler(
     IValidator<GetSeasonLeaderboardQuery> validator,
     ISeasonRepository seasonRepository,
-    IStatsRepository statsRepository)
+    IStatsRepository statsRepository,
+    IClock clock)
 {
     public async Task<LeaderboardModel> HandleAsync(GetSeasonLeaderboardQuery query, CancellationToken cancellationToken = default)
     {
         await validator.ValidateAndThrowAsync(query, cancellationToken);
-        var season = await seasonRepository.GetByIdAsync(query.SeasonId, cancellationToken)
-            ?? throw new ApplicationNotFoundException("Season was not found.");
+        var season = await ResolveSeasonAsync(query.SeasonId, cancellationToken);
+        if (season is null)
+        {
+            // No season covers today and none was requested: an empty leaderboard reads better on
+            // the Stats tab than a dead-end error state.
+            return new LeaderboardModel(
+                Guid.Empty,
+                "No active season",
+                query.Metric,
+                GetLeaderboardNote(query.Metric),
+                []);
+        }
 
         var skip = (query.Page - 1) * query.PageSize;
         var rows = await statsRepository.ListSeasonLeaderboardAsync(
-            query.SeasonId,
+            season.Id,
             query.Metric,
             skip,
             query.PageSize,
@@ -450,6 +550,21 @@ public sealed class GetSeasonLeaderboardQueryHandler(
                 ToPlayerSummary(row.PlayerProfileId, row.DisplayName, row.PreferredPosition, row.IsGuest, row.IdentityUserId),
                 row.Appearances,
                 row.Value)).ToArray());
+    }
+
+    private async Task<Domain.Entities.Scheduling.Season?> ResolveSeasonAsync(
+        Guid? seasonId,
+        CancellationToken cancellationToken)
+    {
+        if (seasonId is { } id)
+        {
+            return await seasonRepository.GetByIdAsync(id, cancellationToken)
+                ?? throw new ApplicationNotFoundException("Season was not found.");
+        }
+
+        var now = clock.UtcNow;
+        var seasons = await seasonRepository.ListActiveAsync(cancellationToken);
+        return seasons.FirstOrDefault(x => x.StartsAtUtc <= now && x.EndsAtUtc >= now);
     }
 
     private static string GetLeaderboardNote(StatLeaderboardMetric metric) => metric switch

@@ -19,6 +19,7 @@ public sealed class RsvpEndpointMetadataTests
     [InlineData(nameof(RsvpFunctions.GetSessionRoster), "sessions/{sessionId:guid}/roster", AuthenticationPolicies.AuthenticatedPlayer)]
     [InlineData(nameof(RsvpFunctions.AdminOverrideRsvp), "sessions/{sessionId:guid}/rsvp/admin-override", AuthenticationPolicies.CanManageSessions)]
     [InlineData(nameof(RsvpFunctions.CheckInPlayer), "sessions/{sessionId:guid}/check-ins", AuthenticationPolicies.CanCheckInPlayers)]
+    [InlineData(nameof(RsvpFunctions.SelfCheckIn), "sessions/{sessionId:guid}/check-ins/me", AuthenticationPolicies.AuthenticatedPlayer)]
     [InlineData(nameof(RsvpFunctions.RecordNoShows), "sessions/{sessionId:guid}/check-ins/no-shows", AuthenticationPolicies.CanCheckInPlayers)]
     public void RsvpEndpoint_WhenMetadataResolved_RequiresExpectedPolicy(
         string methodName,

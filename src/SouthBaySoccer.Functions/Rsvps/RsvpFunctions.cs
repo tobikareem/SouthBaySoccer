@@ -16,6 +16,7 @@ public sealed class RsvpFunctions(
     GetSessionRosterQueryHandler getSessionRosterHandler,
     AdminOverrideRsvpCommandHandler adminOverrideRsvpHandler,
     CheckInPlayerCommandHandler checkInPlayerHandler,
+    SelfCheckInCommandHandler selfCheckInHandler,
     RecordNoShowsCommandHandler recordNoShowsHandler,
     IdempotentRequestExecutor idempotentRequestExecutor)
 {
@@ -127,6 +128,26 @@ public sealed class RsvpFunctions(
                 var result = await checkInPlayerHandler.HandleAsync(
                     new CheckInPlayerCommand(sessionId, body.PlayerProfileId, ParseEnum<AttendanceOutcome>(body.Outcome, nameof(body.Outcome)), body.LateOverrideReason),
                     token);
+                return new IdempotentResponse<CheckInResponseDto>(HttpStatusCode.Created, ToResponse(result));
+            },
+            cancellationToken);
+    }
+
+    [Function(nameof(SelfCheckIn))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> SelfCheckIn(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "sessions/{sessionId:guid}/check-ins/me")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(SelfCheckIn),
+            GetIdempotencyKey(request),
+            new { sessionId },
+            async token =>
+            {
+                var result = await selfCheckInHandler.HandleAsync(new SelfCheckInCommand(sessionId), token);
                 return new IdempotentResponse<CheckInResponseDto>(HttpStatusCode.Created, ToResponse(result));
             },
             cancellationToken);

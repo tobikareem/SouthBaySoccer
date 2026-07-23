@@ -45,6 +45,10 @@
                     </c:BrandCard>
                     <Label Text="{Binding SelectedCountText}" Style="{StaticResource TextCaption}" HorizontalTextAlignment="Center" />
                     <Button Text="Grant captain permissions" Command="{Binding GrantCommand}" Style="{StaticResource PrimaryButton}" />
+                    <Button Text="Lock teams" Command="{Binding LockTeamsCommand}" IsVisible="{Binding CanLockTeams}" Style="{StaticResource GhostButton}" />
+                    <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding IsLocked}">
+                        <Label Text="Teams are locked. Captain picks can no longer change." Style="{StaticResource TextCaption}" />
+                    </Border>
                 </VerticalStackLayout>
             </ScrollView>
         </c:StateView>

@@ -38,6 +38,12 @@ public interface ISessionRepository : IRepository<Session>
         int take,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Lists published sessions starting within one venue-local calendar-day UTC range.</summary>
+    Task<IReadOnlyList<Session>> ListGameDayCandidatesAsync(
+        DateTime dayStartsAtUtc,
+        DateTime dayEndsAtUtc,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Finds a recurrence rule by id.
     /// </summary>

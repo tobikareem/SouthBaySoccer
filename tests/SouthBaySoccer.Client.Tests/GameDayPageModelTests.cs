@@ -3,7 +3,6 @@ using FluentAssertions;
 using Moq;
 using SouthBaySoccer.Contracts.Common;
 using SouthBaySoccer.Contracts.GameDay;
-using SouthBaySoccer.Contracts.Profiles;
 using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
@@ -18,9 +17,7 @@ public class GameDayPageModelTests
     {
         var pageModel = new GameDayPageModel(
             new SeedGameDayClient(new SeedGameDayState()),
-            Navigator().Object,
-            ProfileClientReturning().Object,
-            new GameDayOptions { VenueLocalNow = new DateTime(2026, 6, 20, 19, 35, 0) });
+            Navigator().Object);
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
@@ -39,9 +36,7 @@ public class GameDayPageModelTests
         var navigator = Navigator();
         var pageModel = new GameDayPageModel(
             new SeedGameDayClient(new SeedGameDayState()),
-            navigator.Object,
-            ProfileClientReturning().Object,
-            new GameDayOptions { VenueLocalNow = new DateTime(2026, 6, 20, 19, 35, 0) });
+            navigator.Object);
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
         await pageModel.OpenTeamDraftCommand.ExecuteAsync(null);
@@ -52,7 +47,7 @@ public class GameDayPageModelTests
     }
 
     [Fact]
-    public async Task Appearing_AdminProfile_ForcesAllGameDayActionsVisible()
+    public async Task Appearing_ServerDeniesGameDayActions_DoesNotExposeThem()
     {
         var context = new SeedGameDayState().GetContext() with
         {
@@ -66,20 +61,17 @@ public class GameDayPageModelTests
             .ReturnsAsync(context);
         var pageModel = new GameDayPageModel(
             client.Object,
-            Navigator().Object,
-            ProfileClientReturning("Admin").Object,
-            new GameDayOptions { VenueLocalNow = new DateTime(2026, 6, 20, 19, 35, 0) });
+            Navigator().Object);
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
-        pageModel.IsAdmin.Should().BeTrue();
-        pageModel.HasGameDayActions.Should().BeTrue();
-        pageModel.CanAssignCaptains.Should().BeTrue();
-        pageModel.CanDraftTeam.Should().BeTrue();
-        pageModel.CanApprovePostGame.Should().BeTrue();
-        pageModel.OpenCaptainAssignmentCommand.CanExecute(null).Should().BeTrue();
-        pageModel.OpenTeamDraftCommand.CanExecute(null).Should().BeTrue();
-        pageModel.OpenPostGameApprovalCommand.CanExecute(null).Should().BeTrue();
+        pageModel.HasGameDayActions.Should().BeFalse();
+        pageModel.CanAssignCaptains.Should().BeFalse();
+        pageModel.CanDraftTeam.Should().BeFalse();
+        pageModel.CanApprovePostGame.Should().BeFalse();
+        pageModel.OpenCaptainAssignmentCommand.CanExecute(null).Should().BeFalse();
+        pageModel.OpenTeamDraftCommand.CanExecute(null).Should().BeFalse();
+        pageModel.OpenPostGameApprovalCommand.CanExecute(null).Should().BeFalse();
     }
 
     [Fact]
@@ -98,16 +90,13 @@ public class GameDayPageModelTests
         var navigator = Navigator();
         var pageModel = new GameDayPageModel(
             client.Object,
-            navigator.Object,
-            ProfileClientReturning("Player").Object,
-            new GameDayOptions { VenueLocalNow = new DateTime(2026, 6, 20, 19, 35, 0) });
+            navigator.Object);
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
         await pageModel.OpenCaptainAssignmentCommand.ExecuteAsync(null);
         await pageModel.OpenTeamDraftCommand.ExecuteAsync(null);
         await pageModel.OpenPostGameApprovalCommand.ExecuteAsync(null);
 
-        pageModel.IsAdmin.Should().BeFalse();
         pageModel.HasGameDayActions.Should().BeFalse();
         pageModel.OpenCaptainAssignmentCommand.CanExecute(null).Should().BeFalse();
         pageModel.OpenTeamDraftCommand.CanExecute(null).Should().BeFalse();
@@ -123,9 +112,7 @@ public class GameDayPageModelTests
         var state = new SeedGameDayState();
         var pageModel = new GameDayPageModel(
             new SeedGameDayClient(state),
-            Navigator().Object,
-            ProfileClientReturning().Object,
-            new GameDayOptions { VenueLocalNow = new DateTime(2026, 6, 20, 19, 35, 0) });
+            Navigator().Object);
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
         var goingCount = pageModel.GoingCount;
@@ -137,19 +124,70 @@ public class GameDayPageModelTests
     }
 
     [Fact]
-    public async Task Appearing_AfterWindow_DisablesSelfCheckIn()
+    public async Task CheckIn_WhenNetworkUnavailable_ShowsOfflineState()
     {
+        var context = new SeedGameDayState().GetContext();
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(context);
+        client
+            .Setup(service => service.CheckInAsync(
+                context.SessionId,
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("offline"));
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.CheckInCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Offline);
+    }
+
+    [Fact]
+    public void SeedLateCheckIn_RecordsSelectedPlayerAndRemovesThemFromOverrideList()
+    {
+        var state = new SeedGameDayState();
+        var before = state.GetClosedContext();
+        var player = before.LateCheckInPlayers!.First();
+
+        var result = state.LateCheckIn(
+            before.SessionId,
+            player.PlayerProfileId,
+            "Traffic delay",
+            Guid.NewGuid());
+
+        result.IsSuccess.Should().BeTrue();
+        var after = state.GetClosedContext();
+        after.LateCount.Should().Be(1);
+        after.LateCheckInPlayers.Should().NotContain(item => item.PlayerProfileId == player.PlayerProfileId);
+    }
+
+    [Fact]
+    public async Task Appearing_ServerReturnsClosedWindow_DisablesSelfCheckIn()
+    {
+        var context = new SeedGameDayState().GetContext() with
+        {
+            Status = GameDayStatus.Closed,
+            StatusLabel = "Closed",
+            IsSelfCheckInAvailable = false,
+            PrimaryActionText = "GameAdmin override required",
+            BlockReason = "Check-in is closed. Ask a GameAdmin to record a late arrival."
+        };
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(context);
         var pageModel = new GameDayPageModel(
-            new SeedGameDayClient(new SeedGameDayState()),
-            Navigator().Object,
-            ProfileClientReturning().Object,
-            new GameDayOptions { VenueLocalNow = new DateTime(2026, 6, 20, 19, 50, 0) });
+            client.Object,
+            Navigator().Object);
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
         pageModel.StatusLabel.Should().Be("Closed");
         pageModel.CanCheckIn.Should().BeFalse();
-        pageModel.BlockReason.Should().Contain("GameAdmin override");
+        pageModel.BlockReason.Should().Contain("GameAdmin");
     }
 
     [Fact]
@@ -212,6 +250,79 @@ public class GameDayPageModelTests
     }
 
     [Fact]
+    public async Task Appearing_SeedContext_PopulatesGoingWaitlistRosterAndAdminCheckIn()
+    {
+        var pageModel = new GameDayPageModel(
+            new SeedGameDayClient(new SeedGameDayState()),
+            Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.CanManageCheckIns.Should().BeTrue();
+        pageModel.HasRoster.Should().BeTrue();
+        pageModel.Roster.Should().Contain(item => item.IsWaitlist);
+        pageModel.Roster.Should().Contain(item => item.CanCheckIn);
+    }
+
+    [Fact]
+    public async Task AdminCheckIn_ForConfirmedPlayer_ChecksInAndClearsRowAction()
+    {
+        var state = new SeedGameDayState();
+        var pageModel = new GameDayPageModel(new SeedGameDayClient(state), Navigator().Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        var target = pageModel.Roster.First(item => item.CanCheckIn);
+        var before = pageModel.CheckedInCount;
+
+        await pageModel.AdminCheckInCommand.ExecuteAsync(target);
+
+        pageModel.CheckedInCount.Should().Be(before + 1);
+        var updated = pageModel.Roster.Single(item => item.PlayerProfileId == target.PlayerProfileId);
+        updated.IsCheckedIn.Should().BeTrue();
+        updated.CanCheckIn.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task TeamDraft_WhenAdminCanManageAllTeams_SwitchingTeamReprojectsRoster()
+    {
+        var teamOne = Guid.NewGuid();
+        var teamTwo = Guid.NewGuid();
+        var captainOne = Guid.NewGuid();
+        var captainTwo = Guid.NewGuid();
+        var draft = new TeamDraftDto(
+            SeedFixtures.MarinaSessionId,
+            Guid.NewGuid(),
+            teamOne,
+            "Team Green",
+            "Cap One",
+            CanPickPlayers: true,
+            IsLocked: false,
+            TeamCount: 2,
+            CheckedInPlayers: [],
+            Teams:
+            [
+                new MatchTeamDto(teamOne, "Team Green", captainOne, "Cap One", [captainOne]),
+                new MatchTeamDto(teamTwo, "Team White", captainTwo, "Cap Two", [captainTwo])
+            ],
+            CanManageAllTeams: true);
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(draft);
+        var pageModel = new TeamDraftPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        pageModel.CanManageAllTeams.Should().BeTrue();
+        pageModel.Teams.Should().HaveCount(2);
+        pageModel.TeamName.Should().Be("Team Green");
+
+        pageModel.SelectTeamCommand.Execute(teamTwo);
+
+        pageModel.SelectedTeamId.Should().Be(teamTwo);
+        pageModel.TeamName.Should().Be("Team White");
+        pageModel.CaptainName.Should().Be("Cap Two");
+    }
+
+    [Fact]
     public void TeamResultItem_Totals_CannotExceedTeamCountMinusOne()
     {
         var item = new TeamResultItem(Guid.NewGuid(), "Team Green", 3, 0, 0, 0);
@@ -253,28 +364,12 @@ public class GameDayPageModelTests
         var postgame = LoadXaml("PostGameApprovalPage.xaml").ToString();
 
         gameDay.Should().Contain("StateView").And.Contain("BrandCard").And.Contain("StatTile");
+        gameDay.Should().Contain("AdminCheckInCommand").And.Contain("{Binding Roster}");
         captains.Should().Contain("PlayerRow").And.Contain("CheckBox");
         draft.Should().Contain("TeamDraft.PickPlayer").And.Contain("PlayerRow");
+        draft.Should().Contain("SelectTeamCommand");
         postgame.Should().Contain("CounterStepper").And.Contain("Publish approved match");
         (gameDay + captains + draft + postgame).Should().Contain("FontAwesomeGlyphs");
-    }
-
-    private static Mock<IProfileClient> ProfileClientReturning(string role = "GameAdmin")
-    {
-        var profileClient = new Mock<IProfileClient>();
-        profileClient
-            .Setup(client => client.GetCurrentProfileAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new PlayerProfileDto(
-                SeedFixtures.CurrentPlayerId,
-                "Tobi Kareem",
-                "Captain",
-                "TK",
-                new CareerStatsDto(0, 0, 0, 0, 0, 0),
-                [],
-                null,
-                role));
-
-        return profileClient;
     }
 
     private static Mock<IGameDayNavigator> Navigator()

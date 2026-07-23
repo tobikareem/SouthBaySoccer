@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Contracts.Common;
+using SouthBaySoccer.Contracts.GameDay;
 using SouthBaySoccer.Contracts.Leaderboards;
 using SouthBaySoccer.Contracts.Stats;
 using SouthBaySoccer.Services.Authentication;
@@ -211,29 +212,36 @@ public sealed class ApiSprint03ClientTests
 
         leaderboard.SeasonId.Should().Be(seasonId);
         observed!.Method.Should().Be(HttpMethod.Get);
+        // seasonId is deliberately omitted: the server resolves the current season, so the seed
+        // fixture id passed by the page model never reaches the wire.
         observed.RequestUri!.PathAndQuery.Should()
-            .Be($"/stats/leaderboards?seasonId={seasonId:D}&metric=Goals&page=1&pageSize=25");
+            .Be("/stats/leaderboards?metric=Goals&page=1&pageSize=25");
     }
 
     [Fact]
-    public async Task ApiLeaderboardClient_GetRankingAsync_WhenSeasonUnknown_ReturnsEmptyLeaderboard()
+    public async Task ApiLeaderboardClient_GetRankingAsync_WhenServerReturnsBadRequest_Throws()
     {
-        var seasonId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        // The server now resolves the current season itself and returns an empty leaderboard when
+        // none is active, so a 400 is a genuine validation failure — it must surface, not be
+        // swallowed as an empty leaderboard.
         var client = new ApiLeaderboardClient(CreatePipelineClient(_ =>
-            ProblemResponse(HttpStatusCode.BadRequest, "Query parameter 'seasonId' is invalid.")));
+            ProblemResponse(HttpStatusCode.BadRequest, "Query parameter 'metric' is invalid.")));
 
-        var leaderboard = await client.GetRankingAsync(seasonId, LeaderboardMetric.Goals, CancellationToken.None);
+        var act = async () => await client.GetRankingAsync(
+            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            LeaderboardMetric.Goals,
+            CancellationToken.None);
 
-        leaderboard.SeasonId.Should().Be(seasonId);
-        leaderboard.Metric.Should().Be(LeaderboardMetric.Goals);
-        leaderboard.Rows.Should().BeEmpty();
+        await act.Should().ThrowAsync<ApiRequestException>();
     }
 
     [Fact]
-    public async Task ApiLeaderboardClient_GetRankingAsync_WhenBadRequestIsNotSeasonRelated_Throws()
+    public async Task ApiLeaderboardClient_GetRankingAsync_WhenServerReturnsNotFound_Throws()
     {
+        // A 404 could be a missing route or resource — it must surface, not render as an empty
+        // leaderboard.
         var client = new ApiLeaderboardClient(CreatePipelineClient(_ =>
-            ProblemResponse(HttpStatusCode.BadRequest, "Metric is invalid.")));
+            ProblemResponse(HttpStatusCode.NotFound, "The requested resource was not found.")));
 
         var act = async () => await client.GetRankingAsync(
             Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
@@ -281,22 +289,20 @@ public sealed class ApiSprint03ClientTests
         var client = new ApiGameDayClient(CreateHttpClient(request =>
         {
             requests.Add(request);
-            return request.RequestUri!.PathAndQuery == "/profiles/me"
-                ? JsonResponse(MyProfileJson)
-                : JsonResponse(
-                    """
-                    {
-                      "checkInId": "77777777-7777-7777-7777-777777777777",
-                      "sessionId": "11111111-1111-1111-1111-111111111111",
-                      "playerProfileId": "22222222-2222-2222-2222-222222222222",
-                      "checkedInByPlayerProfileId": "22222222-2222-2222-2222-222222222222",
-                      "checkedInAtUtc": "2026-07-25T15:50:00Z",
-                      "outcome": "CheckedIn",
-                      "isLateOverride": false,
-                      "adminOverrideId": null,
-                      "lateOverrideReason": null
-                    }
-                    """);
+            return JsonResponse(
+                """
+                {
+                  "checkInId": "77777777-7777-7777-7777-777777777777",
+                  "sessionId": "11111111-1111-1111-1111-111111111111",
+                  "playerProfileId": "22222222-2222-2222-2222-222222222222",
+                  "checkedInByPlayerProfileId": "22222222-2222-2222-2222-222222222222",
+                  "checkedInAtUtc": "2026-07-25T15:50:00Z",
+                  "outcome": "CheckedIn",
+                  "isLateOverride": false,
+                  "adminOverrideId": null,
+                  "lateOverrideReason": null
+                }
+                """);
         }));
 
         ClientCommandResult result = await client.CheckInAsync(
@@ -305,13 +311,284 @@ public sealed class ApiSprint03ClientTests
             CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        requests.Should().HaveCount(2);
-        requests[0].Method.Should().Be(HttpMethod.Get);
-        requests[0].RequestUri!.PathAndQuery.Should().Be("/profiles/me");
-        requests[1].Method.Should().Be(HttpMethod.Post);
-        requests[1].RequestUri!.PathAndQuery.Should().Be($"/sessions/{SessionId}/check-ins");
-        requests[1].Headers.GetValues("Idempotency-Key").Single()
+        requests.Should().ContainSingle();
+        requests[0].Method.Should().Be(HttpMethod.Post);
+        requests[0].RequestUri!.PathAndQuery.Should().Be($"/sessions/{SessionId}/check-ins/me");
+        requests[0].Headers.GetValues("Idempotency-Key").Single()
             .Should().Be(idempotencyKey.ToString("N"));
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_GetTodayContextAsync_UsesGameDayProjection()
+    {
+        HttpRequestMessage? observed = null;
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            return JsonResponse(
+                $$"""
+                {
+                  "sessionId": "{{SessionId}}",
+                  "matchId": "00000000-0000-0000-0000-000000000000",
+                  "title": "Game Day",
+                  "venue": "Marina Field",
+                  "dateLabel": "Wed Jul 22",
+                  "gameStartLabel": "7:40 PM",
+                  "checkInWindowLabel": "7:10 PM - 7:40 PM",
+                  "checkInCloseLabel": "closes 7:40 PM",
+                  "status": 0,
+                  "statusLabel": "Open",
+                  "isSelfCheckInAvailable": true,
+                  "primaryActionText": "Check in at field",
+                  "blockReason": null,
+                  "rsvpIntentLabel": "Going",
+                  "isCurrentPlayerGoing": true,
+                  "isCurrentPlayerCheckedIn": false,
+                  "goingCount": 20,
+                  "checkedInCount": 7,
+                  "lateCount": 0,
+                  "canAssignCaptains": false,
+                  "canDraftTeam": false,
+                  "canApprovePostGame": false,
+                  "canLateCheckIn": false,
+                  "lateCheckInPlayers": []
+                }
+                """);
+        }));
+
+        var context = await client.GetTodayContextAsync(CancellationToken.None);
+
+        context.Should().NotBeNull();
+        context!.SessionId.Should().Be(SessionId);
+        context.GameStartLabel.Should().Be("7:40 PM");
+        observed!.Method.Should().Be(HttpMethod.Get);
+        observed.RequestUri!.PathAndQuery.Should().Be("/game-day/today");
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_GetTodayContextAsync_WhenNoContent_ReturnsNull()
+    {
+        var client = new ApiGameDayClient(CreateHttpClient(_ =>
+            new HttpResponseMessage(HttpStatusCode.NoContent)));
+
+        var context = await client.GetTodayContextAsync(CancellationToken.None);
+
+        context.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_LateCheckInAsync_SendsAuditedAdminOverride()
+    {
+        HttpRequestMessage? observed = null;
+        string? observedBody = null;
+        var idempotencyKey = Guid.NewGuid();
+        var playerId = Guid.NewGuid();
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            observedBody = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse("{}");
+        }));
+
+        var result = await client.LateCheckInAsync(
+            SessionId,
+            playerId,
+            "Traffic delay",
+            idempotencyKey,
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        observed!.Method.Should().Be(HttpMethod.Post);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/sessions/{SessionId}/check-ins");
+        observed.Headers.GetValues("Idempotency-Key").Single()
+            .Should().Be(idempotencyKey.ToString("N"));
+        observedBody.Should().Contain(playerId.ToString()).And.Contain("Late").And.Contain("Traffic delay");
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_AdminCheckInAsync_SendsInWindowCheckedInWithIdempotencyKey()
+    {
+        HttpRequestMessage? observed = null;
+        string? observedBody = null;
+        var idempotencyKey = Guid.NewGuid();
+        var playerId = Guid.NewGuid();
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            observedBody = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse("{}");
+        }));
+
+        var result = await client.AdminCheckInAsync(
+            SessionId,
+            playerId,
+            idempotencyKey,
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        observed!.Method.Should().Be(HttpMethod.Post);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/sessions/{SessionId}/check-ins");
+        observed.Headers.GetValues("Idempotency-Key").Single()
+            .Should().Be(idempotencyKey.ToString("N"));
+        observedBody.Should().Contain(playerId.ToString()).And.Contain("CheckedIn");
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_GetCaptainAssignmentAsync_UsesSessionCaptainProjection()
+    {
+        HttpRequestMessage? observed = null;
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            return JsonResponse(
+                $$"""
+                {
+                  "sessionId": "{{SessionId}}",
+                  "matchId": "22222222-2222-2222-2222-222222222222",
+                  "captainCount": 2,
+                  "availableCaptainCounts": [2, 3, 4],
+                  "selectedCaptainIds": [],
+                  "checkedInPlayers": []
+                }
+                """);
+        }));
+
+        var result = await client.GetCaptainAssignmentAsync(SessionId, CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result!.AvailableCaptainCounts.Should().Equal(2, 3, 4);
+        observed!.Method.Should().Be(HttpMethod.Get);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/game-day/sessions/{SessionId}/captains");
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_AssignCaptainsAsync_SendsDesiredTopologyWithIdempotencyKey()
+    {
+        HttpRequestMessage? observed = null;
+        string? body = null;
+        var captainIds = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse("{}");
+        }));
+
+        var result = await client.AssignCaptainsAsync(SessionId, 2, captainIds, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        observed!.Method.Should().Be(HttpMethod.Put);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/game-day/sessions/{SessionId}/captains");
+        observed.Headers.Contains("Idempotency-Key").Should().BeTrue();
+        body.Should().Contain("captainCount").And.Contain(captainIds[0].ToString());
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_AssignCaptainsAsync_ReusesKeyAfterAmbiguousServerFailure()
+    {
+        var keys = new List<string>();
+        var attempts = 0;
+        var captainIds = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            keys.Add(request.Headers.GetValues("Idempotency-Key").Single());
+            attempts++;
+            return attempts == 1
+                ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                : JsonResponse("{}");
+        }));
+
+        var first = async () => await client.AssignCaptainsAsync(
+            SessionId,
+            2,
+            captainIds,
+            CancellationToken.None);
+        await first.Should().ThrowAsync<HttpRequestException>();
+        var retry = await client.AssignCaptainsAsync(SessionId, 2, captainIds, CancellationToken.None);
+
+        retry.IsSuccess.Should().BeTrue();
+        keys.Should().HaveCount(2);
+        keys[1].Should().Be(keys[0]);
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_SaveTeamPicksAsync_UsesResourceScopedTeamRoute()
+    {
+        HttpRequestMessage? observed = null;
+        string? body = null;
+        var teamId = Guid.NewGuid();
+        var playerId = Guid.NewGuid();
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse("{}");
+        }));
+
+        var result = await client.SaveTeamPicksAsync(
+            SessionId,
+            teamId,
+            [playerId],
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        observed!.Method.Should().Be(HttpMethod.Put);
+        observed.RequestUri!.PathAndQuery.Should()
+            .Be($"/game-day/sessions/{SessionId}/teams/{teamId}/picks");
+        observed.Headers.Contains("Idempotency-Key").Should().BeTrue();
+        body.Should().Contain(playerId.ToString());
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_LockTeamsAsync_UsesAdminLockRouteWithIdempotencyKey()
+    {
+        HttpRequestMessage? observed = null;
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            return JsonResponse("{}");
+        }));
+
+        var result = await client.LockTeamsAsync(SessionId, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        observed!.Method.Should().Be(HttpMethod.Post);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/game-day/sessions/{SessionId}/teams/lock");
+        observed.Headers.Contains("Idempotency-Key").Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("approve")]
+    [InlineData("result")]
+    [InlineData("publish")]
+    public async Task ApiGameDayClient_PostGameMutation_UsesExpectedRouteAndIdempotencyKey(string operation)
+    {
+        HttpRequestMessage? observed = null;
+        var resourceId = Guid.NewGuid();
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            return JsonResponse("{}");
+        }));
+
+        var result = operation switch
+        {
+            "approve" => await client.ApproveStatAsync(SessionId, resourceId, CancellationToken.None),
+            "result" => await client.SaveTeamResultAsync(
+                SessionId,
+                new TeamResultUpdateDto(resourceId, 1, 0, 0),
+                CancellationToken.None),
+            _ => await client.PublishPostGameAsync(SessionId, CancellationToken.None),
+        };
+
+        result.IsSuccess.Should().BeTrue();
+        observed!.Headers.Contains("Idempotency-Key").Should().BeTrue();
+        observed.RequestUri!.PathAndQuery.Should().Be(operation switch
+        {
+            "approve" => $"/game-day/sessions/{SessionId}/post-game/events/{resourceId}/approve",
+            "result" => $"/game-day/sessions/{SessionId}/post-game/results/{resourceId}",
+            _ => $"/game-day/sessions/{SessionId}/post-game/publish",
+        });
     }
 
     private const string SessionsJson =

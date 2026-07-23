@@ -97,7 +97,6 @@ public static class MauiProgram
         builder.Services.AddTransient<CaptainAssignmentPageModel>();
         builder.Services.AddTransient<TeamDraftPageModel>();
         builder.Services.AddTransient<PostGameApprovalPageModel>();
-        builder.Services.AddSingleton(new GameDayOptions());
         builder.Services.AddLeaderboardFeature();
         builder.Services.AddPlayersFeature();
         builder.Services.AddProfileFeature();

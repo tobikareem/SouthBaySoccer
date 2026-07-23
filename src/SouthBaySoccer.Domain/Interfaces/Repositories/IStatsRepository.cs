@@ -15,11 +15,15 @@ public interface IStatsRepository
 
     Task<Match?> FindMatchAsync(Guid matchId, CancellationToken cancellationToken = default);
 
+    Task<Match?> FindPrimaryMatchBySessionAsync(Guid sessionId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<MatchTeam>> ListMatchTeamsAsync(Guid matchId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<TeamAssignment>> ListAssignmentsAsync(Guid matchId, CancellationToken cancellationToken = default);
 
     Task<MatchEvent?> FindMatchEventAsync(Guid matchEventId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<MatchEvent>> ListMatchEventsAsync(Guid matchId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<MatchResult>> ListMatchResultsAsync(Guid matchId, CancellationToken cancellationToken = default);
 
@@ -31,6 +35,19 @@ public interface IStatsRepository
     Task UpsertMatchResultsAsync(
         Guid matchId,
         IReadOnlyList<MatchResult> results,
+        CancellationToken cancellationToken = default);
+
+    Task ReplaceCaptainTopologyAsync(
+        Guid matchId,
+        IReadOnlyList<MatchTeam> teams,
+        IReadOnlyList<TeamAssignment> assignments,
+        IReadOnlyList<PlayerMatchStats> participants,
+        CancellationToken cancellationToken = default);
+
+    Task ReplaceTeamAssignmentsAsync(
+        Guid matchId,
+        Guid matchTeamId,
+        IReadOnlyList<Guid> playerProfileIds,
         CancellationToken cancellationToken = default);
 
     Task SubmitPeerFeedbackAsync(
