@@ -362,15 +362,25 @@ public class GameDayPageModelTests
     }
 
     [Fact]
-    public void TeamResultItem_Totals_CannotExceedTeamCountMinusOne()
+    public void TeamResultItem_WithThreeTeams_RecordsAsManyGamesAsTheRotationActuallyPlayed()
     {
         var item = new TeamResultItem(Guid.NewGuid(), "Team Green", 3, 0, 0, 0);
 
-        item.Wins = 1;
-        item.Draws = 1;
-        item.Losses = 1;
+        // A winner-stays-on rotation: five games for this side, more than the two opponents it has.
+        item.TryUpdate(3, 1, 1).Should().BeTrue();
 
-        (item.Wins + item.Draws + item.Losses).Should().Be(2);
+        item.GamesRecorded.Should().Be(5);
+        item.Detail.Should().Be("5 games recorded");
+    }
+
+    [Fact]
+    public void TeamResultItem_NegativeCounters_AreRejected()
+    {
+        var item = new TeamResultItem(Guid.NewGuid(), "Team Green", 2, 1, 0, 0);
+
+        item.TryUpdate(-1, 0, 0).Should().BeFalse();
+
+        item.Wins.Should().Be(1);
     }
 
     [Fact]

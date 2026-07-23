@@ -31,11 +31,11 @@
                                                 <Label Text="{Binding TeamName}" Style="{StaticResource TextBodyStrong}" />
                                                 <Label Text="{Binding Detail}" Style="{StaticResource TextCaption}" />
                                             </VerticalStackLayout>
-                                            <c:Badge Grid.Column="1" Text="{Binding MaxResults, StringFormat='max {0}'}" Variant="Warning" />
+                                            <c:Badge Grid.Column="1" Text="{Binding Detail}" Variant="Neutral" />
                                         </Grid>
-                                        <c:CounterStepper Caption="Wins" Value="{Binding Wins}" Minimum="0" Maximum="{Binding MaxResults}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
-                                        <c:CounterStepper Caption="Draws" Value="{Binding Draws}" Minimum="0" Maximum="{Binding MaxResults}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
-                                        <c:CounterStepper Caption="Losses" Value="{Binding Losses}" Minimum="0" Maximum="{Binding MaxResults}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
+                                        <c:CounterStepper Caption="Wins" Value="{Binding Wins}" Minimum="0" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
+                                        <c:CounterStepper Caption="Draws" Value="{Binding Draws}" Minimum="0" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
+                                        <c:CounterStepper Caption="Losses" Value="{Binding Losses}" Minimum="0" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
                                         <Button Text="Save result" Command="{Binding BindingContext.SaveResultCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" Style="{StaticResource GhostButton}" />
                                     </VerticalStackLayout>
                                 </c:BrandCard>
