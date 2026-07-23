@@ -96,7 +96,8 @@ public sealed class SeedGameDayState
                 true,
                 true,
                 Roster: RosterEntries(),
-                CanManageCheckIns: true);
+                CanManageCheckIns: true,
+                CanSubmitOwnStats: true);
         }
     }
 

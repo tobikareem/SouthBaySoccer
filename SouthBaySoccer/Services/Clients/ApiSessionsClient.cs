@@ -50,7 +50,7 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
             "Welcome back",
             DuesStatus: string.Empty,
             featuredSummary,
-            StatsPrompt: null,
+            await GetPendingStatsPromptAsync(cancellationToken),
             "Coming up",
             "See schedule",
             upcoming
@@ -134,6 +134,30 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
                 || IsCanceled(session))
             .OrderBy(session => session.StartsAtUtc)
             .ToArray();
+    }
+
+    /// <summary>
+    /// The "Submit your latest stats" card. The server picks the player's most recent played match
+    /// still inside the submission window; 204 means there is nothing to report right now.
+    /// </summary>
+    private async Task<StatsPromptDto?> GetPendingStatsPromptAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await httpClient.GetAsync("stats/submissions/pending", cancellationToken);
+            if (response.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<StatsPromptDto>(cancellationToken: cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            // The prompt is a nicety - never fail the whole dashboard over it.
+            return null;
+        }
     }
 
     private async Task<RsvpResponseDto?> GetMyRsvpAsync(Guid sessionId, CancellationToken cancellationToken)

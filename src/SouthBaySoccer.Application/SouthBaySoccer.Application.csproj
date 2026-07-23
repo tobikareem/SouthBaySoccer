@@ -15,4 +15,10 @@
     <ProjectReference Include="..\SouthBaySoccer.Domain\SouthBaySoccer.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The game-day result rules are internal implementation detail, but their arithmetic is worth
+         testing directly rather than only through the handlers that call them. -->
+    <InternalsVisibleTo Include="SouthBaySoccer.Application.Tests" />
+  </ItemGroup>
+
 </Project>

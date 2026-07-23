@@ -95,6 +95,8 @@ public sealed record SubmitPeerFeedbackRequest(
 
 public sealed record PlayerRatingRequest(Guid RatedPlayerProfileId, int Score);
 
+public sealed record SubmitMatchStatsRequest(int Goals, int Assists);
+
 public sealed record ReviewMatchEventRequest(bool Approved, string? Note);
 
 public sealed record ResolveMatchReviewRequest(string ResolutionNote, string BeforeJson, string AfterJson);

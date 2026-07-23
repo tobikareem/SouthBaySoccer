@@ -87,6 +87,29 @@ public sealed class SubmitPeerFeedbackCommandValidator : AbstractValidator<Submi
     private static bool HaveUniqueValues<T>(IEnumerable<T> values) => values.Distinct().Count() == values.Count();
 }
 
+public sealed class SubmitMyMatchStatsCommandValidator : AbstractValidator<SubmitMyMatchStatsCommand>
+{
+    // A pickup player self-reports a plausible tally; the upper bound just stops a runaway stepper
+    // or a scripted client from writing thousands of rows.
+    private const int MaxSelfReportedTally = 50;
+
+    public SubmitMyMatchStatsCommandValidator()
+    {
+        RuleFor(x => x.MatchId).NotEmpty();
+        RuleFor(x => x.Goals).InclusiveBetween(0, MaxSelfReportedTally);
+        RuleFor(x => x.Assists).InclusiveBetween(0, MaxSelfReportedTally);
+    }
+}
+
+public sealed class ConfirmPlayerSubmissionCommandValidator : AbstractValidator<ConfirmPlayerSubmissionCommand>
+{
+    public ConfirmPlayerSubmissionCommandValidator()
+    {
+        RuleFor(x => x.MatchId).NotEmpty();
+        RuleFor(x => x.PlayerProfileId).NotEmpty();
+    }
+}
+
 public sealed class AddStatCorrectionCommandValidator : AbstractValidator<AddStatCorrectionCommand>
 {
     public AddStatCorrectionCommandValidator()

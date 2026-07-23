@@ -12,6 +12,24 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
         return Task.FromResult<GameDayContextDto?>(state.GetContext());
     }
 
+    public Task<IReadOnlyList<RecentGameDto>> GetRecentGamesAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<RecentGameDto>>(
+        [
+            new RecentGameDto(
+                SeedFixtures.MarinaSessionId,
+                SeedFixtures.FeaturedMatchId,
+                "Marina Field - Wednesday pickup",
+                "Marina Field",
+                "Wed Jul 22, 7:30 PM",
+                "Completed",
+                2,
+                2,
+                CanEditTeams: true),
+        ]);
+    }
+
     public Task<ClientCommandResult> CheckInAsync(
         Guid sessionId,
         Guid idempotencyKey,

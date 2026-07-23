@@ -12,6 +12,7 @@ namespace SouthBaySoccer.Functions.Sessions;
 public sealed class GameDayFunctions(
     GameDayPickupPalRefreshService pickupPalRefreshService,
     GetTodayGameDayContextQueryHandler contextHandler,
+    GetRecentGamesQueryHandler recentGamesHandler,
     GetCaptainAssignmentQueryHandler getCaptainAssignmentHandler,
     AssignSessionCaptainsCommandHandler assignCaptainsHandler,
     LockSessionTeamsCommandHandler lockSessionTeamsHandler,
@@ -38,6 +39,31 @@ public sealed class GameDayFunctions(
 
         var response = request.CreateResponse(HttpStatusCode.OK);
         await response.WriteAsJsonAsync(ToResponse(context), cancellationToken);
+        return response;
+    }
+
+    [Function(nameof(GetRecentGames))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> GetRecentGames(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "game-day/recent")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var games = await recentGamesHandler.HandleAsync(cancellationToken);
+        var response = request.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(
+            games
+                .Select(game => new RecentGameDto(
+                    game.SessionId,
+                    game.MatchId,
+                    game.Title,
+                    game.Venue,
+                    ToLocal(game.StartsAtUtc).ToString("ddd MMM d, h:mm tt", CultureInfo.InvariantCulture),
+                    game.MatchStatus,
+                    game.TeamCount,
+                    game.PendingApprovalCount,
+                    game.CanEditTeams))
+                .ToArray(),
+            cancellationToken);
         return response;
     }
 
@@ -278,7 +304,8 @@ public sealed class GameDayFunctions(
                     entry.IsWaitlist,
                     entry.IsCheckedIn))
                 .ToArray(),
-            context.CanManageCheckIns);
+            context.CanManageCheckIns,
+            context.CanSubmitOwnStats);
     }
 
     private static CaptainAssignmentDto ToResponse(CaptainAssignmentModel model) =>

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.RecentGamesPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="RecentGames"
+    x:DataType="pageModels:RecentGamesPageModel"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Recent games">
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference RecentGames}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+    <c:StateView
+        State="{Binding State}"
+        Title="{Binding StateTitle}"
+        Message="{Binding StateMessage}"
+        Glyph="{x:Static fonts:FontAwesomeGlyphs.Futbol}"
+        GlyphFontFamily="FontAwesomeSolid"
+        RetryCommand="{Binding RetryCommand}">
+        <ScrollView>
+            <VerticalStackLayout
+                Padding="{StaticResource LayoutPadding}"
+                Spacing="{StaticResource SpaceMd}">
+
+                <c:BrandHeader
+                    Title="Recent games"
+                    Subtitle="Fix teams or clear the stat queue after the game"
+                    ShowBack="True"
+                    BackCommand="{Binding BackCommand}" />
+
+                <VerticalStackLayout
+                    BindableLayout.ItemsSource="{Binding Games}"
+                    Spacing="{StaticResource SpaceMd}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="pageModels:RecentGameItem">
+                            <Border Style="{StaticResource CardSurface}">
+                                <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                                    <Label Text="{Binding Title}" Style="{StaticResource TextBodyStrong}" />
+                                    <Label Text="{Binding Detail}" Style="{StaticResource TextCaption}" />
+
+                                    <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
+                                        <c:Badge Text="{Binding StatusLabel}" Variant="Neutral" />
+                                        <c:Badge
+                                            Text="{Binding PendingLabel}"
+                                            Variant="Warning"
+                                            IsVisible="{Binding HasPending}" />
+                                    </HorizontalStackLayout>
+
+                                    <Grid
+                                        ColumnDefinitions="*,*,*"
+                                        ColumnSpacing="{StaticResource SpaceSm}">
+                                        <Button
+                                            Text="Captains"
+                                            Style="{StaticResource SecondaryButton}"
+                                            IsEnabled="{Binding CanEditTeams}"
+                                            Command="{Binding Source={x:Reference RecentGames}, Path=BindingContext.OpenCaptainsCommand}"
+                                            CommandParameter="{Binding .}"
+                                            SemanticProperties.Description="{Binding Title, StringFormat='Assign captains for {0}'}" />
+                                        <Button
+                                            Grid.Column="1"
+                                            Text="Teams"
+                                            Style="{StaticResource SecondaryButton}"
+                                            IsEnabled="{Binding CanEditTeams}"
+                                            Command="{Binding Source={x:Reference RecentGames}, Path=BindingContext.OpenTeamsCommand}"
+                                            CommandParameter="{Binding .}"
+                                            SemanticProperties.Description="{Binding Title, StringFormat='Rearrange teams for {0}'}" />
+                                        <Button
+                                            Grid.Column="2"
+                                            Text="Stats"
+                                            Style="{StaticResource SecondaryButton}"
+                                            Command="{Binding Source={x:Reference RecentGames}, Path=BindingContext.OpenStatsCommand}"
+                                            CommandParameter="{Binding .}"
+                                            SemanticProperties.Description="{Binding Title, StringFormat='Review stats for {0}'}" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+    </c:StateView>
+</ContentPage>

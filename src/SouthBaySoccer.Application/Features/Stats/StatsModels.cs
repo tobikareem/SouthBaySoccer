@@ -67,6 +67,52 @@ public sealed record SubmitPeerFeedbackCommand(
 
 public sealed record PlayerRatingInput(Guid RatedPlayerProfileId, int Score);
 
+// STAT-7 / STAT-8 player-facing post-game surface: a player reports their own goals/assists and
+// rates the teammates they played with. Captains and game admins confirm through STAT-9.
+public sealed record GetMyMatchStatsQuery(Guid MatchId);
+
+public sealed record MyMatchStatsModel(
+    Guid MatchId,
+    Guid CurrentPlayerProfileId,
+    string MatchSubtitle,
+    int Goals,
+    int Assists,
+    bool IsPendingConfirmation,
+    bool CanSubmit,
+    bool CanConfirmTeammates,
+    IReadOnlyList<TeammateStatSubmissionModel> TeammateSubmissions);
+
+public sealed record TeammateStatSubmissionModel(
+    Guid PlayerProfileId,
+    string DisplayName,
+    string PreferredPosition,
+    bool IsGuest,
+    int Goals,
+    int Assists,
+    bool IsConfirmed);
+
+public sealed record GetRateableTeammatesQuery(Guid MatchId);
+
+public sealed record RateableTeammateModel(
+    Guid PlayerProfileId,
+    string DisplayName,
+    string PreferredPosition,
+    bool IsGuest,
+    string Detail);
+
+public sealed record SubmitMyMatchStatsCommand(Guid MatchId, int Goals, int Assists);
+
+public sealed record ConfirmPlayerSubmissionCommand(Guid MatchId, Guid PlayerProfileId);
+
+/// <summary>Drives the Sessions-tab "Submit your latest stats" prompt.</summary>
+public sealed record GetPendingStatSubmissionQuery;
+
+public sealed record PendingStatSubmissionModel(
+    Guid MatchId,
+    string Title,
+    string Caption,
+    bool IsPendingConfirmation);
+
 public sealed record AddStatCorrectionCommand(
     Guid MatchId,
     Guid? PlayerProfileId,

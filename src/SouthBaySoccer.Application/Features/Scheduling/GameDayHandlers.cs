@@ -40,7 +40,72 @@ public sealed record GameDayContextModel(
     bool CanLateCheckIn,
     IReadOnlyList<GameDayPlayerModel> LateCheckInPlayers,
     IReadOnlyList<GameDayRosterEntryModel> Roster,
-    bool CanManageCheckIns);
+    bool CanManageCheckIns,
+    bool CanSubmitOwnStats);
+
+public sealed record RecentGameModel(
+    Guid SessionId,
+    Guid MatchId,
+    string Title,
+    string Venue,
+    DateTime StartsAtUtc,
+    string MatchStatus,
+    int TeamCount,
+    int PendingApprovalCount,
+    bool CanEditTeams);
+
+/// <summary>
+/// Lists games that have already kicked off inside the admin edit window, so a game admin can go
+/// back into a past session to fix teams or clear the stat queue. Game Day itself only ever shows
+/// today, which otherwise leaves yesterday's match unreachable.
+/// </summary>
+public sealed class GetRecentGamesQueryHandler(
+    ICurrentUser currentUser,
+    IClock clock,
+    ISessionRepository sessionRepository,
+    IVenueRepository venueRepository,
+    IStatsRepository statsRepository)
+{
+    public async Task<IReadOnlyList<RecentGameModel>> HandleAsync(CancellationToken cancellationToken = default)
+    {
+        GameDayWorkflowAuthorization.EnsureGameAdmin(currentUser);
+        var nowUtc = clock.UtcNow;
+        var sessions = await sessionRepository.ListGameDayCandidatesAsync(
+            nowUtc.Subtract(GameDayWorkflowQueries.AdminTeamEditWindow),
+            nowUtc,
+            cancellationToken);
+
+        var games = new List<RecentGameModel>(sessions.Count);
+        foreach (var session in sessions.OrderByDescending(x => x.StartsAtUtc))
+        {
+            var match = await statsRepository.FindPrimaryMatchBySessionAsync(session.Id, cancellationToken);
+            var venue = await venueRepository.GetByIdAsync(session.VenueId, cancellationToken);
+            var teams = match is null
+                ? []
+                : await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken);
+            var pendingApprovals = 0;
+            if (match is not null)
+            {
+                var events = await statsRepository.ListMatchEventsAsync(match.Id, cancellationToken);
+                pendingApprovals = events.Count(x => x.ReviewStatus == MatchEventReviewStatus.Pending);
+            }
+
+            games.Add(new RecentGameModel(
+                session.Id,
+                match?.Id ?? Guid.Empty,
+                session.Title,
+                venue?.Name ?? "Unknown venue",
+                session.StartsAtUtc,
+                match?.Status.ToString() ?? "NotStarted",
+                teams.Count,
+                pendingApprovals,
+                GameDayWorkflowQueries.IsAdminTeamEditOpen(session, nowUtc)
+                    && match?.Status is not MatchStatus.Published and not MatchStatus.Locked));
+        }
+
+        return games;
+    }
+}
 
 public sealed class GetTodayGameDayContextQueryHandler(
     ICurrentUser currentUser,
@@ -105,16 +170,21 @@ public sealed class GetTodayGameDayContextQueryHandler(
         var teams = match is null
             ? []
             : await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken);
-        var isDraftWindow = session.Status == SessionStatus.Published
-            && nowUtc >= session.CheckInOpensAtUtc
-            && !GameDayWorkflowQueries.IsPostGameOpen(session, nowUtc);
-        var canAssignCaptains = GameDayWorkflowAuthorization.IsGameAdmin(currentUser)
+        // Game admins set teams up ahead of time, so their window opens at publish; captains still
+        // wait for check-in. Both close when post-game opens.
+        var isGameAdmin = GameDayWorkflowAuthorization.IsGameAdmin(currentUser);
+        var isDraftWindow = GameDayWorkflowQueries.IsTeamSetupOpen(session, nowUtc, isGameAdmin);
+        var canAssignCaptains = isGameAdmin
             && isDraftWindow
             && (match is null || match.Status == MatchStatus.Draft);
-        var canDraftTeam = match?.Status == MatchStatus.Draft
-            && isDraftWindow
-            && (GameDayWorkflowAuthorization.IsGameAdmin(currentUser)
-                || teams.Any(team => team.CaptainPlayerProfileId == profile.Id));
+        // Admins may still rearrange a match that already has results; only Published/Locked are
+        // settled. Captains keep editing only while the match is still a Draft.
+        var canDraftTeam = isDraftWindow
+            && match is not null
+            && (isGameAdmin
+                ? match.Status is not MatchStatus.Published and not MatchStatus.Locked
+                : match.Status == MatchStatus.Draft
+                    && teams.Any(team => team.CaptainPlayerProfileId == profile.Id));
         var canApprovePostGame = match is not null
             && GameDayWorkflowQueries.IsPostGameOpen(session, nowUtc)
             && match.Status is not MatchStatus.Draft
@@ -145,6 +215,15 @@ public sealed class GetTodayGameDayContextQueryHandler(
                 checkedInIds.Contains(member.PlayerProfileId)))
             .ToArray();
 
+        // STAT-7/STAT-8 entry point: once the game has been played, anyone who was on the confirmed
+        // roster can report their own tally and rate the side they played with - being drafted onto
+        // a team is not required, since a session may never have been drafted at all.
+        // Published/locked matches are settled and only move through a stat correction.
+        var canSubmitOwnStats = match is not null
+            && GameDayWorkflowQueries.IsPostGameOpen(session, nowUtc)
+            && match.Status is not MatchStatus.Published and not MatchStatus.Locked
+            && roster.Any(member => member.PlayerProfileId == profile.Id);
+
         return new GameDayContextModel(
             session.Id,
             match?.Id ?? Guid.Empty,
@@ -168,7 +247,8 @@ public sealed class GetTodayGameDayContextQueryHandler(
             canLateCheckIn,
             latePlayers,
             roster,
-            canManageCheckIns);
+            canManageCheckIns,
+            canSubmitOwnStats);
     }
 
     private async Task<IReadOnlyList<GameDayPlayerModel>> ListConfirmedPlayersAsync(

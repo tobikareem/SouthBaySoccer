@@ -47,13 +47,51 @@ public class GameDayPageModelTests
     }
 
     [Fact]
+    public async Task PostGameActions_WhenPlayerCanSubmitOwnStats_OpenMatchStatsAndRateRoutesForTheMatch()
+    {
+        var navigator = Navigator();
+        var pageModel = new GameDayPageModel(
+            new SeedGameDayClient(new SeedGameDayState()),
+            navigator.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.OpenMatchStatsCommand.ExecuteAsync(null);
+        await pageModel.OpenRateTeammatesCommand.ExecuteAsync(null);
+
+        pageModel.CanSubmitOwnStats.Should().BeTrue();
+        navigator.Verify(service => service.OpenMatchStatsAsync(SeedFixtures.FeaturedMatchId), Times.Once);
+        navigator.Verify(service => service.OpenRateTeammatesAsync(SeedFixtures.FeaturedMatchId), Times.Once);
+    }
+
+    [Fact]
+    public async Task PostGameActions_WhenServerWithholdsOwnStats_DoesNotNavigate()
+    {
+        var context = new SeedGameDayState().GetContext() with { CanSubmitOwnStats = false };
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(context);
+        var navigator = Navigator();
+        var pageModel = new GameDayPageModel(client.Object, navigator.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.OpenMatchStatsCommand.ExecuteAsync(null);
+        await pageModel.OpenRateTeammatesCommand.ExecuteAsync(null);
+
+        pageModel.CanSubmitOwnStats.Should().BeFalse();
+        navigator.Verify(service => service.OpenMatchStatsAsync(It.IsAny<Guid>()), Times.Never);
+        navigator.Verify(service => service.OpenRateTeammatesAsync(It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Appearing_ServerDeniesGameDayActions_DoesNotExposeThem()
     {
         var context = new SeedGameDayState().GetContext() with
         {
             CanAssignCaptains = false,
             CanDraftTeam = false,
-            CanApprovePostGame = false
+            CanApprovePostGame = false,
+            CanSubmitOwnStats = false
         };
         var client = new Mock<IGameDayClient>();
         client
@@ -81,7 +119,8 @@ public class GameDayPageModelTests
         {
             CanAssignCaptains = false,
             CanDraftTeam = false,
-            CanApprovePostGame = false
+            CanApprovePostGame = false,
+            CanSubmitOwnStats = false
         };
         var client = new Mock<IGameDayClient>();
         client
@@ -323,15 +362,25 @@ public class GameDayPageModelTests
     }
 
     [Fact]
-    public void TeamResultItem_Totals_CannotExceedTeamCountMinusOne()
+    public void TeamResultItem_WithThreeTeams_RecordsAsManyGamesAsTheRotationActuallyPlayed()
     {
         var item = new TeamResultItem(Guid.NewGuid(), "Team Green", 3, 0, 0, 0);
 
-        item.Wins = 1;
-        item.Draws = 1;
-        item.Losses = 1;
+        // A winner-stays-on rotation: five games for this side, more than the two opponents it has.
+        item.TryUpdate(3, 1, 1).Should().BeTrue();
 
-        (item.Wins + item.Draws + item.Losses).Should().Be(2);
+        item.GamesRecorded.Should().Be(5);
+        item.Detail.Should().Be("5 games recorded");
+    }
+
+    [Fact]
+    public void TeamResultItem_NegativeCounters_AreRejected()
+    {
+        var item = new TeamResultItem(Guid.NewGuid(), "Team Green", 2, 1, 0, 0);
+
+        item.TryUpdate(-1, 0, 0).Should().BeFalse();
+
+        item.Wins.Should().Be(1);
     }
 
     [Fact]
