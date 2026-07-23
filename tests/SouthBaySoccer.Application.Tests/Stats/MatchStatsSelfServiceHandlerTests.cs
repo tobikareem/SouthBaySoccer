@@ -5,6 +5,7 @@ using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Stats;
 using SouthBaySoccer.Domain.Entities.Identity;
+using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Entities.Stats;
 using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
@@ -183,6 +184,99 @@ public sealed class MatchStatsSelfServiceHandlerTests
         result.IsPendingConfirmation.Should().BeTrue();
         result.CanSubmit.Should().BeTrue();
         result.TeammateSubmissions.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenRecentMatchAwaitsMyStats_ReturnsPromptForThatMatch()
+    {
+        var actor = Profile("Ada");
+        var handler = PendingSubmissionHandler(actor, out _, onRoster: true, events: []);
+
+        var result = await handler.HandleAsync(new GetPendingStatSubmissionQuery());
+
+        result.Should().NotBeNull();
+        result!.MatchId.Should().Be(MatchId);
+        result.IsPendingConfirmation.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenMyStatsAreAlreadyConfirmed_ReturnsNoPrompt()
+    {
+        var actor = Profile("Ada");
+        var approved = Goal(actor.Id, scorer: actor.Id, assist: null);
+        approved.ReviewStatus = MatchEventReviewStatus.Approved;
+        var handler = PendingSubmissionHandler(actor, out _, onRoster: true, events: [approved]);
+
+        var result = await handler.HandleAsync(new GetPendingStatSubmissionQuery());
+
+        result.Should().BeNull("a confirmed tally changes only through a stat correction");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenPlayerWasNotOnTheRoster_ReturnsNoPrompt()
+    {
+        var actor = Profile("Ada");
+        var handler = PendingSubmissionHandler(actor, out _, onRoster: false, events: []);
+
+        var result = await handler.HandleAsync(new GetPendingStatSubmissionQuery());
+
+        result.Should().BeNull();
+    }
+
+    private static GetPendingStatSubmissionQueryHandler PendingSubmissionHandler(
+        PlayerProfile actor,
+        out Mock<IStatsRepository> stats,
+        bool onRoster,
+        MatchEvent[] events)
+    {
+        // Kick-off two hours ago: post-game is open and we are inside the submission window.
+        var nowUtc = new DateTime(2026, 7, 23, 4, 0, 0, DateTimeKind.Utc);
+        var session = new Session
+        {
+            Id = Guid.NewGuid(),
+            Title = "Marina Field - Thursday pickup",
+            StartsAtUtc = nowUtc.AddHours(-2),
+            CheckInOpensAtUtc = nowUtc.AddHours(-2).AddMinutes(-30),
+            CheckInClosesAtUtc = nowUtc.AddHours(-2),
+            Status = SessionStatus.Published,
+        };
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(nowUtc);
+        var sessions = new Mock<ISessionRepository>();
+        sessions
+            .Setup(x => x.ListGameDayCandidatesAsync(
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session]);
+        var rsvps = new Mock<IRsvpRepository>();
+        rsvps
+            .Setup(x => x.ListGoingRosterAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(onRoster
+                ? [new RosterMemberRecord(actor.Id, actor.DisplayName, string.Empty, false, null)]
+                : []);
+        rsvps
+            .Setup(x => x.ListActiveWaitlistRosterAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        var games = new Mock<IPickupPalGameRepository>();
+        games
+            .Setup(x => x.ListParticipantsAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        stats = new Mock<IStatsRepository>();
+        stats
+            .Setup(x => x.FindPrimaryMatchBySessionAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DomainMatch { Id = MatchId, SessionId = session.Id, Status = MatchStatus.InProgress });
+        stats
+            .Setup(x => x.ListMatchEventsAsync(MatchId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(events);
+
+        return new GetPendingStatSubmissionQueryHandler(
+            CurrentUser().Object,
+            clock.Object,
+            ProfileRepository(actor).Object,
+            sessions.Object,
+            rsvps.Object,
+            games.Object,
+            stats.Object);
     }
 
     private static PlayerProfile Profile(string name) =>

@@ -139,6 +139,48 @@ public sealed class ApiStatsClientTests
     private static T Deserialize<T>(string json) =>
         JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
 
+    [Fact]
+    public async Task GetDashboardAsync_WhenServerReturnsPendingSubmission_SurfacesStatsPromptWithMatchId()
+    {
+        var sessions = new ApiSessionsClient(
+            new HttpClient(new StubHttpMessageHandler(request =>
+                request.RequestUri!.PathAndQuery.Contains("stats/submissions/pending")
+                    ? Json(HttpStatusCode.OK, """
+                        {"MatchId":"30000000-0000-0000-0000-000000000001",
+                         "Title":"Submit your latest stats",
+                         "Caption":"Add your goals and assists for Marina Field"}
+                        """)
+                    : Json(HttpStatusCode.OK, "[]")))
+            {
+                BaseAddress = new Uri("https://example.test/api/"),
+            },
+            TimeProvider.System);
+
+        var dashboard = await sessions.GetDashboardAsync(CancellationToken.None);
+
+        dashboard.StatsPrompt.Should().NotBeNull();
+        dashboard.StatsPrompt!.MatchId.Should().Be(MatchId);
+        dashboard.StatsPrompt.Title.Should().Be("Submit your latest stats");
+    }
+
+    [Fact]
+    public async Task GetDashboardAsync_WhenNothingToSubmit_LeavesStatsPromptEmpty()
+    {
+        var sessions = new ApiSessionsClient(
+            new HttpClient(new StubHttpMessageHandler(request =>
+                request.RequestUri!.PathAndQuery.Contains("stats/submissions/pending")
+                    ? new HttpResponseMessage(HttpStatusCode.NoContent)
+                    : Json(HttpStatusCode.OK, "[]")))
+            {
+                BaseAddress = new Uri("https://example.test/api/"),
+            },
+            TimeProvider.System);
+
+        var dashboard = await sessions.GetDashboardAsync(CancellationToken.None);
+
+        dashboard.StatsPrompt.Should().BeNull();
+    }
+
     private static ApiStatsClient CreateClient(Func<HttpRequestMessage, HttpResponseMessage> send) =>
         new(new HttpClient(new StubHttpMessageHandler(send))
         {

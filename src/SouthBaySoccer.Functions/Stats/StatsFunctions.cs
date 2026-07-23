@@ -30,6 +30,7 @@ public sealed class StatsFunctions(
     GetRateableTeammatesQueryHandler getRateableTeammatesHandler,
     SubmitMyMatchStatsCommandHandler submitMyMatchStatsHandler,
     ConfirmPlayerSubmissionCommandHandler confirmPlayerSubmissionHandler,
+    GetPendingStatSubmissionQueryHandler getPendingStatSubmissionHandler,
     IdempotentRequestExecutor idempotentRequestExecutor)
 {
     [Function(nameof(CreateMatch))]
@@ -272,6 +273,27 @@ public sealed class StatsFunctions(
                 return new IdempotentResponse<StatMutationResponse>(HttpStatusCode.OK, ToResponse(result));
             },
             cancellationToken);
+    }
+
+    [Function(nameof(GetPendingStatSubmission))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> GetPendingStatSubmission(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "stats/submissions/pending")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var prompt = await getPendingStatSubmissionHandler.HandleAsync(
+            new GetPendingStatSubmissionQuery(),
+            cancellationToken);
+        if (prompt is null)
+        {
+            return request.CreateResponse(HttpStatusCode.NoContent);
+        }
+
+        var response = request.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(
+            new Contracts.Sessions.StatsPromptDto(prompt.MatchId, prompt.Title, prompt.Caption),
+            cancellationToken);
+        return response;
     }
 
     private static string ToInitials(string displayName)

@@ -104,6 +104,15 @@ public sealed record SubmitMyMatchStatsCommand(Guid MatchId, int Goals, int Assi
 
 public sealed record ConfirmPlayerSubmissionCommand(Guid MatchId, Guid PlayerProfileId);
 
+/// <summary>Drives the Sessions-tab "Submit your latest stats" prompt.</summary>
+public sealed record GetPendingStatSubmissionQuery;
+
+public sealed record PendingStatSubmissionModel(
+    Guid MatchId,
+    string Title,
+    string Caption,
+    bool IsPendingConfirmation);
+
 public sealed record AddStatCorrectionCommand(
     Guid MatchId,
     Guid? PlayerProfileId,

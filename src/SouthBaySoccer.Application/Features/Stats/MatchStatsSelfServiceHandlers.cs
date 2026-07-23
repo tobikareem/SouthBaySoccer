@@ -306,6 +306,84 @@ public sealed class ConfirmPlayerSubmissionCommandHandler(
     }
 }
 
+/// <summary>
+/// Finds the most recent match this player can still report stats for, so the Sessions tab can
+/// prompt them. Open to anyone who was on the confirmed roster - being drafted onto a team is not
+/// required, since a session may never have been drafted at all.
+/// </summary>
+public sealed class GetPendingStatSubmissionQueryHandler(
+    ICurrentUser currentUser,
+    IClock clock,
+    IPlayerProfileRepository playerProfileRepository,
+    ISessionRepository sessionRepository,
+    IRsvpRepository rsvpRepository,
+    IPickupPalGameRepository pickupPalGameRepository,
+    IStatsRepository statsRepository)
+{
+    /// <summary>How long after kick-off a player can still report their own goals and assists.</summary>
+    public static readonly TimeSpan SubmissionWindow = TimeSpan.FromDays(3);
+
+    public async Task<PendingStatSubmissionModel?> HandleAsync(
+        GetPendingStatSubmissionQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        _ = query;
+        var actor = await SubmitPeerFeedbackCommandHandler.GetCurrentProfileAsync(
+            currentUser,
+            playerProfileRepository,
+            cancellationToken);
+        var nowUtc = clock.UtcNow;
+        var sessions = await sessionRepository.ListGameDayCandidatesAsync(
+            nowUtc.Subtract(SubmissionWindow),
+            nowUtc,
+            cancellationToken);
+
+        foreach (var session in sessions.OrderByDescending(x => x.StartsAtUtc))
+        {
+            // Only prompt once the game has actually been played.
+            if (!GameDayWorkflowQueries.IsPostGameOpen(session, nowUtc))
+            {
+                continue;
+            }
+
+            var match = await statsRepository.FindPrimaryMatchBySessionAsync(session.Id, cancellationToken);
+            if (match is null || match.Status is MatchStatus.Published or MatchStatus.Locked)
+            {
+                continue;
+            }
+
+            var roster = await GameDayWorkflowQueries.ListEligibleRosterAsync(
+                rsvpRepository,
+                pickupPalGameRepository,
+                session.Id,
+                cancellationToken);
+            if (!roster.Any(member => member.PlayerProfileId == actor.Id))
+            {
+                continue;
+            }
+
+            var events = await statsRepository.ListMatchEventsAsync(match.Id, cancellationToken);
+            var mine = events.Where(x => x.SubmittedByPlayerProfileId == actor.Id).ToArray();
+            if (mine.Any(x => x.ReviewStatus == MatchEventReviewStatus.Approved))
+            {
+                // Already confirmed - a change from here is a stat correction, not a submission.
+                continue;
+            }
+
+            var isPending = mine.Any(x => x.ReviewStatus == MatchEventReviewStatus.Pending);
+            return new PendingStatSubmissionModel(
+                match.Id,
+                isPending ? "Stats submitted" : "Submit your latest stats",
+                isPending
+                    ? $"Waiting on confirmation for {session.Title}"
+                    : $"Add your goals and assists for {session.Title}",
+                isPending);
+        }
+
+        return null;
+    }
+}
+
 /// <summary>Shared tally projection so goals and assists are counted the same way everywhere.</summary>
 internal static class MatchStatsProjection
 {

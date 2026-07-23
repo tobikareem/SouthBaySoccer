@@ -121,6 +121,7 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<GetRateableTeammatesQueryHandler>();
         builder.Services.AddScoped<SubmitMyMatchStatsCommandHandler>();
         builder.Services.AddScoped<ConfirmPlayerSubmissionCommandHandler>();
+        builder.Services.AddScoped<GetPendingStatSubmissionQueryHandler>();
         builder.Services.AddScoped<FunctionCurrentUser>();
         builder.Services.AddScoped<ICurrentUser>(services => services.GetRequiredService<FunctionCurrentUser>());
         builder.Services.AddScoped<IFunctionCurrentUserAccessor>(services => services.GetRequiredService<FunctionCurrentUser>());
