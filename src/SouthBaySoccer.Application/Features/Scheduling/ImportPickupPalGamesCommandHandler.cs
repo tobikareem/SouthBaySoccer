@@ -207,6 +207,21 @@ public sealed class ImportPickupPalGamesCommandHandler(
             }
         }
 
+        // Last resort: some participants arrive with no user id, no phone, and only an opaque
+        // WhatsApp id that a signed-in profile never carries, so no key can ever match and the same
+        // person ends up with a second profile. Fall back to an unambiguous display-name match -
+        // the repository returns null when the name is shared, so this never merges two people.
+        if (profile is null && !string.IsNullOrWhiteSpace(participant.DisplayName))
+        {
+            profile = await playerProfileRepository.FindSingleByNormalizedDisplayNameAsync(
+                participant.DisplayName.Trim().ToUpperInvariant(),
+                cancellationToken);
+            if (HasConflictingPickupPalUser(profile, participant.UserId))
+            {
+                profile = null;
+            }
+        }
+
         var isNew = profile is null;
         profile ??= new PlayerProfile
         {

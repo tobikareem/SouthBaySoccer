@@ -679,15 +679,26 @@ public sealed class SeedState
         var isFull = goingCount >= session.Capacity;
         var currentPlayerGoing = roster.Going.Any(
             entry => entry.Player.Id == SeedFixtures.CurrentPlayerId);
+        var currentPlayerWaitlisted = roster.Waitlist.Any(
+            entry => entry.Player.Id == SeedFixtures.CurrentPlayerId);
 
         return session with
         {
             GoingCount = goingCount,
             IsFull = isFull,
             WaitlistCount = roster.Waitlist.Count,
+            IsGoing = currentPlayerGoing,
+            IsWaitlisted = currentPlayerWaitlisted,
+            CanJoinWaitlist = !session.IsCanceled
+                && isFull
+                && !currentPlayerGoing
+                && !currentPlayerWaitlisted,
             StatusLabel = session.IsCanceled
                 ? "Cancelled"
-                : currentPlayerGoing ? "You're going" : isFull ? "Full" : "Open"
+                : currentPlayerGoing ? "You're going"
+                : currentPlayerWaitlisted ? "You're waitlisted"
+                : isFull ? "Full"
+                : "Open"
         };
     }
 

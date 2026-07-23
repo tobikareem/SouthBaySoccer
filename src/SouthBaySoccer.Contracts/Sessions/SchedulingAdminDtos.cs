@@ -37,7 +37,14 @@ public sealed record SessionAdminResponse(
     DateTime CheckInClosesAtUtc,
     DateTime RsvpDeadlineUtc,
     string? OccurrenceKey,
-    string Status);
+    string Status,
+    string VenueName = "",
+    int GoingCount = 0,
+    int WaitlistCount = 0,
+    bool IsFull = false,
+    bool IsCurrentPlayerGoing = false,
+    bool IsCurrentPlayerWaitlisted = false,
+    bool CanJoinWaitlist = false);
 
 public sealed record CreateSessionAdminRequest(
     Guid SeasonId,

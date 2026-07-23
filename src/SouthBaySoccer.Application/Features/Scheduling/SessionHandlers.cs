@@ -1,4 +1,5 @@
 using FluentValidation;
+using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Enumerations;
@@ -84,14 +85,43 @@ public sealed class CreateSessionCommandHandler(
 }
 
 public sealed class ListUpcomingSessionsQueryHandler(
+    ICurrentUser currentUser,
     SouthBaySoccer.Application.Abstractions.Time.IClock clock,
+    IPlayerProfileRepository playerProfileRepository,
     ISessionRepository sessionRepository)
 {
-    public async Task<IReadOnlyList<SessionModel>> HandleAsync(int take = 25, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<SessionFeedModel>> HandleAsync(
+        int take = 25,
+        CancellationToken cancellationToken = default)
     {
+        var identityUserId = currentUser.UserId ?? throw new ApplicationUnauthenticatedException();
+        var profile = await playerProfileRepository.FindByIdentityUserIdAsync(identityUserId, cancellationToken)
+            ?? throw new ApplicationNotFoundException("Player profile was not found.");
         var boundedTake = Math.Clamp(take, 1, 100);
-        var sessions = await sessionRepository.ListUpcomingAsync(clock.UtcNow, boundedTake, cancellationToken);
-        return sessions.Select(SchedulingMappers.ToModel).ToArray();
+        var sessions = await sessionRepository.ListUpcomingFeedAsync(
+            clock.UtcNow,
+            boundedTake,
+            profile.Id,
+            cancellationToken);
+
+        return sessions.Select(record =>
+        {
+            var isFull = record.GoingCount >= record.Session.Capacity;
+            var canJoinWaitlist = record.Session.Status == SessionStatus.Published
+                && clock.UtcNow < record.Session.RsvpDeadlineUtc
+                && isFull
+                && !record.IsCurrentPlayerGoing
+                && !record.IsCurrentPlayerWaitlisted;
+            return new SessionFeedModel(
+                SchedulingMappers.ToModel(record.Session),
+                record.VenueName,
+                record.GoingCount,
+                record.WaitlistCount,
+                isFull,
+                record.IsCurrentPlayerGoing,
+                record.IsCurrentPlayerWaitlisted,
+                canJoinWaitlist);
+        }).ToArray();
     }
 }
 

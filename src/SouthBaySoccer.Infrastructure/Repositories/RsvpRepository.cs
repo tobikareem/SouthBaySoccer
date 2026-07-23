@@ -34,10 +34,15 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
                 return new RsvpMutationResult(sessionId, playerProfileId, state, rsvp.Id);
             }
 
-            var confirmedCount = await dbContext.RsvpResponses
-                .CountAsync(x => x.SessionId == sessionId && x.Status == RsvpStatus.Going, token);
+            var attendance = SessionAttendanceProjection.BuildForSession(
+                sessionId,
+                await ListAttendanceEntriesAsync(sessionId, token));
+            var currentPlayerKey = SessionAttendanceProjection.ProfileKey(playerProfileId);
 
-            if (rsvp?.Status == RsvpStatus.Going || confirmedCount < session.Capacity)
+            if (SessionAttendanceProjection.CanConfirm(
+                attendance,
+                currentPlayerKey,
+                session.Capacity))
             {
                 rsvp = await UpsertRsvpAsync(rsvp, sessionId, playerProfileId, RsvpStatus.Going, token);
                 CancelWaitlist(waitlistEntry);
@@ -61,10 +66,20 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
         CancellationToken cancellationToken = default) =>
         ExecuteInSerializableTransactionAsync(async token =>
         {
-            _ = await GetSessionAsync(sessionId, token);
+            var session = await GetSessionAsync(sessionId, token);
 
             var rsvp = await FindRsvpAsync(sessionId, playerProfileId, token);
-            var releasedConfirmedSpot = rsvp?.Status == RsvpStatus.Going;
+            var attendanceEntries = await ListAttendanceEntriesAsync(sessionId, token);
+            var currentPlayerKey = SessionAttendanceProjection.ProfileKey(playerProfileId);
+            var attendanceBefore = SessionAttendanceProjection.BuildForSession(sessionId, attendanceEntries);
+            var attendanceAfter = SessionAttendanceProjection.BuildForSession(
+                sessionId,
+                attendanceEntries.Where(entry =>
+                    !(entry.Source == SessionAttendanceSource.Local
+                        && entry.State == SessionAttendanceState.Going
+                        && entry.IdentityKey == currentPlayerKey)));
+            var releasedConfirmedSpot = attendanceBefore.GoingKeys.Contains(currentPlayerKey)
+                && !attendanceAfter.GoingKeys.Contains(currentPlayerKey);
             if (rsvp is not null)
             {
                 rsvp.IsDeleted = true;
@@ -72,6 +87,7 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
 
             CancelWaitlist(await FindActiveWaitlistEntryAsync(sessionId, playerProfileId, token));
             var promotedEntry = releasedConfirmedSpot
+                && attendanceAfter.GoingKeys.Count < session.Capacity
                 ? await PromoteNextEligibleAsync(sessionId, isEligibleForPromotion, token)
                 : null;
 
@@ -399,6 +415,51 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
                 && x.PlayerProfileId == playerProfileId
                 && x.Status == WaitlistEntryStatus.Active,
             cancellationToken);
+
+    private async Task<IReadOnlyList<SessionAttendanceEntry>> ListAttendanceEntriesAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var localGoing = await dbContext.RsvpResponses
+            .Where(x => x.SessionId == sessionId && x.Status == RsvpStatus.Going)
+            .Select(x => x.PlayerProfileId)
+            .ToArrayAsync(cancellationToken);
+        var localWaitlist = await dbContext.WaitlistEntries
+            .Where(x => x.SessionId == sessionId && x.Status == WaitlistEntryStatus.Active)
+            .Select(x => x.PlayerProfileId)
+            .ToArrayAsync(cancellationToken);
+        var imported = await dbContext.Set<PickupPalGameParticipant>()
+            .Where(x => x.SessionId == sessionId)
+            .Select(x => new
+            {
+                x.PlayerProfileId,
+                x.PickupPalParticipantId,
+                x.IsWaitlist
+            })
+            .ToArrayAsync(cancellationToken);
+
+        return localGoing
+            .Select(playerProfileId => new SessionAttendanceEntry(
+                sessionId,
+                SessionAttendanceProjection.ProfileKey(playerProfileId),
+                SessionAttendanceState.Going,
+                SessionAttendanceSource.Local))
+            .Concat(localWaitlist.Select(playerProfileId => new SessionAttendanceEntry(
+                sessionId,
+                SessionAttendanceProjection.ProfileKey(playerProfileId),
+                SessionAttendanceState.Waitlisted,
+                SessionAttendanceSource.Local)))
+            .Concat(imported.Select(participant => new SessionAttendanceEntry(
+                sessionId,
+                SessionAttendanceProjection.ParticipantKey(
+                    participant.PlayerProfileId,
+                    participant.PickupPalParticipantId),
+                participant.IsWaitlist
+                    ? SessionAttendanceState.Waitlisted
+                    : SessionAttendanceState.Going,
+                SessionAttendanceSource.Imported)))
+            .ToArray();
+    }
 
     private async Task<RsvpResponse> UpsertRsvpAsync(
         RsvpResponse? rsvp,

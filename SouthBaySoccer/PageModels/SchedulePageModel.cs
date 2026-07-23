@@ -58,6 +58,37 @@ public partial class SchedulePageModel(
     [RelayCommand]
     private Task ViewSessionDetail(Guid sessionId) => navigator.GoToSessionAsync(sessionId);
 
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task JoinWaitlist(Guid sessionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await sessionsClient.JoinWaitlistAsync(sessionId, cancellationToken);
+            if (!result.IsSuccess)
+            {
+                ApplyErrorState(
+                    ViewState.Error,
+                    "Couldn't join the waitlist",
+                    result.ErrorMessage ?? ErrorMessage);
+                return;
+            }
+
+            await LoadScheduleAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException)
+        {
+            ApplyErrorState(ViewState.Offline, OfflineTitle, OfflineMessage);
+        }
+        catch (Exception)
+        {
+            ApplyErrorState(ViewState.Error, ErrorTitle, ErrorMessage);
+        }
+    }
+
     private async Task LoadScheduleAsync(CancellationToken cancellationToken)
     {
         // Keep the current content visible during a user-initiated pull-to-refresh (the RefreshView

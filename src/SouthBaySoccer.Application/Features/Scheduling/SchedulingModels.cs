@@ -41,6 +41,16 @@ public sealed record SessionModel(
     string? OccurrenceKey,
     string Status);
 
+public sealed record SessionFeedModel(
+    SessionModel Session,
+    string VenueName,
+    int GoingCount,
+    int WaitlistCount,
+    bool IsFull,
+    bool IsCurrentPlayerGoing,
+    bool IsCurrentPlayerWaitlisted,
+    bool CanJoinWaitlist);
+
 public sealed record CreateSessionCommand(
     Guid SeasonId,
     Guid VenueId,

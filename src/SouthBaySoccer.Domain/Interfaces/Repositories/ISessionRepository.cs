@@ -31,6 +31,16 @@ public interface ISessionRepository : IRepository<Session>
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Lists the bounded player-facing session feed with venue, Going, waitlist, and caller state.
+    /// Local RSVP rows and imported Pickup Pal participants are de-duplicated by linked profile.
+    /// </summary>
+    Task<IReadOnlyList<SessionFeedRecord>> ListUpcomingFeedAsync(
+        DateTime fromUtc,
+        int take,
+        Guid currentPlayerProfileId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Lists sessions that can be managed by an organizer with a bounded result count.
     /// </summary>
     Task<IReadOnlyList<Session>> ListManagedAsync(
@@ -54,3 +64,12 @@ public interface ISessionRepository : IRepository<Session>
     /// </summary>
     Task AddRecurrenceRuleAsync(RecurrenceRule recurrenceRule, CancellationToken cancellationToken = default);
 }
+
+/// <summary>Authoritative persisted facts for one card in the player-facing Sessions feed.</summary>
+public sealed record SessionFeedRecord(
+    Session Session,
+    string VenueName,
+    int GoingCount,
+    int WaitlistCount,
+    bool IsCurrentPlayerGoing,
+    bool IsCurrentPlayerWaitlisted);

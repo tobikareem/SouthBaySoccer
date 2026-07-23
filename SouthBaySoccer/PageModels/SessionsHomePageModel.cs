@@ -57,12 +57,17 @@ public partial class SessionsHomePageModel(
     [NotifyPropertyChangedFor(nameof(StatsPromptCaption))]
     [NotifyPropertyChangedFor(nameof(StatsPromptSemanticDescription))]
     [NotifyPropertyChangedFor(nameof(StatsPromptSemanticHint))]
+    [NotifyPropertyChangedFor(nameof(HasLatestMatch))]
     private StatsPromptDto? _statsPrompt;
 
     // True when the dashboard carries a specific latest match to open; otherwise the stats entry
     // point falls back to the Stats tab. Kept as one predicate so the semantic hint and the actual
     // navigation target can never diverge.
-    private bool HasLatestMatch => StatsPrompt is { MatchId: var matchId } && matchId != Guid.Empty;
+    /// <summary>
+    /// Only true when the server has a match this player can actually report stats for. The prompt
+    /// card is hidden otherwise, so it never looks tappable and then quietly go nowhere.
+    /// </summary>
+    public bool HasLatestMatch => StatsPrompt is { MatchId: var matchId } && matchId != Guid.Empty;
 
     public string StatsPromptTitle => StatsPrompt?.Title ?? "Submit your latest stats";
 
@@ -122,6 +127,10 @@ public partial class SessionsHomePageModel(
             var result = await sessionsClient.JoinWaitlistAsync(sessionId, cancellationToken);
             if (!result.IsSuccess)
             {
+                ApplyErrorState(
+                    ViewState.Error,
+                    "Couldn't join the waitlist",
+                    result.ErrorMessage ?? ErrorMessage);
                 return;
             }
 
