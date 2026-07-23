@@ -113,10 +113,14 @@ public sealed class GetTodayGameDayContextQueryHandler(
         var canAssignCaptains = isGameAdmin
             && isDraftWindow
             && (match is null || match.Status == MatchStatus.Draft);
-        var canDraftTeam = match?.Status == MatchStatus.Draft
-            && isDraftWindow
+        // Admins may still rearrange a match that already has results; only Published/Locked are
+        // settled. Captains keep editing only while the match is still a Draft.
+        var canDraftTeam = isDraftWindow
+            && match is not null
             && (isGameAdmin
-                || teams.Any(team => team.CaptainPlayerProfileId == profile.Id));
+                ? match.Status is not MatchStatus.Published and not MatchStatus.Locked
+                : match.Status == MatchStatus.Draft
+                    && teams.Any(team => team.CaptainPlayerProfileId == profile.Id));
         var canApprovePostGame = match is not null
             && GameDayWorkflowQueries.IsPostGameOpen(session, nowUtc)
             && match.Status is not MatchStatus.Draft

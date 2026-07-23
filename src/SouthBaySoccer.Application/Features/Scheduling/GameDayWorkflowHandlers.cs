@@ -259,10 +259,9 @@ public sealed class AssignSessionCaptainsCommandHandler(
         var match = await statsRepository.FindPrimaryMatchBySessionAsync(command.SessionId, cancellationToken);
         if (match is not null)
         {
-            if (match.Status != MatchStatus.Draft)
-            {
-                throw new ApplicationConflictException("Captain assignments are locked for this match.");
-            }
+            GameDayWorkflowQueries.EnsureTeamsEditable(
+                match,
+                GameDayWorkflowAuthorization.IsGameAdmin(currentUser));
 
             var currentTeams = await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken);
             var currentAssignments = await statsRepository.ListAssignmentsAsync(match.Id, cancellationToken);
@@ -485,7 +484,13 @@ public sealed class GetTeamDraftQueryHandler(
             pickupPalGameRepository,
             sessionId,
             cancellationToken);
-        var locked = match.Status != MatchStatus.Draft || GameDayWorkflowQueries.IsPostGameOpen(session, clock.UtcNow);
+        // An admin keeps editing after kick-off (and after results are recorded) until the match is
+        // published or locked; a captain's sheet freezes as soon as the match leaves Draft.
+        var locked = isGameAdmin
+            ? match.Status is MatchStatus.Published or MatchStatus.Locked
+                || !GameDayWorkflowQueries.IsAdminTeamEditOpen(session, clock.UtcNow)
+            : match.Status != MatchStatus.Draft
+                || GameDayWorkflowQueries.IsPostGameOpen(session, clock.UtcNow);
         var captainName = actorTeam.CaptainPlayerProfileId == actor.Id
             ? actor.DisplayName
             : roster.FirstOrDefault(member => member.PlayerProfileId == actorTeam.CaptainPlayerProfileId)?.DisplayName
@@ -537,10 +542,9 @@ public sealed class SaveCaptainTeamPicksCommandHandler(
             GameDayWorkflowAuthorization.IsGameAdmin(currentUser));
         var match = await statsRepository.FindPrimaryMatchBySessionAsync(command.SessionId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Captain assignments were not found for this session.");
-        if (match.Status != MatchStatus.Draft)
-        {
-            throw new ApplicationConflictException("Team drafting is locked for this match.");
-        }
+        GameDayWorkflowQueries.EnsureTeamsEditable(
+            match,
+            GameDayWorkflowAuthorization.IsGameAdmin(currentUser));
 
         var teams = await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken);
         var team = teams.SingleOrDefault(x => x.Id == command.MatchTeamId)
@@ -1038,8 +1042,23 @@ internal static class GameDayWorkflowQueries
         nowUtc >= session.StartsAtUtc.Add(PostGameOffset);
 
     /// <summary>
-    /// Game admins set teams up ahead of time, so for them the window opens as soon as the session
-    /// is published; captains still wait for game-day check-in. Both close when post-game opens.
+    /// How long after kickoff a game admin can still correct teams. Rosters get sorted out after the
+    /// fact - someone swapped sides, a late arrival was put on the wrong team - so admins keep an
+    /// editing window for a few days rather than losing access 90 minutes in.
+    /// </summary>
+    internal static readonly TimeSpan AdminTeamEditWindow = TimeSpan.FromDays(3);
+
+    /// <summary>
+    /// Game admins own the team sheet from publish until <see cref="AdminTeamEditWindow"/> after
+    /// kickoff, so they can both set up in advance and fix things afterwards.
+    /// </summary>
+    internal static bool IsAdminTeamEditOpen(Session session, DateTime nowUtc) =>
+        session.Status == SessionStatus.Published
+        && nowUtc <= session.StartsAtUtc.Add(AdminTeamEditWindow);
+
+    /// <summary>
+    /// Game admins set teams up ahead of time and correct them afterwards; captains only act during
+    /// the game-day window, from check-in until post-game opens.
     /// </summary>
     internal static void EnsureCaptainDraftWindow(Session session, DateTime nowUtc, bool isGameAdmin)
     {
@@ -1048,7 +1067,18 @@ internal static class GameDayWorkflowQueries
             throw new ApplicationConflictException("Only published sessions can assign or draft teams.");
         }
 
-        if (!isGameAdmin && nowUtc < session.CheckInOpensAtUtc)
+        if (isGameAdmin)
+        {
+            if (!IsAdminTeamEditOpen(session, nowUtc))
+            {
+                throw new ApplicationConflictException(
+                    $"Team editing closed {AdminTeamEditWindow.TotalDays:0} days after kick-off.");
+            }
+
+            return;
+        }
+
+        if (nowUtc < session.CheckInOpensAtUtc)
         {
             throw new ApplicationConflictException("Captain assignment opens with game-day check-in.");
         }
@@ -1056,6 +1086,25 @@ internal static class GameDayWorkflowQueries
         if (IsPostGameOpen(session, nowUtc))
         {
             throw new ApplicationConflictException("Team drafting is closed for this session.");
+        }
+    }
+
+    /// <summary>
+    /// Team composition stays editable until the match is published or locked - those are settled
+    /// facts that move only through a stat correction. Captains additionally only edit a Draft
+    /// match; an admin may still rearrange one that has results recorded.
+    /// </summary>
+    internal static void EnsureTeamsEditable(Match match, bool isGameAdmin)
+    {
+        if (match.Status is MatchStatus.Published or MatchStatus.Locked)
+        {
+            throw new ApplicationConflictException(
+                "Published teams can be changed only through a stat correction.");
+        }
+
+        if (!isGameAdmin && match.Status != MatchStatus.Draft)
+        {
+            throw new ApplicationConflictException("Team drafting is locked for this match.");
         }
     }
 
@@ -1077,9 +1126,11 @@ internal static class GameDayWorkflowQueries
     /// and either a game admin (any time after publish) or anyone else once check-in has opened.
     /// </summary>
     internal static bool IsTeamSetupOpen(Session session, DateTime nowUtc, bool isGameAdmin) =>
-        session.Status == SessionStatus.Published
-        && (isGameAdmin || nowUtc >= session.CheckInOpensAtUtc)
-        && !IsPostGameOpen(session, nowUtc);
+        isGameAdmin
+            ? IsAdminTeamEditOpen(session, nowUtc)
+            : session.Status == SessionStatus.Published
+              && nowUtc >= session.CheckInOpensAtUtc
+              && !IsPostGameOpen(session, nowUtc);
 
     internal static void EnsurePostGameWindow(Session session, DateTime nowUtc)
     {
