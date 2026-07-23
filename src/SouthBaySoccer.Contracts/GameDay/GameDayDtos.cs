@@ -40,7 +40,26 @@ public sealed record GameDayContextDto(
     int LateCount,
     bool CanAssignCaptains,
     bool CanDraftTeam,
-    bool CanApprovePostGame);
+    bool CanApprovePostGame,
+    DateTime? StartsAtUtc = null,
+    DateTime? CheckInOpensAtUtc = null,
+    DateTime? CheckInClosesAtUtc = null,
+    bool CanLateCheckIn = false,
+    IReadOnlyList<GameDayPlayerDto>? LateCheckInPlayers = null,
+    IReadOnlyList<GameDayRosterEntryDto>? Roster = null,
+    bool CanManageCheckIns = false);
+
+public sealed record GameDayPlayerDto(
+    Guid PlayerProfileId,
+    string DisplayName,
+    bool IsGuest);
+
+public sealed record GameDayRosterEntryDto(
+    Guid PlayerProfileId,
+    string DisplayName,
+    bool IsGuest,
+    bool IsWaitlist,
+    bool IsCheckedIn);
 
 public sealed record CheckedInPlayerDto(
     PlayerSummaryDto Player,
@@ -52,7 +71,13 @@ public sealed record CaptainAssignmentDto(
     int CaptainCount,
     IReadOnlyList<int> AvailableCaptainCounts,
     IReadOnlyList<Guid> SelectedCaptainIds,
-    IReadOnlyList<CheckedInPlayerDto> CheckedInPlayers);
+    IReadOnlyList<CheckedInPlayerDto> CheckedInPlayers,
+    bool CanLockTeams = false,
+    bool IsLocked = false);
+
+public sealed record AssignCaptainsRequest(
+    int CaptainCount,
+    IReadOnlyList<Guid> CaptainPlayerProfileIds);
 
 public sealed record MatchTeamDto(
     Guid TeamId,
@@ -71,14 +96,19 @@ public sealed record TeamDraftDto(
     bool IsLocked,
     int TeamCount,
     IReadOnlyList<CheckedInPlayerDto> CheckedInPlayers,
-    IReadOnlyList<MatchTeamDto> Teams);
+    IReadOnlyList<MatchTeamDto> Teams,
+    bool CanManageAllTeams = false);
+
+public sealed record SaveTeamPicksRequest(IReadOnlyList<Guid> PlayerProfileIds);
 
 public sealed record PendingStatApprovalDto(
     Guid SubmissionId,
     PlayerSummaryDto Player,
     int Goals,
     int Assists,
-    StatApprovalStatus Status);
+    StatApprovalStatus Status,
+    PlayerSummaryDto? AssistPlayer = null,
+    string Detail = "");
 
 public sealed record TeamResultDto(
     Guid TeamId,
@@ -102,6 +132,10 @@ public sealed record TeamResultUpdateDto(
     int Wins,
     int Draws,
     int Losses);
+
+public sealed record SavePostGameTeamResultRequest(int Wins, int Draws, int Losses);
+
+public sealed record GameDayMutationResponse(Guid SessionId, Guid MatchId, int AffectedCount);
 
 public sealed record RecentFormUpdateDto(
     Guid PlayerId,

@@ -11,6 +11,7 @@ using Microsoft.Azure.Functions.Worker.Middleware;
 using Microsoft.Extensions.DependencyInjection;
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Functions.Authentication;
+using SouthBaySoccer.Functions.Sessions;
 
 namespace SouthBaySoccer.Functions.Pipeline;
 
@@ -54,6 +55,23 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<CreateSessionOccurrenceCommandHandler>();
         builder.Services.AddScoped<GetCreateSessionAdminDefaultsQueryHandler>();
         builder.Services.AddScoped<ImportPickupPalGamesCommandHandler>();
+        builder.Services.AddScoped<GetTodayGameDayContextQueryHandler>();
+        builder.Services.AddScoped<IValidator<AssignSessionCaptainsCommand>, AssignSessionCaptainsCommandValidator>();
+        builder.Services.AddScoped<IValidator<SaveCaptainTeamPicksCommand>, SaveCaptainTeamPicksCommandValidator>();
+        builder.Services.AddScoped<IValidator<LockSessionTeamsCommand>, LockSessionTeamsCommandValidator>();
+        builder.Services.AddScoped<IValidator<ApprovePostGameStatCommand>, ApprovePostGameStatCommandValidator>();
+        builder.Services.AddScoped<IValidator<SavePostGameTeamResultCommand>, SavePostGameTeamResultCommandValidator>();
+        builder.Services.AddScoped<IValidator<PublishPostGameCommand>, PublishPostGameCommandValidator>();
+        builder.Services.AddScoped<GetCaptainAssignmentQueryHandler>();
+        builder.Services.AddScoped<AssignSessionCaptainsCommandHandler>();
+        builder.Services.AddScoped<GetTeamDraftQueryHandler>();
+        builder.Services.AddScoped<SaveCaptainTeamPicksCommandHandler>();
+        builder.Services.AddScoped<LockSessionTeamsCommandHandler>();
+        builder.Services.AddScoped<GetPostGameApprovalQueryHandler>();
+        builder.Services.AddScoped<ApprovePostGameStatCommandHandler>();
+        builder.Services.AddScoped<SavePostGameTeamResultCommandHandler>();
+        builder.Services.AddScoped<PublishPostGameCommandHandler>();
+        builder.Services.AddSingleton<GameDayPickupPalRefreshService>();
         builder.Services.AddScoped<GetSessionRosterQueryHandler>();
         builder.Services.AddScoped<ListManagedSessionsQueryHandler>();
         builder.Services.AddScoped<GetSessionForAdminEditQueryHandler>();
@@ -70,6 +88,7 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<GetMyRsvpQueryHandler>();
         builder.Services.AddScoped<AdminOverrideRsvpCommandHandler>();
         builder.Services.AddScoped<CheckInPlayerCommandHandler>();
+        builder.Services.AddScoped<SelfCheckInCommandHandler>();
         builder.Services.AddScoped<RecordNoShowsCommandHandler>();
         builder.Services.AddScoped<IValidator<CreateMatchCommand>, CreateMatchCommandValidator>();
         builder.Services.AddScoped<IValidator<RecordMatchEventsCommand>, RecordMatchEventsCommandValidator>();

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -7,11 +8,6 @@ using SouthBaySoccer.Services.Clients;
 using ViewState = SouthBaySoccer.Controls.ViewState;
 
 namespace SouthBaySoccer.PageModels;
-
-public sealed class GameDayOptions
-{
-    public DateTime VenueLocalNow { get; init; } = new(2026, 6, 20, 19, 35, 0);
-}
 
 public interface IGameDayNavigator
 {
@@ -26,15 +22,17 @@ public interface IGameDayNavigator
 
 public partial class GameDayPageModel(
     IGameDayClient gameDayClient,
-    IGameDayNavigator navigator,
-    IProfileClient profileClient,
-    GameDayOptions options) : ObservableObject
+    IGameDayNavigator navigator) : ObservableObject
 {
+    private static readonly TimeZoneInfo VenueTimeZone = FindVenueTimeZone();
     public const string NoticeText = "RSVP is attendance intent. Game Day check-in records who is actually at the field.";
     public const string ErrorTitle = "Couldn't load Game Day";
     public const string ErrorMessage = "Something went wrong loading the active game-day flow.";
 
     private Guid sessionId;
+    private Guid? selfCheckInIdempotencyKey;
+    private readonly Dictionary<Guid, Guid> lateCheckInIdempotencyKeys = [];
+    private readonly Dictionary<Guid, Guid> adminCheckInIdempotencyKeys = [];
 
     [ObservableProperty]
     private ViewState _state = ViewState.Loading;
@@ -47,6 +45,8 @@ public partial class GameDayPageModel(
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CheckInCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LateCheckInCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AdminCheckInCommand))]
     private bool _isBusy;
 
     [ObservableProperty]
@@ -55,6 +55,9 @@ public partial class GameDayPageModel(
 
     [ObservableProperty]
     private string _venue = string.Empty;
+
+    [ObservableProperty]
+    private string _dateLabel = string.Empty;
 
     [ObservableProperty]
     private string _statusLabel = string.Empty;
@@ -87,7 +90,29 @@ public partial class GameDayPageModel(
     private int _lateCount;
 
     [ObservableProperty]
-    private bool _isAdmin;
+    [NotifyPropertyChangedFor(nameof(HasLateCheckInPlayers))]
+    private IReadOnlyList<GameDayPlayerDto> _lateCheckInPlayers = [];
+
+    public bool HasLateCheckInPlayers => CanLateCheckIn && LateCheckInPlayers.Count > 0;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasRoster))]
+    private IReadOnlyList<GameDayRosterItem> _roster = [];
+
+    public bool HasRoster => Roster.Count > 0;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AdminCheckInCommand))]
+    private bool _canManageCheckIns;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLateCheckInPlayers))]
+    [NotifyCanExecuteChangedFor(nameof(LateCheckInCommand))]
+    private bool _canLateCheckIn;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(LateCheckInCommand))]
+    private string _lateCheckInReason = string.Empty;
 
     public bool HasGameDayActions => CanAssignCaptains || CanDraftTeam || CanApprovePostGame;
 
@@ -123,20 +148,148 @@ public partial class GameDayPageModel(
         IsBusy = true;
         try
         {
-            var result = await gameDayClient.CheckInAsync(sessionId, Guid.NewGuid(), cancellationToken);
+            selfCheckInIdempotencyKey ??= Guid.NewGuid();
+            var result = await gameDayClient.CheckInAsync(
+                sessionId,
+                selfCheckInIdempotencyKey.Value,
+                cancellationToken);
             if (result.IsSuccess)
             {
+                selfCheckInIdempotencyKey = null;
                 await LoadAsync(cancellationToken);
                 return;
             }
 
+            selfCheckInIdempotencyKey = null;
             ApplyNonContent(ViewState.Error, ErrorTitle, result.ErrorMessage ?? ErrorMessage);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is null)
+        {
+            ApplyNonContent(ViewState.Offline, "You're offline", "Reconnect to check in at the field.");
+        }
+        catch (Exception)
+        {
+            ApplyNonContent(ViewState.Error, ErrorTitle, ErrorMessage);
         }
         finally
         {
             IsBusy = false;
         }
     }
+
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanLateCheckInPlayer))]
+    private async Task LateCheckIn(GameDayPlayerDto? player, CancellationToken cancellationToken)
+    {
+        if (player is null || !CanLateCheckInPlayer(player))
+        {
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var key = lateCheckInIdempotencyKeys.TryGetValue(player.PlayerProfileId, out var existingKey)
+                ? existingKey
+                : lateCheckInIdempotencyKeys[player.PlayerProfileId] = Guid.NewGuid();
+            var result = await gameDayClient.LateCheckInAsync(
+                sessionId,
+                player.PlayerProfileId,
+                LateCheckInReason.Trim(),
+                key,
+                cancellationToken);
+            if (!result.IsSuccess)
+            {
+                lateCheckInIdempotencyKeys.Remove(player.PlayerProfileId);
+                ApplyNonContent(ViewState.Error, ErrorTitle, result.ErrorMessage ?? ErrorMessage);
+                return;
+            }
+
+            lateCheckInIdempotencyKeys.Remove(player.PlayerProfileId);
+            LateCheckInReason = string.Empty;
+            await LoadAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is null)
+        {
+            ApplyNonContent(ViewState.Offline, "You're offline", "Reconnect to record the late arrival.");
+        }
+        catch (Exception)
+        {
+            ApplyNonContent(ViewState.Error, ErrorTitle, ErrorMessage);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanLateCheckInPlayer(GameDayPlayerDto? player) =>
+        player is not null
+        && CanLateCheckIn
+        && !IsBusy
+        && !string.IsNullOrWhiteSpace(LateCheckInReason);
+
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanAdminCheckInPlayer))]
+    private async Task AdminCheckIn(GameDayRosterItem? player, CancellationToken cancellationToken)
+    {
+        if (player is null || !CanAdminCheckInPlayer(player))
+        {
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var key = adminCheckInIdempotencyKeys.TryGetValue(player.PlayerProfileId, out var existingKey)
+                ? existingKey
+                : adminCheckInIdempotencyKeys[player.PlayerProfileId] = Guid.NewGuid();
+            var result = await gameDayClient.AdminCheckInAsync(
+                sessionId,
+                player.PlayerProfileId,
+                key,
+                cancellationToken);
+            if (!result.IsSuccess)
+            {
+                adminCheckInIdempotencyKeys.Remove(player.PlayerProfileId);
+                ApplyNonContent(ViewState.Error, ErrorTitle, result.ErrorMessage ?? ErrorMessage);
+                return;
+            }
+
+            // Reload so the freshly checked-in player drops out of the "needs check-in" state; a
+            // repeat tap is harmless because the server treats the duplicate check-in as a no-op.
+            adminCheckInIdempotencyKeys.Remove(player.PlayerProfileId);
+            await LoadAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is null)
+        {
+            ApplyNonContent(ViewState.Offline, "You're offline", "Reconnect to check in players.");
+        }
+        catch (Exception)
+        {
+            ApplyNonContent(ViewState.Error, ErrorTitle, ErrorMessage);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanAdminCheckInPlayer(GameDayRosterItem? player) =>
+        player is not null
+        && CanManageCheckIns
+        && !player.IsCheckedIn
+        && !IsBusy;
 
     [RelayCommand(CanExecute = nameof(CanOpenCaptainAssignment))]
     private Task OpenCaptainAssignment() =>
@@ -170,10 +323,9 @@ public partial class GameDayPageModel(
                 return;
             }
 
-            var isAdmin = await LoadIsAdminAsync(cancellationToken);
-            ApplyContext(ApplyWindow(context), isAdmin);
+            ApplyContext(context);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex) when (ex.StatusCode is null)
         {
             ApplyNonContent(ViewState.Offline, "You're offline", "Reconnect to check in at the field.");
         }
@@ -183,70 +335,76 @@ public partial class GameDayPageModel(
         }
     }
 
-    private GameDayContextDto ApplyWindow(GameDayContextDto context)
-    {
-        var time = options.VenueLocalNow.TimeOfDay;
-        var isOpen = time >= new TimeSpan(19, 30, 0) && time <= new TimeSpan(19, 45, 0);
-        if (isOpen || context.IsCurrentPlayerCheckedIn)
-        {
-            return context;
-        }
-
-        return context with
-        {
-            Status = GameDayStatus.Closed,
-            StatusLabel = "Closed",
-            IsSelfCheckInAvailable = false,
-            PrimaryActionText = "GameAdmin override required",
-            BlockReason = "Check-in closed at 7:45 PM. A GameAdmin override is required for late arrivals."
-        };
-    }
-
-    private async Task<bool> LoadIsAdminAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            var profile = await profileClient.GetCurrentProfileAsync(cancellationToken);
-            return IsAdministrativeRole(profile?.Role);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
-
-    private static bool IsAdministrativeRole(string? role) =>
-        role is not null &&
-        (role.Equals("Owner", StringComparison.OrdinalIgnoreCase) ||
-         role.Equals("Admin", StringComparison.OrdinalIgnoreCase) ||
-         role.Equals("GameAdmin", StringComparison.OrdinalIgnoreCase) ||
-         role.Equals("Game Admin", StringComparison.OrdinalIgnoreCase));
-
-    private void ApplyContext(GameDayContextDto context, bool isAdmin)
+    private void ApplyContext(GameDayContextDto context)
     {
         sessionId = context.SessionId;
-        IsAdmin = isAdmin;
         Venue = context.Venue;
+        ApplyTimeLabels(context);
         StatusLabel = context.StatusLabel;
-        GameStartLabel = context.GameStartLabel;
-        CheckInWindowLabel = context.CheckInWindowLabel;
-        CheckInCloseLabel = context.CheckInCloseLabel;
         PrimaryActionText = context.PrimaryActionText;
         BlockReason = context.BlockReason;
         GoingCount = context.GoingCount;
         CheckedInCount = context.CheckedInCount;
         LateCount = context.LateCount;
         CanCheckIn = context.IsSelfCheckInAvailable;
-        CanAssignCaptains = isAdmin || context.CanAssignCaptains;
-        CanDraftTeam = isAdmin || context.CanDraftTeam;
-        CanApprovePostGame = isAdmin || context.CanApprovePostGame;
+        CanAssignCaptains = context.CanAssignCaptains;
+        CanDraftTeam = context.CanDraftTeam;
+        CanApprovePostGame = context.CanApprovePostGame;
+        CanLateCheckIn = context.CanLateCheckIn;
+        LateCheckInPlayers = context.LateCheckInPlayers ?? [];
+        CanManageCheckIns = context.CanManageCheckIns;
+        Roster = (context.Roster ?? [])
+            .Select(entry => new GameDayRosterItem(
+                entry.PlayerProfileId,
+                entry.DisplayName,
+                entry.IsGuest,
+                entry.IsWaitlist,
+                entry.IsCheckedIn,
+                context.CanManageCheckIns && !entry.IsCheckedIn,
+                entry.IsCheckedIn ? "Checked in" : entry.IsWaitlist ? "Waitlist" : "Going"))
+            .ToArray();
         StateTitle = string.Empty;
         StateMessage = string.Empty;
         State = ViewState.Content;
+    }
+
+    private void ApplyTimeLabels(GameDayContextDto context)
+    {
+        if (context.StartsAtUtc is not { } startsAtUtc
+            || context.CheckInOpensAtUtc is not { } opensAtUtc
+            || context.CheckInClosesAtUtc is not { } closesAtUtc)
+        {
+            DateLabel = context.DateLabel;
+            GameStartLabel = context.GameStartLabel;
+            CheckInWindowLabel = context.CheckInWindowLabel;
+            CheckInCloseLabel = context.CheckInCloseLabel;
+            return;
+        }
+
+        var localStart = ToVenueLocal(startsAtUtc);
+        var localOpen = ToVenueLocal(opensAtUtc);
+        var localClose = ToVenueLocal(closesAtUtc);
+        DateLabel = localStart.ToString("ddd MMM d", CultureInfo.InvariantCulture);
+        GameStartLabel = localStart.ToString("h:mm tt", CultureInfo.InvariantCulture);
+        CheckInWindowLabel = $"{localOpen:h:mm tt} - {localClose:h:mm tt}";
+        CheckInCloseLabel = $"closes {localClose:h:mm tt}";
+    }
+
+    private static DateTime ToVenueLocal(DateTime utc) =>
+        TimeZoneInfo.ConvertTimeFromUtc(
+            utc.Kind == DateTimeKind.Utc ? utc : DateTime.SpecifyKind(utc, DateTimeKind.Utc),
+            VenueTimeZone);
+
+    private static TimeZoneInfo FindVenueTimeZone()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Pacific Standard Time");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+        }
     }
 
     private void ApplyNonContent(ViewState state, string title, string message)
@@ -256,6 +414,20 @@ public partial class GameDayPageModel(
         StateMessage = message;
     }
 }
+
+/// <summary>
+/// A Going or Waitlist member shown on the Game Day roster. <see cref="CanCheckIn"/> is precomputed
+/// (admin can manage check-ins and the player is not yet checked in) so the row's admin action shows
+/// only when relevant.
+/// </summary>
+public sealed record GameDayRosterItem(
+    Guid PlayerProfileId,
+    string DisplayName,
+    bool IsGuest,
+    bool IsWaitlist,
+    bool IsCheckedIn,
+    bool CanCheckIn,
+    string StatusLabel);
 
 public partial class CaptainAssignmentPageModel(
     IGameDayClient gameDayClient,
@@ -272,6 +444,14 @@ public partial class CaptainAssignmentPageModel(
 
     [ObservableProperty]
     private string _searchText = string.Empty;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(LockTeamsCommand))]
+    private bool _canLockTeams;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(GrantCommand))]
+    private bool _isLocked;
 
     public ObservableCollection<CaptainPlayerItem> Players { get; } = [];
 
@@ -298,6 +478,7 @@ public partial class CaptainAssignmentPageModel(
         }
 
         OnPropertyChanged(nameof(SelectedCountText));
+        GrantCommand.NotifyCanExecuteChanged();
     }
 
     private static bool TryParseCaptainCount(object? value, out int count)
@@ -327,18 +508,39 @@ public partial class CaptainAssignmentPageModel(
 
         item.IsSelected = !item.IsSelected;
         OnPropertyChanged(nameof(SelectedCountText));
+        GrantCommand.NotifyCanExecuteChanged();
     }
 
-    [RelayCommand(AllowConcurrentExecutions = false)]
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanGrant))]
     private async Task Grant(CancellationToken cancellationToken)
     {
         var selected = Players.Where(item => item.IsSelected).Select(item => item.PlayerId).ToArray();
+        if (selected.Length != CaptainCount)
+        {
+            return;
+        }
+
         var result = await gameDayClient.AssignCaptainsAsync(sessionId, CaptainCount, selected, cancellationToken);
         if (result.IsSuccess)
         {
             await LoadAsync(cancellationToken);
         }
     }
+
+    private bool CanGrant() =>
+        !IsLocked && Players.Count(item => item.IsSelected) == CaptainCount;
+
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanExecuteLockTeams))]
+    private async Task LockTeams(CancellationToken cancellationToken)
+    {
+        var result = await gameDayClient.LockTeamsAsync(sessionId, cancellationToken);
+        if (result.IsSuccess)
+        {
+            await LoadAsync(cancellationToken);
+        }
+    }
+
+    private bool CanExecuteLockTeams() => CanLockTeams && !IsLocked;
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
 
@@ -353,6 +555,8 @@ public partial class CaptainAssignmentPageModel(
 
         sessionId = dto.SessionId;
         CaptainCount = dto.CaptainCount;
+        CanLockTeams = dto.CanLockTeams;
+        IsLocked = dto.IsLocked;
         Players.Clear();
         foreach (var player in dto.CheckedInPlayers)
         {
@@ -365,6 +569,7 @@ public partial class CaptainAssignmentPageModel(
         }
 
         ApplyFilter();
+        GrantCommand.NotifyCanExecuteChanged();
         State = ViewState.Content;
     }
 
@@ -384,6 +589,15 @@ public partial class TeamDraftPageModel(
 {
     private Guid sessionId;
     private Guid teamId;
+    private TeamDraftDto? draft;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    private bool _canPickPlayers;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    private bool _isLocked;
 
     [ObservableProperty]
     private ViewState _state = ViewState.Loading;
@@ -401,6 +615,18 @@ public partial class TeamDraftPageModel(
     private string _searchText = string.Empty;
 
     public ObservableCollection<DraftPlayerItem> Players { get; } = [];
+
+    /// <summary>
+    /// Selectable teams for the admin/coordinator team switcher. Empty for a captain, who is
+    /// locked to their own team.
+    /// </summary>
+    public ObservableCollection<DraftTeamOption> Teams { get; } = [];
+
+    [ObservableProperty]
+    private bool _canManageAllTeams;
+
+    [ObservableProperty]
+    private Guid _selectedTeamId;
 
     [RelayCommand]
     private Task Back() => navigator.GoBackAsync();
@@ -420,9 +646,23 @@ public partial class TeamDraftPageModel(
         UpdateSummary();
     }
 
-    [RelayCommand(AllowConcurrentExecutions = false)]
+    [RelayCommand]
+    private void SelectTeam(Guid team)
+    {
+        if (CanManageAllTeams && team != Guid.Empty && team != teamId)
+        {
+            ProjectTeam(team);
+        }
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanSave))]
     private async Task Save(CancellationToken cancellationToken)
     {
+        if (!CanSave())
+        {
+            return;
+        }
+
         var selected = Players.Where(item => item.IsSelected).Select(item => item.PlayerId).ToArray();
         var result = await gameDayClient.SaveTeamPicksAsync(sessionId, teamId, selected, cancellationToken);
         if (result.IsSuccess)
@@ -430,6 +670,8 @@ public partial class TeamDraftPageModel(
             await LoadAsync(cancellationToken);
         }
     }
+
+    private bool CanSave() => CanPickPlayers && !IsLocked;
 
     partial void OnSearchTextChanged(string value)
     {
@@ -449,12 +691,36 @@ public partial class TeamDraftPageModel(
             return;
         }
 
+        draft = dto;
         sessionId = dto.SessionId;
-        teamId = dto.TeamId;
-        TeamName = dto.TeamName;
-        CaptainName = dto.CaptainName;
+        CanManageAllTeams = dto.CanManageAllTeams;
+        Teams.Clear();
+        foreach (var team in dto.Teams)
+        {
+            Teams.Add(new DraftTeamOption(team.TeamId, team.Name, team.CaptainName));
+        }
+
+        ProjectTeam(dto.TeamId);
+        State = ViewState.Content;
+    }
+
+    // Re-projects the roster for the given team without a network round-trip. A captain always sees
+    // their own team; an admin/coordinator can switch between every team returned by the draft query.
+    private void ProjectTeam(Guid targetTeamId)
+    {
+        if (draft is not { } dto)
+        {
+            return;
+        }
+
+        var currentTeam = dto.Teams.FirstOrDefault(team => team.TeamId == targetTeamId) ?? dto.Teams.First();
+        teamId = currentTeam.TeamId;
+        SelectedTeamId = currentTeam.TeamId;
+        TeamName = currentTeam.Name;
+        CaptainName = currentTeam.CaptainName;
+        CanPickPlayers = dto.CanPickPlayers;
+        IsLocked = dto.IsLocked;
         var assigned = dto.Teams.SelectMany(team => team.PlayerIds.Select(playerId => (playerId, team.Name))).ToDictionary();
-        var currentTeam = dto.Teams.First(team => team.TeamId == dto.TeamId);
 
         Players.Clear();
         foreach (var player in dto.CheckedInPlayers)
@@ -467,11 +733,13 @@ public partial class TeamDraftPageModel(
                 player.Player.DisplayName,
                 isMine ? player.Detail : owner is null ? player.Detail : $"Already picked - {owner}",
                 isMine,
-                owner is null || isMine));
+                dto.CanPickPlayers
+                    && !dto.IsLocked
+                    && player.Player.Id != currentTeam.CaptainId
+                    && (owner is null || isMine)));
         }
 
         UpdateSummary();
-        State = ViewState.Content;
     }
 
     private void UpdateSummary()
@@ -489,16 +757,39 @@ public partial class PostGameApprovalPageModel(
     private Guid sessionId;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanEditPostGame))]
+    [NotifyPropertyChangedFor(nameof(CanPublish))]
+    [NotifyPropertyChangedFor(nameof(IsReadOnlyPostGame))]
+    [NotifyCanExecuteChangedFor(nameof(SaveResultCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ApproveStatCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PublishCommand))]
+    private bool _canApprove;
+
+    [ObservableProperty]
     private ViewState _state = ViewState.Loading;
 
     [ObservableProperty]
     private int _teamCount;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanPublish))]
+    [NotifyCanExecuteChangedFor(nameof(PublishCommand))]
     private bool _needsReview;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanEditPostGame))]
+    [NotifyPropertyChangedFor(nameof(CanPublish))]
+    [NotifyPropertyChangedFor(nameof(IsReadOnlyPostGame))]
+    [NotifyCanExecuteChangedFor(nameof(SaveResultCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ApproveStatCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PublishCommand))]
     private bool _isPublished;
+
+    public bool CanEditPostGame => CanApprove && !IsPublished;
+
+    public bool CanPublish => CanEditPostGame && !NeedsReview;
+
+    public bool IsReadOnlyPostGame => !CanEditPostGame;
 
     public ObservableCollection<TeamResultItem> TeamResults { get; } = [];
 
@@ -528,18 +819,28 @@ public partial class PostGameApprovalPageModel(
     [RelayCommand]
     private void DecrementLoss(TeamResultItem item) => item.TryUpdate(item.Wins, item.Draws, Math.Max(0, item.Losses - 1));
 
-    [RelayCommand(AllowConcurrentExecutions = false)]
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanEditPostGame))]
     private async Task SaveResult(TeamResultItem item, CancellationToken cancellationToken)
     {
+        if (!CanEditPostGame)
+        {
+            return;
+        }
+
         await gameDayClient.SaveTeamResultAsync(
             sessionId,
             new TeamResultUpdateDto(item.TeamId, item.Wins, item.Draws, item.Losses),
             cancellationToken);
     }
 
-    [RelayCommand(AllowConcurrentExecutions = false)]
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanEditPostGame))]
     private async Task ApproveStat(StatApprovalItem item, CancellationToken cancellationToken)
     {
+        if (!CanEditPostGame)
+        {
+            return;
+        }
+
         var result = await gameDayClient.ApproveStatAsync(sessionId, item.SubmissionId, cancellationToken);
         if (result.IsSuccess)
         {
@@ -548,9 +849,14 @@ public partial class PostGameApprovalPageModel(
         }
     }
 
-    [RelayCommand(AllowConcurrentExecutions = false)]
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanPublish))]
     private async Task Publish(CancellationToken cancellationToken)
     {
+        if (!CanPublish)
+        {
+            return;
+        }
+
         var result = await gameDayClient.PublishPostGameAsync(sessionId, cancellationToken);
         if (result.IsSuccess)
         {
@@ -569,6 +875,7 @@ public partial class PostGameApprovalPageModel(
 
         sessionId = dto.SessionId;
         TeamCount = dto.TeamCount;
+        CanApprove = dto.CanApprove;
         NeedsReview = dto.NeedsReview;
         IsPublished = dto.IsPublished;
         TeamResults.Clear();
@@ -600,6 +907,8 @@ public partial class CaptainPlayerItem(Guid playerId, string initials, string na
     [ObservableProperty]
     private bool _isVisible = true;
 }
+
+public sealed record DraftTeamOption(Guid TeamId, string Name, string CaptainName);
 
 public partial class DraftPlayerItem(Guid playerId, string initials, string name, string detail, bool isSelected, bool canPick) : ObservableObject
 {
@@ -712,11 +1021,18 @@ public partial class StatApprovalItem(Guid submissionId, string initials, string
             parts.Add($"{dto.Assists} {(dto.Assists == 1 ? "assist" : "assists")}");
         }
 
+        if (dto.AssistPlayer is not null)
+        {
+            parts.Add($"assist: {dto.AssistPlayer.DisplayName}");
+        }
+
         return new StatApprovalItem(
             dto.SubmissionId,
             dto.Player.Initials,
             dto.Player.DisplayName,
-            parts.Count == 0 ? "assist disputed" : string.Join(" - ", parts),
+            parts.Count == 0
+                ? string.IsNullOrWhiteSpace(dto.Detail) ? "Stat submission" : dto.Detail
+                : string.Join(" - ", parts),
             dto.Status);
     }
 }
@@ -781,4 +1097,3 @@ public sealed class ShellGameDayNavigator : IGameDayNavigator
         $"{route}?sessionId={Uri.EscapeDataString(sessionId.ToString())}";
 }
 #endif
-

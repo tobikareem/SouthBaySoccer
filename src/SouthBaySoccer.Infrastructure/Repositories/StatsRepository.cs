@@ -25,6 +25,12 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
     public Task<Match?> FindMatchAsync(Guid matchId, CancellationToken cancellationToken = default) =>
         dbContext.Matches.SingleOrDefaultAsync(x => x.Id == matchId, cancellationToken);
 
+    public Task<Match?> FindPrimaryMatchBySessionAsync(Guid sessionId, CancellationToken cancellationToken = default) =>
+        dbContext.Matches
+            .OrderBy(x => x.MatchNumber)
+            .ThenBy(x => x.Id)
+            .FirstOrDefaultAsync(x => x.SessionId == sessionId, cancellationToken);
+
     public async Task<IReadOnlyList<MatchTeam>> ListMatchTeamsAsync(Guid matchId, CancellationToken cancellationToken = default) =>
         await dbContext.MatchTeams.Where(x => x.MatchId == matchId).ToArrayAsync(cancellationToken);
 
@@ -33,6 +39,15 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
 
     public Task<MatchEvent?> FindMatchEventAsync(Guid matchEventId, CancellationToken cancellationToken = default) =>
         dbContext.MatchEvents.SingleOrDefaultAsync(x => x.Id == matchEventId, cancellationToken);
+
+    public async Task<IReadOnlyList<MatchEvent>> ListMatchEventsAsync(
+        Guid matchId,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.MatchEvents
+            .Where(x => x.MatchId == matchId)
+            .OrderBy(x => x.Minute)
+            .ThenBy(x => x.Id)
+            .ToArrayAsync(cancellationToken);
 
     public async Task<IReadOnlyList<MatchResult>> ListMatchResultsAsync(Guid matchId, CancellationToken cancellationToken = default) =>
         await dbContext.MatchResults.Where(x => x.MatchId == matchId).ToArrayAsync(cancellationToken);
@@ -72,6 +87,101 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
             current.GoalsFor = result.GoalsFor;
             current.GoalsAgainst = result.GoalsAgainst;
         }
+    }
+
+    public async Task ReplaceCaptainTopologyAsync(
+        Guid matchId,
+        IReadOnlyList<MatchTeam> teams,
+        IReadOnlyList<TeamAssignment> assignments,
+        IReadOnlyList<PlayerMatchStats> participants,
+        CancellationToken cancellationToken = default)
+    {
+        var existingTeams = await dbContext.MatchTeams
+            .Where(x => x.MatchId == matchId)
+            .ToArrayAsync(cancellationToken);
+        var existingAssignments = await dbContext.TeamAssignments
+            .Where(x => x.MatchId == matchId)
+            .ToArrayAsync(cancellationToken);
+        var existingParticipants = await dbContext.PlayerMatchStats
+            .Where(x => x.MatchId == matchId)
+            .ToArrayAsync(cancellationToken);
+
+        foreach (var team in existingTeams)
+        {
+            team.IsDeleted = true;
+        }
+
+        foreach (var assignment in existingAssignments)
+        {
+            assignment.IsDeleted = true;
+        }
+
+        foreach (var participant in existingParticipants)
+        {
+            participant.IsDeleted = true;
+        }
+
+        await dbContext.MatchTeams.AddRangeAsync(teams, cancellationToken);
+        await dbContext.TeamAssignments.AddRangeAsync(assignments, cancellationToken);
+        await dbContext.PlayerMatchStats.AddRangeAsync(participants, cancellationToken);
+    }
+
+    public async Task ReplaceTeamAssignmentsAsync(
+        Guid matchId,
+        Guid matchTeamId,
+        IReadOnlyList<Guid> playerProfileIds,
+        CancellationToken cancellationToken = default)
+    {
+        var requestedIds = playerProfileIds.ToHashSet();
+        var teamAssignments = await dbContext.TeamAssignments
+            .Where(x => x.MatchId == matchId && x.MatchTeamId == matchTeamId)
+            .ToArrayAsync(cancellationToken);
+        var existingTeamIds = teamAssignments.Select(x => x.PlayerProfileId).ToHashSet();
+
+        foreach (var assignment in teamAssignments.Where(x => !requestedIds.Contains(x.PlayerProfileId)))
+        {
+            assignment.IsDeleted = true;
+        }
+
+        await dbContext.TeamAssignments.AddRangeAsync(
+            requestedIds
+                .Where(playerId => !existingTeamIds.Contains(playerId))
+                .Select(playerId => new TeamAssignment
+                {
+                    Id = Guid.NewGuid(),
+                    MatchId = matchId,
+                    MatchTeamId = matchTeamId,
+                    PlayerProfileId = playerId,
+                }),
+            cancellationToken);
+
+        var otherAssignedIds = await dbContext.TeamAssignments
+            .Where(x => x.MatchId == matchId && x.MatchTeamId != matchTeamId)
+            .Select(x => x.PlayerProfileId)
+            .ToArrayAsync(cancellationToken);
+        var activePlayerIds = otherAssignedIds.Concat(requestedIds).ToHashSet();
+        var participants = await dbContext.PlayerMatchStats
+            .Where(x => x.MatchId == matchId)
+            .ToArrayAsync(cancellationToken);
+        var participantIds = participants.Select(x => x.PlayerProfileId).ToHashSet();
+
+        foreach (var participant in participants.Where(x => !activePlayerIds.Contains(x.PlayerProfileId)))
+        {
+            participant.IsDeleted = true;
+        }
+
+        await dbContext.PlayerMatchStats.AddRangeAsync(
+            activePlayerIds
+                .Where(playerId => !participantIds.Contains(playerId))
+                .Select(playerId => new PlayerMatchStats
+                {
+                    Id = Guid.NewGuid(),
+                    MatchId = matchId,
+                    PlayerProfileId = playerId,
+                    Played = true,
+                    Started = true,
+                }),
+            cancellationToken);
     }
 
     public async Task SubmitPeerFeedbackAsync(

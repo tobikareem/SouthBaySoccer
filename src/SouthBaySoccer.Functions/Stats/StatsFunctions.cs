@@ -216,7 +216,7 @@ public sealed class StatsFunctions(
         var query = QueryHelpers.ParseQuery(request.Url.Query);
         var result = await getSeasonLeaderboardHandler.HandleAsync(
             new GetSeasonLeaderboardQuery(
-                ReadRequiredGuid(query, "seasonId"),
+                ReadOptionalGuid(query, "seasonId"),
                 ToDomainMetric(ReadMetric(query)),
                 ReadOptionalInt(query, "page", 1),
                 ReadOptionalInt(query, "pageSize", 25)),

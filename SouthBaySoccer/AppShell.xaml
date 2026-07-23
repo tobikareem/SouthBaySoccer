@@ -26,7 +26,7 @@
         <ShellContent
             x:Name="GameDayTab"
             Title="Game Day"
-            Icon="{StaticResource IconStats}"
+            Icon="{StaticResource IconGameDay}"
             ContentTemplate="{DataTemplate pages:GameDayPage}"
             Route="gameday"
             AutomationId="GameDayTab"

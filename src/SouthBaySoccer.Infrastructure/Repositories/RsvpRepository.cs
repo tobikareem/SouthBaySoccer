@@ -126,11 +126,16 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
         CancellationToken cancellationToken = default) =>
         ExecuteInSerializableTransactionAsync(async token =>
         {
-            var hasConfirmedRsvp = await dbContext.RsvpResponses
-                .AnyAsync(x => x.SessionId == sessionId && x.PlayerProfileId == playerProfileId && x.Status == RsvpStatus.Going, token);
-            if (!hasConfirmedRsvp)
+            var hasConfirmedSpot = await dbContext.RsvpResponses
+                .AnyAsync(x => x.SessionId == sessionId && x.PlayerProfileId == playerProfileId && x.Status == RsvpStatus.Going, token)
+                || await dbContext.Set<PickupPalGameParticipant>()
+                    .AnyAsync(x => x.SessionId == sessionId
+                        && x.PlayerProfileId == playerProfileId
+                        && !x.IsWaitlist,
+                        token);
+            if (!hasConfirmedSpot)
             {
-                throw new InvalidOperationException("Only confirmed players can be checked in.");
+                throw new ApplicationConflictException("Only confirmed players can be checked in.");
             }
 
             var checkIn = await dbContext.CheckIns
@@ -144,6 +149,11 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
                     PlayerProfileId = playerProfileId
                 };
                 await dbContext.CheckIns.AddAsync(checkIn, token);
+            }
+            else if (string.IsNullOrWhiteSpace(lateOverrideReason)
+                && checkIn.Outcome is AttendanceOutcome.CheckedIn or AttendanceOutcome.Late)
+            {
+                return new CheckInMutationResult(checkIn);
             }
 
             checkIn.CheckedInByPlayerProfileId = checkedInByPlayerProfileId;
@@ -246,6 +256,34 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
             .Select(x => new RosterMemberRecord(x.Id, x.DisplayName, x.PreferredPosition, x.IsGuest, null))
             .ToArrayAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<RosterMemberRecord>> ListCheckedInRosterAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.CheckIns
+            .Where(x => x.SessionId == sessionId
+                && (x.Outcome == AttendanceOutcome.CheckedIn || x.Outcome == AttendanceOutcome.Late))
+            .Join(
+                dbContext.PlayerProfiles,
+                checkIn => checkIn.PlayerProfileId,
+                profile => profile.Id,
+                (checkIn, profile) => new
+                {
+                    profile.Id,
+                    profile.DisplayName,
+                    profile.PreferredPosition,
+                    profile.IsGuest,
+                    checkIn.Outcome
+                })
+            .OrderBy(x => x.DisplayName)
+            .ThenBy(x => x.Id)
+            .Select(x => new RosterMemberRecord(
+                x.Id,
+                x.DisplayName,
+                x.PreferredPosition,
+                x.IsGuest,
+                null))
+            .ToArrayAsync(cancellationToken);
+
     public async Task<IReadOnlyList<RosterMemberRecord>> ListActiveWaitlistRosterAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default) =>
@@ -259,6 +297,53 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
             .OrderBy(x => x.Position)
             .Select(x => new RosterMemberRecord(x.Id, x.DisplayName, x.PreferredPosition, x.IsGuest, x.Position))
             .ToArrayAsync(cancellationToken);
+
+    public async Task<GameDayAttendanceRecord> GetGameDayAttendanceAsync(
+        Guid sessionId,
+        Guid currentPlayerProfileId,
+        CancellationToken cancellationToken = default)
+    {
+        var localGoingIds = dbContext.RsvpResponses
+            .Where(x => x.SessionId == sessionId && x.Status == RsvpStatus.Going)
+            .Select(x => x.PlayerProfileId);
+        var importedGoingIds = dbContext.Set<PickupPalGameParticipant>()
+            .Where(x => x.SessionId == sessionId && !x.IsWaitlist && x.PlayerProfileId != null)
+            .Select(x => x.PlayerProfileId!.Value);
+        var confirmedIds = localGoingIds.Concat(importedGoingIds).Distinct();
+
+        var goingCount = await confirmedIds.CountAsync(cancellationToken);
+        var isGoing = await confirmedIds.ContainsAsync(currentPlayerProfileId, cancellationToken);
+        var isWaitlisted = await dbContext.WaitlistEntries
+            .AnyAsync(x => x.SessionId == sessionId
+                    && x.PlayerProfileId == currentPlayerProfileId
+                    && x.Status == WaitlistEntryStatus.Active,
+                cancellationToken)
+            || await dbContext.Set<PickupPalGameParticipant>()
+                .AnyAsync(x => x.SessionId == sessionId
+                        && x.PlayerProfileId == currentPlayerProfileId
+                        && x.IsWaitlist,
+                    cancellationToken);
+        var sessionCheckIns = dbContext.CheckIns
+            .Where(x => x.SessionId == sessionId
+                && (x.Outcome == AttendanceOutcome.CheckedIn || x.Outcome == AttendanceOutcome.Late));
+        var checkedInPlayerProfileIds = await sessionCheckIns
+            .Select(x => x.PlayerProfileId)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+        var checkedInCount = checkedInPlayerProfileIds.Length;
+        var lateCount = await sessionCheckIns.CountAsync(x => x.Outcome == AttendanceOutcome.Late, cancellationToken);
+        var isCheckedIn = await sessionCheckIns
+            .AnyAsync(x => x.PlayerProfileId == currentPlayerProfileId, cancellationToken);
+
+        return new GameDayAttendanceRecord(
+            goingCount,
+            checkedInCount,
+            lateCount,
+            isGoing,
+            isWaitlisted,
+            isCheckedIn,
+            checkedInPlayerProfileIds);
+    }
 
     private async Task<T> ExecuteInSerializableTransactionAsync<T>(
         Func<CancellationToken, Task<T>> operation,

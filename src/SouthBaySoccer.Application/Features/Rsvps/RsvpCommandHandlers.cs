@@ -144,6 +144,10 @@ public sealed class CheckInPlayerCommandHandler(
         var adminProfile = await SubmitRsvpCommandHandler.GetCurrentProfileAsync(currentUser, playerProfileRepository, cancellationToken);
         var session = await sessionRepository.GetByIdAsync(command.SessionId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Session was not found.");
+        if (session.Status != SessionStatus.Published)
+        {
+            throw new ApplicationConflictException("Check-in is not available for this session.");
+        }
         var nowUtc = clock.UtcNow;
         var lateOverrideReason = string.IsNullOrWhiteSpace(command.LateOverrideReason)
             ? null
@@ -157,12 +161,13 @@ public sealed class CheckInPlayerCommandHandler(
 
         var effectiveLateOverrideReason = isOutsideCheckInWindow ? lateOverrideReason : null;
 
+        var effectiveOutcome = isOutsideCheckInWindow ? AttendanceOutcome.Late : command.Outcome;
         var result = await rsvpRepository.RecordCheckInAsync(
             command.SessionId,
             command.PlayerProfileId,
             adminProfile.Id,
             nowUtc,
-            command.Outcome,
+            effectiveOutcome,
             effectiveLateOverrideReason,
             cancellationToken);
         var checkIn = result.CheckIn;
@@ -177,6 +182,72 @@ public sealed class CheckInPlayerCommandHandler(
             result.AdminOverrideId.HasValue,
             result.AdminOverrideId,
             result.LateOverrideReason);
+    }
+}
+
+public sealed class SelfCheckInCommandHandler(
+    ICurrentUser currentUser,
+    IClock clock,
+    IPlayerProfileRepository playerProfileRepository,
+    ISessionRepository sessionRepository,
+    IPlayerSessionEligibilityService eligibilityService,
+    IRsvpRepository rsvpRepository)
+{
+    public async Task<CheckInResultModel> HandleAsync(
+        SelfCheckInCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var profile = await SubmitRsvpCommandHandler.GetCurrentProfileAsync(
+            currentUser,
+            playerProfileRepository,
+            cancellationToken);
+        var session = await sessionRepository.GetByIdAsync(command.SessionId, cancellationToken)
+            ?? throw new ApplicationNotFoundException("Session was not found.");
+        if (session.Status != SessionStatus.Published)
+        {
+            throw new ApplicationConflictException("Check-in is not available for this session.");
+        }
+
+        var nowUtc = clock.UtcNow;
+        if (nowUtc < session.CheckInOpensAtUtc || nowUtc > session.CheckInClosesAtUtc)
+        {
+            throw new ApplicationConflictException("Self check-in is outside the session check-in window.");
+        }
+
+        var attendance = await rsvpRepository.GetGameDayAttendanceAsync(
+            session.Id,
+            profile.Id,
+            cancellationToken);
+        if (!attendance.IsCurrentPlayerGoing)
+        {
+            throw new ApplicationConflictException("A confirmed Going spot is required to check in.");
+        }
+
+        var eligibility = await eligibilityService.CheckAsync(profile.Id, session.Id, cancellationToken);
+        if (!eligibility.IsEligible)
+        {
+            throw new ApplicationConflictException(eligibility.Reason ?? "Player is not eligible to check in.");
+        }
+
+        var result = await rsvpRepository.RecordCheckInAsync(
+            session.Id,
+            profile.Id,
+            profile.Id,
+            nowUtc,
+            AttendanceOutcome.CheckedIn,
+            cancellationToken: cancellationToken);
+        var checkIn = result.CheckIn;
+
+        return new CheckInResultModel(
+            checkIn.Id,
+            checkIn.SessionId,
+            checkIn.PlayerProfileId,
+            checkIn.CheckedInByPlayerProfileId!.Value,
+            checkIn.CheckedInAtUtc,
+            checkIn.Outcome.ToString(),
+            false,
+            null,
+            null);
     }
 }
 

@@ -13,9 +13,29 @@ public interface IPlayerProfileRepository : IRepository<PlayerProfile>
     Task<PlayerProfile?> FindByIdentityUserIdAsync(Guid identityUserId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Finds a profile by its linked Pickup Pal user id.
+    /// </summary>
+    Task<PlayerProfile?> FindByPickupPalUserIdAsync(string pickupPalUserId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Finds a profile by its phone number hash.
+    /// </summary>
+    Task<PlayerProfile?> FindByPhoneNumberHashAsync(string phoneNumberHash, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Finds a profile by its WhatsApp identity hash.
+    /// </summary>
+    Task<PlayerProfile?> FindByWhatsAppJidHashAsync(string whatsAppJidHash, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Finds a profile by id, including guest profiles.
     /// </summary>
     Task<PlayerProfile?> FindProfileAsync(Guid playerProfileId, CancellationToken cancellationToken = default);
+
+    /// <summary>Lists a bounded set of profiles by id for server-side projections.</summary>
+    Task<IReadOnlyList<PlayerProfile>> ListProfilesAsync(
+        IReadOnlyCollection<Guid> playerProfileIds,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Lists active player profiles for the public player directory.

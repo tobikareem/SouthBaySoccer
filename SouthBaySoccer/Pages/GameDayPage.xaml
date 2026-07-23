@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:gameDay="clr-namespace:SouthBaySoccer.Contracts.GameDay;assembly=SouthBaySoccer.Contracts"
     xmlns:fonts="clr-namespace:Fonts"
     xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
     xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
@@ -23,7 +24,15 @@
             <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">
                 <Grid ColumnDefinitions="*,Auto">
                     <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
-                        <Label Text="{Binding Venue, StringFormat='Today - {0}'}" Style="{StaticResource TextCaption}" />
+                        <Label Style="{StaticResource TextCaption}">
+                            <Label.FormattedText>
+                                <FormattedString>
+                                    <Span Text="{Binding DateLabel}" />
+                                    <Span Text=" - " />
+                                    <Span Text="{Binding Venue}" />
+                                </FormattedString>
+                            </Label.FormattedText>
+                        </Label>
                         <Label Text="Game Day" Style="{StaticResource TextH1}" SemanticProperties.HeadingLevel="Level1" />
                     </VerticalStackLayout>
                     <c:Badge Grid.Column="1" Text="{Binding StatusLabel}" Glyph="{x:Static fonts:FontAwesomeGlyphs.Clock}" Variant="Success" />
@@ -49,12 +58,95 @@
                     <c:StatTile Grid.Column="1" Value="{Binding CheckedInCount}" Label="Checked in" />
                     <c:StatTile Grid.Column="2" Value="{Binding LateCount}" Label="Late" />
                 </Grid>
+                <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding HasRoster}">
+                    <c:SectionHeader Text="Roster" />
+                    <Label Text="Going and waitlisted players - both are eligible for team assignment." Style="{StaticResource TextCaption}" />
+                    <VerticalStackLayout
+                        BindableLayout.ItemsSource="{Binding Roster}"
+                        Spacing="{StaticResource SpaceSm}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="pageModels:GameDayRosterItem">
+                                <Border Style="{StaticResource CardSurface}">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                                        <VerticalStackLayout VerticalOptions="Center" Spacing="{StaticResource SpaceXs}">
+                                            <Label Text="{Binding DisplayName}" Style="{StaticResource TextBodyStrong}" />
+                                            <Label Text="{Binding StatusLabel}" Style="{StaticResource TextCaption}" />
+                                        </VerticalStackLayout>
+                                        <Label
+                                            Grid.Column="1"
+                                            Text="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}"
+                                            FontFamily="FontAwesomeSolid"
+                                            VerticalOptions="Center"
+                                            Style="{StaticResource BrandIconLabel}"
+                                            IsVisible="{Binding IsCheckedIn}"
+                                            SemanticProperties.Description="Checked in" />
+                                        <Button
+                                            Grid.Column="1"
+                                            Text="Check in"
+                                            Command="{Binding Source={x:Reference GameDay}, Path=BindingContext.AdminCheckInCommand}"
+                                            CommandParameter="{Binding .}"
+                                            Style="{StaticResource SecondaryButton}"
+                                            IsVisible="{Binding CanCheckIn}"
+                                            SemanticProperties.Description="{Binding DisplayName, StringFormat='Check in {0}'}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
                 <Border Style="{StaticResource NoticeSurface}">
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
                         <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleInfo}" FontFamily="FontAwesomeSolid" Style="{StaticResource BrandIconLabel}" />
                         <Label Grid.Column="1" Text="{x:Static pageModels:GameDayPageModel.NoticeText}" Style="{StaticResource TextCaption}" />
                     </Grid>
                 </Border>
+                <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding CanLateCheckIn}">
+                    <c:SectionHeader Text="Late check-in override" />
+                    <Label Text="After the regular window closes, enter a reason before checking in an arrived player." Style="{StaticResource TextCaption}" />
+                    <Label Text="Reason for late arrival" Style="{StaticResource TextLabel}" />
+                    <Entry
+                        Text="{Binding LateCheckInReason}"
+                        Placeholder="For example, traffic delay"
+                        MaxLength="240"
+                        SemanticProperties.Description="Reason required for the audited late check-in override" />
+                    <VerticalStackLayout
+                        BindableLayout.ItemsSource="{Binding LateCheckInPlayers}"
+                        Spacing="{StaticResource SpaceSm}"
+                        IsVisible="{Binding HasLateCheckInPlayers}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="gameDay:GameDayPlayerDto">
+                                <Border Style="{StaticResource CardSurface}">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                                        <VerticalStackLayout VerticalOptions="Center" Spacing="{StaticResource SpaceXs}">
+                                            <Label Text="{Binding DisplayName}" Style="{StaticResource TextBodyStrong}" />
+                                            <Label Text="Confirmed member and not checked in" Style="{StaticResource TextCaption}">
+                                                <Label.Triggers>
+                                                    <DataTrigger TargetType="Label" Binding="{Binding IsGuest}" Value="True">
+                                                        <Setter Property="Text" Value="Confirmed guest and not checked in" />
+                                                    </DataTrigger>
+                                                </Label.Triggers>
+                                            </Label>
+                                        </VerticalStackLayout>
+                                        <Button
+                                            Grid.Column="1"
+                                            Text="Check in late"
+                                            Command="{Binding Source={x:Reference GameDay}, Path=BindingContext.LateCheckInCommand}"
+                                            CommandParameter="{Binding .}"
+                                            Style="{StaticResource SecondaryButton}"
+                                            SemanticProperties.Description="{Binding DisplayName, StringFormat='Check in {0} late'}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                    <Label Text="Everyone confirmed for today is already checked in." Style="{StaticResource TextCaption}">
+                        <Label.Triggers>
+                            <DataTrigger TargetType="Label" Binding="{Binding HasLateCheckInPlayers}" Value="True">
+                                <Setter Property="IsVisible" Value="False" />
+                            </DataTrigger>
+                        </Label.Triggers>
+                    </Label>
+                </VerticalStackLayout>
                 <c:SectionHeader Text="Game-day actions" IsVisible="{Binding HasGameDayActions}" />
                 <c:PlayerRow Initials="CA" Name="Assign captains" Detail="2, 3, or 4 captains = 2, 3, or 4 teams" TapCommand="{Binding OpenCaptainAssignmentCommand}" IsVisible="{Binding CanAssignCaptains}" />
                 <c:PlayerRow Initials="DR" Name="Pick your team" Detail="Captain permission - session scoped" TapCommand="{Binding OpenTeamDraftCommand}" IsVisible="{Binding CanDraftTeam}" />
@@ -63,4 +155,3 @@
         </ScrollView>
     </c:StateView>
 </ContentPage>
-

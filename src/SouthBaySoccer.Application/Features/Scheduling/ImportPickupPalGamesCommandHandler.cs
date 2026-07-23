@@ -1,5 +1,6 @@
 using System.Text.Json;
 using SouthBaySoccer.Application.Abstractions.Time;
+using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
@@ -21,7 +22,7 @@ public sealed record PickupPalImportResult(
 /// matches a session it previously created (by snapshot or occurrence key) adopts and overwrites
 /// that session; otherwise a new session is created. A manually-created session is never adopted
 /// just because it shares a start time. Each game's sanitized payload and participant roster are
-/// persisted alongside the session, and only future active games with capacity are published.
+/// persisted alongside the session, and active games with capacity are published.
 /// </summary>
 public sealed class ImportPickupPalGamesCommandHandler(
     IPickupPalGamesClient gamesClient,
@@ -29,6 +30,7 @@ public sealed class ImportPickupPalGamesCommandHandler(
     ISessionRepository sessionRepository,
     ISeasonRepository seasonRepository,
     IVenueRepository venueRepository,
+    IPlayerProfileRepository playerProfileRepository,
     IUnitOfWork unitOfWork,
     IClock clock)
 {
@@ -50,6 +52,10 @@ public sealed class ImportPickupPalGamesCommandHandler(
         var imported = 0;
         var warnings = new List<string>();
 
+        // Profiles created during this pass are not visible to repository lookups until the final
+        // SaveChanges, so the same person appearing on several games resolves through this cache.
+        var profileCache = new Dictionary<string, PlayerProfile>(StringComparer.Ordinal);
+
         foreach (var game in games)
         {
             var season = seasons.FirstOrDefault(x =>
@@ -66,7 +72,7 @@ public sealed class ImportPickupPalGamesCommandHandler(
                 warnings.Add(publishWarning);
             }
 
-            await ImportGameAsync(game, season.Id, publish, cancellationToken);
+            await ImportGameAsync(game, season.Id, publish, profileCache, cancellationToken);
             imported++;
         }
 
@@ -78,7 +84,12 @@ public sealed class ImportPickupPalGamesCommandHandler(
         return new PickupPalImportResult(imported, games.Count - imported, warnings);
     }
 
-    private async Task ImportGameAsync(PickupPalGame game, Guid seasonId, bool publish, CancellationToken cancellationToken)
+    private async Task ImportGameAsync(
+        PickupPalGame game,
+        Guid seasonId,
+        bool publish,
+        Dictionary<string, PlayerProfile> profileCache,
+        CancellationToken cancellationToken)
     {
         var occurrenceKey = BuildOccurrenceKey(game.Id);
         var snapshot = await gameRepository.FindSnapshotByGameIdAsync(game.Id, cancellationToken);
@@ -122,20 +133,166 @@ public sealed class ImportPickupPalGamesCommandHandler(
             gameRepository.UpdateSnapshot(snapshot);
         }
 
-        var participants = game.Participants
-            .Select((participant, index) => new PickupPalGameParticipant
+        var participants = new List<PickupPalGameParticipant>(game.Participants.Count);
+        foreach (var (participant, index) in game.Participants.Select((p, i) => (p, i)))
+        {
+            var profile = await ResolveOrCreateProfileAsync(participant, profileCache, cancellationToken);
+            participants.Add(new PickupPalGameParticipant
             {
                 Id = Guid.NewGuid(),
                 SessionId = session.Id,
                 PickupPalParticipantId = participant.Id,
+                PlayerProfileId = profile?.Id,
                 DisplayName = Truncate(participant.DisplayName, 160),
                 IsGuest = participant.IsGuest,
                 IsWaitlist = participant.IsWaitlist,
                 DisplayOrder = index,
                 JoinedAtUtc = participant.JoinedAtUtc,
-            })
-            .ToArray();
+            });
+        }
+
         await gameRepository.ReplaceParticipantsAsync(session.Id, participants, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resolves the participant to a persistent <see cref="PlayerProfile"/> by Pickup Pal user id,
+    /// then phone hash, then WhatsApp hash — creating one when no identity matches — so imported
+    /// players appear in the player directory. Participants carrying no identity at all stay
+    /// snapshot-only: without a stable key a profile could never be deduplicated across imports.
+    /// </summary>
+    private async Task<PlayerProfile?> ResolveOrCreateProfileAsync(
+        PickupPalGameParticipantInfo participant,
+        Dictionary<string, PlayerProfile> profileCache,
+        CancellationToken cancellationToken)
+    {
+        var keys = BuildProfileCacheKeys(participant);
+        if (keys.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var key in keys)
+        {
+            if (profileCache.TryGetValue(key, out var cached))
+            {
+                // A later game in the same pass may carry identity keys the first sighting lacked;
+                // fold them in now so this import persists every key, not just the next one.
+                BackfillIdentityKeys(cached, participant);
+                CacheProfile(profileCache, keys, cached);
+                return cached;
+            }
+        }
+
+        PlayerProfile? profile = null;
+        if (participant.UserId is { } userId)
+        {
+            profile = await playerProfileRepository.FindByPickupPalUserIdAsync(userId, cancellationToken);
+        }
+
+        if (profile is null && participant.PhoneNumberHash is { } phoneHash)
+        {
+            profile = await playerProfileRepository.FindByPhoneNumberHashAsync(phoneHash, cancellationToken);
+            if (HasConflictingPickupPalUser(profile, participant.UserId))
+            {
+                profile = null;
+            }
+        }
+
+        if (profile is null && participant.WhatsAppJidHash is { } jidHash)
+        {
+            profile = await playerProfileRepository.FindByWhatsAppJidHashAsync(jidHash, cancellationToken);
+            if (HasConflictingPickupPalUser(profile, participant.UserId))
+            {
+                profile = null;
+            }
+        }
+
+        var isNew = profile is null;
+        profile ??= new PlayerProfile
+        {
+            Id = Guid.NewGuid(),
+            PreferredPosition = string.Empty,
+            IsGuest = participant.IsGuest,
+            Role = participant.IsGuest ? PlayerRole.Guest : PlayerRole.Player,
+        };
+
+        if (isNew || profile.IdentityUserId is null)
+        {
+            // Import-owned profile: Pickup Pal is its source of truth, so refresh the name and
+            // guest standing. Profiles claimed through sign-in keep the name and role that sign-in
+            // sync maintains.
+            profile.DisplayName = Truncate(participant.DisplayName, 160);
+            profile.NormalizedDisplayName = profile.DisplayName.ToUpperInvariant();
+            profile.IsGuest = participant.IsGuest;
+            profile.Role = participant.IsGuest ? PlayerRole.Guest : PlayerRole.Player;
+        }
+
+        // Backfill identity keys the profile is missing; never overwrite an existing link.
+        BackfillIdentityKeys(profile, participant);
+
+        if (isNew)
+        {
+            await playerProfileRepository.AddAsync(profile, cancellationToken);
+        }
+        else
+        {
+            playerProfileRepository.Update(profile);
+        }
+
+        CacheProfile(profileCache, keys, profile);
+        return profile;
+    }
+
+    private static List<string> BuildProfileCacheKeys(PickupPalGameParticipantInfo participant)
+    {
+        var keys = new List<string>(3);
+        if (participant.UserId is { } userId)
+        {
+            keys.Add($"user:{userId}");
+            return keys;
+        }
+
+        if (participant.PhoneNumberHash is { } phoneHash)
+        {
+            keys.Add($"phone:{phoneHash}");
+        }
+
+        if (participant.WhatsAppJidHash is { } jidHash)
+        {
+            keys.Add($"jid:{jidHash}");
+        }
+
+        return keys;
+    }
+
+    // Never overwrites an existing link — only fills keys the profile is still missing — so it is
+    // safe to call on both a freshly resolved profile and a cache hit from an earlier game.
+    private static void BackfillIdentityKeys(PlayerProfile profile, PickupPalGameParticipantInfo participant)
+    {
+        profile.PickupPalUserId ??= participant.UserId;
+        if (profile.PhoneNumberHash is null && participant.PhoneNumberHash is not null)
+        {
+            profile.PhoneNumberHash = participant.PhoneNumberHash;
+            profile.MaskedPhoneNumber = participant.MaskedPhoneNumber;
+        }
+
+        profile.WhatsAppJidHash ??= participant.WhatsAppJidHash;
+    }
+
+    private static bool HasConflictingPickupPalUser(PlayerProfile? profile, string? participantUserId) =>
+        profile?.PickupPalUserId is { } existingUserId
+        && participantUserId is { } incomingUserId
+        && !string.Equals(existingUserId, incomingUserId, StringComparison.Ordinal);
+
+    private static void CacheProfile(
+        Dictionary<string, PlayerProfile> profileCache,
+        List<string> keys,
+        PlayerProfile profile)
+    {
+        foreach (var key in keys)
+        {
+            profileCache[key] = profile;
+        }
     }
 
     private void ApplySnapshot(
@@ -162,8 +319,8 @@ public sealed class ImportPickupPalGamesCommandHandler(
         session.Capacity = Math.Max(game.MaxPlayers, 1);
         session.TeamCount = 2;
         session.StartsAtUtc = game.StartsAtUtc;
-        session.CheckInOpensAtUtc = game.StartsAtUtc.AddMinutes(-30);
-        session.CheckInClosesAtUtc = game.StartsAtUtc;
+        session.CheckInOpensAtUtc = game.StartsAtUtc.AddMinutes(-10);
+        session.CheckInClosesAtUtc = game.StartsAtUtc.AddMinutes(5);
         session.RsvpDeadlineUtc = game.StartsAtUtc.AddHours(-1);
         session.OccurrenceKey = occurrenceKey;
         // Non-destructive: only promote to Published when the game validated as publishable. An
@@ -175,9 +332,9 @@ public sealed class ImportPickupPalGamesCommandHandler(
         }
     }
 
-    // A game is published only when Pickup Pal reports it active, it still lies in the future, and
-    // it carries a real capacity. Anything else is imported as a draft so an admin can review it,
-    // and the reason is surfaced as an import warning.
+    // Pickup Pal's active-games feed is authoritative for whether an imported game is active.
+    // Games remain publishable through kickoff so opening Game Day at the scheduled start does not
+    // turn a newly imported live game into a draft.
     private bool ShouldPublish(PickupPalGame game, out string? warning)
     {
         warning = null;
@@ -189,12 +346,6 @@ public sealed class ImportPickupPalGamesCommandHandler(
         if (game.MaxPlayers <= 0)
         {
             warning = $"Imported Pickup Pal game {game.Id} as draft: it reports no player capacity.";
-            return false;
-        }
-
-        if (game.StartsAtUtc <= clock.UtcNow)
-        {
-            warning = $"Imported Pickup Pal game {game.Id} as draft: its start time is in the past.";
             return false;
         }
 

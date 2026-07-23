@@ -1,0 +1,564 @@
+using FluentAssertions;
+using Moq;
+using SouthBaySoccer.Application.Abstractions.Authentication;
+using SouthBaySoccer.Application.Abstractions.Time;
+using SouthBaySoccer.Application.Common;
+using SouthBaySoccer.Application.Features.Scheduling;
+using SouthBaySoccer.Application.Features.Stats;
+using SouthBaySoccer.Domain.Entities.Identity;
+using SouthBaySoccer.Domain.Entities.Operations;
+using SouthBaySoccer.Domain.Entities.Scheduling;
+using SouthBaySoccer.Domain.Entities.Stats;
+using SouthBaySoccer.Domain.Enumerations;
+using SouthBaySoccer.Domain.Interfaces.Repositories;
+using Xunit;
+using MatchEntity = SouthBaySoccer.Domain.Entities.Stats.Match;
+
+namespace SouthBaySoccer.Application.Tests.Scheduling;
+
+public sealed class GameDayWorkflowHandlerTests
+{
+    [Fact]
+    public async Task HandleAsync_WhenConfirmedCaptainsAreValid_CreatesAuditedTopology()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: true);
+        var secondCaptainId = Guid.NewGuid();
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(context.Actor.Id, "Ada Green"),
+                context.Roster(secondCaptainId, "Grace White")
+            ]);
+        var handler = new AssignSessionCaptainsCommandHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new AssignSessionCaptainsCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Stats.Object,
+            context.Audits.Object,
+            context.UnitOfWork.Object);
+
+        var result = await handler.HandleAsync(new AssignSessionCaptainsCommand(
+            context.Session.Id,
+            2,
+            [context.Actor.Id, secondCaptainId]));
+
+        result.AffectedCount.Should().Be(2);
+        context.Stats.Verify(x => x.CreateMatchAsync(
+            It.Is<MatchEntity>(match => match.SessionId == context.Session.Id && match.Status == MatchStatus.Draft),
+            It.Is<IReadOnlyList<MatchTeam>>(teams => teams.Count == 2
+                && teams.All(team => team.CaptainPlayerProfileId.HasValue)),
+            It.Is<IReadOnlyList<TeamAssignment>>(assignments => assignments.Count == 2),
+            It.Is<IReadOnlyList<PlayerMatchStats>>(participants => participants.Count == 2),
+            It.IsAny<CancellationToken>()), Times.Once);
+        context.Audits.Verify(x => x.AddAsync(
+            It.Is<AuditLogEntry>(entry => entry.Action == "Session.Captains.Assign"
+                && entry.ActorPlayerProfileId == context.Actor.Id),
+            It.IsAny<CancellationToken>()), Times.Once);
+        context.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenWaitlistedPlayerIsCaptain_CreatesTopology()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: true);
+        var waitlistCaptainId = Guid.NewGuid();
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([context.Roster(context.Actor.Id, "Ada Green")]);
+        context.Rsvps
+            .Setup(x => x.ListActiveWaitlistRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new RosterMemberRecord(waitlistCaptainId, "Wade Waitlist", "FWD", false, 1)]);
+        var handler = new AssignSessionCaptainsCommandHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new AssignSessionCaptainsCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Stats.Object,
+            context.Audits.Object,
+            context.UnitOfWork.Object);
+
+        var result = await handler.HandleAsync(new AssignSessionCaptainsCommand(
+            context.Session.Id,
+            2,
+            [context.Actor.Id, waitlistCaptainId]));
+
+        result.AffectedCount.Should().Be(2);
+        context.Stats.Verify(x => x.CreateMatchAsync(
+            It.IsAny<MatchEntity>(),
+            It.Is<IReadOnlyList<MatchTeam>>(teams => teams.Count == 2),
+            It.IsAny<IReadOnlyList<TeamAssignment>>(),
+            It.IsAny<IReadOnlyList<PlayerMatchStats>>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenCaptainIsNotConfirmed_RejectsWithoutMutation()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: true);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([context.Roster(context.Actor.Id, "Ada Green")]);
+        var handler = new AssignSessionCaptainsCommandHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new AssignSessionCaptainsCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Stats.Object,
+            context.Audits.Object,
+            context.UnitOfWork.Object);
+
+        var act = () => handler.HandleAsync(new AssignSessionCaptainsCommand(
+            context.Session.Id,
+            2,
+            [context.Actor.Id, Guid.NewGuid()]));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("*confirmed*");
+        context.Stats.Verify(x => x.CreateMatchAsync(
+            It.IsAny<MatchEntity>(),
+            It.IsAny<IReadOnlyList<MatchTeam>>(),
+            It.IsAny<IReadOnlyList<TeamAssignment>>(),
+            It.IsAny<IReadOnlyList<PlayerMatchStats>>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenCallerCaptainsAnotherTeam_RejectsDraftMutation()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        var otherCaptainId = Guid.NewGuid();
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var otherTeam = context.Team(otherCaptainId, 2);
+        context.ConfigureMatch([actorTeam, otherTeam]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([context.Roster(context.Actor.Id, "Ada Green")]);
+        var handler = new SaveCaptainTeamPicksCommandHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new SaveCaptainTeamPicksCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Stats.Object,
+            context.Audits.Object,
+            context.UnitOfWork.Object);
+
+        var act = () => handler.HandleAsync(new SaveCaptainTeamPicksCommand(
+            context.Session.Id,
+            otherTeam.Id,
+            [context.Actor.Id]));
+
+        await act.Should().ThrowAsync<ApplicationForbiddenException>()
+            .WithMessage("*captain or a game admin*");
+        context.Stats.Verify(x => x.ReplaceTeamAssignmentsAsync(
+            It.IsAny<Guid>(),
+            It.IsAny<Guid>(),
+            It.IsAny<IReadOnlyList<Guid>>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenGameAdminDraftsAnotherCaptainsTeam_SavesPicks()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: true);
+        var captainId = Guid.NewGuid();
+        var pickId = Guid.NewGuid();
+        var team = context.Team(captainId, 1);
+        context.ConfigureMatch([team, context.Team(Guid.NewGuid(), 2)]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(captainId, "Cap One"),
+                context.Roster(pickId, "Pick One")
+            ]);
+        var handler = new SaveCaptainTeamPicksCommandHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new SaveCaptainTeamPicksCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Stats.Object,
+            context.Audits.Object,
+            context.UnitOfWork.Object);
+
+        var result = await handler.HandleAsync(new SaveCaptainTeamPicksCommand(
+            context.Session.Id,
+            team.Id,
+            [pickId]));
+
+        result.AffectedCount.Should().Be(2);
+        context.Stats.Verify(x => x.ReplaceTeamAssignmentsAsync(
+            context.Match.Id,
+            team.Id,
+            It.Is<IReadOnlyList<Guid>>(ids => ids.Contains(pickId) && ids.Contains(captainId)),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAnotherTeamAlreadyPickedPlayer_RejectsDraftMutation()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        var otherCaptainId = Guid.NewGuid();
+        var selectedPlayerId = Guid.NewGuid();
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var otherTeam = context.Team(otherCaptainId, 2);
+        context.ConfigureMatch([actorTeam, otherTeam]);
+        context.Stats
+            .Setup(x => x.ListAssignmentsAsync(context.Match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Assignment(actorTeam.Id, context.Actor.Id),
+                context.Assignment(otherTeam.Id, selectedPlayerId)
+            ]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(context.Actor.Id, "Ada Green"),
+                context.Roster(selectedPlayerId, "Picked Player")
+            ]);
+        var handler = new SaveCaptainTeamPicksCommandHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new SaveCaptainTeamPicksCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Stats.Object,
+            context.Audits.Object,
+            context.UnitOfWork.Object);
+
+        var act = () => handler.HandleAsync(new SaveCaptainTeamPicksCommand(
+            context.Session.Id,
+            actorTeam.Id,
+            [selectedPlayerId]));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("*already been drafted*");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenDraftWindowHasEnded_LocksValidTeamsForPostGame()
+    {
+        var context = new TestContext(postGame: true, isGameAdmin: true);
+        var otherCaptainId = Guid.NewGuid();
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var otherTeam = context.Team(otherCaptainId, 2);
+        var assignments = new[]
+        {
+            context.Assignment(actorTeam.Id, context.Actor.Id),
+            context.Assignment(otherTeam.Id, otherCaptainId),
+        };
+        context.ConfigureMatch([actorTeam, otherTeam]);
+        context.Stats
+            .Setup(x => x.ListAssignmentsAsync(context.Match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(assignments);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(context.Actor.Id, "Ada Green"),
+                context.Roster(otherCaptainId, "Grace White")
+            ]);
+        var handler = new LockSessionTeamsCommandHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new LockSessionTeamsCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Stats.Object,
+            context.Audits.Object,
+            context.UnitOfWork.Object);
+
+        var result = await handler.HandleAsync(new LockSessionTeamsCommand(context.Session.Id));
+
+        result.AffectedCount.Should().Be(1);
+        context.Match.Status.Should().Be(MatchStatus.InProgress);
+        context.Audits.Verify(x => x.AddAsync(
+            It.Is<AuditLogEntry>(entry => entry.Action == "TeamDraft.Lock"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenPendingEventIsApproved_UpdatesExactEvent()
+    {
+        var context = new TestContext(postGame: true, isGameAdmin: false);
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var otherTeam = context.Team(Guid.NewGuid(), 2);
+        var matchEvent = new MatchEvent
+        {
+            Id = Guid.NewGuid(),
+            MatchId = context.Match.Id,
+            PlayerProfileId = context.Actor.Id,
+            EventType = MatchEventType.Goal,
+            ReviewStatus = MatchEventReviewStatus.Pending,
+        };
+        context.ConfigureMatch([actorTeam, otherTeam], MatchStatus.InProgress);
+        context.Stats
+            .Setup(x => x.FindMatchEventAsync(matchEvent.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(matchEvent);
+        var reviewHandler = new ReviewMatchEventCommandHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new ReviewMatchEventCommandValidator(),
+            context.Profiles.Object,
+            context.Stats.Object,
+            context.UnitOfWork.Object);
+        var handler = new ApprovePostGameStatCommandHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new ApprovePostGameStatCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Stats.Object,
+            reviewHandler);
+
+        var result = await handler.HandleAsync(new ApprovePostGameStatCommand(context.Session.Id, matchEvent.Id));
+
+        result.AffectedCount.Should().Be(1);
+        matchEvent.ReviewStatus.Should().Be(MatchEventReviewStatus.Approved);
+        matchEvent.ReviewedByPlayerProfileId.Should().Be(context.Actor.Id);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenFinalTeamResultContradictsRotation_MarksMatchForReview()
+    {
+        var context = new TestContext(postGame: true, isGameAdmin: false);
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var otherTeam = context.Team(Guid.NewGuid(), 2);
+        context.ConfigureMatch([actorTeam, otherTeam], MatchStatus.InProgress);
+        context.Stats
+            .Setup(x => x.ListMatchResultsAsync(context.Match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([context.Result(otherTeam.Id, wins: 1)]);
+        var handler = new SavePostGameTeamResultCommandHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new SavePostGameTeamResultCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Stats.Object,
+            context.Audits.Object,
+            context.UnitOfWork.Object);
+
+        var result = await handler.HandleAsync(new SavePostGameTeamResultCommand(
+            context.Session.Id,
+            actorTeam.Id,
+            1,
+            0,
+            0));
+
+        result.AffectedCount.Should().Be(1);
+        context.Match.Status.Should().Be(MatchStatus.NeedsReview);
+        context.Stats.Verify(x => x.AddStatCorrectionAsync(
+            It.Is<StatCorrection>(correction => correction.Reason == "Conflicting team result submissions."),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAnEventIsPending_RejectsPublish()
+    {
+        var context = new TestContext(postGame: true, isGameAdmin: false);
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var otherTeam = context.Team(Guid.NewGuid(), 2);
+        context.ConfigureMatch([actorTeam, otherTeam], MatchStatus.Completed);
+        context.Stats
+            .Setup(x => x.ListMatchResultsAsync(context.Match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Result(actorTeam.Id, wins: 1),
+                context.Result(otherTeam.Id, losses: 1)
+            ]);
+        context.Stats
+            .Setup(x => x.ListMatchEventsAsync(context.Match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new MatchEvent
+            {
+                Id = Guid.NewGuid(),
+                MatchId = context.Match.Id,
+                EventType = MatchEventType.Goal,
+                ReviewStatus = MatchEventReviewStatus.Pending,
+            }]);
+        var handler = context.CreatePublishHandler();
+
+        var act = () => handler.HandleAsync(new PublishPostGameCommand(context.Session.Id));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("*must be reviewed*");
+        context.Match.Status.Should().Be(MatchStatus.Completed);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenResultsAndReviewsAreComplete_PublishesAndAuditsMatch()
+    {
+        var context = new TestContext(postGame: true, isGameAdmin: false);
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var otherTeam = context.Team(Guid.NewGuid(), 2);
+        context.ConfigureMatch([actorTeam, otherTeam], MatchStatus.Completed);
+        context.Stats
+            .Setup(x => x.ListMatchResultsAsync(context.Match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Result(actorTeam.Id, wins: 1),
+                context.Result(otherTeam.Id, losses: 1)
+            ]);
+        context.Stats
+            .Setup(x => x.ListMatchEventsAsync(context.Match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new MatchEvent
+            {
+                Id = Guid.NewGuid(),
+                MatchId = context.Match.Id,
+                EventType = MatchEventType.Goal,
+                ReviewStatus = MatchEventReviewStatus.Approved,
+            }]);
+        var handler = context.CreatePublishHandler();
+
+        var result = await handler.HandleAsync(new PublishPostGameCommand(context.Session.Id));
+
+        result.AffectedCount.Should().Be(1);
+        context.Match.Status.Should().Be(MatchStatus.Published);
+        context.Audits.Verify(x => x.AddAsync(
+            It.Is<AuditLogEntry>(entry => entry.Action == "PostGame.Publish"),
+            It.IsAny<CancellationToken>()), Times.Once);
+        context.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    private sealed class TestContext
+    {
+        public TestContext(bool postGame, bool isGameAdmin)
+        {
+            Clock.SetupGet(x => x.UtcNow).Returns(postGame
+                ? Session.StartsAtUtc.AddMinutes(100)
+                : Session.StartsAtUtc.AddMinutes(-5));
+            CurrentUser.SetupGet(x => x.UserId).Returns(Actor.IdentityUserId);
+            CurrentUser.Setup(x => x.HasPolicy("CanManageSessions")).Returns(isGameAdmin);
+            Profiles
+                .Setup(x => x.FindByIdentityUserIdAsync(Actor.IdentityUserId!.Value, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Actor);
+            Sessions
+                .Setup(x => x.GetByIdAsync(Session.Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Session);
+            UnitOfWork
+                .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(1);
+            Rsvps
+                .Setup(x => x.ListGoingRosterAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<RosterMemberRecord>());
+            Rsvps
+                .Setup(x => x.ListActiveWaitlistRosterAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<RosterMemberRecord>());
+            PickupPalGames
+                .Setup(x => x.ListParticipantsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<PickupPalGameParticipant>());
+        }
+
+        public PlayerProfile Actor { get; } = new()
+        {
+            Id = Guid.NewGuid(),
+            IdentityUserId = Guid.NewGuid(),
+            DisplayName = "Ada Green",
+            PreferredPosition = "MID",
+        };
+
+        public Session Session { get; } = new()
+        {
+            Id = Guid.NewGuid(),
+            SeasonId = Guid.NewGuid(),
+            VenueId = Guid.NewGuid(),
+            Title = "Wednesday Pickup",
+            Format = "7v7",
+            Capacity = 20,
+            TeamCount = 2,
+            StartsAtUtc = new DateTime(2026, 7, 23, 2, 40, 0, DateTimeKind.Utc),
+            CheckInOpensAtUtc = new DateTime(2026, 7, 23, 2, 30, 0, DateTimeKind.Utc),
+            CheckInClosesAtUtc = new DateTime(2026, 7, 23, 2, 45, 0, DateTimeKind.Utc),
+            RsvpDeadlineUtc = new DateTime(2026, 7, 23, 1, 40, 0, DateTimeKind.Utc),
+            Status = SessionStatus.Published,
+        };
+
+        public MatchEntity Match { get; } = new()
+        {
+            Id = Guid.NewGuid(),
+            MatchNumber = 1,
+            Status = MatchStatus.Draft,
+        };
+
+        public Mock<ICurrentUser> CurrentUser { get; } = new();
+        public Mock<IClock> Clock { get; } = new();
+        public Mock<IPlayerProfileRepository> Profiles { get; } = new();
+        public Mock<ISessionRepository> Sessions { get; } = new();
+        public Mock<IRsvpRepository> Rsvps { get; } = new();
+        public Mock<IPickupPalGameRepository> PickupPalGames { get; } = new();
+        public Mock<IStatsRepository> Stats { get; } = new();
+        public Mock<IAuditLogRepository> Audits { get; } = new();
+        public Mock<IUnitOfWork> UnitOfWork { get; } = new();
+
+        public void ConfigureMatch(IReadOnlyList<MatchTeam> teams, MatchStatus status = MatchStatus.Draft)
+        {
+            Match.SessionId = Session.Id;
+            Match.Status = status;
+            Stats
+                .Setup(x => x.FindPrimaryMatchBySessionAsync(Session.Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Match);
+            Stats
+                .Setup(x => x.FindMatchAsync(Match.Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Match);
+            Stats
+                .Setup(x => x.ListMatchTeamsAsync(Match.Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(teams);
+            Stats
+                .Setup(x => x.ListAssignmentsAsync(Match.Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<TeamAssignment>());
+        }
+
+        public RosterMemberRecord Roster(Guid id, string name) =>
+            new(id, name, "MID", false, null);
+
+        public MatchTeam Team(Guid captainId, int teamNumber) => new()
+        {
+            Id = Guid.NewGuid(),
+            MatchId = Match.Id,
+            TeamNumber = teamNumber,
+            Name = teamNumber == 1 ? "Team Green" : "Team White",
+            CaptainPlayerProfileId = captainId,
+        };
+
+        public TeamAssignment Assignment(Guid teamId, Guid playerId) => new()
+        {
+            Id = Guid.NewGuid(),
+            MatchId = Match.Id,
+            MatchTeamId = teamId,
+            PlayerProfileId = playerId,
+        };
+
+        public MatchResult Result(Guid teamId, int wins = 0, int draws = 0, int losses = 0) => new()
+        {
+            Id = Guid.NewGuid(),
+            MatchId = Match.Id,
+            MatchTeamId = teamId,
+            Wins = wins,
+            Draws = draws,
+            Losses = losses,
+        };
+
+        public PublishPostGameCommandHandler CreatePublishHandler() => new(
+            CurrentUser.Object,
+            Clock.Object,
+            new PublishPostGameCommandValidator(),
+            Profiles.Object,
+            Sessions.Object,
+            Stats.Object,
+            Audits.Object,
+            UnitOfWork.Object);
+    }
+}

@@ -30,7 +30,9 @@ public sealed class PickupPalGamesClientTests
               "participants": [
                 {
                   "id": "cmrti951l00fm75un3agopbyl",
+                  "userId": "cmrmarkuser0001",
                   "whatsappJid": "217973935587425@lid",
+                  "phoneNumber": "+1 (408) 555-1234",
                   "displayName": "Mark A",
                   "isGuest": false,
                   "joinedAt": "2026-07-20T17:35:11.817Z",
@@ -87,14 +89,36 @@ public sealed class PickupPalGamesClientTests
     }
 
     [Fact]
+    public async Task GetActiveGamesAsync_HashesPhoneAndWhatsAppIdentityInsteadOfExposingRawValues()
+    {
+        var client = CreateClient(_ => JsonResponse(ActiveGamesJson));
+
+        var games = await client.GetActiveGamesAsync();
+
+        var mark = games.Single().Participants[0];
+        mark.UserId.Should().Be("cmrmarkuser0001");
+        mark.PhoneNumberHash.Should().MatchRegex("^[0-9A-F]{64}$", "phones cross the boundary only as SHA-256 hashes");
+        mark.MaskedPhoneNumber.Should().Be("+******1234");
+        mark.WhatsAppJidHash.Should().MatchRegex("^[0-9A-F]{64}$").And.NotContain("@lid");
+
+        var tope = games.Single().Participants[1];
+        tope.UserId.Should().BeNull();
+        tope.PhoneNumberHash.Should().BeNull();
+        tope.WhatsAppJidHash.Should().BeNull();
+    }
+
+    [Fact]
     public async Task GetActiveGamesAsync_SanitizedShapeNeverCarriesWhatsAppIdentifiers()
     {
         var client = CreateClient(_ => JsonResponse(ActiveGamesJson));
 
         var games = await client.GetActiveGamesAsync();
 
+        // The persisted snapshot shape must exclude the identity fields entirely: no raw JIDs, no
+        // phone digits, and not even the hashes (they live on PlayerProfile, not in snapshots).
         var serialized = System.Text.Json.JsonSerializer.Serialize(games);
         serialized.Should().NotContain("@lid").And.NotContain("@g.us").And.NotContain("@c.us");
+        serialized.Should().NotContain("4085551234").And.NotContain("Hash").And.NotContain("cmrmarkuser0001");
     }
 
     [Fact]

@@ -57,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<IRsvpRepository, RsvpRepository>();
         services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<IStatsRepository, StatsRepository>();
+        services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         services.TryAddScoped<IPaymentGateway, UnavailablePaymentGateway>();
         services.AddScoped<IIdempotencyStore, EfIdempotencyStore>();
         services.TryAddSingleton<IMapsService, UnavailableMapsService>();
@@ -101,4 +102,3 @@ public static class DependencyInjection
         return services;
     }
 }
-

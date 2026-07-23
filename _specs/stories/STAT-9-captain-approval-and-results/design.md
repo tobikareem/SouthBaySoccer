@@ -34,3 +34,18 @@ submitted facts count.
   and expose W/D/L steppers per team for the game day. Validate `wins + draws + losses <= teamCount - 1`, so two-team sessions max 1, three-team sessions max 2, and four-team sessions max 3.
 - Conflicts move the match to Needs Review; GameAdmin resolution requires an audit note.
 - Published stats can be changed only by `StatCorrection`.
+
+## Server contract
+
+- `GET /api/game-day/sessions/{sessionId}/post-game` projects the primary match, per-team rotation
+  counters, and its raw event review queue for an assigned captain or GameAdmin.
+- `POST /api/game-day/sessions/{sessionId}/post-game/events/{matchEventId}/approve` approves one raw
+  event with reviewer and UTC timestamp. The match event id is the stable approval id.
+- `PUT /api/game-day/sessions/{sessionId}/post-game/results/{teamId}` records one team's W/D/L
+  counters. A captain may write only their assigned team; a GameAdmin may write any team. A changed
+  second submission moves the match to `NeedsReview` and writes a `StatCorrection` audit row.
+- `POST /api/game-day/sessions/{sessionId}/post-game/publish` requires a result for every team, no
+  pending event reviews, no unresolved conflict, and a complete, internally consistent W/D/L
+  rotation matrix. Publishing is idempotent and changes the match to `Published`; subsequent normal
+  draft, result, and event-review writes are rejected.
+- Approval and result recording reject a `Draft` match; a GameAdmin must explicitly lock teams first.

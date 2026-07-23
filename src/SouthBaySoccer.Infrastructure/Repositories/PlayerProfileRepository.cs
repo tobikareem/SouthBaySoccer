@@ -13,8 +13,32 @@ internal sealed class PlayerProfileRepository(SouthBaySoccerDbContext dbContext)
     public Task<PlayerProfile?> FindByIdentityUserIdAsync(Guid identityUserId, CancellationToken cancellationToken = default) =>
         dbContext.PlayerProfiles.SingleOrDefaultAsync(x => x.IdentityUserId == identityUserId, cancellationToken);
 
+    public Task<PlayerProfile?> FindByPickupPalUserIdAsync(string pickupPalUserId, CancellationToken cancellationToken = default) =>
+        dbContext.PlayerProfiles.SingleOrDefaultAsync(x => x.PickupPalUserId == pickupPalUserId, cancellationToken);
+
+    // FirstOrDefault rather than SingleOrDefault: phone and WhatsApp hashes are dedup hints without
+    // unique indexes, so a pathological duplicate must not break the import.
+    public Task<PlayerProfile?> FindByPhoneNumberHashAsync(string phoneNumberHash, CancellationToken cancellationToken = default) =>
+        dbContext.PlayerProfiles
+            .OrderBy(x => x.CreatedAt)
+            .FirstOrDefaultAsync(x => x.PhoneNumberHash == phoneNumberHash, cancellationToken);
+
+    public Task<PlayerProfile?> FindByWhatsAppJidHashAsync(string whatsAppJidHash, CancellationToken cancellationToken = default) =>
+        dbContext.PlayerProfiles
+            .OrderBy(x => x.CreatedAt)
+            .FirstOrDefaultAsync(x => x.WhatsAppJidHash == whatsAppJidHash, cancellationToken);
+
     public Task<PlayerProfile?> FindProfileAsync(Guid playerProfileId, CancellationToken cancellationToken = default) =>
         dbContext.PlayerProfiles.SingleOrDefaultAsync(x => x.Id == playerProfileId, cancellationToken);
+
+    public async Task<IReadOnlyList<PlayerProfile>> ListProfilesAsync(
+        IReadOnlyCollection<Guid> playerProfileIds,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.PlayerProfiles
+            .Where(x => playerProfileIds.Contains(x.Id))
+            .OrderBy(x => x.NormalizedDisplayName)
+            .ThenBy(x => x.Id)
+            .ToArrayAsync(cancellationToken);
 
     public async Task<IReadOnlyList<PlayerDirectoryReadModel>> ListDirectoryAsync(CancellationToken cancellationToken = default) =>
         await (

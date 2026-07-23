@@ -33,10 +33,10 @@
                                             </VerticalStackLayout>
                                             <c:Badge Grid.Column="1" Text="{Binding MaxResults, StringFormat='max {0}'}" Variant="Warning" />
                                         </Grid>
-                                        <c:CounterStepper Caption="Wins" Value="{Binding Wins}" Minimum="0" Maximum="{Binding MaxResults}" />
-                                        <c:CounterStepper Caption="Draws" Value="{Binding Draws}" Minimum="0" Maximum="{Binding MaxResults}" />
-                                        <c:CounterStepper Caption="Losses" Value="{Binding Losses}" Minimum="0" Maximum="{Binding MaxResults}" />
-                                        <Button Text="Save result" Command="{Binding BindingContext.SaveResultCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" Style="{StaticResource GhostButton}" />
+                                        <c:CounterStepper Caption="Wins" Value="{Binding Wins}" Minimum="0" Maximum="{Binding MaxResults}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
+                                        <c:CounterStepper Caption="Draws" Value="{Binding Draws}" Minimum="0" Maximum="{Binding MaxResults}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
+                                        <c:CounterStepper Caption="Losses" Value="{Binding Losses}" Minimum="0" Maximum="{Binding MaxResults}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
+                                        <Button Text="Save result" Command="{Binding BindingContext.SaveResultCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" Style="{StaticResource GhostButton}" />
                                     </VerticalStackLayout>
                                 </c:BrandCard>
                             </DataTemplate>
@@ -48,6 +48,9 @@
                             <Label Grid.Column="1" Text="Review items must be resolved by a GameAdmin before publishing." Style="{StaticResource TextCaption}" />
                         </Grid>
                     </Border>
+                    <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding IsReadOnlyPostGame}">
+                        <Label Text="Post-game review is read-only for this account or has already been published." Style="{StaticResource TextCaption}" />
+                    </Border>
                     <c:SectionHeader Text="Pending goals and assists" />
                     <c:BrandCard>
                         <VerticalStackLayout BindableLayout.ItemsSource="{Binding Approvals}" Spacing="{StaticResource SpaceXs}">
@@ -55,18 +58,17 @@
                                 <DataTemplate x:DataType="pageModels:StatApprovalItem">
                                     <c:PlayerRow Initials="{Binding Initials}" Name="{Binding Name}" Detail="{Binding Detail}">
                                         <c:PlayerRow.TrailingContent>
-                                            <Button Text="{Binding ApprovalActionText}" Command="{Binding BindingContext.ApproveStatCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" Style="{StaticResource GhostButton}" IsVisible="{Binding CanApprove}" />
+                                            <Button Text="{Binding ApprovalActionText}" Command="{Binding BindingContext.ApproveStatCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" Style="{StaticResource GhostButton}" IsVisible="{Binding CanApprove}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
                                         </c:PlayerRow.TrailingContent>
                                     </c:PlayerRow>
                                 </DataTemplate>
                             </BindableLayout.ItemTemplate>
                         </VerticalStackLayout>
                     </c:BrandCard>
-                    <Button Text="Publish approved match" Command="{Binding PublishCommand}" Style="{StaticResource PrimaryButton}" />
+                    <Button Text="Publish approved match" Command="{Binding PublishCommand}" IsEnabled="{Binding CanPublish}" Style="{StaticResource PrimaryButton}" />
                 </VerticalStackLayout>
             </ScrollView>
         </c:StateView>
     </Grid>
 </ContentPage>
-
 
