@@ -102,6 +102,8 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<IValidator<GetSeasonLeaderboardQuery>, GetSeasonLeaderboardQueryValidator>();
         builder.Services.AddScoped<IValidator<GetPlayerStatsQuery>, GetPlayerStatsQueryValidator>();
         builder.Services.AddScoped<IValidator<GetPlayerRecentFormQuery>, GetPlayerRecentFormQueryValidator>();
+        builder.Services.AddScoped<IValidator<SubmitMyMatchStatsCommand>, SubmitMyMatchStatsCommandValidator>();
+        builder.Services.AddScoped<IValidator<ConfirmPlayerSubmissionCommand>, ConfirmPlayerSubmissionCommandValidator>();
         builder.Services.AddScoped<CreateMatchCommandHandler>();
         builder.Services.AddScoped<RecordMatchEventsCommandHandler>();
         builder.Services.AddScoped<RecordMatchResultsCommandHandler>();
@@ -115,6 +117,10 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<GetPlayerStatsQueryHandler>();
         builder.Services.AddScoped<GetMyPlayerStatsQueryHandler>();
         builder.Services.AddScoped<GetPlayerRecentFormQueryHandler>();
+        builder.Services.AddScoped<GetMyMatchStatsQueryHandler>();
+        builder.Services.AddScoped<GetRateableTeammatesQueryHandler>();
+        builder.Services.AddScoped<SubmitMyMatchStatsCommandHandler>();
+        builder.Services.AddScoped<ConfirmPlayerSubmissionCommandHandler>();
         builder.Services.AddScoped<FunctionCurrentUser>();
         builder.Services.AddScoped<ICurrentUser>(services => services.GetRequiredService<FunctionCurrentUser>());
         builder.Services.AddScoped<IFunctionCurrentUserAccessor>(services => services.GetRequiredService<FunctionCurrentUser>());

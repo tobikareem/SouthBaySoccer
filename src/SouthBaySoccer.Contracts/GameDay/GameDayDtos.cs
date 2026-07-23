@@ -47,7 +47,8 @@ public sealed record GameDayContextDto(
     bool CanLateCheckIn = false,
     IReadOnlyList<GameDayPlayerDto>? LateCheckInPlayers = null,
     IReadOnlyList<GameDayRosterEntryDto>? Roster = null,
-    bool CanManageCheckIns = false);
+    bool CanManageCheckIns = false,
+    bool CanSubmitOwnStats = false);
 
 public sealed record GameDayPlayerDto(
     Guid PlayerProfileId,

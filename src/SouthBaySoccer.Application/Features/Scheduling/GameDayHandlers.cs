@@ -40,7 +40,8 @@ public sealed record GameDayContextModel(
     bool CanLateCheckIn,
     IReadOnlyList<GameDayPlayerModel> LateCheckInPlayers,
     IReadOnlyList<GameDayRosterEntryModel> Roster,
-    bool CanManageCheckIns);
+    bool CanManageCheckIns,
+    bool CanSubmitOwnStats);
 
 public sealed class GetTodayGameDayContextQueryHandler(
     ICurrentUser currentUser,
@@ -123,6 +124,16 @@ public sealed class GetTodayGameDayContextQueryHandler(
                 and not MatchStatus.Locked
             && (GameDayWorkflowAuthorization.IsGameAdmin(currentUser)
                 || teams.Any(team => team.CaptainPlayerProfileId == profile.Id));
+        // STAT-7/STAT-8 entry point: once teams are locked and the post-game window is open, a
+        // player who was actually drafted can report their own tally and rate the side they played
+        // with. Published/locked matches are settled and only move through a stat correction.
+        var canSubmitOwnStats = match is not null
+            && GameDayWorkflowQueries.IsPostGameOpen(session, nowUtc)
+            && match.Status is not MatchStatus.Draft
+                and not MatchStatus.Published
+                and not MatchStatus.Locked
+            && (await statsRepository.ListAssignmentsAsync(match.Id, cancellationToken))
+                .Any(assignment => assignment.PlayerProfileId == profile.Id);
         var latePlayers = canLateCheckIn
             ? await ListConfirmedPlayersAsync(
                 session.Id,
@@ -168,7 +179,8 @@ public sealed class GetTodayGameDayContextQueryHandler(
             canLateCheckIn,
             latePlayers,
             roster,
-            canManageCheckIns);
+            canManageCheckIns,
+            canSubmitOwnStats);
     }
 
     private async Task<IReadOnlyList<GameDayPlayerModel>> ListConfirmedPlayersAsync(

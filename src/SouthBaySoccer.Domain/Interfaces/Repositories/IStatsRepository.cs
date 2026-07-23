@@ -32,6 +32,17 @@ public interface IStatsRepository
         IReadOnlyList<MatchEvent> events,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Replaces only the pending rows a single player submitted for themselves, leaving every other
+    /// player's rows and any already-reviewed row untouched. This makes a player's self-submission
+    /// idempotent: resubmitting overwrites their own pending claim instead of stacking duplicates.
+    /// </summary>
+    Task ReplaceOwnPendingMatchEventsAsync(
+        Guid matchId,
+        Guid submittedByPlayerProfileId,
+        IReadOnlyList<MatchEvent> events,
+        CancellationToken cancellationToken = default);
+
     Task UpsertMatchResultsAsync(
         Guid matchId,
         IReadOnlyList<MatchResult> results,

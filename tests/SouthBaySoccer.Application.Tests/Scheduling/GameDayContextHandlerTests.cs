@@ -262,6 +262,11 @@ public sealed class GameDayContextHandlerTests
             PickupPalGames
                 .Setup(x => x.ListParticipantsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Array.Empty<PickupPalGameParticipant>());
+            // The real repository returns an empty list, never null; without this default an
+            // unstubbed read would hand the handler a null collection.
+            Stats
+                .Setup(x => x.ListAssignmentsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<TeamAssignment>());
         }
 
         public PlayerProfile Profile { get; } = new()
