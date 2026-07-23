@@ -21,6 +21,8 @@ public interface IGameDayNavigator
 
     Task OpenRateTeammatesAsync(Guid matchId);
 
+    Task OpenRecentGamesAsync();
+
     Task GoBackAsync();
 }
 
@@ -108,6 +110,7 @@ public partial class GameDayPageModel(
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AdminCheckInCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenRecentGamesCommand))]
     private bool _canManageCheckIns;
 
     [ObservableProperty]
@@ -327,6 +330,10 @@ public partial class GameDayPageModel(
     [RelayCommand(CanExecute = nameof(CanOpenOwnStats))]
     private Task OpenRateTeammates() =>
         CanOpenOwnStats() ? navigator.OpenRateTeammatesAsync(matchId) : Task.CompletedTask;
+
+    [RelayCommand(CanExecute = nameof(CanManageCheckIns))]
+    private Task OpenRecentGames() =>
+        CanManageCheckIns ? navigator.OpenRecentGamesAsync() : Task.CompletedTask;
 
     private bool CanCheckInNow() => CanCheckIn && !IsBusy;
 
@@ -1127,6 +1134,8 @@ public sealed class ShellGameDayNavigator : IGameDayNavigator
     // The rater is resolved server-side from the bearer token (INV-8), so only the match travels.
     public Task OpenRateTeammatesAsync(Guid matchId) =>
         Shell.Current.GoToAsync($"rate-teammates?matchId={Uri.EscapeDataString(matchId.ToString())}");
+
+    public Task OpenRecentGamesAsync() => Shell.Current.GoToAsync("recent-games");
 
     public Task GoBackAsync() => Shell.Current.GoToAsync("..");
 

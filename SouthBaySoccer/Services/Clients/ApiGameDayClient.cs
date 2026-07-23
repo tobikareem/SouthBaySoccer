@@ -24,6 +24,21 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
             cancellationToken: cancellationToken);
     }
 
+    public async Task<IReadOnlyList<RecentGameDto>> GetRecentGamesAsync(CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.GetAsync("game-day/recent", cancellationToken);
+        // Non-admins simply have no recent-games list; that is not an error worth surfacing.
+        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NoContent)
+        {
+            return [];
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<RecentGameDto>>(
+                   cancellationToken: cancellationToken)
+               ?? [];
+    }
+
     public Task<ClientCommandResult> CheckInAsync(
         Guid sessionId,
         Guid idempotencyKey,
