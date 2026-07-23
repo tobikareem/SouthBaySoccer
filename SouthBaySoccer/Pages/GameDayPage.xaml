@@ -150,6 +150,7 @@
                 <c:SectionHeader Text="Game-day actions" IsVisible="{Binding HasGameDayActions}" />
                 <c:PlayerRow Initials="CA" Name="Assign captains" Detail="2, 3, or 4 captains = 2, 3, or 4 teams" TapCommand="{Binding OpenCaptainAssignmentCommand}" IsVisible="{Binding CanAssignCaptains}" />
                 <c:PlayerRow Initials="DR" Name="Pick your team" Detail="Captain permission - session scoped" TapCommand="{Binding OpenTeamDraftCommand}" IsVisible="{Binding CanDraftTeam}" />
+                <c:PlayerRow Initials="RG" Name="Recent games" Detail="Fix teams or review stats after the game" TapCommand="{Binding OpenRecentGamesCommand}" IsVisible="{Binding CanManageCheckIns}" />
                 <c:PlayerRow Initials="MS" Name="Submit your stats" Detail="Report your goals and assists for confirmation" TapCommand="{Binding OpenMatchStatsCommand}" IsVisible="{Binding CanSubmitOwnStats}" />
                 <c:PlayerRow Initials="RT" Name="Rate teammates" Detail="Rate, like, and pick one MVP" TapCommand="{Binding OpenRateTeammatesCommand}" IsVisible="{Binding CanSubmitOwnStats}" />
                 <c:PlayerRow Initials="PG" Name="Approve stats and result" Detail="After game - captains only" TapCommand="{Binding OpenPostGameApprovalCommand}" IsVisible="{Binding CanApprovePostGame}" />

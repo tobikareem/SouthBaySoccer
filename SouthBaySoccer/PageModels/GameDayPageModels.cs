@@ -21,6 +21,8 @@ public interface IGameDayNavigator
 
     Task OpenRateTeammatesAsync(Guid matchId);
 
+    Task OpenRecentGamesAsync();
+
     Task GoBackAsync();
 }
 
@@ -108,6 +110,7 @@ public partial class GameDayPageModel(
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AdminCheckInCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenRecentGamesCommand))]
     private bool _canManageCheckIns;
 
     [ObservableProperty]
@@ -327,6 +330,10 @@ public partial class GameDayPageModel(
     [RelayCommand(CanExecute = nameof(CanOpenOwnStats))]
     private Task OpenRateTeammates() =>
         CanOpenOwnStats() ? navigator.OpenRateTeammatesAsync(matchId) : Task.CompletedTask;
+
+    [RelayCommand(CanExecute = nameof(CanManageCheckIns))]
+    private Task OpenRecentGames() =>
+        CanManageCheckIns ? navigator.OpenRecentGamesAsync() : Task.CompletedTask;
 
     private bool CanCheckInNow() => CanCheckIn && !IsBusy;
 
@@ -957,9 +964,16 @@ public partial class DraftPlayerItem(Guid playerId, string initials, string name
 
 public partial class TeamResultItem(Guid teamId, string teamName, int teamCount, int wins, int draws, int losses) : ObservableObject
 {
+    /// <summary>
+    /// Two teams play each other, so their records mirror and one game each is the norm; with three
+    /// or four teams the night is a rotation and a side can play far more games than it has
+    /// opponents, so the counters are only floored at zero.
+    /// </summary>
+    private const int RotationCeiling = 30;
+
     public Guid TeamId { get; } = teamId;
     public string TeamName { get; } = teamName;
-    public int MaxResults { get; } = teamCount - 1;
+    public int TeamCount { get; } = teamCount;
 
     [ObservableProperty]
     private int _wins = wins;
@@ -970,42 +984,33 @@ public partial class TeamResultItem(Guid teamId, string teamName, int teamCount,
     [ObservableProperty]
     private int _losses = losses;
 
-    public string Detail => $"{Wins + Draws + Losses} of {MaxResults} results recorded";
+    public int GamesRecorded => Wins + Draws + Losses;
 
-    partial void OnWinsChanged(int value) => ClampTotals(nameof(Wins));
+    public string Detail => GamesRecorded == 1
+        ? "1 game recorded"
+        : $"{GamesRecorded} games recorded";
 
-    partial void OnDrawsChanged(int value) => ClampTotals(nameof(Draws));
+    partial void OnWinsChanged(int value) => NotifyTotals();
 
-    partial void OnLossesChanged(int value) => ClampTotals(nameof(Losses));
+    partial void OnDrawsChanged(int value) => NotifyTotals();
 
-    private void ClampTotals(string changedProperty)
+    partial void OnLossesChanged(int value) => NotifyTotals();
+
+    private void NotifyTotals()
     {
-        var excess = Wins + Draws + Losses - MaxResults;
-        if (excess <= 0)
-        {
-            OnPropertyChanged(nameof(Detail));
-            return;
-        }
-
-        if (changedProperty == nameof(Wins))
-        {
-            Wins = Math.Max(0, Wins - excess);
-        }
-        else if (changedProperty == nameof(Draws))
-        {
-            Draws = Math.Max(0, Draws - excess);
-        }
-        else
-        {
-            Losses = Math.Max(0, Losses - excess);
-        }
-
+        OnPropertyChanged(nameof(GamesRecorded));
         OnPropertyChanged(nameof(Detail));
     }
 
     public bool TryUpdate(int winsValue, int drawsValue, int lossesValue)
     {
-        if (winsValue + drawsValue + lossesValue > MaxResults)
+        if (winsValue < 0 || drawsValue < 0 || lossesValue < 0)
+        {
+            return false;
+        }
+
+        // A sanity ceiling only, to stop a stuck stepper running away - not a fixture-count rule.
+        if (winsValue + drawsValue + lossesValue > RotationCeiling)
         {
             return false;
         }
@@ -1013,7 +1018,7 @@ public partial class TeamResultItem(Guid teamId, string teamName, int teamCount,
         Wins = winsValue;
         Draws = drawsValue;
         Losses = lossesValue;
-        OnPropertyChanged(nameof(Detail));
+        NotifyTotals();
         return true;
     }
 }
@@ -1127,6 +1132,8 @@ public sealed class ShellGameDayNavigator : IGameDayNavigator
     // The rater is resolved server-side from the bearer token (INV-8), so only the match travels.
     public Task OpenRateTeammatesAsync(Guid matchId) =>
         Shell.Current.GoToAsync($"rate-teammates?matchId={Uri.EscapeDataString(matchId.ToString())}");
+
+    public Task OpenRecentGamesAsync() => Shell.Current.GoToAsync("recent-games");
 
     public Task GoBackAsync() => Shell.Current.GoToAsync("..");
 

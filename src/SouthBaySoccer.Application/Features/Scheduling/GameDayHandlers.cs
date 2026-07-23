@@ -43,6 +43,70 @@ public sealed record GameDayContextModel(
     bool CanManageCheckIns,
     bool CanSubmitOwnStats);
 
+public sealed record RecentGameModel(
+    Guid SessionId,
+    Guid MatchId,
+    string Title,
+    string Venue,
+    DateTime StartsAtUtc,
+    string MatchStatus,
+    int TeamCount,
+    int PendingApprovalCount,
+    bool CanEditTeams);
+
+/// <summary>
+/// Lists games that have already kicked off inside the admin edit window, so a game admin can go
+/// back into a past session to fix teams or clear the stat queue. Game Day itself only ever shows
+/// today, which otherwise leaves yesterday's match unreachable.
+/// </summary>
+public sealed class GetRecentGamesQueryHandler(
+    ICurrentUser currentUser,
+    IClock clock,
+    ISessionRepository sessionRepository,
+    IVenueRepository venueRepository,
+    IStatsRepository statsRepository)
+{
+    public async Task<IReadOnlyList<RecentGameModel>> HandleAsync(CancellationToken cancellationToken = default)
+    {
+        GameDayWorkflowAuthorization.EnsureGameAdmin(currentUser);
+        var nowUtc = clock.UtcNow;
+        var sessions = await sessionRepository.ListGameDayCandidatesAsync(
+            nowUtc.Subtract(GameDayWorkflowQueries.AdminTeamEditWindow),
+            nowUtc,
+            cancellationToken);
+
+        var games = new List<RecentGameModel>(sessions.Count);
+        foreach (var session in sessions.OrderByDescending(x => x.StartsAtUtc))
+        {
+            var match = await statsRepository.FindPrimaryMatchBySessionAsync(session.Id, cancellationToken);
+            var venue = await venueRepository.GetByIdAsync(session.VenueId, cancellationToken);
+            var teams = match is null
+                ? []
+                : await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken);
+            var pendingApprovals = 0;
+            if (match is not null)
+            {
+                var events = await statsRepository.ListMatchEventsAsync(match.Id, cancellationToken);
+                pendingApprovals = events.Count(x => x.ReviewStatus == MatchEventReviewStatus.Pending);
+            }
+
+            games.Add(new RecentGameModel(
+                session.Id,
+                match?.Id ?? Guid.Empty,
+                session.Title,
+                venue?.Name ?? "Unknown venue",
+                session.StartsAtUtc,
+                match?.Status.ToString() ?? "NotStarted",
+                teams.Count,
+                pendingApprovals,
+                GameDayWorkflowQueries.IsAdminTeamEditOpen(session, nowUtc)
+                    && match?.Status is not MatchStatus.Published and not MatchStatus.Locked));
+        }
+
+        return games;
+    }
+}
+
 public sealed class GetTodayGameDayContextQueryHandler(
     ICurrentUser currentUser,
     IClock clock,

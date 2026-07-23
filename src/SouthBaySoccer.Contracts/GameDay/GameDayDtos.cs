@@ -50,6 +50,17 @@ public sealed record GameDayContextDto(
     bool CanManageCheckIns = false,
     bool CanSubmitOwnStats = false);
 
+public sealed record RecentGameDto(
+    Guid SessionId,
+    Guid MatchId,
+    string Title,
+    string Venue,
+    string DateLabel,
+    string StatusLabel,
+    int TeamCount,
+    int PendingApprovalCount,
+    bool CanEditTeams);
+
 public sealed record GameDayPlayerDto(
     Guid PlayerProfileId,
     string DisplayName,

@@ -3,6 +3,7 @@ using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Scheduling;
+using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Entities.Stats;
 using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
@@ -115,7 +116,11 @@ public sealed class GetMyMatchStatsQueryHandler(
 
 public sealed class GetRateableTeammatesQueryHandler(
     ICurrentUser currentUser,
+    IClock clock,
     IPlayerProfileRepository playerProfileRepository,
+    ISessionRepository sessionRepository,
+    IRsvpRepository rsvpRepository,
+    IPickupPalGameRepository pickupPalGameRepository,
     IStatsRepository statsRepository)
 {
     public async Task<IReadOnlyList<RateableTeammateModel>> HandleAsync(
@@ -126,21 +131,30 @@ public sealed class GetRateableTeammatesQueryHandler(
             currentUser,
             playerProfileRepository,
             cancellationToken);
-        _ = await statsRepository.FindMatchAsync(query.MatchId, cancellationToken)
+        var match = await statsRepository.FindMatchAsync(query.MatchId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Match was not found.");
-
-        var assignments = await statsRepository.ListAssignmentsAsync(query.MatchId, cancellationToken);
-        var ownAssignment = assignments.FirstOrDefault(x => x.PlayerProfileId == actor.Id);
-        if (ownAssignment is null)
+        var session = await sessionRepository.GetByIdAsync(match.SessionId, cancellationToken);
+        if (session is null || !PeerFeedbackWindow.IsOpen(session, clock.UtcNow))
         {
-            // Not drafted onto a team, so there is nobody this player shared a side with.
+            return [];
+        }
+
+        // Everyone who was part of the session can rate everyone else they played with - not just
+        // their own side - so the pool is the confirmed roster rather than one team's draft picks.
+        var roster = await GameDayWorkflowQueries.ListEligibleRosterAsync(
+            rsvpRepository,
+            pickupPalGameRepository,
+            match.SessionId,
+            cancellationToken);
+        if (!roster.Any(member => member.PlayerProfileId == actor.Id))
+        {
             return [];
         }
 
         // INV-8: the rater is never in their own rateable list, so the UI cannot offer a self vote.
-        var teammateIds = assignments
-            .Where(x => x.MatchTeamId == ownAssignment.MatchTeamId && x.PlayerProfileId != actor.Id)
-            .Select(x => x.PlayerProfileId)
+        var teammateIds = roster
+            .Select(member => member.PlayerProfileId)
+            .Where(id => id != actor.Id)
             .Distinct()
             .ToArray();
         if (teammateIds.Length == 0)
@@ -381,6 +395,33 @@ public sealed class GetPendingStatSubmissionQueryHandler(
         }
 
         return null;
+    }
+}
+
+/// <summary>
+/// Peer ratings, likes, and the MVP vote open once the game has been played and close a few days
+/// later, so feedback reflects a game people still remember.
+/// </summary>
+public static class PeerFeedbackWindow
+{
+    public static readonly TimeSpan Duration = TimeSpan.FromDays(3);
+
+    public static bool IsOpen(Session session, DateTime nowUtc) =>
+        GameDayWorkflowQueries.IsPostGameOpen(session, nowUtc)
+        && nowUtc <= session.StartsAtUtc.Add(Duration);
+
+    public static void Ensure(Session session, DateTime nowUtc)
+    {
+        if (!GameDayWorkflowQueries.IsPostGameOpen(session, nowUtc))
+        {
+            throw new ApplicationConflictException("Rating opens after the game has been played.");
+        }
+
+        if (nowUtc > session.StartsAtUtc.Add(Duration))
+        {
+            throw new ApplicationConflictException(
+                $"Rating closed {Duration.TotalDays:0} days after kick-off.");
+        }
     }
 }
 

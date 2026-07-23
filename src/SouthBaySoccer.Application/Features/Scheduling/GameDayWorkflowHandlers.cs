@@ -1240,80 +1240,46 @@ internal static class GameDayWorkflowQueries
 
 internal static class GameDayResultRules
 {
+    /// <summary>
+    /// Every team must have reported and at least one game must have been played. The number of
+    /// games is deliberately not fixed: with three or four teams the night is usually a rotation
+    /// (winner stays on), so a team can play many more games than there are opponents.
+    /// </summary>
     internal static bool AreComplete(IReadOnlyList<GameDayTeamResultModel> results, int teamCount) =>
         results.Count == teamCount
-        && results.All(x => x.Wins + x.Draws + x.Losses == teamCount - 1);
+        && results.Sum(x => x.Wins + x.Draws + x.Losses) > 0;
 
+    /// <summary>
+    /// Aggregate counters can only be checked against the identities every fixture list obeys:
+    /// each game produces exactly one win and one loss, or two halves of a draw. With exactly two
+    /// teams the pairing is unambiguous, so each side's record must mirror the other's.
+    /// </summary>
     internal static bool AreConsistent(IReadOnlyList<GameDayTeamResultModel> results)
     {
-        var pairs = new List<(int First, int Second)>();
-        for (var first = 0; first < results.Count; first++)
-        {
-            for (var second = first + 1; second < results.Count; second++)
-            {
-                pairs.Add((first, second));
-            }
-        }
-
-        var wins = results.Select(x => x.Wins).ToArray();
-        var draws = results.Select(x => x.Draws).ToArray();
-        var losses = results.Select(x => x.Losses).ToArray();
-        return CanResolvePair(0, pairs, wins, draws, losses);
-    }
-
-    private static bool CanResolvePair(
-        int pairIndex,
-        IReadOnlyList<(int First, int Second)> pairs,
-        int[] wins,
-        int[] draws,
-        int[] losses)
-    {
-        if (pairIndex == pairs.Count)
-        {
-            return wins.All(x => x == 0) && draws.All(x => x == 0) && losses.All(x => x == 0);
-        }
-
-        var (first, second) = pairs[pairIndex];
-        return TryOutcome(first, second, wins, losses, () =>
-                CanResolvePair(pairIndex + 1, pairs, wins, draws, losses))
-            || TryOutcome(second, first, wins, losses, () =>
-                CanResolvePair(pairIndex + 1, pairs, wins, draws, losses))
-            || TryDraw(first, second, draws, () =>
-                CanResolvePair(pairIndex + 1, pairs, wins, draws, losses));
-    }
-
-    private static bool TryOutcome(
-        int winner,
-        int loser,
-        int[] wins,
-        int[] losses,
-        Func<bool> next)
-    {
-        if (wins[winner] == 0 || losses[loser] == 0)
+        if (results.Any(x => x.Wins < 0 || x.Draws < 0 || x.Losses < 0))
         {
             return false;
         }
 
-        wins[winner]--;
-        losses[loser]--;
-        var resolved = next();
-        wins[winner]++;
-        losses[loser]++;
-        return resolved;
-    }
-
-    private static bool TryDraw(int first, int second, int[] draws, Func<bool> next)
-    {
-        if (draws[first] == 0 || draws[second] == 0)
+        if (results.Sum(x => x.Wins) != results.Sum(x => x.Losses))
         {
             return false;
         }
 
-        draws[first]--;
-        draws[second]--;
-        var resolved = next();
-        draws[first]++;
-        draws[second]++;
-        return resolved;
+        // A draw is recorded by both teams, so the total is always even.
+        if (results.Sum(x => x.Draws) % 2 != 0)
+        {
+            return false;
+        }
+
+        if (results.Count == 2)
+        {
+            var (first, second) = (results[0], results[1]);
+            return first.Wins == second.Losses
+                && first.Losses == second.Wins
+                && first.Draws == second.Draws;
+        }
+
+        return true;
     }
 }

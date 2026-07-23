@@ -56,6 +56,7 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<GetCreateSessionAdminDefaultsQueryHandler>();
         builder.Services.AddScoped<ImportPickupPalGamesCommandHandler>();
         builder.Services.AddScoped<GetTodayGameDayContextQueryHandler>();
+        builder.Services.AddScoped<GetRecentGamesQueryHandler>();
         builder.Services.AddScoped<IValidator<AssignSessionCaptainsCommand>, AssignSessionCaptainsCommandValidator>();
         builder.Services.AddScoped<IValidator<SaveCaptainTeamPicksCommand>, SaveCaptainTeamPicksCommandValidator>();
         builder.Services.AddScoped<IValidator<LockSessionTeamsCommand>, LockSessionTeamsCommandValidator>();

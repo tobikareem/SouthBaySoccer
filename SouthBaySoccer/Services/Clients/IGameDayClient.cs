@@ -7,6 +7,9 @@ public interface IGameDayClient
 {
     Task<GameDayContextDto?> GetTodayContextAsync(CancellationToken cancellationToken);
 
+    /// <summary>Games already played inside the admin edit window, for game-admin follow-up.</summary>
+    Task<IReadOnlyList<RecentGameDto>> GetRecentGamesAsync(CancellationToken cancellationToken);
+
     Task<ClientCommandResult> CheckInAsync(
         Guid sessionId,
         Guid idempotencyKey,

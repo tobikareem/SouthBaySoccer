@@ -83,44 +83,40 @@ public sealed class MatchStatsSelfServiceHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_WhenListingRateableTeammates_ExcludesSelfAndOtherTeams()
+    public async Task HandleAsync_WhenListingRateableTeammates_IncludesEveryoneWhoAttendedExceptSelf()
     {
         var actor = Profile("Ada");
         var teammate = Profile("Bem");
         var opponent = Profile("Chi");
-        var otherTeamId = Guid.NewGuid();
-        var stats = StatsRepository(
-            match: MatchInStatus(MatchStatus.InProgress),
-            assignments:
-            [
-                Assignment(actor.Id, TeamId),
-                Assignment(teammate.Id, TeamId),
-                Assignment(opponent.Id, otherTeamId),
-            ]);
-        var profiles = ProfileRepository(actor);
-        profiles.Setup(x => x.ListProfilesAsync(
-                It.IsAny<IReadOnlyCollection<Guid>>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IReadOnlyCollection<Guid> ids, CancellationToken _) =>
-                new[] { teammate, opponent }.Where(p => ids.Contains(p.Id)).ToArray());
-        var handler = new GetRateableTeammatesQueryHandler(CurrentUser().Object, profiles.Object, stats.Object);
+        var handler = RateableHandler(actor, [actor, teammate, opponent], out _);
 
         var result = await handler.HandleAsync(new GetRateableTeammatesQuery(MatchId));
 
-        result.Select(x => x.PlayerProfileId).Should().Equal(teammate.Id);
+        result.Select(x => x.PlayerProfileId)
+            .Should().BeEquivalentTo([teammate.Id, opponent.Id],
+                "everyone who played is rateable, not just the rater's own side");
+        result.Should().NotContain(x => x.PlayerProfileId == actor.Id, "INV-8 forbids a self vote");
     }
 
     [Fact]
-    public async Task HandleAsync_WhenPlayerIsNotDrafted_ReturnsNoRateableTeammates()
+    public async Task HandleAsync_WhenPlayerDidNotAttend_ReturnsNoRateableTeammates()
     {
         var actor = Profile("Ada");
-        var stats = StatsRepository(
-            match: MatchInStatus(MatchStatus.InProgress),
-            assignments: [Assignment(Guid.NewGuid(), TeamId)]);
-        var handler = new GetRateableTeammatesQueryHandler(
-            CurrentUser().Object,
-            ProfileRepository(actor).Object,
-            stats.Object);
+        var other = Profile("Bem");
+        var handler = RateableHandler(actor, [other], out _);
+
+        var result = await handler.HandleAsync(new GetRateableTeammatesQuery(MatchId));
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenRatingWindowHasClosed_ReturnsNoRateableTeammates()
+    {
+        var actor = Profile("Ada");
+        var teammate = Profile("Bem");
+        // Four days after kick-off is outside the three-day peer-feedback window.
+        var handler = RateableHandler(actor, [actor, teammate], out _, kickOffOffset: TimeSpan.FromDays(-4));
 
         var result = await handler.HandleAsync(new GetRateableTeammatesQuery(MatchId));
 
@@ -273,6 +269,62 @@ public sealed class MatchStatsSelfServiceHandlerTests
             CurrentUser().Object,
             clock.Object,
             ProfileRepository(actor).Object,
+            sessions.Object,
+            rsvps.Object,
+            games.Object,
+            stats.Object);
+    }
+
+    private static GetRateableTeammatesQueryHandler RateableHandler(
+        PlayerProfile actor,
+        PlayerProfile[] roster,
+        out Mock<IStatsRepository> stats,
+        TimeSpan? kickOffOffset = null)
+    {
+        var nowUtc = new DateTime(2026, 7, 23, 4, 0, 0, DateTimeKind.Utc);
+        var session = new Session
+        {
+            Id = Guid.NewGuid(),
+            Title = "Marina Field - Thursday pickup",
+            StartsAtUtc = nowUtc.Add(kickOffOffset ?? TimeSpan.FromHours(-2)),
+            Status = SessionStatus.Published,
+        };
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(nowUtc);
+        var sessions = new Mock<ISessionRepository>();
+        sessions.Setup(x => x.GetByIdAsync(session.Id, It.IsAny<CancellationToken>())).ReturnsAsync(session);
+        var rsvps = new Mock<IRsvpRepository>();
+        rsvps
+            .Setup(x => x.ListGoingRosterAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(roster
+                .Select(p => new RosterMemberRecord(p.Id, p.DisplayName, string.Empty, false, null))
+                .ToArray());
+        rsvps
+            .Setup(x => x.ListActiveWaitlistRosterAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        var games = new Mock<IPickupPalGameRepository>();
+        games
+            .Setup(x => x.ListParticipantsAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        stats = new Mock<IStatsRepository>();
+        stats
+            .Setup(x => x.FindMatchAsync(MatchId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DomainMatch { Id = MatchId, SessionId = session.Id, Status = MatchStatus.InProgress });
+        stats
+            .Setup(x => x.ListMatchEventsAsync(MatchId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var profiles = ProfileRepository(actor);
+        profiles
+            .Setup(x => x.ListProfilesAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyCollection<Guid> ids, CancellationToken _) =>
+                roster.Where(p => ids.Contains(p.Id)).ToArray());
+
+        return new GetRateableTeammatesQueryHandler(
+            CurrentUser().Object,
+            clock.Object,
+            profiles.Object,
             sessions.Object,
             rsvps.Object,
             games.Object,

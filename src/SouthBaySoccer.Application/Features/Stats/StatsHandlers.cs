@@ -252,8 +252,10 @@ public sealed class RecordMatchResultsCommandHandler(
 
 public sealed class SubmitPeerFeedbackCommandHandler(
     ICurrentUser currentUser,
+    IClock clock,
     IValidator<SubmitPeerFeedbackCommand> validator,
     IPlayerProfileRepository playerProfileRepository,
+    ISessionRepository sessionRepository,
     IStatsRepository statsRepository,
     IUnitOfWork unitOfWork)
 {
@@ -261,8 +263,11 @@ public sealed class SubmitPeerFeedbackCommandHandler(
     {
         await validator.ValidateAndThrowAsync(command, cancellationToken);
         var voter = await GetCurrentProfileAsync(currentUser, playerProfileRepository, cancellationToken);
-        _ = await statsRepository.FindMatchAsync(command.MatchId, cancellationToken)
+        var match = await statsRepository.FindMatchAsync(command.MatchId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Match was not found.");
+        var session = await sessionRepository.GetByIdAsync(match.SessionId, cancellationToken)
+            ?? throw new ApplicationNotFoundException("Session was not found for this match.");
+        PeerFeedbackWindow.Ensure(session, clock.UtcNow);
 
         if (command.Ratings.Any(x => x.RatedPlayerProfileId == voter.Id)
             || command.LikedPlayerProfileIds.Contains(voter.Id)
