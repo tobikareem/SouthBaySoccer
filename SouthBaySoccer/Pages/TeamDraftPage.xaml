@@ -20,17 +20,34 @@
         <c:StateView Grid.Row="1" State="{Binding State}" Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}" GlyphFontFamily="FontAwesomeSolid">
             <ScrollView>
                 <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">
+                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding CanManageAllTeams}">
+                        <c:SectionHeader Text="Drafting for" />
+                        <ScrollView Orientation="Horizontal">
+                            <HorizontalStackLayout BindableLayout.ItemsSource="{Binding Teams}" Spacing="{StaticResource SpaceSm}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="pageModels:DraftTeamOption">
+                                        <Button
+                                            Text="{Binding Name}"
+                                            Command="{Binding BindingContext.SelectTeamCommand, Source={x:Reference DraftPage}}"
+                                            CommandParameter="{Binding TeamId}"
+                                            Style="{StaticResource SecondaryButton}"
+                                            SemanticProperties.Description="{Binding Name, StringFormat='Draft for {0}'}" />
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </HorizontalStackLayout>
+                        </ScrollView>
+                    </VerticalStackLayout>
                     <c:BrandCard>
                         <Grid ColumnDefinitions="*,Auto">
                             <VerticalStackLayout>
                                 <Label Text="{Binding TeamName}" Style="{StaticResource TextBodyStrong}" />
                                 <Label Text="{Binding Summary}" Style="{StaticResource TextCaption}" />
                             </VerticalStackLayout>
-                            <c:Badge Grid.Column="1" Text="TeamDraft.PickPlayer" Glyph="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}" Variant="Success" />
+                            <c:Badge Grid.Column="1" Text="TeamDraft.PickPlayer" Glyph="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}" Variant="Success" IsVisible="{Binding CanPickPlayers}" />
                         </Grid>
                     </c:BrandCard>
-                    <Entry Text="{Binding SearchText}" Placeholder="Search checked-in roster" Style="{StaticResource BrandEntry}" />
-                    <c:SectionHeader Text="Checked-in roster" />
+                    <Entry Text="{Binding SearchText}" Placeholder="Search confirmed roster" Style="{StaticResource BrandEntry}" />
+                    <c:SectionHeader Text="Confirmed roster (Going &amp; Waitlist)" />
                     <c:BrandCard>
                         <VerticalStackLayout BindableLayout.ItemsSource="{Binding Players}" Spacing="{StaticResource SpaceXs}">
                             <BindableLayout.ItemTemplate>
@@ -44,7 +61,10 @@
                             </BindableLayout.ItemTemplate>
                         </VerticalStackLayout>
                     </c:BrandCard>
-                    <Button Text="Save team picks" Command="{Binding SaveCommand}" Style="{StaticResource PrimaryButton}" />
+                    <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding IsLocked}">
+                        <Label Text="Teams are locked. Picks are now read-only." Style="{StaticResource TextCaption}" />
+                    </Border>
+                    <Button Text="Save team picks" Command="{Binding SaveCommand}" IsEnabled="{Binding CanPickPlayers}" Style="{StaticResource PrimaryButton}" />
                     <Label Text="Permission expires when teams lock." Style="{StaticResource TextCaption}" HorizontalTextAlignment="Center" />
                 </VerticalStackLayout>
             </ScrollView>

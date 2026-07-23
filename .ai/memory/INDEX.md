@@ -33,3 +33,5 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [sprint-03-resume-later](sprint-03-resume-later.md) - Sprint 03 API integration is parked and should be resumed later from its board
 - [sprint-04-players-directory](sprint-04-players-directory.md) - Sprint 04 makes the Players tab data-driven from AspNetUsers and PlayerProfiles
 - [pickuppal-games-import](pickuppal-games-import.md) - Pickup Pal active-games import: source-of-truth sessions, sanitized snapshots, roster union
+- [game-day-today-projection](game-day-today-projection.md) - Server-authoritative Pacific game-day selection, self check-in, and audited late overrides
+- [game-day-team-workflows](game-day-team-workflows.md) - Server-enforced captain, draft, explicit team-lock, and postgame workflow transitions

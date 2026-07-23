@@ -47,8 +47,23 @@ public partial class LeaderboardPageModel(
     [ObservableProperty]
     private IReadOnlyList<LeaderboardRowItem> _rankings = [];
 
+    /// <summary>
+    /// True when the season has no rankings for the selected metric. Rendered as an inline
+    /// placeholder under the metric tabs (per the wireframe) rather than a full-screen empty
+    /// state, so the Goals/Assists/Rating/MVP tabs stay visible and switchable.
+    /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasRankings))]
+    private bool _isEmpty;
+
+    /// <summary>True when there is at least one ranking row to render.</summary>
+    public bool HasRankings => !IsEmpty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNote))]
     private string _note = string.Empty;
+
+    public bool HasNote => !string.IsNullOrWhiteSpace(Note);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSelectMetric))]
@@ -119,16 +134,16 @@ public partial class LeaderboardPageModel(
 
     private void ApplyRanking(LeaderboardDto ranking)
     {
-        Season = ranking.SeasonLabel;
+        // The unknown-season client fallback carries a blank label; keep the last known one so
+        // the badge never renders empty.
+        if (!string.IsNullOrWhiteSpace(ranking.SeasonLabel))
+        {
+            Season = ranking.SeasonLabel;
+        }
         SelectedMetric = ranking.Metric;
         Rankings = ranking.Rows.Select(row => LeaderboardRowItem.From(row, ranking.Metric)).ToArray();
         Note = ranking.Note;
-
-        if (Rankings.Count == 0)
-        {
-            ApplyNonContentState(ViewState.Empty, EmptyTitle, EmptyMessage);
-            return;
-        }
+        IsEmpty = Rankings.Count == 0;
 
         StateTitle = string.Empty;
         StateMessage = string.Empty;
@@ -139,6 +154,7 @@ public partial class LeaderboardPageModel(
     {
         Rankings = [];
         Note = string.Empty;
+        IsEmpty = false;
         StateTitle = title;
         StateMessage = message;
         State = state;

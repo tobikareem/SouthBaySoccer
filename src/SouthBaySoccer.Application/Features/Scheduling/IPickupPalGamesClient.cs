@@ -20,10 +20,18 @@ public sealed record PickupPalGame(
     string GroupName,
     IReadOnlyList<PickupPalGameParticipantInfo> Participants);
 
-/// <summary>One sanitized participant on a Pickup Pal game.</summary>
+/// <summary>
+/// One sanitized participant on a Pickup Pal game. Phone and WhatsApp identities arrive pre-hashed
+/// (plus a masked phone for display) so raw values never cross this boundary; the identity fields
+/// are excluded from serialization to keep persisted snapshots limited to display data.
+/// </summary>
 public sealed record PickupPalGameParticipantInfo(
     string Id,
     string DisplayName,
     bool IsGuest,
     bool IsWaitlist,
-    DateTime JoinedAtUtc);
+    DateTime JoinedAtUtc,
+    [property: System.Text.Json.Serialization.JsonIgnore] string? UserId = null,
+    [property: System.Text.Json.Serialization.JsonIgnore] string? PhoneNumberHash = null,
+    [property: System.Text.Json.Serialization.JsonIgnore] string? MaskedPhoneNumber = null,
+    [property: System.Text.Json.Serialization.JsonIgnore] string? WhatsAppJidHash = null);

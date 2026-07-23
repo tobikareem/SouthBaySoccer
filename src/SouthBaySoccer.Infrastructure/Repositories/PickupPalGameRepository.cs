@@ -39,6 +39,7 @@ internal sealed class PickupPalGameRepository(SouthBaySoccerDbContext dbContext)
             incomingParticipantIds.Add(participant.PickupPalParticipantId);
             if (existingByParticipantId.TryGetValue(participant.PickupPalParticipantId, out var row))
             {
+                row.PlayerProfileId = participant.PlayerProfileId;
                 row.DisplayName = participant.DisplayName;
                 row.IsGuest = participant.IsGuest;
                 row.IsWaitlist = participant.IsWaitlist;

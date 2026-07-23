@@ -183,6 +183,122 @@ public sealed class RsvpCommandHandlerTests
         result.LateOverrideReason.Should().Be("traffic at gate");
     }
 
+    [Theory]
+    [InlineData(19, 30)]
+    [InlineData(19, 45)]
+    public async Task HandleAsync_WhenSelfCheckInIsAtWindowBoundary_RecordsAuthenticatedPlayer(
+        int hour,
+        int minute)
+    {
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = "Ada" };
+        var session = FutureSession();
+        var nowUtc = Utc(2026, 7, 7, hour, minute);
+        var checkIn = new CheckIn
+        {
+            Id = Guid.NewGuid(),
+            SessionId = session.Id,
+            PlayerProfileId = profile.Id,
+            CheckedInByPlayerProfileId = profile.Id,
+            CheckedInAtUtc = nowUtc,
+            Outcome = AttendanceOutcome.CheckedIn
+        };
+        var rsvpRepository = new Mock<IRsvpRepository>();
+        rsvpRepository
+            .Setup(x => x.GetGameDayAttendanceAsync(session.Id, profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GameDayAttendanceRecord(1, 0, 0, true, false, false, []));
+        rsvpRepository
+            .Setup(x => x.RecordCheckInAsync(
+                session.Id,
+                profile.Id,
+                profile.Id,
+                nowUtc,
+                AttendanceOutcome.CheckedIn,
+                null,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CheckInMutationResult(checkIn));
+        var handler = CreateSelfCheckInHandler(
+            profile,
+            session,
+            nowUtc,
+            EligibleService(),
+            rsvpRepository.Object);
+
+        var result = await handler.HandleAsync(new SelfCheckInCommand(session.Id));
+
+        result.PlayerProfileId.Should().Be(profile.Id);
+        result.CheckedInByPlayerProfileId.Should().Be(profile.Id);
+        result.CheckedInAtUtc.Should().Be(nowUtc);
+        result.Outcome.Should().Be(nameof(AttendanceOutcome.CheckedIn));
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenSelfCheckInIsOutsideWindow_DoesNotReadAttendanceOrMutate()
+    {
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = "Ada" };
+        var session = FutureSession();
+        var rsvpRepository = new Mock<IRsvpRepository>();
+        var handler = CreateSelfCheckInHandler(
+            profile,
+            session,
+            Utc(2026, 7, 7, 19, 46),
+            EligibleService(),
+            rsvpRepository.Object);
+
+        var act = () => handler.HandleAsync(new SelfCheckInCommand(session.Id));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("Self check-in is outside the session check-in window.");
+        rsvpRepository.Verify(
+            x => x.GetGameDayAttendanceAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        rsvpRepository.Verify(
+            x => x.RecordCheckInAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<AttendanceOutcome>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenSelfCheckInEligibilityFails_DoesNotMutate()
+    {
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = "Ada" };
+        var session = FutureSession();
+        var eligibilityService = new Mock<IPlayerSessionEligibilityService>();
+        eligibilityService
+            .Setup(x => x.CheckAsync(profile.Id, session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlayerSessionEligibilityResult(false, "Payment required."));
+        var rsvpRepository = new Mock<IRsvpRepository>();
+        rsvpRepository
+            .Setup(x => x.GetGameDayAttendanceAsync(session.Id, profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GameDayAttendanceRecord(1, 0, 0, true, false, false, []));
+        var handler = CreateSelfCheckInHandler(
+            profile,
+            session,
+            Utc(2026, 7, 7, 19, 35),
+            eligibilityService.Object,
+            rsvpRepository.Object);
+
+        var act = () => handler.HandleAsync(new SelfCheckInCommand(session.Id));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("Payment required.");
+        rsvpRepository.Verify(
+            x => x.RecordCheckInAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<AttendanceOutcome>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static SubmitRsvpCommandHandler CreateSubmitHandler(
         PlayerProfile profile,
         Session session,
@@ -267,6 +383,36 @@ public sealed class RsvpCommandHandlerTests
             sessionRepository.Object,
             rsvpRepository);
     }
+
+    private static SelfCheckInCommandHandler CreateSelfCheckInHandler(
+        PlayerProfile profile,
+        Session session,
+        DateTime nowUtc,
+        IPlayerSessionEligibilityService eligibilityService,
+        IRsvpRepository rsvpRepository)
+    {
+        var currentUser = new Mock<ICurrentUser>();
+        currentUser.SetupGet(x => x.UserId).Returns(profile.IdentityUserId);
+        var playerProfileRepository = new Mock<IPlayerProfileRepository>();
+        playerProfileRepository
+            .Setup(x => x.FindByIdentityUserIdAsync(profile.IdentityUserId!.Value, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(profile);
+        var sessionRepository = new Mock<ISessionRepository>();
+        sessionRepository
+            .Setup(x => x.GetByIdAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(nowUtc);
+
+        return new SelfCheckInCommandHandler(
+            currentUser.Object,
+            clock.Object,
+            playerProfileRepository.Object,
+            sessionRepository.Object,
+            eligibilityService,
+            rsvpRepository);
+    }
+
     private static IPlayerSessionEligibilityService EligibleService()
     {
         var service = new Mock<IPlayerSessionEligibilityService>();

@@ -1,7 +1,10 @@
+using System.Security.Cryptography;
+using System.Text;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using SouthBaySoccer.Application.Features.Authentication;
+using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Infrastructure;
 using SouthBaySoccer.Infrastructure.Authentication;
@@ -87,6 +90,44 @@ public sealed class PickupPalUserSyncServiceTests
         profile!.Role.Should().Be(PlayerRole.GameAdmin);
         subject.Roles.Should().ContainSingle().Which.Should().Be(PlayerRole.GameAdmin.ToString());
     }
+
+    [Fact]
+    public async Task SyncAsync_WhenUnclaimedImportedProfileMatchesByPhoneHash_ClaimsItAndPromotesToPlayer()
+    {
+        using var provider = CreateServiceProvider();
+        var service = provider.GetRequiredService<IPickupPalUserSyncService>();
+        var db = provider.GetRequiredService<SouthBaySoccerDbContext>();
+
+        // A prior games import created an unclaimed guest profile keyed only by phone hash. The
+        // hash is computed the same way the sync service does: "+" + digits, then SHA-256.
+        var importedProfile = new PlayerProfile
+        {
+            Id = Guid.NewGuid(),
+            DisplayName = "Imported Vic",
+            NormalizedDisplayName = "IMPORTED VIC",
+            PreferredPosition = string.Empty,
+            Role = PlayerRole.Guest,
+            IsGuest = true,
+            PhoneNumberHash = Sha256Hex("+15106949421"),
+            MaskedPhoneNumber = "+******9421",
+        };
+        db.PlayerProfiles.Add(importedProfile);
+        await db.SaveChangesAsync();
+
+        var subject = await service.SyncAsync(CreatePickupPalUser("pickuppal-user-claim", "claim@example.test"));
+
+        subject.PlayerProfileId.Should().Be(
+            importedProfile.Id, "first sign-in claims the imported profile instead of creating a duplicate");
+        db.PlayerProfiles.Count(x => x.PhoneNumberHash == importedProfile.PhoneNumberHash).Should().Be(1);
+        var claimed = await db.PlayerProfiles.FindAsync(importedProfile.Id);
+        claimed!.PickupPalUserId.Should().Be("pickuppal-user-claim");
+        claimed.IdentityUserId.Should().NotBeNull();
+        claimed.Role.Should().Be(PlayerRole.Player, "an unclaimed guest is promoted to Player on sign-in");
+        claimed.IsGuest.Should().BeFalse();
+    }
+
+    private static string Sha256Hex(string value) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
     private ServiceProvider CreateServiceProvider(string adminPhoneNumbers = "")
     {

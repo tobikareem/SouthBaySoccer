@@ -174,6 +174,7 @@ public sealed class StatsCommandHandlerTests
         var opponentTeamId = Guid.NewGuid();
         var currentUser = new Mock<ICurrentUser>();
         currentUser.SetupGet(x => x.UserId).Returns(identityUserId);
+        currentUser.Setup(x => x.HasPolicy("CanManageSessions")).Returns(true);
         var clock = new Mock<IClock>();
         clock.SetupGet(x => x.UtcNow).Returns(new DateTime(2026, 7, 9, 1, 0, 0, DateTimeKind.Utc));
         var profiles = new Mock<IPlayerProfileRepository>();
@@ -228,10 +229,13 @@ public sealed class StatsQueryHandlerTests
             .ReturnsAsync([
                 new LeaderboardReadModel(playerId, "Ada Okafor", "Forward", false, Guid.NewGuid(), 8, 10, 4, 8.2m, 6, 12, 2, 10m),
             ]);
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(new DateTime(2026, 7, 22, 12, 0, 0, DateTimeKind.Utc));
         var handler = new GetSeasonLeaderboardQueryHandler(
             new GetSeasonLeaderboardQueryValidator(),
             seasons.Object,
-            stats.Object);
+            stats.Object,
+            clock.Object);
 
         var result = await handler.HandleAsync(new GetSeasonLeaderboardQuery(seasonId, StatLeaderboardMetric.Goals, Page: 2, PageSize: 25));
 
@@ -240,6 +244,74 @@ public sealed class StatsQueryHandlerTests
         result.Rows.Single().Player.Initials.Should().Be("AO");
         result.Rows.Single().Value.Should().Be(10m);
         result.Note.Should().Contain("approved goals");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenSeasonIdNull_ResolvesCurrentActiveSeason()
+    {
+        var now = new DateTime(2026, 7, 22, 12, 0, 0, DateTimeKind.Utc);
+        var activeSeasonId = Guid.NewGuid();
+        var seasons = new Mock<ISeasonRepository>();
+        seasons.Setup(x => x.ListActiveAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new SouthBaySoccer.Domain.Entities.Scheduling.Season
+            {
+                Id = activeSeasonId,
+                Name = "Season 2026",
+                StartsAtUtc = now.AddMonths(-1),
+                EndsAtUtc = now.AddMonths(1),
+            }]);
+        var stats = new Mock<IStatsRepository>();
+        stats.Setup(x => x.ListSeasonLeaderboardAsync(activeSeasonId, StatLeaderboardMetric.Goals, 0, 25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new LeaderboardReadModel(Guid.NewGuid(), "Ada Okafor", "Forward", false, Guid.NewGuid(), 8, 10, 4, 8.2m, 6, 12, 2, 10m),
+            ]);
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(now);
+        var handler = new GetSeasonLeaderboardQueryHandler(
+            new GetSeasonLeaderboardQueryValidator(),
+            seasons.Object,
+            stats.Object,
+            clock.Object);
+
+        var result = await handler.HandleAsync(new GetSeasonLeaderboardQuery(null, StatLeaderboardMetric.Goals, Page: 1, PageSize: 25));
+
+        result.SeasonId.Should().Be(activeSeasonId);
+        result.SeasonLabel.Should().Be("Season 2026");
+        result.Rows.Should().ContainSingle();
+        seasons.Verify(x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenSeasonIdNullAndNoSeasonCoversToday_ReturnsEmptyLeaderboard()
+    {
+        var now = new DateTime(2026, 7, 22, 12, 0, 0, DateTimeKind.Utc);
+        var seasons = new Mock<ISeasonRepository>();
+        seasons.Setup(x => x.ListActiveAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new SouthBaySoccer.Domain.Entities.Scheduling.Season
+            {
+                Id = Guid.NewGuid(),
+                Name = "Next Season",
+                StartsAtUtc = now.AddMonths(1),
+                EndsAtUtc = now.AddMonths(4),
+            }]);
+        var stats = new Mock<IStatsRepository>();
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(now);
+        var handler = new GetSeasonLeaderboardQueryHandler(
+            new GetSeasonLeaderboardQueryValidator(),
+            seasons.Object,
+            stats.Object,
+            clock.Object);
+
+        var result = await handler.HandleAsync(new GetSeasonLeaderboardQuery(null, StatLeaderboardMetric.Goals, Page: 1, PageSize: 25));
+
+        result.SeasonId.Should().Be(Guid.Empty);
+        result.SeasonLabel.Should().Be("No active season");
+        result.Rows.Should().BeEmpty();
+        result.Note.Should().Contain("approved goals");
+        stats.Verify(
+            x => x.ListSeasonLeaderboardAsync(It.IsAny<Guid>(), It.IsAny<StatLeaderboardMetric>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

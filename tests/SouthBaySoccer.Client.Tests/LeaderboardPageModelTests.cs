@@ -21,6 +21,7 @@ public class LeaderboardPageModelTests
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
         pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsEmpty.Should().BeFalse();
         pageModel.Season.Should().Be("Season 2026");
         pageModel.Metrics.Select(metric => metric.Label)
             .Should().Equal("Goals", "Assists", "Rating", "MVP");
@@ -79,7 +80,7 @@ public class LeaderboardPageModelTests
     }
 
     [Fact]
-    public async Task Appearing_EmptyRanking_ShowsEmptyState()
+    public async Task Appearing_EmptyRanking_StaysInContentWithInlinePlaceholder()
     {
         var client = new Mock<ILeaderboardClient>();
         client.Setup(service => service.GetRankingAsync(
@@ -96,8 +97,10 @@ public class LeaderboardPageModelTests
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
-        pageModel.State.Should().Be(ViewState.Empty);
-        pageModel.StateTitle.Should().Be(LeaderboardPageModel.EmptyTitle);
+        // Content, not a full-screen empty state: the metric tabs must stay visible (wireframe)
+        // with the inline "no rankings yet" placeholder shown under them.
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsEmpty.Should().BeTrue();
         pageModel.Rankings.Should().BeEmpty();
     }
 

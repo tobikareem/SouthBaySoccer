@@ -86,7 +86,7 @@ public sealed record LockMatchStatsCommand(Guid MatchId);
 
 
 public sealed record GetSeasonLeaderboardQuery(
-    Guid SeasonId,
+    Guid? SeasonId,
     StatLeaderboardMetric Metric,
     int Page,
     int PageSize);

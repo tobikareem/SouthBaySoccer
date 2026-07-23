@@ -102,6 +102,9 @@
                 Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
         <Setter Property="BorderWidth" Value="1.5" />
     </Style>
+    <!-- Outline/secondary action button (green border + text on a surface). Used for row-level
+         actions such as Game Day admin check-in, late check-in, and the draft team switcher. -->
+    <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource GhostButton}" />
     <Style x:Key="WhatsAppButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
         <Setter Property="BackgroundColor" Value="{StaticResource WhatsApp}" />
     </Style>

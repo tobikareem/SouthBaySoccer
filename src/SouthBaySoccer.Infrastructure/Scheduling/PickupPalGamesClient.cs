@@ -51,17 +51,59 @@ public sealed class PickupPalGamesClient(HttpClient httpClient, IOptions<PickupP
             game.Group?.GroupName?.Trim() ?? string.Empty,
             (game.Participants ?? [])
                 .Where(participant => !string.IsNullOrWhiteSpace(participant.Id))
-                .Select(participant => new PickupPalGameParticipantInfo(
-                    participant.Id!.Trim(),
-                    string.IsNullOrWhiteSpace(participant.DisplayName)
-                        ? "Player"
-                        : participant.DisplayName.Trim(),
-                    participant.IsGuest ?? false,
-                    participant.IsWaitlist ?? false,
-                    participant.JoinedAtUtc is { } joinedAt
-                        ? DateTime.SpecifyKind(joinedAt, DateTimeKind.Utc)
-                        : DateTime.MinValue))
+                .Select(ToSanitizedParticipant)
                 .ToArray());
+
+    private static PickupPalGameParticipantInfo ToSanitizedParticipant(ParticipantResponse participant)
+    {
+        // Normalize the phone once — both the hash and the masked display derive from it — and trim
+        // the JID before hashing so trailing whitespace can't split one person's dedupe key.
+        var normalizedPhone = NormalizePhone(participant.PhoneNumber);
+        var whatsAppJid = string.IsNullOrWhiteSpace(participant.WhatsAppJid)
+            ? null
+            : participant.WhatsAppJid.Trim();
+
+        return new PickupPalGameParticipantInfo(
+            participant.Id!.Trim(),
+            string.IsNullOrWhiteSpace(participant.DisplayName)
+                ? "Player"
+                : participant.DisplayName.Trim(),
+            participant.IsGuest ?? false,
+            participant.IsWaitlist ?? false,
+            participant.JoinedAtUtc is { } joinedAt
+                ? DateTime.SpecifyKind(joinedAt, DateTimeKind.Utc)
+                : DateTime.MinValue,
+            UserId: string.IsNullOrWhiteSpace(participant.UserId) ? null : participant.UserId.Trim(),
+            // Raw phone numbers and WhatsApp JIDs never leave this class; only hashes (and a masked
+            // phone for display) cross the boundary, matching how sign-in stores phone identity.
+            PhoneNumberHash: normalizedPhone is { } phone ? AuthenticationHashing.Sha256(phone) : null,
+            MaskedPhoneNumber: MaskPhone(normalizedPhone),
+            WhatsAppJidHash: whatsAppJid is null ? null : AuthenticationHashing.Sha256(whatsAppJid));
+    }
+
+    private static string? NormalizePhone(string? phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+        {
+            return null;
+        }
+
+        // char.IsDigit to match PickupPalUserSyncService.NormalizePhone exactly — the hashes must
+        // agree or import-created profiles would never dedupe against sign-in profiles.
+        var digits = new string(phoneNumber.Where(char.IsDigit).ToArray());
+        return digits.Length == 0 ? null : $"+{digits}";
+    }
+
+    private static string? MaskPhone(string? normalizedPhone)
+    {
+        if (normalizedPhone is null)
+        {
+            return null;
+        }
+
+        var digits = normalizedPhone.TrimStart('+');
+        return digits.Length <= 4 ? "***" : $"+******{digits[^4..]}";
+    }
 
     private sealed record ActiveGamesResponse(
         [property: JsonPropertyName("games")] IReadOnlyList<GameResponse>? Games);
@@ -80,7 +122,10 @@ public sealed class PickupPalGamesClient(HttpClient httpClient, IOptions<PickupP
         [property: JsonPropertyName("displayName")] string? DisplayName,
         [property: JsonPropertyName("isGuest")] bool? IsGuest,
         [property: JsonPropertyName("isWaitlist")] bool? IsWaitlist,
-        [property: JsonPropertyName("joinedAt")] DateTime? JoinedAtUtc);
+        [property: JsonPropertyName("joinedAt")] DateTime? JoinedAtUtc,
+        [property: JsonPropertyName("userId")] string? UserId,
+        [property: JsonPropertyName("phoneNumber")] string? PhoneNumber,
+        [property: JsonPropertyName("whatsappJid")] string? WhatsAppJid);
 
     private sealed record GroupResponse(
         [property: JsonPropertyName("groupName")] string? GroupName);

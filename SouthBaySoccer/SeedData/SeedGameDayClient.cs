@@ -21,6 +21,27 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
         return Task.FromResult(state.CheckIn(sessionId));
     }
 
+    public Task<ClientCommandResult> LateCheckInAsync(
+        Guid sessionId,
+        Guid playerProfileId,
+        string reason,
+        Guid idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(state.LateCheckIn(sessionId, playerProfileId, reason, idempotencyKey));
+    }
+
+    public Task<ClientCommandResult> AdminCheckInAsync(
+        Guid sessionId,
+        Guid playerProfileId,
+        Guid idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(state.AdminCheckIn(sessionId, playerProfileId));
+    }
+
     public Task<CaptainAssignmentDto?> GetCaptainAssignmentAsync(
         Guid sessionId,
         CancellationToken cancellationToken)
@@ -53,6 +74,14 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(state.SaveTeamPicks(sessionId, teamId, playerIds));
+    }
+
+    public Task<ClientCommandResult> LockTeamsAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(state.LockTeams(sessionId));
     }
 
     public Task<PostGameApprovalDto?> GetPostGameApprovalAsync(

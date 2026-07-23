@@ -72,10 +72,23 @@ public interface IRsvpRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Lists only players whose active attendance outcome is CheckedIn or Late.
+    /// </summary>
+    Task<IReadOnlyList<RosterMemberRecord>> ListCheckedInRosterAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Lists the session's active waitlist in position order with profile display data.
     /// </summary>
     Task<IReadOnlyList<RosterMemberRecord>> ListActiveWaitlistRosterAsync(
         Guid sessionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the compact attendance projection used by the Game Day screen.</summary>
+    Task<GameDayAttendanceRecord> GetGameDayAttendanceAsync(
+        Guid sessionId,
+        Guid currentPlayerProfileId,
         CancellationToken cancellationToken = default);
 }
 
@@ -88,6 +101,16 @@ public sealed record RosterMemberRecord(
     string PreferredPosition,
     bool IsGuest,
     int? WaitlistPosition);
+
+/// <summary>Server-side attendance and eligibility facts for one session.</summary>
+public sealed record GameDayAttendanceRecord(
+    int GoingCount,
+    int CheckedInCount,
+    int LateCount,
+    bool IsCurrentPlayerGoing,
+    bool IsCurrentPlayerWaitlisted,
+    bool IsCurrentPlayerCheckedIn,
+    IReadOnlyList<Guid> CheckedInPlayerProfileIds);
 
 /// <summary>
 /// Represents the result of mutating or reading RSVP state.

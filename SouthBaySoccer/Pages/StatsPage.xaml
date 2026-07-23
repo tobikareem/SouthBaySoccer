@@ -54,8 +54,33 @@
                         IsEnabled="{Binding CanSelectMetric}"
                         SelectionChangedCommand="{Binding SelectMetricCommand}" />
 
+                    <!-- Inline empty placeholder: the metric tabs stay visible (per the wireframe)
+                         so players can still switch between Goals/Assists/Rating/MVP. -->
+                    <c:BrandCard IsVisible="{Binding IsEmpty}">
+                        <VerticalStackLayout
+                            Spacing="{StaticResource SpaceSm}">
+                            <Label
+                                Text="{x:Static fonts:FontAwesomeGlyphs.Trophy}"
+                                FontFamily="FontAwesomeSolid"
+                                Style="{StaticResource TextH1}"
+                                TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                                HorizontalTextAlignment="Center"
+                                AutomationProperties.IsInAccessibleTree="False" />
+                            <Label
+                                Text="{x:Static pageModels:LeaderboardPageModel.EmptyTitle}"
+                                Style="{StaticResource TextBodyStrong}"
+                                HorizontalTextAlignment="Center"
+                                SemanticProperties.HeadingLevel="Level1" />
+                            <Label
+                                Text="{x:Static pageModels:LeaderboardPageModel.EmptyMessage}"
+                                Style="{StaticResource TextCaption}"
+                                HorizontalTextAlignment="Center" />
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+
                     <VerticalStackLayout
                         BindableLayout.ItemsSource="{Binding Rankings}"
+                        IsVisible="{Binding HasRankings}"
                         Spacing="{StaticResource SpaceSm}">
                         <BindableLayout.ItemTemplate>
                             <DataTemplate x:DataType="pageModels:LeaderboardRowItem">
@@ -126,7 +151,7 @@
                         </BindableLayout.ItemTemplate>
                     </VerticalStackLayout>
 
-                    <c:BrandCard>
+                    <c:BrandCard IsVisible="{Binding HasNote}">
                         <Grid
                             ColumnDefinitions="Auto,*"
                             ColumnSpacing="{StaticResource SpaceSm}">

@@ -42,10 +42,13 @@ internal static class SouthBaySoccerModelConfiguration
             b.Property(x => x.PreferredPosition).HasMaxLength(64).IsRequired();
             b.Property(x => x.PhoneNumberHash).HasMaxLength(128);
             b.Property(x => x.MaskedPhoneNumber).HasMaxLength(32);
+            b.Property(x => x.WhatsAppJidHash).HasMaxLength(128);
             b.Property(x => x.PhotoUri).HasMaxLength(1024);
             b.Property(x => x.Role).HasConversion<string>().HasMaxLength(32).IsRequired();
             b.HasIndex(x => x.IdentityUserId).IsUnique().HasFilter("[IdentityUserId] IS NOT NULL AND [IsDeleted] = 0");
             b.HasIndex(x => x.PickupPalUserId).IsUnique().HasFilter("[PickupPalUserId] IS NOT NULL AND [IsDeleted] = 0");
+            b.HasIndex(x => x.PhoneNumberHash).HasFilter("[PhoneNumberHash] IS NOT NULL AND [IsDeleted] = 0");
+            b.HasIndex(x => x.WhatsAppJidHash).HasFilter("[WhatsAppJidHash] IS NOT NULL AND [IsDeleted] = 0");
             b.HasIndex(x => new { x.IsGuest, x.IsDeleted });
         });
         modelBuilder.Entity<EmergencyContact>(b => { ConfigureBase(b, "EmergencyContacts", true); b.Property(x => x.Name).HasMaxLength(160).IsRequired(); b.Property(x => x.PhoneNumberHash).HasMaxLength(128).IsRequired(); b.Property(x => x.MaskedPhoneNumber).HasMaxLength(32).IsRequired(); b.Property(x => x.Relationship).HasMaxLength(80); b.HasOne<PlayerProfile>().WithMany().HasForeignKey(x => x.PlayerProfileId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => x.PlayerProfileId).IsUnique().HasFilter("[IsDeleted] = 0"); });
@@ -77,7 +80,7 @@ internal static class SouthBaySoccerModelConfiguration
         modelBuilder.Entity<CheckIn>(b => { ConfigureBase(b, "CheckIns", true); b.Property(x => x.Outcome).HasConversion<string>().HasMaxLength(32).IsRequired(); b.HasOne<Session>().WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Restrict); b.HasOne<PlayerProfile>().WithMany().HasForeignKey(x => x.PlayerProfileId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => new { x.SessionId, x.PlayerProfileId }).IsUnique().HasFilter("[IsDeleted] = 0"); b.HasIndex(x => new { x.SessionId, x.CheckedInAtUtc }); });
         modelBuilder.Entity<AdminOverride>(b => { ConfigureBase(b, "AdminOverrides", false); b.Property(x => x.OverrideType).HasConversion<string>().HasMaxLength(32).IsRequired(); b.Property(x => x.Reason).HasMaxLength(1024).IsRequired(); b.HasOne<Session>().WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<PickupPalGameSnapshot>(b => { ConfigureBase(b, "PickupPalGameSnapshots", true); b.Property(x => x.PickupPalGameId).HasMaxLength(160).IsRequired(); b.Property(x => x.Location).HasMaxLength(512).IsRequired(); b.Property(x => x.Status).HasMaxLength(32).IsRequired(); b.Property(x => x.GroupName).HasMaxLength(160); b.Property(x => x.SanitizedGameJson).IsRequired(); b.HasOne<Session>().WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => x.PickupPalGameId).IsUnique().HasFilter("[IsDeleted] = 0"); b.HasIndex(x => x.SessionId); });
-        modelBuilder.Entity<PickupPalGameParticipant>(b => { ConfigureBase(b, "PickupPalGameParticipants", true); b.Property(x => x.PickupPalParticipantId).HasMaxLength(160).IsRequired(); b.Property(x => x.DisplayName).HasMaxLength(160).IsRequired(); b.HasOne<Session>().WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => new { x.SessionId, x.PickupPalParticipantId }).IsUnique().HasFilter("[IsDeleted] = 0"); b.HasIndex(x => new { x.SessionId, x.IsWaitlist, x.DisplayOrder }); });
+        modelBuilder.Entity<PickupPalGameParticipant>(b => { ConfigureBase(b, "PickupPalGameParticipants", true); b.Property(x => x.PickupPalParticipantId).HasMaxLength(160).IsRequired(); b.Property(x => x.DisplayName).HasMaxLength(160).IsRequired(); b.HasOne<Session>().WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Restrict); b.HasOne<PlayerProfile>().WithMany().HasForeignKey(x => x.PlayerProfileId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => new { x.SessionId, x.PickupPalParticipantId }).IsUnique().HasFilter("[IsDeleted] = 0"); b.HasIndex(x => new { x.SessionId, x.IsWaitlist, x.DisplayOrder }); b.HasIndex(x => x.PlayerProfileId); });
     }
 
     private static void ConfigureStats(ModelBuilder modelBuilder)

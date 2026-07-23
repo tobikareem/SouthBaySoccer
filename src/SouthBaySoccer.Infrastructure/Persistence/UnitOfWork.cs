@@ -1,3 +1,6 @@
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 
 namespace SouthBaySoccer.Infrastructure.Persistence;
@@ -24,6 +27,21 @@ internal sealed class UnitOfWork : IUnitOfWork
     /// </summary>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The number of state entries written to the database.</returns>
-    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-        => _context.SaveChangesAsync(cancellationToken);
+    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ApplicationConflictException("The resource changed while this request was being saved. Refresh and try again.");
+        }
+        catch (DbUpdateException exception) when (
+            exception.InnerException is SqlException sqlException
+            && sqlException.Errors.Cast<SqlError>().Any(error => error.Number is 2601 or 2627))
+        {
+            throw new ApplicationConflictException("The requested change conflicts with a concurrent update. Refresh and try again.");
+        }
+    }
 }
