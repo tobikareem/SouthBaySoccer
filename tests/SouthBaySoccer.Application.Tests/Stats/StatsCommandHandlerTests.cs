@@ -23,13 +23,27 @@ public sealed class StatsCommandHandlerTests
         currentUser.SetupGet(x => x.UserId).Returns(identityUserId);
         var profiles = new Mock<IPlayerProfileRepository>();
         profiles.Setup(x => x.FindByIdentityUserIdAsync(identityUserId, It.IsAny<CancellationToken>())).ReturnsAsync(profile);
+        var sessionId = Guid.NewGuid();
         var stats = new Mock<IStatsRepository>();
         stats.Setup(x => x.FindMatchAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new SouthBaySoccer.Domain.Entities.Stats.Match { Id = Guid.NewGuid() });
+            .ReturnsAsync(new SouthBaySoccer.Domain.Entities.Stats.Match { Id = Guid.NewGuid(), SessionId = sessionId });
+        var nowUtc = new DateTime(2026, 7, 23, 4, 0, 0, DateTimeKind.Utc);
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(nowUtc);
+        var sessions = new Mock<ISessionRepository>();
+        sessions.Setup(x => x.GetByIdAsync(sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SouthBaySoccer.Domain.Entities.Scheduling.Session
+            {
+                Id = sessionId,
+                StartsAtUtc = nowUtc.AddHours(-2),
+                Status = SessionStatus.Published,
+            });
         var handler = new SubmitPeerFeedbackCommandHandler(
             currentUser.Object,
+            clock.Object,
             new SubmitPeerFeedbackCommandValidator(),
             profiles.Object,
+            sessions.Object,
             stats.Object,
             Mock.Of<IUnitOfWork>());
 
