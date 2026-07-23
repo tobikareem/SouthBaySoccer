@@ -36,7 +36,13 @@
                                         <c:CounterStepper Caption="Wins" Value="{Binding Wins}" Minimum="0" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
                                         <c:CounterStepper Caption="Draws" Value="{Binding Draws}" Minimum="0" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
                                         <c:CounterStepper Caption="Losses" Value="{Binding Losses}" Minimum="0" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
-                                        <Button Text="Save result" Command="{Binding BindingContext.SaveResultCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" Style="{StaticResource GhostButton}" />
+                                                            <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding HasResultsHint}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleInfo}" FontFamily="FontAwesomeSolid" Style="{StaticResource BrandIconLabel}" />
+                            <Label Grid.Column="1" Text="{Binding ResultsHint}" Style="{StaticResource TextCaption}" />
+                        </Grid>
+                    </Border>
+<Button Text="Save result" Command="{Binding BindingContext.SaveResultCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" Style="{StaticResource GhostButton}" />
                                     </VerticalStackLayout>
                                 </c:BrandCard>
                             </DataTemplate>

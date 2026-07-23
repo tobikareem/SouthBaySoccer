@@ -28,6 +28,18 @@ internal sealed class PlayerProfileRepository(SouthBaySoccerDbContext dbContext)
             .OrderBy(x => x.CreatedAt)
             .FirstOrDefaultAsync(x => x.WhatsAppJidHash == whatsAppJidHash, cancellationToken);
 
+    public async Task<PlayerProfile?> FindSingleByNormalizedDisplayNameAsync(
+        string normalizedDisplayName,
+        CancellationToken cancellationToken = default)
+    {
+        var matches = await dbContext.PlayerProfiles
+            .Where(x => x.NormalizedDisplayName == normalizedDisplayName)
+            .OrderBy(x => x.CreatedAt)
+            .Take(2)
+            .ToArrayAsync(cancellationToken);
+        return matches.Length == 1 ? matches[0] : null;
+    }
+
     public Task<PlayerProfile?> FindProfileAsync(Guid playerProfileId, CancellationToken cancellationToken = default) =>
         dbContext.PlayerProfiles.SingleOrDefaultAsync(x => x.Id == playerProfileId, cancellationToken);
 

@@ -40,6 +40,15 @@ public interface IPlayerProfileRepository : IRepository<PlayerProfile>
     /// <summary>
     /// Lists active player profiles for the public player directory.
     /// </summary>
+    /// <summary>
+    /// Finds a profile by normalized display name, but only when the name is unambiguous. Returns
+    /// null when nobody or more than one person matches, so a shared nickname never silently links
+    /// two different players together.
+    /// </summary>
+    Task<PlayerProfile?> FindSingleByNormalizedDisplayNameAsync(
+        string normalizedDisplayName,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<PlayerDirectoryReadModel>> ListDirectoryAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

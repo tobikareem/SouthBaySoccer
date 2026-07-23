@@ -840,6 +840,44 @@ public partial class PostGameApprovalPageModel(
 
     public ObservableCollection<TeamResultItem> TeamResults { get; } = [];
 
+    /// <summary>
+    /// Explains why a scoreline will not publish. Every game produces exactly one win and one loss,
+    /// and a draw is recorded by both sides, so the totals have to satisfy both identities before
+    /// the match can complete - without this the screen just silently refused to finish.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasResultsHint))]
+    private string _resultsHint = string.Empty;
+
+    public bool HasResultsHint => ResultsHint.Length > 0;
+
+    private void RefreshResultsHint()
+    {
+        var wins = TeamResults.Sum(x => x.Wins);
+        var losses = TeamResults.Sum(x => x.Losses);
+        var draws = TeamResults.Sum(x => x.Draws);
+
+        if (wins + losses + draws == 0)
+        {
+            ResultsHint = "No results recorded yet. Add each team's wins, draws, and losses.";
+            return;
+        }
+
+        if (wins != losses)
+        {
+            ResultsHint = $"{wins} wins vs {losses} losses - every game has one winner and one loser, so these must match.";
+            return;
+        }
+
+        if (draws % 2 != 0)
+        {
+            ResultsHint = $"{draws} draws - a draw is recorded by both teams, so the total must be even.";
+            return;
+        }
+
+        ResultsHint = string.Empty;
+    }
+
     public ObservableCollection<StatApprovalItem> Approvals { get; } = [];
 
     [RelayCommand]
@@ -928,7 +966,9 @@ public partial class PostGameApprovalPageModel(
         TeamResults.Clear();
         foreach (var result in dto.TeamResults)
         {
-            TeamResults.Add(new TeamResultItem(result.TeamId, result.TeamName, TeamCount, result.Wins, result.Draws, result.Losses));
+            var item = new TeamResultItem(result.TeamId, result.TeamName, TeamCount, result.Wins, result.Draws, result.Losses);
+            item.PropertyChanged += (_, _) => RefreshResultsHint();
+            TeamResults.Add(item);
         }
 
         Approvals.Clear();
@@ -937,6 +977,7 @@ public partial class PostGameApprovalPageModel(
             Approvals.Add(StatApprovalItem.From(approval));
         }
 
+        RefreshResultsHint();
         State = ViewState.Content;
     }
 }
