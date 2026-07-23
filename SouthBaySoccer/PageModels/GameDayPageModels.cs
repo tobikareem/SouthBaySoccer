@@ -17,6 +17,10 @@ public interface IGameDayNavigator
 
     Task OpenPostGameApprovalAsync(Guid sessionId);
 
+    Task OpenMatchStatsAsync(Guid matchId);
+
+    Task OpenRateTeammatesAsync(Guid matchId);
+
     Task GoBackAsync();
 }
 
@@ -30,6 +34,7 @@ public partial class GameDayPageModel(
     public const string ErrorMessage = "Something went wrong loading the active game-day flow.";
 
     private Guid sessionId;
+    private Guid matchId;
     private Guid? selfCheckInIdempotencyKey;
     private readonly Dictionary<Guid, Guid> lateCheckInIdempotencyKeys = [];
     private readonly Dictionary<Guid, Guid> adminCheckInIdempotencyKeys = [];
@@ -114,7 +119,19 @@ public partial class GameDayPageModel(
     [NotifyCanExecuteChangedFor(nameof(LateCheckInCommand))]
     private string _lateCheckInReason = string.Empty;
 
-    public bool HasGameDayActions => CanAssignCaptains || CanDraftTeam || CanApprovePostGame;
+    public bool HasGameDayActions =>
+        CanAssignCaptains || CanDraftTeam || CanApprovePostGame || CanSubmitOwnStats;
+
+    /// <summary>
+    /// True once teams are locked and the post-game window is open for a player who was drafted,
+    /// so they can report their own goals/assists (STAT-7) and rate the side they played with
+    /// (STAT-8). Distinct from <see cref="CanApprovePostGame"/>, which is the captain/admin queue.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasGameDayActions))]
+    [NotifyCanExecuteChangedFor(nameof(OpenMatchStatsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenRateTeammatesCommand))]
+    private bool _canSubmitOwnStats;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasGameDayActions))]
@@ -303,6 +320,14 @@ public partial class GameDayPageModel(
     private Task OpenPostGameApproval() =>
         CanApprovePostGame ? navigator.OpenPostGameApprovalAsync(sessionId) : Task.CompletedTask;
 
+    [RelayCommand(CanExecute = nameof(CanOpenOwnStats))]
+    private Task OpenMatchStats() =>
+        CanOpenOwnStats() ? navigator.OpenMatchStatsAsync(matchId) : Task.CompletedTask;
+
+    [RelayCommand(CanExecute = nameof(CanOpenOwnStats))]
+    private Task OpenRateTeammates() =>
+        CanOpenOwnStats() ? navigator.OpenRateTeammatesAsync(matchId) : Task.CompletedTask;
+
     private bool CanCheckInNow() => CanCheckIn && !IsBusy;
 
     private bool CanOpenCaptainAssignment() => CanAssignCaptains;
@@ -310,6 +335,9 @@ public partial class GameDayPageModel(
     private bool CanOpenTeamDraft() => CanDraftTeam;
 
     private bool CanOpenPostGameApproval() => CanApprovePostGame;
+
+    // Both player-facing post-game screens are keyed off a real match id.
+    private bool CanOpenOwnStats() => CanSubmitOwnStats && matchId != Guid.Empty;
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -338,6 +366,7 @@ public partial class GameDayPageModel(
     private void ApplyContext(GameDayContextDto context)
     {
         sessionId = context.SessionId;
+        matchId = context.MatchId;
         Venue = context.Venue;
         ApplyTimeLabels(context);
         StatusLabel = context.StatusLabel;
@@ -350,6 +379,7 @@ public partial class GameDayPageModel(
         CanAssignCaptains = context.CanAssignCaptains;
         CanDraftTeam = context.CanDraftTeam;
         CanApprovePostGame = context.CanApprovePostGame;
+        CanSubmitOwnStats = context.CanSubmitOwnStats;
         CanLateCheckIn = context.CanLateCheckIn;
         LateCheckInPlayers = context.LateCheckInPlayers ?? [];
         CanManageCheckIns = context.CanManageCheckIns;
@@ -1090,6 +1120,13 @@ public sealed class ShellGameDayNavigator : IGameDayNavigator
 
     public Task OpenPostGameApprovalAsync(Guid sessionId) =>
         Shell.Current.GoToAsync(BuildRoute("postgame", sessionId));
+
+    public Task OpenMatchStatsAsync(Guid matchId) =>
+        Shell.Current.GoToAsync($"matchstats?matchId={Uri.EscapeDataString(matchId.ToString())}");
+
+    // The rater is resolved server-side from the bearer token (INV-8), so only the match travels.
+    public Task OpenRateTeammatesAsync(Guid matchId) =>
+        Shell.Current.GoToAsync($"rate-teammates?matchId={Uri.EscapeDataString(matchId.ToString())}");
 
     public Task GoBackAsync() => Shell.Current.GoToAsync("..");
 

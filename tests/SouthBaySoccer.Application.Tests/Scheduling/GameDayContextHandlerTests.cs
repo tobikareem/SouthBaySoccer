@@ -117,6 +117,66 @@ public sealed class GameDayContextHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenAdminIsBeforeCheckInOpens_StillEnablesCaptainAssignment()
+    {
+        var context = new TestContext();
+        // Check-in opens at 04:50 and the clock reads 02:35, so this is well before the window.
+        var session = context.SessionAt(Utc(2026, 7, 23, 5, 0));
+        context.CurrentUser.Setup(x => x.HasPolicy("CanManageSessions")).Returns(true);
+        context.ConfigureSession(session);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.Should().NotBeNull();
+        result!.CanAssignCaptains.Should().BeTrue("game admins set teams up ahead of game day");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAdminIsBeforeCheckInOpens_StillEnablesTeamDraft()
+    {
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 23, 5, 0));
+        var match = new Match
+        {
+            Id = Guid.NewGuid(),
+            SessionId = session.Id,
+            MatchNumber = 1,
+            Status = MatchStatus.Draft,
+        };
+        context.CurrentUser.Setup(x => x.HasPolicy("CanManageSessions")).Returns(true);
+        context.ConfigureSession(session);
+        context.ConfigureMatch(session, match);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.Should().NotBeNull();
+        result!.CanDraftTeam.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenCaptainIsBeforeCheckInOpens_WithholdsTeamDraft()
+    {
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 23, 5, 0));
+        var match = new Match
+        {
+            Id = Guid.NewGuid(),
+            SessionId = session.Id,
+            MatchNumber = 1,
+            Status = MatchStatus.Draft,
+        };
+        context.ConfigureSession(session);
+        // ConfigureMatch seats the current profile as the team captain, but they are not an admin.
+        context.ConfigureMatch(session, match);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.Should().NotBeNull();
+        result!.CanDraftTeam.Should().BeFalse("captains still wait for game-day check-in");
+        result.CanAssignCaptains.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenCallerCaptainsDraftTeam_EnablesOnlyTeamDraft()
     {
         var context = new TestContext();
@@ -262,6 +322,11 @@ public sealed class GameDayContextHandlerTests
             PickupPalGames
                 .Setup(x => x.ListParticipantsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Array.Empty<PickupPalGameParticipant>());
+            // The real repository returns an empty list, never null; without this default an
+            // unstubbed read would hand the handler a null collection.
+            Stats
+                .Setup(x => x.ListAssignmentsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<TeamAssignment>());
         }
 
         public PlayerProfile Profile { get; } = new()

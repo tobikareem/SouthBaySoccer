@@ -66,6 +66,27 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
         await dbContext.MatchEvents.AddRangeAsync(events, cancellationToken);
     }
 
+    public async Task ReplaceOwnPendingMatchEventsAsync(
+        Guid matchId,
+        Guid submittedByPlayerProfileId,
+        IReadOnlyList<MatchEvent> events,
+        CancellationToken cancellationToken = default)
+    {
+        // Scope the soft-delete to this player's own still-pending claim. Approved/rejected rows are
+        // settled facts, and other players' rows are none of this submitter's business.
+        var existing = await dbContext.MatchEvents
+            .Where(x => x.MatchId == matchId
+                && x.SubmittedByPlayerProfileId == submittedByPlayerProfileId
+                && x.ReviewStatus == MatchEventReviewStatus.Pending)
+            .ToArrayAsync(cancellationToken);
+        foreach (var matchEvent in existing)
+        {
+            matchEvent.IsDeleted = true;
+        }
+
+        await dbContext.MatchEvents.AddRangeAsync(events, cancellationToken);
+    }
+
     public async Task UpsertMatchResultsAsync(
         Guid matchId,
         IReadOnlyList<MatchResult> results,

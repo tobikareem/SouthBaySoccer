@@ -278,7 +278,8 @@ public sealed class GameDayFunctions(
                     entry.IsWaitlist,
                     entry.IsCheckedIn))
                 .ToArray(),
-            context.CanManageCheckIns);
+            context.CanManageCheckIns,
+            context.CanSubmitOwnStats);
     }
 
     private static CaptainAssignmentDto ToResponse(CaptainAssignmentModel model) =>
