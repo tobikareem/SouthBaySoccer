@@ -689,6 +689,15 @@ public partial class TeamDraftPageModel(
         if (CanManageAllTeams && team != Guid.Empty && team != teamId)
         {
             ProjectTeam(team);
+            MarkSelectedTeam(team);
+        }
+    }
+
+    private void MarkSelectedTeam(Guid selectedTeamId)
+    {
+        foreach (var option in Teams)
+        {
+            option.IsSelected = option.TeamId == selectedTeamId;
         }
     }
 
@@ -738,6 +747,7 @@ public partial class TeamDraftPageModel(
         }
 
         ProjectTeam(dto.TeamId);
+        MarkSelectedTeam(dto.TeamId);
         State = ViewState.Content;
     }
 
@@ -945,7 +955,16 @@ public partial class CaptainPlayerItem(Guid playerId, string initials, string na
     private bool _isVisible = true;
 }
 
-public sealed record DraftTeamOption(Guid TeamId, string Name, string CaptainName);
+public partial class DraftTeamOption(Guid teamId, string name, string captainName) : ObservableObject
+{
+    public Guid TeamId { get; } = teamId;
+    public string Name { get; } = name;
+    public string CaptainName { get; } = captainName;
+
+    /// <summary>Drives the solid/outline swap so the team being drafted for is obvious.</summary>
+    [ObservableProperty]
+    private bool _isSelected;
+}
 
 public partial class DraftPlayerItem(Guid playerId, string initials, string name, string detail, bool isSelected, bool canPick) : ObservableObject
 {

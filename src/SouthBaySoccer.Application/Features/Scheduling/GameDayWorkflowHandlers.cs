@@ -223,7 +223,23 @@ public sealed class AssignSessionCaptainsCommandHandler(
     IAuditLogRepository auditLogRepository,
     IUnitOfWork unitOfWork)
 {
-    private static readonly string[] TeamNames = ["Team Green", "Team White", "Team Spring", "Team Pine"];
+    private static readonly string[] FallbackTeamNames = ["Team Green", "Team White", "Team Spring", "Team Pine"];
+
+    /// <summary>
+    /// Teams are known by their captain on the pitch ("Team Vic"), so name them that way. Falls back
+    /// to the colour palette when the captain has no usable display name.
+    /// </summary>
+    private static string BuildTeamName(
+        Guid captainId,
+        int index,
+        IReadOnlyList<RosterMemberRecord> roster)
+    {
+        var captain = roster.FirstOrDefault(member => member.PlayerProfileId == captainId);
+        var firstName = captain?.DisplayName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        return string.IsNullOrWhiteSpace(firstName)
+            ? FallbackTeamNames[index % FallbackTeamNames.Length]
+            : $"Team {firstName}";
+    }
 
     public async Task<GameDayMutationModel> HandleAsync(
         AssignSessionCaptainsCommand command,
@@ -244,13 +260,12 @@ public sealed class AssignSessionCaptainsCommandHandler(
             clock.UtcNow,
             GameDayWorkflowAuthorization.IsGameAdmin(currentUser));
 
-        var eligibleIds = (await GameDayWorkflowQueries.ListEligibleRosterAsync(
-                rsvpRepository,
-                pickupPalGameRepository,
-                command.SessionId,
-                cancellationToken))
-            .Select(x => x.PlayerProfileId)
-            .ToHashSet();
+        var roster = await GameDayWorkflowQueries.ListEligibleRosterAsync(
+            rsvpRepository,
+            pickupPalGameRepository,
+            command.SessionId,
+            cancellationToken);
+        var eligibleIds = roster.Select(x => x.PlayerProfileId).ToHashSet();
         if (command.CaptainPlayerProfileIds.Any(x => !eligibleIds.Contains(x)))
         {
             throw new ApplicationConflictException("Captains must be selected from confirmed (Going or Waitlist) players.");
@@ -279,9 +294,20 @@ public sealed class AssignSessionCaptainsCommandHandler(
 
             var hasRecordedFacts = (await statsRepository.ListMatchResultsAsync(match.Id, cancellationToken)).Count > 0
                 || (await statsRepository.ListMatchEventsAsync(match.Id, cancellationToken)).Count > 0;
-            if (currentAssignments.Any(x => !currentCaptainIds.Contains(x.PlayerProfileId)) || hasRecordedFacts)
+            if (hasRecordedFacts)
             {
-                throw new ApplicationConflictException("Captain topology cannot change after player drafting or stat recording has started.");
+                // Results and events point at these MatchTeam rows; rebuilding the topology would
+                // orphan them. Moving players between the existing teams is still allowed.
+                throw new ApplicationConflictException(
+                    "Team count cannot change after results or stats have been recorded.");
+            }
+
+            // A game admin may re-cut the teams (say 4 down to 3), which necessarily discards the
+            // current draft picks. Captains only get the no-op path above.
+            if (currentAssignments.Any(x => !currentCaptainIds.Contains(x.PlayerProfileId))
+                && !GameDayWorkflowAuthorization.IsGameAdmin(currentUser))
+            {
+                throw new ApplicationConflictException("Captain topology cannot change after player drafting has started.");
             }
         }
         else
@@ -300,7 +326,7 @@ public sealed class AssignSessionCaptainsCommandHandler(
             Id = Guid.NewGuid(),
             MatchId = match.Id,
             TeamNumber = index + 1,
-            Name = TeamNames[index],
+            Name = BuildTeamName(captainId, index, roster),
             CaptainPlayerProfileId = captainId,
         }).ToArray();
         var assignments = teams.Select(team => new TeamAssignment

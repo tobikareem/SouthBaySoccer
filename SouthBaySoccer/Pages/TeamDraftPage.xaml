@@ -31,7 +31,13 @@
                                             Command="{Binding BindingContext.SelectTeamCommand, Source={x:Reference DraftPage}}"
                                             CommandParameter="{Binding TeamId}"
                                             Style="{StaticResource SecondaryButton}"
-                                            SemanticProperties.Description="{Binding Name, StringFormat='Draft for {0}'}" />
+                                            SemanticProperties.Description="{Binding Name, StringFormat='Draft for {0}'}">
+                                            <Button.Triggers>
+                                                <DataTrigger TargetType="Button" Binding="{Binding IsSelected}" Value="True">
+                                                    <Setter Property="Style" Value="{StaticResource PrimaryButton}" />
+                                                </DataTrigger>
+                                            </Button.Triggers>
+                                        </Button>
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
                             </HorizontalStackLayout>
