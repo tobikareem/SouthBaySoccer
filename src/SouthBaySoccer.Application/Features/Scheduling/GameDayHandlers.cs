@@ -106,15 +106,16 @@ public sealed class GetTodayGameDayContextQueryHandler(
         var teams = match is null
             ? []
             : await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken);
-        var isDraftWindow = session.Status == SessionStatus.Published
-            && nowUtc >= session.CheckInOpensAtUtc
-            && !GameDayWorkflowQueries.IsPostGameOpen(session, nowUtc);
-        var canAssignCaptains = GameDayWorkflowAuthorization.IsGameAdmin(currentUser)
+        // Game admins set teams up ahead of time, so their window opens at publish; captains still
+        // wait for check-in. Both close when post-game opens.
+        var isGameAdmin = GameDayWorkflowAuthorization.IsGameAdmin(currentUser);
+        var isDraftWindow = GameDayWorkflowQueries.IsTeamSetupOpen(session, nowUtc, isGameAdmin);
+        var canAssignCaptains = isGameAdmin
             && isDraftWindow
             && (match is null || match.Status == MatchStatus.Draft);
         var canDraftTeam = match?.Status == MatchStatus.Draft
             && isDraftWindow
-            && (GameDayWorkflowAuthorization.IsGameAdmin(currentUser)
+            && (isGameAdmin
                 || teams.Any(team => team.CaptainPlayerProfileId == profile.Id));
         var canApprovePostGame = match is not null
             && GameDayWorkflowQueries.IsPostGameOpen(session, nowUtc)

@@ -239,7 +239,10 @@ public sealed class AssignSessionCaptainsCommandHandler(
             sessionRepository,
             command.SessionId,
             cancellationToken);
-        GameDayWorkflowQueries.EnsureCaptainDraftWindow(session, clock.UtcNow);
+        GameDayWorkflowQueries.EnsureCaptainDraftWindow(
+            session,
+            clock.UtcNow,
+            GameDayWorkflowAuthorization.IsGameAdmin(currentUser));
 
         var eligibleIds = (await GameDayWorkflowQueries.ListEligibleRosterAsync(
                 rsvpRepository,
@@ -379,7 +382,10 @@ public sealed class LockSessionTeamsCommandHandler(
             playerProfileRepository,
             cancellationToken);
         var session = await GameDayWorkflowQueries.GetSessionAsync(sessionRepository, command.SessionId, cancellationToken);
-        GameDayWorkflowQueries.EnsureTeamLockWindow(session, clock.UtcNow);
+        GameDayWorkflowQueries.EnsureTeamLockWindow(
+            session,
+            clock.UtcNow,
+            GameDayWorkflowAuthorization.IsGameAdmin(currentUser));
         var match = await statsRepository.FindPrimaryMatchBySessionAsync(command.SessionId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Captain assignments were not found for this session.");
         if (match.Status == MatchStatus.InProgress)
@@ -525,7 +531,10 @@ public sealed class SaveCaptainTeamPicksCommandHandler(
             sessionRepository,
             command.SessionId,
             cancellationToken);
-        GameDayWorkflowQueries.EnsureCaptainDraftWindow(session, clock.UtcNow);
+        GameDayWorkflowQueries.EnsureCaptainDraftWindow(
+            session,
+            clock.UtcNow,
+            GameDayWorkflowAuthorization.IsGameAdmin(currentUser));
         var match = await statsRepository.FindPrimaryMatchBySessionAsync(command.SessionId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Captain assignments were not found for this session.");
         if (match.Status != MatchStatus.Draft)
@@ -1028,14 +1037,18 @@ internal static class GameDayWorkflowQueries
     internal static bool IsPostGameOpen(Session session, DateTime nowUtc) =>
         nowUtc >= session.StartsAtUtc.Add(PostGameOffset);
 
-    internal static void EnsureCaptainDraftWindow(Session session, DateTime nowUtc)
+    /// <summary>
+    /// Game admins set teams up ahead of time, so for them the window opens as soon as the session
+    /// is published; captains still wait for game-day check-in. Both close when post-game opens.
+    /// </summary>
+    internal static void EnsureCaptainDraftWindow(Session session, DateTime nowUtc, bool isGameAdmin)
     {
         if (session.Status != SessionStatus.Published)
         {
             throw new ApplicationConflictException("Only published sessions can assign or draft teams.");
         }
 
-        if (nowUtc < session.CheckInOpensAtUtc)
+        if (!isGameAdmin && nowUtc < session.CheckInOpensAtUtc)
         {
             throw new ApplicationConflictException("Captain assignment opens with game-day check-in.");
         }
@@ -1046,18 +1059,27 @@ internal static class GameDayWorkflowQueries
         }
     }
 
-    internal static void EnsureTeamLockWindow(Session session, DateTime nowUtc)
+    internal static void EnsureTeamLockWindow(Session session, DateTime nowUtc, bool isGameAdmin)
     {
         if (session.Status != SessionStatus.Published)
         {
             throw new ApplicationConflictException("Only published sessions can lock teams.");
         }
 
-        if (nowUtc < session.CheckInOpensAtUtc)
+        if (!isGameAdmin && nowUtc < session.CheckInOpensAtUtc)
         {
             throw new ApplicationConflictException("Team locking opens with game-day check-in.");
         }
     }
+
+    /// <summary>
+    /// True when the actor may act on the pre-game team workflow now: published, not yet post-game,
+    /// and either a game admin (any time after publish) or anyone else once check-in has opened.
+    /// </summary>
+    internal static bool IsTeamSetupOpen(Session session, DateTime nowUtc, bool isGameAdmin) =>
+        session.Status == SessionStatus.Published
+        && (isGameAdmin || nowUtc >= session.CheckInOpensAtUtc)
+        && !IsPostGameOpen(session, nowUtc);
 
     internal static void EnsurePostGameWindow(Session session, DateTime nowUtc)
     {
