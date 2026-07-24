@@ -24,7 +24,9 @@
         <c:BrandHeader
             Grid.Row="0"
             Title="{Binding Profile.DisplayName}"
-            Subtitle="{Binding Profile.Subtitle}">
+            Subtitle="{Binding Profile.Subtitle}"
+            ShowBack="{Binding IsViewingOtherPlayer}"
+            BackCommand="{Binding BackCommand}">
             <c:BrandHeader.LeadingContent>
                 <c:Avatar
                     Initials="{Binding Profile.Initials}"

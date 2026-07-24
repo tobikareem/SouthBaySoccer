@@ -379,6 +379,66 @@ public class ProfilePageModelTests
     }
 
     [Fact]
+    public void ApplyQueryAttributes_WithPlayerId_MarksViewingOtherPlayer()
+    {
+        var pageModel = CreatePageModel(new Mock<IProfileClient>());
+
+        pageModel.ApplyQueryAttributes(new Dictionary<string, object>
+        {
+            [ProfilePageModel.PlayerIdQueryKey] = Guid.NewGuid().ToString()
+        });
+
+        pageModel.IsViewingOtherPlayer.Should().BeTrue("a pushed detail page needs its own back button");
+        pageModel.CanEditProfile.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ApplyQueryAttributes_WithoutPlayerId_IsTheSignedInPlayersOwnProfile()
+    {
+        var pageModel = CreatePageModel(new Mock<IProfileClient>());
+
+        pageModel.ApplyQueryAttributes(new Dictionary<string, object>());
+
+        pageModel.IsViewingOtherPlayer.Should().BeFalse();
+        pageModel.CanEditProfile.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Regression: viewing another player used to hijack the Profile tab ("//profile?playerId="),
+    /// so the tab's cached page model kept that id and re-showed that player. A profile page with no
+    /// requested player must always load the signed-in player, however many times it reappears.
+    /// </summary>
+    [Fact]
+    public async Task Appearing_Repeatedly_WithNoRequestedPlayer_AlwaysLoadsTheCurrentPlayer()
+    {
+        var other = Guid.NewGuid();
+        var profileClient = ProfileClientReturning(SeedFixtures.Profile);
+        var pageModel = CreatePageModel(profileClient);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.CanEditProfile.Should().BeTrue();
+        profileClient.Verify(
+            client => client.GetCurrentProfileAsync(It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+        profileClient.Verify(
+            client => client.GetProfileAsync(other, It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Back_PopsThePushedProfileDetailPage()
+    {
+        var navigator = Navigator();
+        var pageModel = CreatePageModel(new Mock<IProfileClient>(), navigator: navigator);
+
+        await pageModel.BackCommand.ExecuteAsync(null);
+
+        navigator.Verify(nav => nav.GoBackAsync(), Times.Once);
+    }
+
+    [Fact]
     public async Task SignOut_WhenConfirmed_SignsOutThroughCoordinator()
     {
         var dialog = new Mock<IUserDialogService>();

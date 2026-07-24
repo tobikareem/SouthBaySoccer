@@ -161,6 +161,9 @@ public static class MauiProgram
         builder.Services.AddTransientWithShellRoute<TeamDraftPage, TeamDraftPageModel>("draft");
         builder.Services.AddTransientWithShellRoute<PostGameApprovalPage, PostGameApprovalPageModel>("postgame");
         builder.Services.AddTransientWithShellRoute<RecentGamesPage, RecentGamesPageModel>("recent-games");
+        // Another player's profile is a pushed detail page; the Profile tab stays the signed-in
+        // player's own so its page model never carries a requested playerId.
+        builder.Services.AddTransientWithShellRoute<ProfilePage, ProfilePageModel>("player-profile");
         builder.Services.AddTransientWithShellRoute<ClaimSpotPage, ClaimSpotPageModel>("claim-spot");
         builder.Services.AddTransientWithShellRoute<AdminMatchPage, AdminMatchPageModel>("admin-match");
         builder.Services.AddTransientWithShellRoute<MatchStatsPage, MatchStatsPageModel>("matchstats");

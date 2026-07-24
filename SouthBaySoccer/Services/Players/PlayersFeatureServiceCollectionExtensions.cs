@@ -14,7 +14,10 @@ public sealed class ShellPlayersNavigator : IPlayersNavigator
             return Task.CompletedTask;
         }
 
-        return Shell.Current.GoToAsync($"//profile?playerId={playerId}");
+        // Push a profile *detail* page rather than switching to the Profile tab. Routing another
+        // player through "//profile" reused the tab's cached page model, so its requestedPlayerId
+        // survived and tapping the Profile tab afterwards kept showing that player instead of you.
+        return Shell.Current.GoToAsync($"player-profile?playerId={playerId}");
     }
 }
 
