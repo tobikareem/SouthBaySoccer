@@ -32,6 +32,38 @@ public class GameDayPageModelTests
     }
 
     [Fact]
+    public async Task Appearing_WhenMultipleGamesToday_ShowsPickerAndSwitchesGame()
+    {
+        var baseContext = new SeedGameDayState().GetContext();
+        var otherGameId = Guid.NewGuid();
+        var startsAt = new DateTime(2026, 7, 24, 2, 30, 0, DateTimeKind.Utc);
+        var context = baseContext with
+        {
+            TodaysGames =
+            [
+                new GameDayGameOptionDto(baseContext.SessionId, "Bay Area", "Marina", startsAt, "Going", true),
+                new GameDayGameOptionDto(otherGameId, "Fire FC", "Stanford", startsAt.AddHours(1), "Going", false),
+            ],
+        };
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(context);
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.HasMultipleGames.Should().BeTrue();
+        pageModel.TodaysGames.Should().HaveCount(2);
+
+        await pageModel.SelectGameCommand.ExecuteAsync(otherGameId);
+
+        // Switching loads the chosen game explicitly (first load used the server's auto-pick, null).
+        client.Verify(service => service.GetTodayContextAsync(otherGameId, It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(service => service.GetTodayContextAsync(null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task GameDayActions_OpenDraftAndPostGameRoutes()
     {
         var navigator = Navigator();
@@ -70,7 +102,7 @@ public class GameDayPageModelTests
         var context = new SeedGameDayState().GetContext() with { CanSubmitOwnStats = false };
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         var navigator = Navigator();
         var pageModel = new GameDayPageModel(client.Object, navigator.Object);
@@ -96,7 +128,7 @@ public class GameDayPageModelTests
         };
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         var pageModel = new GameDayPageModel(
             client.Object,
@@ -125,7 +157,7 @@ public class GameDayPageModelTests
         };
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         var navigator = Navigator();
         var pageModel = new GameDayPageModel(
@@ -169,7 +201,7 @@ public class GameDayPageModelTests
         var context = new SeedGameDayState().GetContext();
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         client
             .Setup(service => service.CheckInAsync(
@@ -217,7 +249,7 @@ public class GameDayPageModelTests
         };
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         var pageModel = new GameDayPageModel(
             client.Object,

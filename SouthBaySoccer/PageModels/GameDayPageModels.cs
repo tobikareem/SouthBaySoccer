@@ -41,6 +41,9 @@ public partial class GameDayPageModel(
 
     private Guid sessionId;
     private Guid matchId;
+    // The game the player is currently viewing. Null on first load so the server auto-picks; pinned
+    // after each load so reloads (and the picker) stay on the chosen game rather than jumping.
+    private Guid? selectedSessionId;
     private Guid? selfCheckInIdempotencyKey;
     private readonly Dictionary<Guid, Guid> lateCheckInIdempotencyKeys = [];
     private readonly Dictionary<Guid, Guid> adminCheckInIdempotencyKeys = [];
@@ -112,6 +115,13 @@ public partial class GameDayPageModel(
 
     public bool HasRoster => Roster.Count > 0;
 
+    /// <summary>Today's games the player can act on; the picker shows only when more than one runs.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMultipleGames))]
+    private IReadOnlyList<GameDayGameOption> _todaysGames = [];
+
+    public bool HasMultipleGames => TodaysGames.Count > 1;
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AdminCheckInCommand))]
     [NotifyCanExecuteChangedFor(nameof(OpenRecentGamesCommand))]
@@ -160,6 +170,19 @@ public partial class GameDayPageModel(
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private Task Retry(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
+
+    // Picker tap: load a different one of today's games. No-op if it is already showing.
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task SelectGame(Guid gameSessionId, CancellationToken cancellationToken)
+    {
+        if (gameSessionId == Guid.Empty || gameSessionId == sessionId)
+        {
+            return Task.CompletedTask;
+        }
+
+        selectedSessionId = gameSessionId;
+        return LoadAsync(cancellationToken);
+    }
 
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanCheckInNow))]
     private async Task CheckIn(CancellationToken cancellationToken)
@@ -358,7 +381,7 @@ public partial class GameDayPageModel(
         State = ViewState.Loading;
         try
         {
-            var context = await gameDayClient.GetTodayContextAsync(cancellationToken);
+            var context = await gameDayClient.GetTodayContextAsync(selectedSessionId, cancellationToken);
             if (context is null)
             {
                 ApplyNonContent(ViewState.Empty, "No session today", "Your next eligible session will appear here on match day.");
@@ -380,6 +403,18 @@ public partial class GameDayPageModel(
     private void ApplyContext(GameDayContextDto context)
     {
         sessionId = context.SessionId;
+        // Pin to the loaded game so a later reload (check-in, refresh) stays on it instead of
+        // re-running the server's auto-pick and possibly jumping to a different game.
+        selectedSessionId = context.SessionId;
+        TodaysGames = (context.TodaysGames ?? [])
+            .Select(game => new GameDayGameOption(
+                game.SessionId,
+                game.Title,
+                game.Venue,
+                FormatGameTime(game.StartsAtUtc),
+                game.StatusLabel,
+                game.IsSelected))
+            .ToArray();
         matchId = context.MatchId;
         Venue = context.Venue;
         ApplyTimeLabels(context);
@@ -439,6 +474,10 @@ public partial class GameDayPageModel(
             utc.Kind == DateTimeKind.Utc ? utc : DateTime.SpecifyKind(utc, DateTimeKind.Utc),
             VenueTimeZone);
 
+    // Short local kick-off label for a picker chip, e.g. "Thu 7:30 PM".
+    private static string FormatGameTime(DateTime startsAtUtc) =>
+        ToVenueLocal(startsAtUtc).ToString("ddd h:mm tt", CultureInfo.InvariantCulture);
+
     private static TimeZoneInfo FindVenueTimeZone()
     {
         try
@@ -458,6 +497,15 @@ public partial class GameDayPageModel(
         StateMessage = message;
     }
 }
+
+/// <summary>One of today's games shown in the Game Day picker (rendered only when more than one).</summary>
+public sealed record GameDayGameOption(
+    Guid SessionId,
+    string Title,
+    string Venue,
+    string TimeLabel,
+    string StatusLabel,
+    bool IsSelected);
 
 /// <summary>
 /// A Going or Waitlist member shown on the Game Day roster. <see cref="CanCheckIn"/> is precomputed

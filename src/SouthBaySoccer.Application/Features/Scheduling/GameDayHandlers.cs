@@ -41,7 +41,20 @@ public sealed record GameDayContextModel(
     IReadOnlyList<GameDayPlayerModel> LateCheckInPlayers,
     IReadOnlyList<GameDayRosterEntryModel> Roster,
     bool CanManageCheckIns,
-    bool CanSubmitOwnStats);
+    bool CanSubmitOwnStats,
+    IReadOnlyList<GameDayOptionModel> TodaysGames);
+
+/// <summary>
+/// One of today's games the player can act on, used to build the Game Day picker when more than one
+/// runs the same day. <see cref="IsSelected"/> marks the one whose context is currently loaded.
+/// </summary>
+public sealed record GameDayOptionModel(
+    Guid SessionId,
+    string Title,
+    string Venue,
+    DateTime StartsAtUtc,
+    string StatusLabel,
+    bool IsSelected);
 
 public sealed record RecentGameModel(
     Guid SessionId,
@@ -120,7 +133,9 @@ public sealed class GetTodayGameDayContextQueryHandler(
 {
     private const string CanCheckInPlayersPolicy = "CanCheckInPlayers";
 
-    public async Task<GameDayContextModel?> HandleAsync(CancellationToken cancellationToken = default)
+    public async Task<GameDayContextModel?> HandleAsync(
+        Guid? requestedSessionId = null,
+        CancellationToken cancellationToken = default)
     {
         var identityUserId = currentUser.UserId ?? throw new ApplicationUnauthenticatedException();
         var profile = await playerProfileRepository.FindByIdentityUserIdAsync(identityUserId, cancellationToken)
@@ -150,9 +165,15 @@ public sealed class GetTodayGameDayContextQueryHandler(
         var confirmedCandidates = candidates
             .Where(candidate => attendanceBySessionId[candidate.Id].IsCurrentPlayerGoing)
             .ToArray();
-        var session = SelectSession(
-            confirmedCandidates.Length > 0 ? confirmedCandidates : candidates,
-            clock.UtcNow)!;
+        // The player picks between the games they're Going to; if they're Going to none (e.g. an
+        // admin running the day), the pool falls back to every game so they can still operate one.
+        IReadOnlyList<Session> pool = confirmedCandidates.Length > 0 ? confirmedCandidates : candidates;
+        // Honour an explicit pick from the picker, but only within the pool the player may view;
+        // an unknown or out-of-pool id falls back to the automatic selection.
+        var session = (requestedSessionId is { } requestedId
+                ? pool.FirstOrDefault(candidate => candidate.Id == requestedId)
+                : null)
+            ?? SelectSession(pool, clock.UtcNow)!;
         var attendance = attendanceBySessionId[session.Id];
         var eligibility = attendance.IsCurrentPlayerGoing
             ? await eligibilityService.CheckAsync(profile.Id, session.Id, cancellationToken)
@@ -224,6 +245,23 @@ public sealed class GetTodayGameDayContextQueryHandler(
             && match.Status is not MatchStatus.Published and not MatchStatus.Locked
             && roster.Any(member => member.PlayerProfileId == profile.Id);
 
+        // The picker lists every game in the pool (ordered by kick-off), reusing the already-loaded
+        // venue for the selected one and looking up the rest. Attendance is already fetched per game.
+        var todaysGames = new List<GameDayOptionModel>(pool.Count);
+        foreach (var candidate in pool.OrderBy(candidate => candidate.StartsAtUtc))
+        {
+            var candidateVenue = candidate.VenueId == session.VenueId
+                ? venue
+                : await venueRepository.GetByIdAsync(candidate.VenueId, cancellationToken);
+            todaysGames.Add(new GameDayOptionModel(
+                candidate.Id,
+                candidate.Title,
+                candidateVenue?.Name ?? "Unknown venue",
+                candidate.StartsAtUtc,
+                DescribeAttendance(attendanceBySessionId[candidate.Id]),
+                candidate.Id == session.Id));
+        }
+
         return new GameDayContextModel(
             session.Id,
             match?.Id ?? Guid.Empty,
@@ -248,8 +286,15 @@ public sealed class GetTodayGameDayContextQueryHandler(
             latePlayers,
             roster,
             canManageCheckIns,
-            canSubmitOwnStats);
+            canSubmitOwnStats,
+            todaysGames);
     }
+
+    private static string DescribeAttendance(GameDayAttendanceRecord attendance) =>
+        attendance.IsCurrentPlayerCheckedIn ? "Checked in"
+        : attendance.IsCurrentPlayerGoing ? "Going"
+        : attendance.IsCurrentPlayerWaitlisted ? "Waitlist"
+        : "Not going";
 
     private async Task<IReadOnlyList<GameDayPlayerModel>> ListConfirmedPlayersAsync(
         Guid sessionId,

@@ -48,7 +48,20 @@ public sealed record GameDayContextDto(
     IReadOnlyList<GameDayPlayerDto>? LateCheckInPlayers = null,
     IReadOnlyList<GameDayRosterEntryDto>? Roster = null,
     bool CanManageCheckIns = false,
-    bool CanSubmitOwnStats = false);
+    bool CanSubmitOwnStats = false,
+    IReadOnlyList<GameDayGameOptionDto>? TodaysGames = null);
+
+/// <summary>
+/// One of today's games the player can act on. The Game Day screen shows a picker built from these
+/// only when there is more than one; the <see cref="IsSelected"/> entry is the one currently loaded.
+/// </summary>
+public sealed record GameDayGameOptionDto(
+    Guid SessionId,
+    string Title,
+    string Venue,
+    DateTime StartsAtUtc,
+    string StatusLabel,
+    bool IsSelected);
 
 public sealed record RecentGameDto(
     Guid SessionId,

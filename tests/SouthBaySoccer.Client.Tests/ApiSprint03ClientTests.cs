@@ -431,7 +431,7 @@ public sealed class ApiSprint03ClientTests
                 """);
         }));
 
-        var context = await client.GetTodayContextAsync(CancellationToken.None);
+        var context = await client.GetTodayContextAsync(null, CancellationToken.None);
 
         context.Should().NotBeNull();
         context!.SessionId.Should().Be(SessionId);
@@ -446,7 +446,7 @@ public sealed class ApiSprint03ClientTests
         var client = new ApiGameDayClient(CreateHttpClient(_ =>
             new HttpResponseMessage(HttpStatusCode.NoContent)));
 
-        var context = await client.GetTodayContextAsync(CancellationToken.None);
+        var context = await client.GetTodayContextAsync(null, CancellationToken.None);
 
         context.Should().BeNull();
     }

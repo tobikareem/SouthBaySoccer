@@ -6,9 +6,10 @@ namespace SouthBaySoccer.SeedData;
 
 public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
 {
-    public Task<GameDayContextDto?> GetTodayContextAsync(CancellationToken cancellationToken)
+    public Task<GameDayContextDto?> GetTodayContextAsync(Guid? sessionId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        // Seed mode runs a single game a day, so the requested session is ignored.
         return Task.FromResult<GameDayContextDto?>(state.GetContext());
     }
 
