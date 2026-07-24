@@ -6,6 +6,8 @@ using SouthBaySoccer.Contracts.Profiles;
 using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
+using SouthBaySoccer.Services;
+using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
 
 namespace SouthBaySoccer.Client.Tests;
@@ -331,11 +333,12 @@ public class ProfilePageModelTests
             .Where(element => element.Name.LocalName == "Button")
             .ToList();
 
-        buttons.Should().HaveCount(2);
+        buttons.Should().HaveCount(3);
         buttons.Select(button => Attribute(button, "Style"))
             .Should().BeEquivalentTo(
                 "{StaticResource LinkButton}",
-                "{StaticResource GhostButton}");
+                "{StaticResource GhostButton}",
+                "{StaticResource DangerButton}");
         page.Descendants().Should().Contain(element => element.Name.LocalName == "ScrollView");
     }
 
@@ -375,14 +378,58 @@ public class ProfilePageModelTests
         return client;
     }
 
+    [Fact]
+    public async Task SignOut_WhenConfirmed_SignsOutThroughCoordinator()
+    {
+        var dialog = new Mock<IUserDialogService>();
+        dialog
+            .Setup(service => service.ShowConfirmationAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var coordinator = new Mock<IAuthenticationCoordinator>();
+        var pageModel = CreatePageModel(
+            new Mock<IProfileClient>(),
+            authenticationCoordinator: coordinator,
+            dialogService: dialog);
+
+        await pageModel.SignOutCommand.ExecuteAsync(null);
+
+        coordinator.Verify(c => c.SignOutAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SignOut_WhenCancelled_DoesNotSignOut()
+    {
+        var dialog = new Mock<IUserDialogService>();
+        dialog
+            .Setup(service => service.ShowConfirmationAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        var coordinator = new Mock<IAuthenticationCoordinator>();
+        var pageModel = CreatePageModel(
+            new Mock<IProfileClient>(),
+            authenticationCoordinator: coordinator,
+            dialogService: dialog);
+
+        await pageModel.SignOutCommand.ExecuteAsync(null);
+
+        coordinator.Verify(c => c.SignOutAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static ProfilePageModel CreatePageModel(
         Mock<IProfileClient> profileClient,
         Mock<IProfileExternalLauncher>? launcher = null,
-        Mock<IProfileNavigator>? navigator = null) =>
+        Mock<IProfileNavigator>? navigator = null,
+        Mock<IAuthenticationCoordinator>? authenticationCoordinator = null,
+        Mock<IUserDialogService>? dialogService = null) =>
         new(
             profileClient.Object,
             (launcher ?? LauncherReturning(true)).Object,
-            (navigator ?? Navigator()).Object);
+            (navigator ?? Navigator()).Object,
+            (authenticationCoordinator ?? new Mock<IAuthenticationCoordinator>()).Object,
+            (dialogService ?? new Mock<IUserDialogService>()).Object);
 
     private static Mock<IProfileExternalLauncher> LauncherReturning(bool result)
     {

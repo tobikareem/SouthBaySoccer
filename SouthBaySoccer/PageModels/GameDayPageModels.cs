@@ -484,7 +484,17 @@ public partial class CaptainAssignmentPageModel(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedCountText))]
+    [NotifyPropertyChangedFor(nameof(IsTwoCaptains))]
+    [NotifyPropertyChangedFor(nameof(IsThreeCaptains))]
+    [NotifyPropertyChangedFor(nameof(IsFourCaptains))]
     private int _captainCount = 2;
+
+    /// <summary>Drives the active-state styling on the captain-count selector buttons.</summary>
+    public bool IsTwoCaptains => CaptainCount == 2;
+
+    public bool IsThreeCaptains => CaptainCount == 3;
+
+    public bool IsFourCaptains => CaptainCount == 4;
 
     [ObservableProperty]
     private string _searchText = string.Empty;

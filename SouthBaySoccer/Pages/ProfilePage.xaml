@@ -194,6 +194,22 @@
                         Command="{Binding OpenLeaderboardCommand}"
                         Style="{StaticResource GhostButton}"
                         SemanticProperties.Description="View season leaderboard" />
+
+                    <!-- Sign out / switch account, own profile only. -->
+                    <VerticalStackLayout
+                        Spacing="{StaticResource SpaceXs}"
+                        IsVisible="{Binding CanEditProfile}">
+                        <Button
+                            Text="Sign out"
+                            Command="{Binding SignOutCommand}"
+                            Style="{StaticResource DangerButton}"
+                            SemanticProperties.Description="Sign out and switch account" />
+                        <Label
+                            Text="Sign out to switch to a different account."
+                            Style="{StaticResource TextCaption}"
+                            HorizontalTextAlignment="Center"
+                            Opacity="0.65" />
+                    </VerticalStackLayout>
                 </VerticalStackLayout>
             </ScrollView>
         </c:StateView>

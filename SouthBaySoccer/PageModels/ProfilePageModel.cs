@@ -4,6 +4,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SouthBaySoccer.Controls;
 using SouthBaySoccer.Contracts.Profiles;
+using SouthBaySoccer.Services;
+using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
 using ViewState = SouthBaySoccer.Controls.ViewState;
 
@@ -15,7 +17,9 @@ namespace SouthBaySoccer.PageModels;
 public partial class ProfilePageModel(
     IProfileClient profileClient,
     IProfileExternalLauncher externalLauncher,
-    IProfileNavigator navigator) : ObservableObject
+    IProfileNavigator navigator,
+    IAuthenticationCoordinator authenticationCoordinator,
+    IUserDialogService dialogService) : ObservableObject
 {
     public const string EmptyTitle = "Profile not found";
     public const string EmptyMessage = "Your profile data is not available.";
@@ -25,6 +29,9 @@ public partial class ProfilePageModel(
     public const string OfflineMessage = "Reconnect to load your profile.";
     public const string ExternalLaunchError = "Pickup Pal could not be opened. Please try again.";
     public const string PlayerIdQueryKey = "playerId";
+    public const string SignOutConfirmTitle = "Sign out?";
+    public const string SignOutConfirmMessage =
+        "You'll be signed out on this device. Sign in again with any phone number connected to a Pickup Pal account.";
 
     private Guid? requestedPlayerId;
 
@@ -128,6 +135,24 @@ public partial class ProfilePageModel(
 
     [RelayCommand]
     private Task OpenLeaderboard() => navigator.OpenLeaderboardAsync();
+
+    // Sign out / switch account. Only offered on the signed-in player's own profile (CanEditProfile).
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task SignOut(CancellationToken cancellationToken)
+    {
+        var confirmed = await dialogService.ShowConfirmationAsync(
+            SignOutConfirmTitle,
+            SignOutConfirmMessage,
+            "Sign out",
+            "Cancel",
+            cancellationToken);
+        if (!confirmed)
+        {
+            return;
+        }
+
+        await authenticationCoordinator.SignOutAsync(cancellationToken);
+    }
 
     private async Task LoadProfileAsync(CancellationToken cancellationToken)
     {
