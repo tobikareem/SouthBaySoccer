@@ -76,7 +76,12 @@ public sealed record PostGameApprovalModel(
     bool NeedsReview,
     int TeamCount,
     IReadOnlyList<GameDayTeamResultModel> TeamResults,
-    IReadOnlyList<PendingStatApprovalModel> PendingApprovals);
+    IReadOnlyList<PendingStatApprovalModel> PendingApprovals,
+    bool CanReopenResults = false);
+
+public sealed record ReopenPostGameResultsCommand(Guid SessionId);
+
+public sealed record LinkParticipantToProfileCommand(Guid ParticipantId, Guid PlayerProfileId);
 
 public sealed record AssignSessionCaptainsCommand(
     Guid SessionId,
@@ -708,7 +713,123 @@ public sealed class GetPostGameApprovalQueryHandler(
                         MatchEventType.RedCard => "Red card",
                         _ => "Goal",
                     }))
-                .ToArray());
+                .ToArray(),
+            // A game admin can reopen a conflicted scoreline to re-enter the correct results.
+            match.Status == MatchStatus.NeedsReview
+                && GameDayWorkflowAuthorization.IsGameAdmin(currentUser)
+                && GameDayWorkflowQueries.IsPostGameOpen(session, clock.UtcNow));
+    }
+}
+
+/// <summary>
+/// Clears a conflicted scoreline (NeedsReview) back to InProgress so a game admin can re-enter the
+/// correct team results, which then re-run the consistency check. Without this a NeedsReview match
+/// is a dead-end: results cannot be re-saved and it can never be published.
+/// </summary>
+public sealed class ReopenPostGameResultsCommandHandler(
+    ICurrentUser currentUser,
+    IClock clock,
+    IPlayerProfileRepository playerProfileRepository,
+    ISessionRepository sessionRepository,
+    IStatsRepository statsRepository,
+    IAuditLogRepository auditLogRepository,
+    IUnitOfWork unitOfWork)
+{
+    public async Task<GameDayMutationModel> HandleAsync(
+        ReopenPostGameResultsCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        GameDayWorkflowAuthorization.EnsureGameAdmin(currentUser);
+        var actor = await GameDayWorkflowAuthorization.GetCurrentProfileAsync(
+            currentUser,
+            playerProfileRepository,
+            cancellationToken);
+        var session = await GameDayWorkflowQueries.GetSessionAsync(sessionRepository, command.SessionId, cancellationToken);
+        GameDayWorkflowQueries.EnsurePostGameWindow(session, clock.UtcNow);
+        var match = await statsRepository.FindPrimaryMatchBySessionAsync(command.SessionId, cancellationToken)
+            ?? throw new ApplicationNotFoundException("Match was not found for this session.");
+        if (match.Status != MatchStatus.NeedsReview)
+        {
+            throw new ApplicationConflictException("Only a match under review can be reopened.");
+        }
+
+        match.Status = MatchStatus.InProgress;
+        await auditLogRepository.AddAsync(new AuditLogEntry
+        {
+            Id = Guid.NewGuid(),
+            ActorType = AuditActorType.PlayerProfile,
+            ActorPlayerProfileId = actor.Id,
+            Action = "PostGame.Results.Reopen",
+            EntityName = nameof(Match),
+            EntityId = match.Id,
+            DetailsJson = JsonSerializer.Serialize(new { sessionId = session.Id, matchId = match.Id }),
+            OccurredAtUtc = clock.UtcNow,
+        }, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return new GameDayMutationModel(session.Id, match.Id, 1);
+    }
+}
+
+/// <summary>
+/// Attaches an unlinked imported Pickup Pal participant (guests, or players whose phone/name never
+/// matched at import) to a real player profile, so they appear on the roster and can submit stats
+/// and be rated. Guarded to game admins; the participant must not already be linked.
+/// </summary>
+public sealed class LinkParticipantToProfileCommandHandler(
+    ICurrentUser currentUser,
+    IClock clock,
+    IPlayerProfileRepository playerProfileRepository,
+    IPickupPalGameRepository pickupPalGameRepository,
+    IAuditLogRepository auditLogRepository,
+    IUnitOfWork unitOfWork)
+{
+    public async Task<GameDayMutationModel> HandleAsync(
+        LinkParticipantToProfileCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        GameDayWorkflowAuthorization.EnsureGameAdmin(currentUser);
+        var actor = await GameDayWorkflowAuthorization.GetCurrentProfileAsync(
+            currentUser,
+            playerProfileRepository,
+            cancellationToken);
+        var participant = await pickupPalGameRepository.FindParticipantAsync(command.ParticipantId, cancellationToken)
+            ?? throw new ApplicationNotFoundException("Imported participant was not found.");
+        var profile = await playerProfileRepository.GetByIdAsync(command.PlayerProfileId, cancellationToken)
+            ?? throw new ApplicationNotFoundException("Player profile was not found.");
+
+        if (participant.PlayerProfileId == profile.Id)
+        {
+            return new GameDayMutationModel(participant.SessionId, Guid.Empty, 0);
+        }
+
+        var participantsOnSession = await pickupPalGameRepository.ListParticipantsAsync(
+            participant.SessionId,
+            cancellationToken);
+        if (participantsOnSession.Any(x => x.Id != participant.Id && x.PlayerProfileId == profile.Id))
+        {
+            throw new ApplicationConflictException("That player is already linked to another entry on this game.");
+        }
+
+        participant.PlayerProfileId = profile.Id;
+        pickupPalGameRepository.UpdateParticipant(participant);
+        await auditLogRepository.AddAsync(new AuditLogEntry
+        {
+            Id = Guid.NewGuid(),
+            ActorType = AuditActorType.PlayerProfile,
+            ActorPlayerProfileId = actor.Id,
+            Action = "PickupPalParticipant.Link",
+            EntityName = nameof(PickupPalGameParticipant),
+            EntityId = participant.Id,
+            DetailsJson = JsonSerializer.Serialize(new
+            {
+                sessionId = participant.SessionId,
+                participantId = participant.Id,
+                playerProfileId = profile.Id,
+            }),
+            OccurredAtUtc = clock.UtcNow,
+        }, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return new GameDayMutationModel(participant.SessionId, Guid.Empty, 1);
     }
 }
 
@@ -812,9 +933,12 @@ public sealed class SavePostGameTeamResultCommandHandler(
             throw new ApplicationForbiddenException("Captains can record results only for their assigned team.");
         }
 
-        if (command.Wins + command.Draws + command.Losses > teams.Count - 1)
+        // A rotation can play many more games than a side has opponents, so the only per-team bound
+        // is a sanity ceiling; whether the full set balances is decided by AreConsistent below.
+        if (command.Wins + command.Draws + command.Losses > GameDayResultRules.MaxGamesPerTeam)
         {
-            throw new ApplicationConflictException("Result counters cannot exceed the number of opponents.");
+            throw new ApplicationConflictException(
+                $"A team cannot record more than {GameDayResultRules.MaxGamesPerTeam} games.");
         }
 
         var existingResults = await statsRepository.ListMatchResultsAsync(match.Id, cancellationToken);
@@ -1266,6 +1390,9 @@ internal static class GameDayWorkflowQueries
 
 internal static class GameDayResultRules
 {
+    /// <summary>Sanity ceiling on one team's game count, to stop a stuck stepper writing nonsense.</summary>
+    internal const int MaxGamesPerTeam = 30;
+
     /// <summary>
     /// Every team must have reported and at least one game must have been played. The number of
     /// games is deliberately not fixed: with three or four teams the night is usually a rotation

@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.AdminMatchPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:gameDay="clr-namespace:SouthBaySoccer.Contracts.GameDay;assembly=SouthBaySoccer.Contracts"
+    xmlns:players="clr-namespace:SouthBaySoccer.Contracts.Players;assembly=SouthBaySoccer.Contracts"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="AdminMatch"
+    x:DataType="pageModels:AdminMatchPageModel"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Match players">
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference AdminMatch}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+    <c:StateView
+        State="{Binding State}"
+        Title="{Binding StateTitle}"
+        Message="{Binding StateMessage}"
+        Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
+        GlyphFontFamily="FontAwesomeSolid"
+        RetryCommand="{Binding RetryCommand}">
+        <ScrollView>
+            <VerticalStackLayout
+                Padding="{StaticResource LayoutPadding}"
+                Spacing="{StaticResource SpaceMd}">
+
+                <c:BrandHeader
+                    Title="Match players"
+                    Subtitle="Link imported names to real profiles"
+                    ShowBack="True"
+                    BackCommand="{Binding BackCommand}" />
+
+                <!-- Mode A: unlinked entries -->
+                <VerticalStackLayout
+                    Spacing="{StaticResource SpaceSm}"
+                    IsVisible="{Binding ShowUnlinked}">
+                    <Label
+                        Text="These imported players never linked to a profile. Match each to a real player."
+                        Style="{StaticResource TextCaption}" />
+                    <VerticalStackLayout
+                        BindableLayout.ItemsSource="{Binding Unlinked}"
+                        Spacing="{StaticResource SpaceSm}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="gameDay:ClaimableParticipantDto">
+                                <Border Style="{StaticResource CardSurface}">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                                        <VerticalStackLayout VerticalOptions="Center" Spacing="{StaticResource SpaceXs}">
+                                            <Label Text="{Binding DisplayName}" Style="{StaticResource TextBodyStrong}" />
+                                            <Label Text="unlinked" Style="{StaticResource TextCaption}" />
+                                        </VerticalStackLayout>
+                                        <Button
+                                            Grid.Column="1"
+                                            Text="Match"
+                                            Style="{StaticResource SecondaryButton}"
+                                            Command="{Binding BindingContext.SelectEntryCommand, Source={x:Reference AdminMatch}}"
+                                            CommandParameter="{Binding .}"
+                                            SemanticProperties.Description="{Binding DisplayName, StringFormat='Match {0} to a player'}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+
+                <!-- Mode B: pick a profile for the selected entry -->
+                <VerticalStackLayout
+                    Spacing="{StaticResource SpaceSm}"
+                    IsVisible="{Binding ShowPicker}">
+                    <Border Style="{StaticResource NoticeSurface}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleInfo}" FontFamily="FontAwesomeSolid" Style="{StaticResource BrandIconLabel}" />
+                            <Label Grid.Column="1" Text="{Binding PickerPrompt}" Style="{StaticResource TextCaption}" />
+                        </Grid>
+                    </Border>
+                    <Entry
+                        Text="{Binding SearchText}"
+                        Placeholder="Search players"
+                        SemanticProperties.Description="Search the player directory" />
+                    <VerticalStackLayout
+                        BindableLayout.ItemsSource="{Binding Candidates}"
+                        Spacing="{StaticResource SpaceSm}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="players:PlayerDirectoryEntryDto">
+                                <Border Style="{StaticResource CardSurface}">
+                                    <c:PlayerRow
+                                        Initials="{Binding Player.Initials}"
+                                        Name="{Binding Player.DisplayName}"
+                                        Detail="{Binding Subtitle}"
+                                        TapCommand="{Binding BindingContext.LinkToCommand, Source={x:Reference AdminMatch}}"
+                                        TapCommandParameter="{Binding .}" />
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+    </c:StateView>
+</ContentPage>

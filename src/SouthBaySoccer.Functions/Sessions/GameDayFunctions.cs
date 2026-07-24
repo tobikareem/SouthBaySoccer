@@ -22,6 +22,12 @@ public sealed class GameDayFunctions(
     ApprovePostGameStatCommandHandler approvePostGameStatHandler,
     SavePostGameTeamResultCommandHandler savePostGameTeamResultHandler,
     PublishPostGameCommandHandler publishPostGameHandler,
+    ReopenPostGameResultsCommandHandler reopenPostGameResultsHandler,
+    LinkParticipantToProfileCommandHandler linkParticipantHandler,
+    GetSessionClaimablesQueryHandler getSessionClaimablesHandler,
+    GetSessionUnlinkedParticipantsQueryHandler getUnlinkedParticipantsHandler,
+    GetMyClaimableSessionsQueryHandler getMyClaimableSessionsHandler,
+    ClaimParticipantCommandHandler claimParticipantHandler,
     IdempotentRequestExecutor idempotentRequestExecutor)
 {
     [Function(nameof(GetTodayGameDayContext))]
@@ -40,6 +46,70 @@ public sealed class GameDayFunctions(
         var response = request.CreateResponse(HttpStatusCode.OK);
         await response.WriteAsJsonAsync(ToResponse(context), cancellationToken);
         return response;
+    }
+
+    [Function(nameof(GetMyClaimableSessions))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> GetMyClaimableSessions(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "game-day/claimable")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var sessions = await getMyClaimableSessionsHandler.HandleAsync(new GetMyClaimableSessionsQuery(), cancellationToken);
+        var response = request.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(
+            sessions
+                .Select(x => new ClaimableSessionDto(
+                    x.SessionId,
+                    x.Title,
+                    ToLocal(x.StartsAtUtc).ToString("ddd MMM d, h:mm tt", CultureInfo.InvariantCulture),
+                    x.ClaimableCount))
+                .ToArray(),
+            cancellationToken);
+        return response;
+    }
+
+    [Function(nameof(GetSessionClaimables))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> GetSessionClaimables(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "sessions/{sessionId:guid}/claimable")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var model = await getSessionClaimablesHandler.HandleAsync(new GetSessionClaimablesQuery(sessionId), cancellationToken);
+        var response = request.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(
+            new SessionClaimablesDto(
+                model.SessionId,
+                model.MyRegisteredName,
+                model.AlreadyOnRoster,
+                model.Claimable
+                    .Select(c => new ClaimableParticipantDto(c.ParticipantId, c.DisplayName, c.IsWaitlist))
+                    .ToArray()),
+            cancellationToken);
+        return response;
+    }
+
+    [Function(nameof(ClaimParticipant))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> ClaimParticipant(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "sessions/{sessionId:guid}/claim")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadRequiredJsonAsync<ClaimParticipantRequest>(request, cancellationToken);
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(ClaimParticipant),
+            GetIdempotencyKey(request),
+            new { sessionId, body.ParticipantId },
+            async token =>
+            {
+                var result = await claimParticipantHandler.HandleAsync(
+                    new ClaimParticipantCommand(sessionId, body.ParticipantId),
+                    token);
+                return new IdempotentResponse<GameDayMutationResponse>(HttpStatusCode.OK, ToResponse(result));
+            },
+            cancellationToken);
     }
 
     [Function(nameof(GetRecentGames))]
@@ -122,6 +192,50 @@ public sealed class GameDayFunctions(
                         sessionId,
                         body.CaptainCount,
                         body.CaptainPlayerProfileIds),
+                    token);
+                return new IdempotentResponse<GameDayMutationResponse>(
+                    HttpStatusCode.OK,
+                    ToResponse(result));
+            },
+            cancellationToken);
+    }
+
+    [Function(nameof(GetSessionUnlinked))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> GetSessionUnlinked(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "game-day/sessions/{sessionId:guid}/unlinked")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var entries = await getUnlinkedParticipantsHandler.HandleAsync(
+            new GetSessionUnlinkedParticipantsQuery(sessionId),
+            cancellationToken);
+        var response = request.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(
+            entries
+                .Select(c => new ClaimableParticipantDto(c.ParticipantId, c.DisplayName, c.IsWaitlist))
+                .ToArray(),
+            cancellationToken);
+        return response;
+    }
+
+    [Function(nameof(LinkParticipant))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> LinkParticipant(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "game-day/participants/{participantId:guid}/link")] HttpRequestData request,
+        Guid participantId,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadRequiredJsonAsync<LinkParticipantRequest>(request, cancellationToken);
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(LinkParticipant),
+            GetIdempotencyKey(request),
+            new { participantId, body.PlayerProfileId },
+            async token =>
+            {
+                var result = await linkParticipantHandler.HandleAsync(
+                    new LinkParticipantToProfileCommand(participantId, body.PlayerProfileId),
                     token);
                 return new IdempotentResponse<GameDayMutationResponse>(
                     HttpStatusCode.OK,
@@ -226,6 +340,30 @@ public sealed class GameDayFunctions(
                         body.Wins,
                         body.Draws,
                         body.Losses),
+                    token);
+                return new IdempotentResponse<GameDayMutationResponse>(
+                    HttpStatusCode.OK,
+                    ToResponse(result));
+            },
+            cancellationToken);
+    }
+
+    [Function(nameof(ReopenPostGameResults))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> ReopenPostGameResults(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "game-day/sessions/{sessionId:guid}/post-game/reopen")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(ReopenPostGameResults),
+            GetIdempotencyKey(request),
+            new { sessionId },
+            async token =>
+            {
+                var result = await reopenPostGameResultsHandler.HandleAsync(
+                    new ReopenPostGameResultsCommand(sessionId),
                     token);
                 return new IdempotentResponse<GameDayMutationResponse>(
                     HttpStatusCode.OK,
@@ -359,7 +497,8 @@ public sealed class GameDayFunctions(
                 approval.Assists,
                 Enum.Parse<StatApprovalStatus>(approval.Status),
                 approval.AssistPlayer is null ? null : ToResponse(approval.AssistPlayer),
-                approval.Detail)).ToArray());
+                approval.Detail)).ToArray(),
+            model.CanReopenResults);
 
     private static CheckedInPlayerDto ToResponse(CheckedInGameDayPlayerModel player) =>
         new(ToResponse(player.Player), player.Detail);

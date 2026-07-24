@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.ClaimSpotPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:contracts="clr-namespace:SouthBaySoccer.Contracts.GameDay;assembly=SouthBaySoccer.Contracts"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="ClaimSpot"
+    x:DataType="pageModels:ClaimSpotPageModel"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Claim your spot">
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference ClaimSpot}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+    <c:StateView
+        State="{Binding State}"
+        Title="{Binding StateTitle}"
+        Message="{Binding StateMessage}"
+        Glyph="{x:Static fonts:FontAwesomeGlyphs.Futbol}"
+        GlyphFontFamily="FontAwesomeSolid"
+        RetryCommand="{Binding RetryCommand}">
+        <ScrollView>
+            <VerticalStackLayout
+                Padding="{StaticResource LayoutPadding}"
+                Spacing="{StaticResource SpaceMd}">
+
+                <c:BrandHeader
+                    Title="{Binding Heading}"
+                    Subtitle="{Binding Prompt}"
+                    ShowBack="True"
+                    BackCommand="{Binding BackCommand}" />
+
+                <!-- Mode A: recent games with unclaimed spots -->
+                <VerticalStackLayout
+                    BindableLayout.ItemsSource="{Binding Sessions}"
+                    Spacing="{StaticResource SpaceSm}"
+                    IsVisible="{Binding ShowSessions}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="contracts:ClaimableSessionDto">
+                            <Border Style="{StaticResource CardSurface}">
+                                <c:PlayerRow
+                                    Initials="RG"
+                                    Name="{Binding Title}"
+                                    Detail="{Binding DateLabel}"
+                                    TapCommand="{Binding BindingContext.OpenSessionCommand, Source={x:Reference ClaimSpot}}"
+                                    TapCommandParameter="{Binding .}" />
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+
+                <!-- Mode B: unclaimed entries on one game -->
+                <VerticalStackLayout
+                    BindableLayout.ItemsSource="{Binding Entries}"
+                    Spacing="{StaticResource SpaceSm}"
+                    IsVisible="{Binding ShowEntries}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="contracts:ClaimableParticipantDto">
+                            <Border Style="{StaticResource CardSurface}">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                                    <Label
+                                        Text="{Binding DisplayName}"
+                                        Style="{StaticResource TextBodyStrong}"
+                                        VerticalOptions="Center" />
+                                    <Button
+                                        Grid.Column="1"
+                                        Text="This is me"
+                                        Style="{StaticResource SecondaryButton}"
+                                        Command="{Binding BindingContext.ClaimCommand, Source={x:Reference ClaimSpot}}"
+                                        CommandParameter="{Binding .}"
+                                        SemanticProperties.Description="{Binding DisplayName, StringFormat='Claim {0} as me'}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+    </c:StateView>
+</ContentPage>

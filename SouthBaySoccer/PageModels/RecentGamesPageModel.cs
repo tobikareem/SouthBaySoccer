@@ -53,6 +53,10 @@ public partial class RecentGamesPageModel(
     private Task OpenStats(RecentGameItem? game) =>
         game is null ? Task.CompletedTask : navigator.OpenPostGameApprovalAsync(game.SessionId);
 
+    [RelayCommand]
+    private Task OpenMatch(RecentGameItem? game) =>
+        game is null ? Task.CompletedTask : navigator.OpenAdminMatchAsync(game.SessionId);
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         State = ViewState.Loading;

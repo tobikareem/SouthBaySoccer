@@ -137,7 +137,12 @@ public sealed record PostGameApprovalDto(
     bool NeedsReview,
     int TeamCount,
     IReadOnlyList<TeamResultDto> TeamResults,
-    IReadOnlyList<PendingStatApprovalDto> PendingApprovals);
+    IReadOnlyList<PendingStatApprovalDto> PendingApprovals,
+    bool CanReopenResults = false);
+
+public sealed record LinkParticipantRequest(Guid PlayerProfileId);
+
+public sealed record ClaimParticipantRequest(Guid ParticipantId);
 
 public sealed record TeamResultUpdateDto(
     Guid TeamId,
@@ -152,3 +157,17 @@ public sealed record GameDayMutationResponse(Guid SessionId, Guid MatchId, int A
 public sealed record RecentFormUpdateDto(
     Guid PlayerId,
     MatchResult Result);
+
+public sealed record ClaimableParticipantDto(Guid ParticipantId, string DisplayName, bool IsWaitlist);
+
+public sealed record SessionClaimablesDto(
+    Guid SessionId,
+    string MyRegisteredName,
+    bool AlreadyOnRoster,
+    IReadOnlyList<ClaimableParticipantDto> Claimable);
+
+public sealed record ClaimableSessionDto(
+    Guid SessionId,
+    string Title,
+    string DateLabel,
+    int ClaimableCount);

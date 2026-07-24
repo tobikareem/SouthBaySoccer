@@ -291,7 +291,12 @@ public sealed class StatsFunctions(
 
         var response = request.CreateResponse(HttpStatusCode.OK);
         await response.WriteAsJsonAsync(
-            new Contracts.Sessions.StatsPromptDto(prompt.MatchId, prompt.Title, prompt.Caption),
+            new Contracts.Sessions.StatsPromptDto(
+                prompt.MatchId,
+                prompt.Title,
+                prompt.Caption,
+                prompt.SessionId,
+                prompt.RequiresClaim),
             cancellationToken);
         return response;
     }

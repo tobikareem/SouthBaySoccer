@@ -337,6 +337,37 @@ public class SessionsHomePageModelTests
     }
 
     [Fact]
+    public async Task OpenStats_WhenPromptRequiresClaim_NavigatesToClaimSpotForTheSession()
+    {
+        var sessionId = Guid.NewGuid();
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with
+            {
+                StatsPrompt = new StatsPromptDto(
+                    Guid.Empty,
+                    "Submit your latest stats",
+                    "Find yourself on Wednesday pickup to add your goals and assists",
+                    sessionId,
+                    RequiresClaim: true),
+            });
+        var navigator = new Mock<ISessionsNavigator>();
+        navigator.Setup(item => item.GoToClaimSpotAsync(sessionId)).Returns(Task.CompletedTask);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.HasStatsPrompt.Should().BeTrue("the card shows even though this player isn't linked yet");
+        pageModel.HasLatestMatch.Should().BeFalse();
+
+        await pageModel.OpenStatsCommand.ExecuteAsync(null);
+
+        navigator.Verify(item => item.GoToClaimSpotAsync(sessionId), Times.Once);
+        navigator.Verify(item => item.GoToMatchStatsAsync(It.IsAny<Guid>()), Times.Never);
+        navigator.Verify(item => item.GoToStatsAsync(), Times.Never);
+    }
+
+    [Fact]
     public async Task JoinWaitlist_FullSession_CallsClientAndRefreshesDashboard()
     {
         var state = new SeedState();

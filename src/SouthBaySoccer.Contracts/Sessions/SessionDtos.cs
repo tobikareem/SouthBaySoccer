@@ -65,7 +65,9 @@ public sealed record SessionSummaryDto(
 public sealed record StatsPromptDto(
     Guid MatchId,
     string Title,
-    string Caption);
+    string Caption,
+    Guid SessionId = default,
+    bool RequiresClaim = false);
 
 public sealed record SessionDetailDto(
     Guid Id,
