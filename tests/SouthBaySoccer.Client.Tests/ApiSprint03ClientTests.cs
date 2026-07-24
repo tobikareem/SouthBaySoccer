@@ -290,7 +290,7 @@ public sealed class ApiSprint03ClientTests
         // seasonId is deliberately omitted: the server resolves the current season, so the seed
         // fixture id passed by the page model never reaches the wire.
         observed.RequestUri!.PathAndQuery.Should()
-            .Be("/stats/leaderboards?metric=Goals&page=1&pageSize=25");
+            .Be("/stats/leaderboards?metric=Goals&page=1&pageSize=5");
     }
 
     [Fact]
