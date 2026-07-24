@@ -46,10 +46,10 @@
                         </Button>
                     </HorizontalStackLayout>
                     <Border Style="{StaticResource NoticeSurface}">
-                        <Label Text="Captains must be selected from checked-in players only. Selection max follows the active tab." Style="{StaticResource TextCaption}" />
+                        <Label Text="Captains can be any Going or Waitlist player - check-in is not required. Pick as many as the captain count." Style="{StaticResource TextCaption}" />
                     </Border>
-                    <Entry Text="{Binding SearchText}" Placeholder="Search checked-in players" Style="{StaticResource BrandEntry}" />
-                    <c:SectionHeader Text="Checked-in players" />
+                    <Entry Text="{Binding SearchText}" Placeholder="Search Going &amp; Waitlist players" Style="{StaticResource BrandEntry}" />
+                    <c:SectionHeader Text="Going &amp; Waitlist players" />
                     <c:BrandCard>
                         <VerticalStackLayout BindableLayout.ItemsSource="{Binding Players}" Spacing="{StaticResource SpaceXs}">
                             <BindableLayout.ItemTemplate>
@@ -64,7 +64,15 @@
                         </VerticalStackLayout>
                     </c:BrandCard>
                     <Label Text="{Binding SelectedCountText}" Style="{StaticResource TextCaption}" HorizontalTextAlignment="Center" />
+                    <!-- IsEnabled is driven by GrantCommand.CanExecute: it greys out once the current
+                         captains are granted, and re-enables when the selection or count changes. -->
                     <Button Text="Grant captain permissions" Command="{Binding GrantCommand}" Style="{StaticResource PrimaryButton}" />
+                    <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding HasGrantStatus}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}" FontFamily="FontAwesomeSolid" Style="{StaticResource BrandIconLabel}" VerticalOptions="Start" />
+                            <Label Grid.Column="1" Text="{Binding GrantStatusText}" Style="{StaticResource TextCaption}" />
+                        </Grid>
+                    </Border>
                     <Button Text="Lock teams" Command="{Binding LockTeamsCommand}" IsVisible="{Binding CanLockTeams}" Style="{StaticResource GhostButton}" />
                     <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding IsLocked}">
                         <Label Text="Teams are locked. Captain picks can no longer change." Style="{StaticResource TextCaption}" />

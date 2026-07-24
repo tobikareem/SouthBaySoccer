@@ -175,11 +175,11 @@ public sealed class GetTodayGameDayContextQueryHandler(
                 : null)
             ?? SelectSession(pool, clock.UtcNow)!;
         var attendance = attendanceBySessionId[session.Id];
-        var eligibility = attendance.IsCurrentPlayerGoing
+        // Both Going and Waitlist players may check in at the field - a waitlisted player who shows
+        // up often fills a no-show's spot, so the waitlist no longer blocks self check-in.
+        var eligibility = attendance.IsCurrentPlayerGoing || attendance.IsCurrentPlayerWaitlisted
             ? await eligibilityService.CheckAsync(profile.Id, session.Id, cancellationToken)
-            : new PlayerSessionEligibilityResult(false, attendance.IsCurrentPlayerWaitlisted
-                ? "You are currently waitlisted for this session."
-                : "A confirmed Going spot is required to check in.");
+            : new PlayerSessionEligibilityResult(false, "A Going or waitlist spot is required to check in.");
         var venue = await venueRepository.GetByIdAsync(session.VenueId, cancellationToken);
 
         var nowUtc = clock.UtcNow;
@@ -344,7 +344,7 @@ public sealed class GetTodayGameDayContextQueryHandler(
             return new("CheckedIn", "Checked in", false, "Checked in", null);
         }
 
-        if (!attendance.IsCurrentPlayerGoing || !eligibility.IsEligible)
+        if ((!attendance.IsCurrentPlayerGoing && !attendance.IsCurrentPlayerWaitlisted) || !eligibility.IsEligible)
         {
             return new("Blocked", "Blocked", false, "Check-in unavailable", eligibility.Reason);
         }

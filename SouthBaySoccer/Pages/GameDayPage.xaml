@@ -38,24 +38,26 @@
                     <c:Badge Grid.Column="1" Text="{Binding StatusLabel}" Glyph="{x:Static fonts:FontAwesomeGlyphs.Clock}" Variant="Success" />
                 </Grid>
 
-                <!-- More than one game today: let the player pick which one Game Day operates on. -->
+                <!-- More than one game today: a full vertical list (no hidden horizontal scroll) so it
+                     is obvious the player can switch which game Game Day operates on. -->
                 <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding HasMultipleGames}">
                     <c:SectionHeader Text="Today's games" />
-                    <ScrollView Orientation="Horizontal">
-                        <HorizontalStackLayout BindableLayout.ItemsSource="{Binding TodaysGames}" Spacing="{StaticResource SpaceSm}">
-                            <BindableLayout.ItemTemplate>
-                                <DataTemplate x:DataType="pageModels:GameDayGameOption">
-                                    <Border Style="{StaticResource CardSurface}">
-                                        <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding BindingContext.SelectGameCommand, Source={x:Reference GameDay}}" CommandParameter="{Binding SessionId}" />
-                                        </Border.GestureRecognizers>
-                                        <Border.Triggers>
-                                            <DataTrigger TargetType="Border" Binding="{Binding IsSelected}" Value="True">
-                                                <Setter Property="Stroke" Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
-                                                <Setter Property="StrokeThickness" Value="2" />
-                                            </DataTrigger>
-                                        </Border.Triggers>
-                                        <VerticalStackLayout Spacing="{StaticResource SpaceXs}" MinimumWidthRequest="150">
+                    <Label Text="More than one game today - tap a game to switch which one you're running." Style="{StaticResource TextCaption}" />
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding TodaysGames}" Spacing="{StaticResource SpaceSm}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="pageModels:GameDayGameOption">
+                                <Border Style="{StaticResource CardSurface}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding BindingContext.SelectGameCommand, Source={x:Reference GameDay}}" CommandParameter="{Binding SessionId}" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsSelected}" Value="True">
+                                            <Setter Property="Stroke" Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+                                            <Setter Property="StrokeThickness" Value="2" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                                        <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
                                             <Label Text="{Binding Title}" Style="{StaticResource TextBodyStrong}" />
                                             <Label Style="{StaticResource TextCaption}">
                                                 <Label.FormattedText>
@@ -68,11 +70,19 @@
                                             </Label>
                                             <Label Text="{Binding StatusLabel}" Style="{StaticResource TextCaption}" Opacity="0.7" />
                                         </VerticalStackLayout>
-                                    </Border>
-                                </DataTemplate>
-                            </BindableLayout.ItemTemplate>
-                        </HorizontalStackLayout>
-                    </ScrollView>
+                                        <Label
+                                            Grid.Column="1"
+                                            VerticalOptions="Center"
+                                            Text="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}"
+                                            FontFamily="FontAwesomeSolid"
+                                            Style="{StaticResource BrandIconLabel}"
+                                            IsVisible="{Binding IsSelected}"
+                                            SemanticProperties.Description="Currently selected game" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
                 </VerticalStackLayout>
 
                 <c:BrandCard IsHero="True">
@@ -91,47 +101,25 @@
                     </VerticalStackLayout>
                 </c:BrandCard>
                 <Label Text="{Binding BlockReason}" Style="{StaticResource TextCaption}" IsVisible="{Binding HasBlockReason}" />
+                <!-- Tap a count to open a popup listing those people. -->
                 <Grid ColumnDefinitions="*,*,*" ColumnSpacing="{StaticResource SpaceSm}">
-                    <c:StatTile Value="{Binding GoingCount}" Label="Going" />
-                    <c:StatTile Grid.Column="1" Value="{Binding CheckedInCount}" Label="Checked in" />
-                    <c:StatTile Grid.Column="2" Value="{Binding LateCount}" Label="Late" />
+                    <c:StatTile Value="{Binding GoingCount}" Label="Going" SemanticProperties.Hint="Tap to see who is going">
+                        <c:StatTile.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding ShowRosterCommand}" CommandParameter="Going" />
+                        </c:StatTile.GestureRecognizers>
+                    </c:StatTile>
+                    <c:StatTile Grid.Column="1" Value="{Binding WaitlistCount}" Label="Waitlist" SemanticProperties.Hint="Tap to see the waitlist">
+                        <c:StatTile.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding ShowRosterCommand}" CommandParameter="Waitlist" />
+                        </c:StatTile.GestureRecognizers>
+                    </c:StatTile>
+                    <c:StatTile Grid.Column="2" Value="{Binding CheckedInCount}" Label="Checked in" SemanticProperties.Hint="Tap to see who is checked in">
+                        <c:StatTile.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding ShowRosterCommand}" CommandParameter="CheckedIn" />
+                        </c:StatTile.GestureRecognizers>
+                    </c:StatTile>
                 </Grid>
-                <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding HasRoster}">
-                    <c:SectionHeader Text="Roster" />
-                    <Label Text="Going and waitlisted players - both are eligible for team assignment." Style="{StaticResource TextCaption}" />
-                    <VerticalStackLayout
-                        BindableLayout.ItemsSource="{Binding Roster}"
-                        Spacing="{StaticResource SpaceSm}">
-                        <BindableLayout.ItemTemplate>
-                            <DataTemplate x:DataType="pageModels:GameDayRosterItem">
-                                <Border Style="{StaticResource CardSurface}">
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
-                                        <VerticalStackLayout VerticalOptions="Center" Spacing="{StaticResource SpaceXs}">
-                                            <Label Text="{Binding DisplayName}" Style="{StaticResource TextBodyStrong}" />
-                                            <Label Text="{Binding StatusLabel}" Style="{StaticResource TextCaption}" />
-                                        </VerticalStackLayout>
-                                        <Label
-                                            Grid.Column="1"
-                                            Text="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}"
-                                            FontFamily="FontAwesomeSolid"
-                                            VerticalOptions="Center"
-                                            Style="{StaticResource BrandIconLabel}"
-                                            IsVisible="{Binding IsCheckedIn}"
-                                            SemanticProperties.Description="Checked in" />
-                                        <Button
-                                            Grid.Column="1"
-                                            Text="Check in"
-                                            Command="{Binding Source={x:Reference GameDay}, Path=BindingContext.AdminCheckInCommand}"
-                                            CommandParameter="{Binding .}"
-                                            Style="{StaticResource SecondaryButton}"
-                                            IsVisible="{Binding CanCheckIn}"
-                                            SemanticProperties.Description="{Binding DisplayName, StringFormat='Check in {0}'}" />
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </BindableLayout.ItemTemplate>
-                    </VerticalStackLayout>
-                </VerticalStackLayout>
+                <Label Text="Tap a count above to see who's going, the waitlist, or who's checked in." Style="{StaticResource TextCaption}" HorizontalTextAlignment="Center" Opacity="0.7" />
                 <Border Style="{StaticResource NoticeSurface}">
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
                         <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleInfo}" FontFamily="FontAwesomeSolid" Style="{StaticResource BrandIconLabel}" />
@@ -187,7 +175,7 @@
                 </VerticalStackLayout>
                 <c:SectionHeader Text="Game-day actions" IsVisible="{Binding HasGameDayActions}" />
                 <c:PlayerRow Initials="CA" Name="Assign captains" Detail="2, 3, or 4 captains = 2, 3, or 4 teams" TapCommand="{Binding OpenCaptainAssignmentCommand}" IsVisible="{Binding CanAssignCaptains}" />
-                <c:PlayerRow Initials="DR" Name="Pick your team" Detail="Captain permission - session scoped" TapCommand="{Binding OpenTeamDraftCommand}" IsVisible="{Binding CanDraftTeam}" />
+                <c:PlayerRow Initials="DR" Name="Pick your team" Detail="Captain permission - session scoped" TapCommand="{Binding OpenTeamDraftCommand}" IsVisible="{Binding ShowPickTeam}" />
                 <c:PlayerRow Initials="RG" Name="Recent games" Detail="Fix teams or review stats after the game" TapCommand="{Binding OpenRecentGamesCommand}" IsVisible="{Binding CanManageCheckIns}" />
                 <c:PlayerRow Initials="ME" Name="Not on the list?" Detail="Claim your spot on a recent game" TapCommand="{Binding OpenClaimSpotCommand}" />
                 <c:PlayerRow Initials="MS" Name="Submit your stats" Detail="Report your goals and assists for confirmation" TapCommand="{Binding OpenMatchStatsCommand}" IsVisible="{Binding CanSubmitOwnStats}" />
