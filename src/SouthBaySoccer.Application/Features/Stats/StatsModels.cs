@@ -111,7 +111,9 @@ public sealed record PendingStatSubmissionModel(
     Guid MatchId,
     string Title,
     string Caption,
-    bool IsPendingConfirmation);
+    bool IsPendingConfirmation,
+    Guid SessionId = default,
+    bool RequiresClaim = false);
 
 public sealed record AddStatCorrectionCommand(
     Guid MatchId,

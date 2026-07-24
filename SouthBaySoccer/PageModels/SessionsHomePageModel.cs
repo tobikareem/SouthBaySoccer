@@ -57,17 +57,22 @@ public partial class SessionsHomePageModel(
     [NotifyPropertyChangedFor(nameof(StatsPromptCaption))]
     [NotifyPropertyChangedFor(nameof(StatsPromptSemanticDescription))]
     [NotifyPropertyChangedFor(nameof(StatsPromptSemanticHint))]
+    [NotifyPropertyChangedFor(nameof(HasStatsPrompt))]
     [NotifyPropertyChangedFor(nameof(HasLatestMatch))]
     private StatsPromptDto? _statsPrompt;
 
-    // True when the dashboard carries a specific latest match to open; otherwise the stats entry
-    // point falls back to the Stats tab. Kept as one predicate so the semantic hint and the actual
-    // navigation target can never diverge.
     /// <summary>
-    /// Only true when the server has a match this player can actually report stats for. The prompt
-    /// card is hidden otherwise, so it never looks tappable and then quietly go nowhere.
+    /// The card shows for any recent game the player might report on - whether they can submit now
+    /// or still need to claim their spot first. It stays hidden only when the server sends nothing.
     /// </summary>
+    public bool HasStatsPrompt => StatsPrompt is not null;
+
+    /// <summary>True when the server carries a specific match this player can report stats for.</summary>
     public bool HasLatestMatch => StatsPrompt is { MatchId: var matchId } && matchId != Guid.Empty;
+
+    // The server flags a prompt that needs a self-claim first (the player isn't linked to the game
+    // yet); tapping it opens Claim your spot rather than the stats form.
+    private bool RequiresClaim => StatsPrompt is { RequiresClaim: true };
 
     public string StatsPromptTitle => StatsPrompt?.Title ?? "Submit your latest stats";
 
@@ -78,7 +83,7 @@ public partial class SessionsHomePageModel(
         $"{StatsPromptTitle}. {StatsPromptCaption}";
 
     public string StatsPromptSemanticHint =>
-        HasLatestMatch ? "Opens match stats" : "Opens the Stats tab";
+        RequiresClaim ? "Opens Claim your spot" : HasLatestMatch ? "Opens match stats" : "Opens the Stats tab";
 
     [ObservableProperty]
     private string _comingUpLabel = string.Empty;
@@ -105,10 +110,13 @@ public partial class SessionsHomePageModel(
 
     [RelayCommand]
     private Task OpenStats() =>
-        HasLatestMatch
-            // HasLatestMatch guarantees StatsPrompt is non-null with a real match id.
-            ? navigator.GoToMatchStatsAsync(StatsPrompt!.MatchId)
-            : navigator.GoToStatsAsync();
+        RequiresClaim
+            // The player isn't linked to the game yet - send them to claim their spot first.
+            ? navigator.GoToClaimSpotAsync(StatsPrompt!.SessionId)
+            : HasLatestMatch
+                // HasLatestMatch guarantees StatsPrompt is non-null with a real match id.
+                ? navigator.GoToMatchStatsAsync(StatsPrompt!.MatchId)
+                : navigator.GoToStatsAsync();
 
     [RelayCommand]
     private Task ViewSchedule() => navigator.GoToScheduleAsync();

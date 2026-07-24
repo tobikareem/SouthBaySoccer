@@ -331,6 +331,84 @@ public sealed class MatchStatsSelfServiceHandlerTests
             stats.Object);
     }
 
+    [Fact]
+    public async Task PendingSubmission_WhenPlayerNotOnRosterButEntriesUnclaimed_PromptsToClaimFirst()
+    {
+        var actor = Profile("Vic");
+        var model = await PendingSubmissionAsync(actor, onRoster: false, hasUnclaimed: true);
+
+        model.Should().NotBeNull();
+        model!.RequiresClaim.Should().BeTrue();
+        model.MatchId.Should().Be(Guid.Empty);
+        model.SessionId.Should().NotBe(Guid.Empty);
+    }
+
+    [Fact]
+    public async Task PendingSubmission_WhenPlayerOnRoster_PromptsToSubmitTheMatch()
+    {
+        var actor = Profile("Vic");
+        var model = await PendingSubmissionAsync(actor, onRoster: true, hasUnclaimed: false);
+
+        model.Should().NotBeNull();
+        model!.RequiresClaim.Should().BeFalse();
+        model.MatchId.Should().Be(MatchId);
+    }
+
+    [Fact]
+    public async Task PendingSubmission_WhenNotOnRosterAndNothingUnclaimed_ReturnsNull()
+    {
+        var actor = Profile("Vic");
+        var model = await PendingSubmissionAsync(actor, onRoster: false, hasUnclaimed: false);
+
+        model.Should().BeNull();
+    }
+
+    private static async Task<PendingStatSubmissionModel?> PendingSubmissionAsync(
+        PlayerProfile actor,
+        bool onRoster,
+        bool hasUnclaimed)
+    {
+        var nowUtc = new DateTime(2026, 7, 23, 4, 0, 0, DateTimeKind.Utc);
+        var session = new SouthBaySoccer.Domain.Entities.Scheduling.Session
+        {
+            Id = Guid.NewGuid(),
+            Title = "Bay Area Soccer - Wednesday pickup",
+            StartsAtUtc = nowUtc.AddHours(-2),
+            Status = SouthBaySoccer.Domain.Enumerations.SessionStatus.Published,
+        };
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(nowUtc);
+        var sessions = new Mock<ISessionRepository>();
+        sessions.Setup(x => x.ListGameDayCandidatesAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session]);
+        var rsvps = new Mock<IRsvpRepository>();
+        rsvps.Setup(x => x.ListGoingRosterAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(onRoster
+                ? [new RosterMemberRecord(actor.Id, actor.DisplayName, string.Empty, false, null)]
+                : []);
+        rsvps.Setup(x => x.ListActiveWaitlistRosterAsync(session.Id, It.IsAny<CancellationToken>())).ReturnsAsync([]);
+        var games = new Mock<IPickupPalGameRepository>();
+        games.Setup(x => x.ListParticipantsAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(hasUnclaimed
+                ? [new PickupPalGameParticipant { Id = Guid.NewGuid(), SessionId = session.Id, DisplayName = "victor", PlayerProfileId = null }]
+                : []);
+        var stats = new Mock<IStatsRepository>();
+        stats.Setup(x => x.FindPrimaryMatchBySessionAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DomainMatch { Id = MatchId, SessionId = session.Id, Status = MatchStatus.InProgress });
+        stats.Setup(x => x.ListMatchEventsAsync(MatchId, It.IsAny<CancellationToken>())).ReturnsAsync([]);
+
+        var handler = new GetPendingStatSubmissionQueryHandler(
+            CurrentUser().Object,
+            clock.Object,
+            ProfileRepository(actor).Object,
+            sessions.Object,
+            rsvps.Object,
+            games.Object,
+            stats.Object);
+
+        return await handler.HandleAsync(new GetPendingStatSubmissionQuery());
+    }
+
     private static PlayerProfile Profile(string name) =>
         new() { Id = Guid.NewGuid(), IdentityUserId = IdentityUserId, DisplayName = name };
 

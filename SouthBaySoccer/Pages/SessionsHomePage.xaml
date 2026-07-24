@@ -189,7 +189,7 @@
                     </controls:BrandCard>
 
                     <!-- Stats prompt card: only shown when there is a real match to report on. -->
-                    <controls:BrandCard IsVisible="{Binding HasLatestMatch}"
+                    <controls:BrandCard IsVisible="{Binding HasStatsPrompt}"
                                         SemanticProperties.Description="{Binding StatsPromptSemanticDescription}"
                                         SemanticProperties.Hint="{Binding StatsPromptSemanticHint}">
                         <controls:BrandCard.GestureRecognizers>

@@ -16,6 +16,8 @@ public interface ISessionsNavigator
     /// <summary>Opens the root Stats tab.</summary>
     Task GoToStatsAsync();
 
+    Task GoToClaimSpotAsync(Guid sessionId);
+
     /// <summary>Opens the upcoming-session schedule screen.</summary>
     Task GoToScheduleAsync();
 

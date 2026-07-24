@@ -125,14 +125,16 @@ public class SessionScreensXamlTests
     }
 
     [Fact]
-    public void SessionsHomePage_StatsCard_IsAlwaysVisibleAndNavigatesThroughPageModel()
+    public void SessionsHomePage_StatsCard_ShowsForAnyPromptAndNavigatesThroughPageModel()
     {
         var xaml = ReadXaml(HomePage);
 
         xaml.Should().Contain("SemanticProperties.Description=\"{Binding StatsPromptSemanticDescription}\"");
         xaml.Should().Contain("SemanticProperties.Hint=\"{Binding StatsPromptSemanticHint}\"");
         xaml.Should().Contain("Command=\"{Binding OpenStatsCommand}\"");
-        xaml.Should().NotContain("IsVisible=\"{Binding HasStatsPrompt}\"");
+        // The card is shown whenever the server sends a prompt - a submit target or a claim - so an
+        // unlinked player is prompted too, rather than the card only appearing for a resolved match.
+        xaml.Should().Contain("IsVisible=\"{Binding HasStatsPrompt}\"");
     }
 
     [Fact]
