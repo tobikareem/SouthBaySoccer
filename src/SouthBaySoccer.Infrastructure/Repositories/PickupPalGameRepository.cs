@@ -68,4 +68,13 @@ internal sealed class PickupPalGameRepository(SouthBaySoccerDbContext dbContext)
             .Where(x => x.SessionId == sessionId)
             .OrderBy(x => x.DisplayOrder)
             .ToArrayAsync(cancellationToken);
+
+    public Task<PickupPalGameParticipant?> FindParticipantAsync(
+        Guid participantId,
+        CancellationToken cancellationToken = default) =>
+        dbContext.Set<PickupPalGameParticipant>()
+            .SingleOrDefaultAsync(x => x.Id == participantId, cancellationToken);
+
+    public void UpdateParticipant(PickupPalGameParticipant participant) =>
+        dbContext.Set<PickupPalGameParticipant>().Update(participant);
 }

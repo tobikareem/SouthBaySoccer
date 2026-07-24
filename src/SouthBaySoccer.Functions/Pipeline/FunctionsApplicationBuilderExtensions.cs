@@ -72,6 +72,8 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<ApprovePostGameStatCommandHandler>();
         builder.Services.AddScoped<SavePostGameTeamResultCommandHandler>();
         builder.Services.AddScoped<PublishPostGameCommandHandler>();
+        builder.Services.AddScoped<ReopenPostGameResultsCommandHandler>();
+        builder.Services.AddScoped<LinkParticipantToProfileCommandHandler>();
         builder.Services.AddSingleton<GameDayPickupPalRefreshService>();
         builder.Services.AddScoped<GetSessionRosterQueryHandler>();
         builder.Services.AddScoped<ListManagedSessionsQueryHandler>();
