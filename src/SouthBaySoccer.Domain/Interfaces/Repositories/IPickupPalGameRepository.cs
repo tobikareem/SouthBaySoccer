@@ -31,4 +31,12 @@ public interface IPickupPalGameRepository
     Task<IReadOnlyList<PickupPalGameParticipant>> ListParticipantsAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Finds a single imported participant row by its id, or null.</summary>
+    Task<PickupPalGameParticipant?> FindParticipantAsync(
+        Guid participantId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Marks an existing participant row as modified (e.g. after linking it to a profile).</summary>
+    void UpdateParticipant(PickupPalGameParticipant participant);
 }

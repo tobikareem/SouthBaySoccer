@@ -137,7 +137,10 @@ public sealed record PostGameApprovalDto(
     bool NeedsReview,
     int TeamCount,
     IReadOnlyList<TeamResultDto> TeamResults,
-    IReadOnlyList<PendingStatApprovalDto> PendingApprovals);
+    IReadOnlyList<PendingStatApprovalDto> PendingApprovals,
+    bool CanReopenResults = false);
+
+public sealed record LinkParticipantRequest(Guid PlayerProfileId);
 
 public sealed record TeamResultUpdateDto(
     Guid TeamId,

@@ -22,6 +22,8 @@ public sealed class GameDayFunctions(
     ApprovePostGameStatCommandHandler approvePostGameStatHandler,
     SavePostGameTeamResultCommandHandler savePostGameTeamResultHandler,
     PublishPostGameCommandHandler publishPostGameHandler,
+    ReopenPostGameResultsCommandHandler reopenPostGameResultsHandler,
+    LinkParticipantToProfileCommandHandler linkParticipantHandler,
     IdempotentRequestExecutor idempotentRequestExecutor)
 {
     [Function(nameof(GetTodayGameDayContext))]
@@ -130,6 +132,31 @@ public sealed class GameDayFunctions(
             cancellationToken);
     }
 
+    [Function(nameof(LinkParticipant))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> LinkParticipant(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "game-day/participants/{participantId:guid}/link")] HttpRequestData request,
+        Guid participantId,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadRequiredJsonAsync<LinkParticipantRequest>(request, cancellationToken);
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(LinkParticipant),
+            GetIdempotencyKey(request),
+            new { participantId, body.PlayerProfileId },
+            async token =>
+            {
+                var result = await linkParticipantHandler.HandleAsync(
+                    new LinkParticipantToProfileCommand(participantId, body.PlayerProfileId),
+                    token);
+                return new IdempotentResponse<GameDayMutationResponse>(
+                    HttpStatusCode.OK,
+                    ToResponse(result));
+            },
+            cancellationToken);
+    }
+
     [Function(nameof(GetTeamDraft))]
     [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
     public async Task<HttpResponseData> GetTeamDraft(
@@ -226,6 +253,30 @@ public sealed class GameDayFunctions(
                         body.Wins,
                         body.Draws,
                         body.Losses),
+                    token);
+                return new IdempotentResponse<GameDayMutationResponse>(
+                    HttpStatusCode.OK,
+                    ToResponse(result));
+            },
+            cancellationToken);
+    }
+
+    [Function(nameof(ReopenPostGameResults))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> ReopenPostGameResults(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "game-day/sessions/{sessionId:guid}/post-game/reopen")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(ReopenPostGameResults),
+            GetIdempotencyKey(request),
+            new { sessionId },
+            async token =>
+            {
+                var result = await reopenPostGameResultsHandler.HandleAsync(
+                    new ReopenPostGameResultsCommand(sessionId),
                     token);
                 return new IdempotentResponse<GameDayMutationResponse>(
                     HttpStatusCode.OK,
@@ -359,7 +410,8 @@ public sealed class GameDayFunctions(
                 approval.Assists,
                 Enum.Parse<StatApprovalStatus>(approval.Status),
                 approval.AssistPlayer is null ? null : ToResponse(approval.AssistPlayer),
-                approval.Detail)).ToArray());
+                approval.Detail)).ToArray(),
+            model.CanReopenResults);
 
     private static CheckedInPlayerDto ToResponse(CheckedInGameDayPlayerModel player) =>
         new(ToResponse(player.Player), player.Detail);
