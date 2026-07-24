@@ -87,6 +87,27 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
         await dbContext.MatchEvents.AddRangeAsync(events, cancellationToken);
     }
 
+    public async Task EnsurePlayerMatchParticipationAsync(
+        Guid matchId,
+        Guid playerProfileId,
+        CancellationToken cancellationToken = default)
+    {
+        var exists = await dbContext.PlayerMatchStats
+            .AnyAsync(x => x.MatchId == matchId && x.PlayerProfileId == playerProfileId, cancellationToken);
+        if (exists)
+        {
+            return;
+        }
+
+        await dbContext.PlayerMatchStats.AddAsync(new PlayerMatchStats
+        {
+            Id = Guid.NewGuid(),
+            MatchId = matchId,
+            PlayerProfileId = playerProfileId,
+            Played = true,
+        }, cancellationToken);
+    }
+
     public async Task UpsertMatchResultsAsync(
         Guid matchId,
         IReadOnlyList<MatchResult> results,

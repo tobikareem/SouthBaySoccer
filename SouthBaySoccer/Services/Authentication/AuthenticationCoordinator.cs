@@ -35,6 +35,23 @@ public sealed class AuthenticationCoordinator(
         }
     }
 
+    public async Task SignOutAsync(CancellationToken cancellationToken = default)
+    {
+        await _completionLock.WaitAsync(cancellationToken);
+        try
+        {
+            // Clear the persisted tokens first, then the in-memory flag, so even if navigation fails
+            // the app is genuinely signed out (next launch finds no refresh token and shows sign-in).
+            await tokenStore.ClearAsync();
+            _completed = false;
+            await navigator.ShowSignInAsync(cancellationToken);
+        }
+        finally
+        {
+            _completionLock.Release();
+        }
+    }
+
     private readonly SemaphoreSlim _completionLock = new(1, 1);
 
     // Volatile: read from AppStartupService's restore guard, which may run interleaved with

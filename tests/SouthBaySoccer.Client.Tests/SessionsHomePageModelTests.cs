@@ -368,6 +368,66 @@ public class SessionsHomePageModelTests
     }
 
     [Fact]
+    public async Task Appearing_WhenClaimPromptWasDismissed_HidesTheCard()
+    {
+        var sessionId = Guid.NewGuid();
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with
+            {
+                StatsPrompt = new StatsPromptDto(
+                    Guid.Empty,
+                    "Submit your latest stats",
+                    "Add your goals and assists",
+                    sessionId,
+                    RequiresClaim: true),
+            });
+        var dismissed = new Mock<IDismissedStatsPromptStore>();
+        dismissed.Setup(store => store.IsDismissed(sessionId)).Returns(true);
+        var pageModel = CreatePageModel(
+            sessionsClient.Object,
+            new Mock<ISessionsNavigator>().Object,
+            dismissedPromptStore: dismissed.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.HasStatsPrompt.Should().BeFalse("the player already said none of the entries were them");
+        pageModel.StatsPrompt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Appearing_WhenSubmitPromptWasDismissedForClaim_StillShowsRealSubmitCard()
+    {
+        // A real submit prompt (RequiresClaim = false) is never dismissable, so a dismissal recorded
+        // against the same session must not suppress it once the player is linked.
+        var sessionId = Guid.NewGuid();
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with
+            {
+                StatsPrompt = new StatsPromptDto(
+                    Guid.NewGuid(),
+                    "Submit your latest stats",
+                    "Add your goals and assists",
+                    sessionId,
+                    RequiresClaim: false),
+            });
+        var dismissed = new Mock<IDismissedStatsPromptStore>();
+        dismissed.Setup(store => store.IsDismissed(sessionId)).Returns(true);
+        var pageModel = CreatePageModel(
+            sessionsClient.Object,
+            new Mock<ISessionsNavigator>().Object,
+            dismissedPromptStore: dismissed.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.HasStatsPrompt.Should().BeTrue();
+        pageModel.HasLatestMatch.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task JoinWaitlist_FullSession_CallsClientAndRefreshesDashboard()
     {
         var state = new SeedState();
@@ -426,11 +486,13 @@ public class SessionsHomePageModelTests
         ISessionsClient sessionsClient,
         ISessionsNavigator navigator,
         IProfileClient? profileClient = null,
-        int hour = 9) =>
+        int hour = 9,
+        IDismissedStatsPromptStore? dismissedPromptStore = null) =>
         new(
             sessionsClient,
             navigator,
             profileClient ?? ProfileClientReturning("Tobi Kareem").Object,
+            dismissedPromptStore ?? new Mock<IDismissedStatsPromptStore>().Object,
             new FixedTimeProvider(hour));
 
     private static Mock<IProfileClient> ProfileClientReturning(string displayName, string role = "GameAdmin")

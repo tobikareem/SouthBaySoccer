@@ -13,8 +13,9 @@ public sealed class ApiLeaderboardClient(HttpClient httpClient) : ILeaderboardCl
     {
         // The seasonId argument is a seed-era placeholder the page model carries; the server
         // resolves the current season itself when none is supplied, so it is deliberately omitted.
+        // Each metric shows only its top 5.
         var path =
-            $"stats/leaderboards?metric={Uri.EscapeDataString(metric.ToString())}&page=1&pageSize=25";
+            $"stats/leaderboards?metric={Uri.EscapeDataString(metric.ToString())}&page=1&pageSize=5";
         using var response = await httpClient.GetAsync(path, cancellationToken);
         response.EnsureSuccessStatusCode();
 

@@ -330,6 +330,29 @@ public sealed class ImportPickupPalGamesHandlerTests
         context.AddedProfiles.Should().HaveCount(1, "profiles pending save must be reused within one pass");
     }
 
+    [Fact]
+    public async Task HandleAsync_WhenNamesCarryEmojiOrPunctuation_CleansThemForStorage()
+    {
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PickupPalGame(
+                "game-1", GameStartUtc, "Field", 10, "active", "Fire FC",
+                [
+                    new PickupPalGameParticipantInfo("p-1", "Jojo\U0001F98D", false, false, GameStartUtc.AddDays(-2)),
+                    new PickupPalGameParticipantInfo("p-2", "\u2026", false, false, GameStartUtc.AddDays(-2)),
+                    new PickupPalGameParticipantInfo("p-3", "\u2018M", false, false, GameStartUtc.AddDays(-2)),
+                    new PickupPalGameParticipantInfo("p-4", "Ad\u00E9day\u1ECD", false, false, GameStartUtc.AddDays(-2)),
+                ])]);
+
+        await context.CreateHandler().HandleAsync();
+
+        // Trailing/leading emoji and punctuation are trimmed, a name with no letters falls back to
+        // Guest, and accented/non-Latin letters are preserved.
+        context.ReplacedParticipants!.Select(p => p.DisplayName)
+            .Should().Equal("Jojo", "Guest", "M", "Ad\u00E9day\u1ECD");
+    }
+
     private static PickupPalGame SampleGame() =>
         new(
             "game-1",

@@ -10,6 +10,7 @@ using SouthBaySoccer.Services.Leaderboard;
 using SouthBaySoccer.Services.Navigation;
 using SouthBaySoccer.Services.Players;
 using SouthBaySoccer.Services.Profile;
+using SouthBaySoccer.Services.Sessions;
 using Syncfusion.Maui.Toolkit.Hosting;
 
 namespace SouthBaySoccer;
@@ -103,6 +104,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ISessionsNavigator, ShellSessionsNavigator>();
         builder.Services.AddSingleton<IGameDayNavigator, ShellGameDayNavigator>();
         builder.Services.AddSingleton<IClaimSpotNavigator, ShellClaimSpotNavigator>();
+        builder.Services.AddSingleton<IDismissedStatsPromptStore, DismissedStatsPromptStore>();
         builder.Services.AddSingleton<IAdminMatchNavigator, ShellAdminMatchNavigator>();
         builder.Services.AddSingleton<IMatchStatsNavigator, ShellMatchStatsNavigator>();
         builder.Services.AddSingleton(new MatchStatsOptions());

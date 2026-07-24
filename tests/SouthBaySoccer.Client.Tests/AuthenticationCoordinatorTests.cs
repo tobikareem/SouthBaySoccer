@@ -43,6 +43,31 @@ public class AuthenticationCoordinatorTests
     }
 
     [Fact]
+    public async Task SignOutAsync_ClearsTokensResetsStateAndShowsSignIn()
+    {
+        var tokens = new AuthenticationTokensResponse(
+            "access-token",
+            "refresh-token",
+            DateTime.UtcNow.AddMinutes(15));
+        var tokenStore = new Mock<ISecureTokenStore>();
+        var navigator = new Mock<IAuthenticationNavigator>();
+        var coordinator = new AuthenticationCoordinator(
+            new Mock<IAuthenticationClient>(MockBehavior.Strict).Object,
+            tokenStore.Object,
+            navigator.Object,
+            new PickupPalOptions(),
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+        await coordinator.CompleteSignInAsync(tokens);
+        coordinator.IsAuthenticated.Should().BeTrue();
+
+        await coordinator.SignOutAsync();
+
+        coordinator.IsAuthenticated.Should().BeFalse();
+        tokenStore.Verify(store => store.ClearAsync(), Times.Once);
+        navigator.Verify(nav => nav.ShowSignInAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task IsAuthenticated_AfterVerifiedAppLinkCallback_IsTrue()
     {
         var tokens = new AuthenticationTokensResponse(

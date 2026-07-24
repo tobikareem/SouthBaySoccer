@@ -18,6 +18,7 @@ public partial class SessionsHomePageModel(
     ISessionsClient sessionsClient,
     ISessionsNavigator navigator,
     IProfileClient profileClient,
+    IDismissedStatsPromptStore dismissedPromptStore,
     TimeProvider timeProvider) : ObservableObject
 {
     private string? _cachedProfileDisplayName;
@@ -195,7 +196,7 @@ public partial class SessionsHomePageModel(
         Greeting = greeting;
         DuesStatus = dashboard.DuesStatus;
         FeaturedSession = dashboard.FeaturedSession;
-        StatsPrompt = dashboard.StatsPrompt;
+        StatsPrompt = ResolveStatsPrompt(dashboard.StatsPrompt);
         ComingUpLabel = dashboard.ComingUpLabel;
         ScheduleActionLabel = dashboard.ScheduleActionLabel;
         ComingUpSessions = dashboard.ComingUpSessions;
@@ -205,6 +206,14 @@ public partial class SessionsHomePageModel(
         StateMessage = string.Empty;
         State = ViewState.Content;
     }
+
+    // A claim prompt the player already answered "None of these are me" to has nothing for them to
+    // submit, so suppress it. Only claim prompts are dismissable, so if they later get linked and the
+    // server sends a real submit prompt (RequiresClaim = false) it still shows.
+    private StatsPromptDto? ResolveStatsPrompt(StatsPromptDto? prompt) =>
+        prompt is { RequiresClaim: true, SessionId: var sessionId } && dismissedPromptStore.IsDismissed(sessionId)
+            ? null
+            : prompt;
 
     private async Task<ProfileHomeContext> BuildProfileContextOrDefaultAsync(
         string fallbackGreeting,

@@ -81,6 +81,15 @@
                         </DataTemplate>
                     </BindableLayout.ItemTemplate>
                 </VerticalStackLayout>
+
+                <!-- Exit for the player who isn't any of the unclaimed entries; dismisses the
+                     home-screen prompt for this game so it stops reappearing. -->
+                <Button
+                    Text="None of these are me"
+                    Command="{Binding NoneOfTheseCommand}"
+                    Style="{StaticResource GhostButton}"
+                    IsVisible="{Binding ShowEntries}"
+                    SemanticProperties.Hint="Dismisses the submit-stats prompt for this game" />
             </VerticalStackLayout>
         </ScrollView>
     </c:StateView>

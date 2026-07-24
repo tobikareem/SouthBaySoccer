@@ -21,7 +21,8 @@ public interface IClaimSpotNavigator
 /// </summary>
 public partial class ClaimSpotPageModel(
     IGameDayClient gameDayClient,
-    IClaimSpotNavigator navigator) : ObservableObject
+    IClaimSpotNavigator navigator,
+    IDismissedStatsPromptStore dismissedPromptStore) : ObservableObject
 {
     public const string EmptyTitle = "Nothing to claim";
     public const string EmptyMessage = "You're already on the roster for your recent games.";
@@ -68,6 +69,19 @@ public partial class ClaimSpotPageModel(
 
     [RelayCommand]
     private Task Back() => navigator.GoBackAsync();
+
+    // "None of these are me" on a specific game: the player isn't any of the unclaimed entries, so
+    // remember that and stop the home-screen prompt for this session from reappearing.
+    [RelayCommand]
+    private Task NoneOfThese()
+    {
+        if (sessionId is { } id)
+        {
+            dismissedPromptStore.Dismiss(id);
+        }
+
+        return navigator.GoBackAsync();
+    }
 
     [RelayCommand]
     private Task OpenSession(ClaimableSessionDto? session) =>

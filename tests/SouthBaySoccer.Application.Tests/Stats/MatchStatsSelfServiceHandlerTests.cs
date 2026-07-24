@@ -42,6 +42,8 @@ public sealed class MatchStatsSelfServiceHandlerTests
             .Should().Be(2, "each claimed goal credits the submitter as scorer");
         captured.Count(x => x.PlayerProfileId == null && x.AssistPlayerProfileId == actor.Id)
             .Should().Be(1, "an assist is a goal credit with no named scorer");
+        stats.Verify(x => x.EnsurePlayerMatchParticipationAsync(MatchId, actor.Id, It.IsAny<CancellationToken>()),
+            Times.Once, "submitting stats records participation so the leaderboard counts them");
     }
 
     [Fact]

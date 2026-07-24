@@ -70,7 +70,9 @@
                     <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding IsLocked}">
                         <Label Text="Teams are locked. Picks are now read-only." Style="{StaticResource TextCaption}" />
                     </Border>
-                    <Button Text="Save team picks" Command="{Binding SaveCommand}" IsEnabled="{Binding CanPickPlayers}" Style="{StaticResource PrimaryButton}" />
+                    <!-- IsEnabled is driven by SaveCommand.CanExecute (CanPickPlayers &amp;&amp; not locked, and
+                         false while a save is in flight) so the button greys out after it is tapped. -->
+                    <Button Text="Save team picks" Command="{Binding SaveCommand}" Style="{StaticResource PrimaryButton}" />
                     <Label Text="Permission expires when teams lock." Style="{StaticResource TextCaption}" HorizontalTextAlignment="Center" />
                 </VerticalStackLayout>
             </ScrollView>

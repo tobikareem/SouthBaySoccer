@@ -102,15 +102,10 @@ public sealed class GetMyMatchStatsQueryHandler(
         CancellationToken cancellationToken)
     {
         var session = await sessionRepository.GetByIdAsync(match.SessionId, cancellationToken);
-        if (session is null)
-        {
-            return string.Empty;
-        }
-
-        var venue = await venueRepository.GetByIdAsync(session.VenueId, cancellationToken);
-        var day = SessionAdminTimeZone.ToLocal(session.StartsAtUtc)
-            .ToString("ddd", System.Globalization.CultureInfo.InvariantCulture);
-        return venue is null ? day : $"{day} - {venue.Name}";
+        // The game name is the header on the stat-submission screen, so a player always sees which
+        // game they are reporting for.
+        _ = venueRepository;
+        return session?.Title ?? string.Empty;
     }
 }
 
@@ -241,6 +236,9 @@ public sealed class SubmitMyMatchStatsCommandHandler(
             actor.Id,
             submitted,
             cancellationToken);
+        // Record that this player took part, so their approved goals/assists count on the
+        // leaderboard and profile even if they were never drafted onto a team.
+        await statsRepository.EnsurePlayerMatchParticipationAsync(command.MatchId, actor.Id, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return new StatMutationResult(command.MatchId, submitted.Count);
     }
@@ -384,7 +382,7 @@ public sealed class GetPendingStatSubmissionQueryHandler(
                     return new PendingStatSubmissionModel(
                         Guid.Empty,
                         "Submit your latest stats",
-                        $"Find yourself on {session.Title} to add your goals and assists",
+                        "Add your goals and assists",
                         IsPendingConfirmation: false,
                         SessionId: session.Id,
                         RequiresClaim: true);
@@ -405,9 +403,7 @@ public sealed class GetPendingStatSubmissionQueryHandler(
             return new PendingStatSubmissionModel(
                 match.Id,
                 isPending ? "Stats submitted" : "Submit your latest stats",
-                isPending
-                    ? $"Waiting on confirmation for {session.Title}"
-                    : $"Add your goals and assists for {session.Title}",
+                isPending ? "Waiting on captain confirmation" : "Add your goals and assists",
                 isPending,
                 SessionId: session.Id);
         }
