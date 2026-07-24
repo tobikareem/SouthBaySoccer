@@ -21,7 +21,7 @@ public partial class WelcomeBackPageModel(
         "Sign in with the phone number connected to your Pickup Pal account.";
     public const string SecurityHeading = "Password-free and secure";
     public const string SecurityMessage =
-        "Pickup Pal verifies your account. SouthBaySoccer stores only app session tokens on this device.";
+        "Pickup Pal verifies your account. N9ja Bay stores only app session tokens on this device.";
     public const string BotHelpMessage = "Need help? Open the Pickup Pal bot for account support.";
     public const string SignupHelpMessage =
         "Create your account on the web, then come back and sign in with your phone number.";

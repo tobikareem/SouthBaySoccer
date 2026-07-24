@@ -27,14 +27,14 @@
                        TextColor="White"
                        HorizontalTextAlignment="Center"
                        VerticalTextAlignment="Center"
-                       SemanticProperties.Description="South Bay Soccer football mark" />
+                       SemanticProperties.Description="N9ja Bay football mark" />
             </Border>
 
             <VerticalStackLayout Grid.Column="1"
                                  Margin="{StaticResource WelcomeHeaderTextMargin}"
                                  Spacing="{StaticResource SpaceXs}"
                                  VerticalOptions="Center">
-                <Label Text="SouthBay Soccer"
+                <Label Text="N9ja Bay"
                        Style="{StaticResource TextH2}"
                        TextColor="White"
                        SemanticProperties.HeadingLevel="Level1" />

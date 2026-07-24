@@ -29,7 +29,7 @@
 		<MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>
 
 		<!-- Display name -->
-		<ApplicationTitle>SouthBaySoccer</ApplicationTitle>
+		<ApplicationTitle>N9ja Bay</ApplicationTitle>
 
 		<!-- App Identifier -->
 		<ApplicationId>com.companyname.southbaysoccer</ApplicationId>
@@ -51,7 +51,7 @@
 
 	<ItemGroup>
 		<!-- App Icon -->
-		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#008751" />
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#FFFFFF" />
 
 		<!-- Splash Screen -->
 		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#008751" BaseSize="128,128" />

@@ -5,7 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:pages="clr-namespace:SouthBaySoccer.Pages"
     Shell.FlyoutBehavior="Disabled"
-    Title="SouthBaySoccer">
+    Title="N9ja Bay">
 
     <!--
         Authenticated shell: a bottom TabBar matching the mobile wireframe.

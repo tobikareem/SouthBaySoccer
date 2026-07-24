@@ -20,8 +20,8 @@ Scenario: Signed-out launch displays the Welcome Back screen
   When the MAUI application starts
   Then the Welcome Back screen is the initial route
   And the Shell flyout and authenticated tab navigation are not visible
-  And the screen displays the SouthBay Soccer football mark
-  And the header displays "SouthBay Soccer"
+  And the screen displays the N9ja Bay football mark
+  And the header displays "N9ja Bay"
   And the header subtitle displays "Pickup soccer, organized."
   And the content displays "WELCOME BACK"
   And the primary heading displays "Your next game starts here."

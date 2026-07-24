@@ -11,12 +11,12 @@
 
     <ScrollView>
         <VerticalStackLayout Spacing="{StaticResource SpaceLg}">
-            <controls:BrandHeader Title="South Bay Soccer"
+            <controls:BrandHeader Title="N9ja Bay"
                                   Subtitle="Play. Connect. Compete.">
                 <controls:BrandHeader.TrailingContent>
-                    <controls:Avatar Initials="SB"
+                    <controls:Avatar Initials="N9"
                                      Variant="OnGreen"
-                                     Description="South Bay Soccer profile" />
+                                     Description="N9ja Bay profile" />
                 </controls:BrandHeader.TrailingContent>
             </controls:BrandHeader>
 
