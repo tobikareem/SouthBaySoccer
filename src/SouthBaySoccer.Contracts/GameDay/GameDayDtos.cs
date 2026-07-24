@@ -142,6 +142,8 @@ public sealed record PostGameApprovalDto(
 
 public sealed record LinkParticipantRequest(Guid PlayerProfileId);
 
+public sealed record ClaimParticipantRequest(Guid ParticipantId);
+
 public sealed record TeamResultUpdateDto(
     Guid TeamId,
     int Wins,
@@ -155,3 +157,17 @@ public sealed record GameDayMutationResponse(Guid SessionId, Guid MatchId, int A
 public sealed record RecentFormUpdateDto(
     Guid PlayerId,
     MatchResult Result);
+
+public sealed record ClaimableParticipantDto(Guid ParticipantId, string DisplayName, bool IsWaitlist);
+
+public sealed record SessionClaimablesDto(
+    Guid SessionId,
+    string MyRegisteredName,
+    bool AlreadyOnRoster,
+    IReadOnlyList<ClaimableParticipantDto> Claimable);
+
+public sealed record ClaimableSessionDto(
+    Guid SessionId,
+    string Title,
+    string DateLabel,
+    int ClaimableCount);

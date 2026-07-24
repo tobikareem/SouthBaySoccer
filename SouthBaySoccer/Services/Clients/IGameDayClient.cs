@@ -10,6 +10,15 @@ public interface IGameDayClient
     /// <summary>Games already played inside the admin edit window, for game-admin follow-up.</summary>
     Task<IReadOnlyList<RecentGameDto>> GetRecentGamesAsync(CancellationToken cancellationToken);
 
+    /// <summary>Recent games this signed-in player is not on but could claim a spot in.</summary>
+    Task<IReadOnlyList<ClaimableSessionDto>> GetMyClaimableSessionsAsync(CancellationToken cancellationToken);
+
+    /// <summary>Unclaimed entries on a session, plus the caller's registered name for context.</summary>
+    Task<SessionClaimablesDto?> GetSessionClaimablesAsync(Guid sessionId, CancellationToken cancellationToken);
+
+    /// <summary>Claims an unclaimed participant row as the signed-in player.</summary>
+    Task<ClientCommandResult> ClaimParticipantAsync(Guid sessionId, Guid participantId, CancellationToken cancellationToken);
+
     Task<ClientCommandResult> CheckInAsync(
         Guid sessionId,
         Guid idempotencyKey,

@@ -24,6 +24,9 @@ public sealed class GameDayFunctions(
     PublishPostGameCommandHandler publishPostGameHandler,
     ReopenPostGameResultsCommandHandler reopenPostGameResultsHandler,
     LinkParticipantToProfileCommandHandler linkParticipantHandler,
+    GetSessionClaimablesQueryHandler getSessionClaimablesHandler,
+    GetMyClaimableSessionsQueryHandler getMyClaimableSessionsHandler,
+    ClaimParticipantCommandHandler claimParticipantHandler,
     IdempotentRequestExecutor idempotentRequestExecutor)
 {
     [Function(nameof(GetTodayGameDayContext))]
@@ -42,6 +45,70 @@ public sealed class GameDayFunctions(
         var response = request.CreateResponse(HttpStatusCode.OK);
         await response.WriteAsJsonAsync(ToResponse(context), cancellationToken);
         return response;
+    }
+
+    [Function(nameof(GetMyClaimableSessions))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> GetMyClaimableSessions(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "game-day/claimable")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var sessions = await getMyClaimableSessionsHandler.HandleAsync(new GetMyClaimableSessionsQuery(), cancellationToken);
+        var response = request.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(
+            sessions
+                .Select(x => new ClaimableSessionDto(
+                    x.SessionId,
+                    x.Title,
+                    ToLocal(x.StartsAtUtc).ToString("ddd MMM d, h:mm tt", CultureInfo.InvariantCulture),
+                    x.ClaimableCount))
+                .ToArray(),
+            cancellationToken);
+        return response;
+    }
+
+    [Function(nameof(GetSessionClaimables))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> GetSessionClaimables(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "sessions/{sessionId:guid}/claimable")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var model = await getSessionClaimablesHandler.HandleAsync(new GetSessionClaimablesQuery(sessionId), cancellationToken);
+        var response = request.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(
+            new SessionClaimablesDto(
+                model.SessionId,
+                model.MyRegisteredName,
+                model.AlreadyOnRoster,
+                model.Claimable
+                    .Select(c => new ClaimableParticipantDto(c.ParticipantId, c.DisplayName, c.IsWaitlist))
+                    .ToArray()),
+            cancellationToken);
+        return response;
+    }
+
+    [Function(nameof(ClaimParticipant))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> ClaimParticipant(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "sessions/{sessionId:guid}/claim")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadRequiredJsonAsync<ClaimParticipantRequest>(request, cancellationToken);
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(ClaimParticipant),
+            GetIdempotencyKey(request),
+            new { sessionId, body.ParticipantId },
+            async token =>
+            {
+                var result = await claimParticipantHandler.HandleAsync(
+                    new ClaimParticipantCommand(sessionId, body.ParticipantId),
+                    token);
+                return new IdempotentResponse<GameDayMutationResponse>(HttpStatusCode.OK, ToResponse(result));
+            },
+            cancellationToken);
     }
 
     [Function(nameof(GetRecentGames))]

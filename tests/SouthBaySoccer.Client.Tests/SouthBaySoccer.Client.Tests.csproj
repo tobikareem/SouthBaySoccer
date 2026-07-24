@@ -44,6 +44,7 @@
     <Compile Include="..\..\SouthBaySoccer\PageModels\RateTeammatesPageModel.cs" Link="Client\PageModels\RateTeammatesPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\GameDayPageModels.cs" Link="Client\PageModels\GameDayPageModels.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\RecentGamesPageModel.cs" Link="Client\PageModels\RecentGamesPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\ClaimSpotPageModel.cs" Link="Client\PageModels\ClaimSpotPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\Controls\ControlVariants.cs" Link="Client\Controls\ControlVariants.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationClient.cs" Link="Client\Services\AuthenticationClient.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationCoordinator.cs" Link="Client\Services\AuthenticationCoordinator.cs" />

@@ -23,6 +23,8 @@ public interface IGameDayNavigator
 
     Task OpenRecentGamesAsync();
 
+    Task OpenClaimSpotAsync();
+
     Task GoBackAsync();
 }
 
@@ -334,6 +336,9 @@ public partial class GameDayPageModel(
     [RelayCommand(CanExecute = nameof(CanManageCheckIns))]
     private Task OpenRecentGames() =>
         CanManageCheckIns ? navigator.OpenRecentGamesAsync() : Task.CompletedTask;
+
+    [RelayCommand]
+    private Task OpenClaimSpot() => navigator.OpenClaimSpotAsync();
 
     private bool CanCheckInNow() => CanCheckIn && !IsBusy;
 
@@ -1194,6 +1199,8 @@ public sealed class ShellGameDayNavigator : IGameDayNavigator
         Shell.Current.GoToAsync($"rate-teammates?matchId={Uri.EscapeDataString(matchId.ToString())}");
 
     public Task OpenRecentGamesAsync() => Shell.Current.GoToAsync("recent-games");
+
+    public Task OpenClaimSpotAsync() => Shell.Current.GoToAsync("claim-spot");
 
     public Task GoBackAsync() => Shell.Current.GoToAsync("..");
 

@@ -30,6 +30,25 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
         ]);
     }
 
+    public Task<IReadOnlyList<ClaimableSessionDto>> GetMyClaimableSessionsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<ClaimableSessionDto>>([]);
+    }
+
+    public Task<SessionClaimablesDto?> GetSessionClaimablesAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<SessionClaimablesDto?>(
+            new SessionClaimablesDto(sessionId, "You", AlreadyOnRoster: true, []));
+    }
+
+    public Task<ClientCommandResult> ClaimParticipantAsync(Guid sessionId, Guid participantId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(ClientCommandResult.Success);
+    }
+
     public Task<ClientCommandResult> CheckInAsync(
         Guid sessionId,
         Guid idempotencyKey,

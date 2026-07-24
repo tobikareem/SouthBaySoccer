@@ -39,6 +39,49 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
                ?? [];
     }
 
+    public async Task<IReadOnlyList<ClaimableSessionDto>> GetMyClaimableSessionsAsync(CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.GetAsync("game-day/claimable", cancellationToken);
+        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NoContent)
+        {
+            return [];
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<ClaimableSessionDto>>(
+                   cancellationToken: cancellationToken)
+               ?? [];
+    }
+
+    public async Task<SessionClaimablesDto?> GetSessionClaimablesAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.GetAsync($"sessions/{sessionId}/claimable", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<SessionClaimablesDto>(cancellationToken: cancellationToken);
+    }
+
+    public Task<ClientCommandResult> ClaimParticipantAsync(Guid sessionId, Guid participantId, CancellationToken cancellationToken)
+    {
+        var operation = $"claim:{sessionId}:{participantId}";
+        return ExecuteCommandAsync(async () =>
+        {
+            using var request = CreateIdempotentRequest(
+                HttpMethod.Post,
+                $"sessions/{sessionId}/claim",
+                new ClaimParticipantRequest(participantId),
+                GetIdempotencyKey(operation));
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            CompleteDefinitiveResponse(operation, response.StatusCode);
+            response.EnsureSuccessStatusCode();
+            return ClientCommandResult.Success;
+        }, () => _idempotencyKeys.TryRemove(operation, out _));
+    }
+
     public Task<ClientCommandResult> CheckInAsync(
         Guid sessionId,
         Guid idempotencyKey,
