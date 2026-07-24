@@ -11,9 +11,10 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
 {
     private readonly ConcurrentDictionary<string, string> _idempotencyKeys = new();
 
-    public async Task<GameDayContextDto?> GetTodayContextAsync(CancellationToken cancellationToken)
+    public async Task<GameDayContextDto?> GetTodayContextAsync(Guid? sessionId, CancellationToken cancellationToken)
     {
-        using var response = await httpClient.GetAsync("game-day/today", cancellationToken);
+        var route = sessionId is { } id ? $"game-day/today?sessionId={id}" : "game-day/today";
+        using var response = await httpClient.GetAsync(route, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NoContent)
         {
             return null;

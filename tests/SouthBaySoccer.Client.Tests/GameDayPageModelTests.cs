@@ -3,6 +3,7 @@ using FluentAssertions;
 using Moq;
 using SouthBaySoccer.Contracts.Common;
 using SouthBaySoccer.Contracts.GameDay;
+using SouthBaySoccer.Contracts.Players;
 using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
@@ -28,6 +29,38 @@ public class GameDayPageModelTests
         pageModel.CanDraftTeam.Should().BeTrue();
         pageModel.CanApprovePostGame.Should().BeTrue();
         pageModel.HasBlockReason.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Appearing_WhenMultipleGamesToday_ShowsPickerAndSwitchesGame()
+    {
+        var baseContext = new SeedGameDayState().GetContext();
+        var otherGameId = Guid.NewGuid();
+        var startsAt = new DateTime(2026, 7, 24, 2, 30, 0, DateTimeKind.Utc);
+        var context = baseContext with
+        {
+            TodaysGames =
+            [
+                new GameDayGameOptionDto(baseContext.SessionId, "Bay Area", "Marina", startsAt, "Going", true),
+                new GameDayGameOptionDto(otherGameId, "Fire FC", "Stanford", startsAt.AddHours(1), "Going", false),
+            ],
+        };
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(context);
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.HasMultipleGames.Should().BeTrue();
+        pageModel.TodaysGames.Should().HaveCount(2);
+
+        await pageModel.SelectGameCommand.ExecuteAsync(otherGameId);
+
+        // Switching loads the chosen game explicitly (first load used the server's auto-pick, null).
+        client.Verify(service => service.GetTodayContextAsync(otherGameId, It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(service => service.GetTodayContextAsync(null, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -69,7 +102,7 @@ public class GameDayPageModelTests
         var context = new SeedGameDayState().GetContext() with { CanSubmitOwnStats = false };
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         var navigator = Navigator();
         var pageModel = new GameDayPageModel(client.Object, navigator.Object);
@@ -95,7 +128,7 @@ public class GameDayPageModelTests
         };
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         var pageModel = new GameDayPageModel(
             client.Object,
@@ -124,7 +157,7 @@ public class GameDayPageModelTests
         };
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         var navigator = Navigator();
         var pageModel = new GameDayPageModel(
@@ -168,7 +201,7 @@ public class GameDayPageModelTests
         var context = new SeedGameDayState().GetContext();
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         client
             .Setup(service => service.CheckInAsync(
@@ -216,7 +249,7 @@ public class GameDayPageModelTests
         };
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         var pageModel = new GameDayPageModel(
             client.Object,
@@ -286,6 +319,77 @@ public class GameDayPageModelTests
         var draft = state.GetTeamDraft(SeedFixtures.MarinaSessionId);
         var team = draft.Teams.First(item => item.TeamId == draft.TeamId);
         team.PlayerIds.Should().Contain(openPlayer.PlayerId);
+    }
+
+    [Fact]
+    public async Task TeamDraft_PerTeamCap_ShowsShareAndBlocksPicksBeyondIt()
+    {
+        // 15 eligible players across 3 teams => 5 per team; the captain already fills one slot.
+        var pageModel = await LoadDraftAsync(playerCount: 15, teamCount: 3, currentTeamIndex: 0);
+
+        pageModel.TeamCap.Should().Be(5);
+        pageModel.SelectedCount.Should().Be(1);
+        pageModel.Summary.Should().Be("1 of 5 selected (4 left)");
+
+        foreach (var open in pageModel.Players.Where(item => item.IsPickable && !item.IsSelected).Take(4).ToList())
+        {
+            pageModel.TogglePickCommand.Execute(open);
+        }
+
+        pageModel.SelectedCount.Should().Be(5);
+        pageModel.Summary.Should().Be("5 of 5 selected (full)");
+
+        // Once full, the remaining open rows are greyed and a further pick is refused.
+        var blocked = pageModel.Players.First(item => item.CanPick && !item.IsSelected);
+        blocked.IsPickable.Should().BeFalse();
+        blocked.IsDimmed.Should().BeTrue();
+        pageModel.TogglePickCommand.Execute(blocked);
+        pageModel.SelectedCount.Should().Be(5);
+    }
+
+    [Fact]
+    public async Task TeamDraft_UnevenRoster_GivesTheEarlierTeamTheExtraSlot()
+    {
+        // 16 players across 3 teams => caps of 6, 5, 5.
+        var firstTeam = await LoadDraftAsync(playerCount: 16, teamCount: 3, currentTeamIndex: 0);
+        firstTeam.TeamCap.Should().Be(6);
+
+        var lastTeam = await LoadDraftAsync(playerCount: 16, teamCount: 3, currentTeamIndex: 2);
+        lastTeam.TeamCap.Should().Be(5);
+    }
+
+    private static async Task<TeamDraftPageModel> LoadDraftAsync(int playerCount, int teamCount, int currentTeamIndex)
+    {
+        var players = Enumerable.Range(0, playerCount).Select(_ => Guid.NewGuid()).ToArray();
+        var teamIds = Enumerable.Range(0, teamCount).Select(_ => Guid.NewGuid()).ToArray();
+        // The first `teamCount` players are the captains, one per team (already on their own roster).
+        var teams = Enumerable.Range(0, teamCount)
+            .Select(i => new MatchTeamDto(teamIds[i], $"Team {i + 1}", players[i], $"Captain {i + 1}", [players[i]]))
+            .ToArray();
+        var checkedIn = players
+            .Select((id, n) => new CheckedInPlayerDto(
+                new PlayerSummaryDto(id, $"Player {n}", $"P{n}", "Midfielder", false), "going"))
+            .ToArray();
+        var draft = new TeamDraftDto(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            teamIds[currentTeamIndex],
+            $"Team {currentTeamIndex + 1}",
+            $"Captain {currentTeamIndex + 1}",
+            CanPickPlayers: true,
+            IsLocked: false,
+            TeamCount: teamCount,
+            CheckedInPlayers: checkedIn,
+            Teams: teams,
+            CanManageAllTeams: false);
+
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(draft);
+        var pageModel = new TeamDraftPageModel(client.Object, Navigator().Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        return pageModel;
     }
 
     [Fact]

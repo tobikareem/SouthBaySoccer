@@ -37,7 +37,7 @@ public sealed class GameDayFunctions(
         CancellationToken cancellationToken)
     {
         await pickupPalRefreshService.RefreshIfStaleAsync(cancellationToken);
-        var context = await contextHandler.HandleAsync(cancellationToken);
+        var context = await contextHandler.HandleAsync(GetOptionalSessionId(request), cancellationToken);
         if (context is null)
         {
             return request.CreateResponse(HttpStatusCode.NoContent);
@@ -443,7 +443,16 @@ public sealed class GameDayFunctions(
                     entry.IsCheckedIn))
                 .ToArray(),
             context.CanManageCheckIns,
-            context.CanSubmitOwnStats);
+            context.CanSubmitOwnStats,
+            context.TodaysGames
+                .Select(game => new GameDayGameOptionDto(
+                    game.SessionId,
+                    game.Title,
+                    game.Venue,
+                    game.StartsAtUtc,
+                    game.StatusLabel,
+                    game.IsSelected))
+                .ToArray());
     }
 
     private static CaptainAssignmentDto ToResponse(CaptainAssignmentModel model) =>
@@ -508,6 +517,30 @@ public sealed class GameDayFunctions(
 
     private static GameDayMutationResponse ToResponse(GameDayMutationModel model) =>
         new(model.SessionId, model.MatchId, model.AffectedCount);
+
+    // Optional ?sessionId= for the Game Day picker: which of today's games to load. Absent or
+    // unparseable means "let the server auto-pick today's game".
+    private static Guid? GetOptionalSessionId(HttpRequestData request)
+    {
+        var query = request.Url.Query;
+        if (string.IsNullOrEmpty(query))
+        {
+            return null;
+        }
+
+        foreach (var pair in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = pair.Split('=', 2);
+            if (parts.Length == 2
+                && string.Equals(parts[0], "sessionId", StringComparison.OrdinalIgnoreCase)
+                && Guid.TryParse(Uri.UnescapeDataString(parts[1]), out var value))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
 
     private static string GetIdempotencyKey(HttpRequestData request)
     {

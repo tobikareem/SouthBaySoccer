@@ -58,9 +58,15 @@
                         <VerticalStackLayout BindableLayout.ItemsSource="{Binding Players}" Spacing="{StaticResource SpaceXs}">
                             <BindableLayout.ItemTemplate>
                                 <DataTemplate x:DataType="pageModels:DraftPlayerItem">
-                                    <c:PlayerRow Initials="{Binding Initials}" Name="{Binding Name}" Detail="{Binding Detail}" TapCommand="{Binding BindingContext.TogglePickCommand, Source={x:Reference DraftPage}}" TapCommandParameter="{Binding .}" IsEnabled="{Binding CanPick}" IsVisible="{Binding IsVisible}">
+                                    <c:PlayerRow Initials="{Binding Initials}" Name="{Binding Name}" Detail="{Binding Detail}" TapCommand="{Binding BindingContext.TogglePickCommand, Source={x:Reference DraftPage}}" TapCommandParameter="{Binding .}" IsEnabled="{Binding IsPickable}" IsVisible="{Binding IsVisible}">
+                                        <!-- Grey players taken by another team or blocked by this team's cap. -->
+                                        <c:PlayerRow.Triggers>
+                                            <DataTrigger TargetType="c:PlayerRow" Binding="{Binding IsDimmed}" Value="True">
+                                                <Setter Property="Opacity" Value="0.4" />
+                                            </DataTrigger>
+                                        </c:PlayerRow.Triggers>
                                         <c:PlayerRow.TrailingContent>
-                                            <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanPick}" InputTransparent="True" />
+                                            <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding IsPickable}" InputTransparent="True" />
                                         </c:PlayerRow.TrailingContent>
                                     </c:PlayerRow>
                                 </DataTemplate>

@@ -101,6 +101,37 @@ public sealed class GameDayContextHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenPlayerIsGoingToTwoGames_ListsBothAndCanSelectEither()
+    {
+        var context = new TestContext();
+        var earlier = context.SessionAt(Utc(2026, 7, 23, 2, 0));
+        var later = context.SessionAt(Utc(2026, 7, 23, 3, 0));
+        context.Sessions
+            .Setup(x => x.ListGameDayCandidatesAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([earlier, later]);
+        foreach (var game in new[] { earlier, later })
+        {
+            context.Rsvps
+                .Setup(x => x.GetGameDayAttendanceAsync(game.Id, context.Profile.Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new GameDayAttendanceRecord(12, 0, 0, true, false, false, []));
+        }
+
+        // Default: both games are offered, exactly one is marked selected.
+        var auto = await context.CreateHandler().HandleAsync();
+        auto!.TodaysGames.Select(game => game.SessionId).Should().BeEquivalentTo([earlier.Id, later.Id]);
+        auto.TodaysGames.Should().ContainSingle(game => game.IsSelected)
+            .Which.SessionId.Should().Be(auto.SessionId);
+
+        // Explicit pick loads that game and marks it selected in the list.
+        var picked = await context.CreateHandler().HandleAsync(earlier.Id);
+        picked!.SessionId.Should().Be(earlier.Id);
+        picked.TodaysGames.Single(game => game.SessionId == earlier.Id).IsSelected.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenAdminIsInsideDraftWindow_EnablesCaptainAssignment()
     {
         var context = new TestContext();

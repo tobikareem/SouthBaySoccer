@@ -5,7 +5,11 @@ namespace SouthBaySoccer.Services.Clients;
 
 public interface IGameDayClient
 {
-    Task<GameDayContextDto?> GetTodayContextAsync(CancellationToken cancellationToken);
+    /// <summary>
+    /// Today's Game Day context. Pass a <paramref name="sessionId"/> to load a specific one of
+    /// today's games (from <see cref="GameDayContextDto.TodaysGames"/>); null lets the server pick.
+    /// </summary>
+    Task<GameDayContextDto?> GetTodayContextAsync(Guid? sessionId, CancellationToken cancellationToken);
 
     /// <summary>Games already played inside the admin edit window, for game-admin follow-up.</summary>
     Task<IReadOnlyList<RecentGameDto>> GetRecentGamesAsync(CancellationToken cancellationToken);
