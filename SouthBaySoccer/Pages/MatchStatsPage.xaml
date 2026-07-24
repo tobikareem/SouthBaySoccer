@@ -99,9 +99,13 @@
                             Style="{StaticResource TextCaption}" />
                     </Grid>
 
-                    <c:SectionHeader Text="{x:Static pageModels:MatchStatsPageModel.ConfirmSectionTitle}" />
+                    <c:SectionHeader
+                        Text="{x:Static pageModels:MatchStatsPageModel.ConfirmSectionTitle}"
+                        IsVisible="{Binding CanConfirmTeammates}" />
 
-                    <c:BrandCard Padding="{StaticResource CardPadding}">
+                    <c:BrandCard
+                        Padding="{StaticResource CardPadding}"
+                        IsVisible="{Binding CanConfirmTeammates}">
                         <Label
                             Text="{x:Static pageModels:MatchStatsPageModel.EmptyMessage}"
                             Style="{StaticResource TextCaption}"
