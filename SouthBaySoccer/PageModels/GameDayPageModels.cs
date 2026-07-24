@@ -644,10 +644,19 @@ public partial class TeamDraftPageModel(
     private Guid sessionId;
     private Guid teamId;
     private TeamDraftDto? draft;
+    private int totalEligible;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     private bool _canPickPlayers;
+
+    /// <summary>This team's share of the roster (total eligible divided across the teams, extras first).</summary>
+    [ObservableProperty]
+    private int _teamCap;
+
+    /// <summary>Players currently on this team, including its captain.</summary>
+    [ObservableProperty]
+    private int _selectedCount;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
@@ -691,13 +700,15 @@ public partial class TeamDraftPageModel(
     [RelayCommand]
     private void TogglePick(DraftPlayerItem? item)
     {
-        if (item is null || !item.CanPick)
+        // IsPickable already accounts for ownership and this team's cap, so this both blocks picking
+        // past the cap and leaves already-picked players releasable.
+        if (item is null || !item.IsPickable)
         {
             return;
         }
 
         item.IsSelected = !item.IsSelected;
-        UpdateSummary();
+        RefreshCapAndPicks();
     }
 
     [RelayCommand]
@@ -756,6 +767,8 @@ public partial class TeamDraftPageModel(
 
         draft = dto;
         sessionId = dto.SessionId;
+        // Denominator for the per-team cap: everyone in the Going + Waitlist eligible roster.
+        totalEligible = dto.CheckedInPlayers.Count;
         CanManageAllTeams = dto.CanManageAllTeams;
         Teams.Clear();
         foreach (var team in dto.Teams)
@@ -803,14 +816,49 @@ public partial class TeamDraftPageModel(
                     && (owner is null || isMine)));
         }
 
-        UpdateSummary();
+        RefreshCapAndPicks();
     }
 
-    private void UpdateSummary()
+    // Recomputes this team's cap (its share of the roster), how many are on it, and each row's
+    // pickability, then refreshes the progress caption. Runs after every projection and toggle so
+    // the count tracks the roster - a fresh load picks up players who RSVP'd since it last opened.
+    private void RefreshCapAndPicks()
     {
-        var picked = Players.Count(item => item.IsSelected);
-        var unassigned = Players.Count(item => item.CanPick && !item.IsSelected);
-        Summary = $"{picked} picked - {unassigned} unassigned";
+        var teamCount = draft?.Teams.Count ?? 0;
+        var baseCap = teamCount > 0 ? totalEligible / teamCount : 0;
+        var remainder = teamCount > 0 ? totalEligible % teamCount : 0;
+        // Distribute the remainder one extra at a time to the first teams, so with 16 players and 3
+        // teams the caps are 6, 5, 5 rather than everyone capped at 5 and one player left over.
+        TeamCap = baseCap + (IndexOfCurrentTeam() < remainder ? 1 : 0);
+
+        SelectedCount = Players.Count(item => item.IsSelected);
+        var isFull = SelectedCount >= TeamCap;
+        foreach (var item in Players)
+        {
+            item.IsPickable = item.CanPick && (item.IsSelected || !isFull);
+        }
+
+        Summary = isFull
+            ? $"{SelectedCount} of {TeamCap} selected (full)"
+            : $"{SelectedCount} of {TeamCap} selected ({TeamCap - SelectedCount} left)";
+    }
+
+    private int IndexOfCurrentTeam()
+    {
+        if (draft is null)
+        {
+            return 0;
+        }
+
+        for (var index = 0; index < draft.Teams.Count; index++)
+        {
+            if (draft.Teams[index].TeamId == teamId)
+            {
+                return index;
+            }
+        }
+
+        return 0;
     }
 }
 
@@ -1030,13 +1078,28 @@ public partial class DraftPlayerItem(Guid playerId, string initials, string name
     public string Initials { get; } = initials;
     public string Name { get; } = name;
     public string Detail { get; } = detail;
+
+    /// <summary>Base eligibility fixed at projection: unowned (or on this team), not the captain, not locked.</summary>
     public bool CanPick { get; } = canPick;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDimmed))]
     private bool _isSelected = isSelected;
 
     [ObservableProperty]
     private bool _isVisible = true;
+
+    /// <summary>
+    /// Whether tapping the row does anything right now - narrower than <see cref="CanPick"/>: also
+    /// false once this team has filled its share of the roster. An already-picked player stays
+    /// pickable so the captain (or admin) can release them.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDimmed))]
+    private bool _isPickable = canPick;
+
+    /// <summary>Greys the row: not on this team and not pickable (taken by another team, or team full).</summary>
+    public bool IsDimmed => !IsSelected && !IsPickable;
 }
 
 public partial class TeamResultItem(Guid teamId, string teamName, int teamCount, int wins, int draws, int losses) : ObservableObject
