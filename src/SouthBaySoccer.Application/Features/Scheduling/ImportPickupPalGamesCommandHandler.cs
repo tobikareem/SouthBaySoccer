@@ -143,7 +143,7 @@ public sealed class ImportPickupPalGamesCommandHandler(
                 SessionId = session.Id,
                 PickupPalParticipantId = participant.Id,
                 PlayerProfileId = profile?.Id,
-                DisplayName = Truncate(participant.DisplayName, 160),
+                DisplayName = Truncate(CleanDisplayName(participant.DisplayName), 160),
                 IsGuest = participant.IsGuest,
                 IsWaitlist = participant.IsWaitlist,
                 DisplayOrder = index,
@@ -236,7 +236,7 @@ public sealed class ImportPickupPalGamesCommandHandler(
             // Import-owned profile: Pickup Pal is its source of truth, so refresh the name and
             // guest standing. Profiles claimed through sign-in keep the name and role that sign-in
             // sync maintains.
-            profile.DisplayName = Truncate(participant.DisplayName, 160);
+            profile.DisplayName = Truncate(CleanDisplayName(participant.DisplayName), 160);
             profile.NormalizedDisplayName = profile.DisplayName.ToUpperInvariant();
             profile.IsGuest = participant.IsGuest;
             profile.Role = participant.IsGuest ? PlayerRole.Guest : PlayerRole.Player;
@@ -412,4 +412,34 @@ public sealed class ImportPickupPalGamesCommandHandler(
 
     private static string Truncate(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[..maxLength];
+
+    /// <summary>
+    /// Pickup Pal display names come straight from WhatsApp, so many are decorated with emoji or
+    /// punctuation ("Jojo🦍", "‘M", "…"). Trim any non-letter/digit run from each end and, when
+    /// nothing usable is left, fall back to "Guest" - internal characters and legitimate accented
+    /// or non-Latin names (e.g. Yoruba) are preserved.
+    /// </summary>
+    private static string CleanDisplayName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Guest";
+        }
+
+        var trimmed = value.Trim();
+        var start = 0;
+        var end = trimmed.Length;
+        while (start < end && !char.IsLetterOrDigit(trimmed[start]))
+        {
+            start++;
+        }
+
+        while (end > start && !char.IsLetterOrDigit(trimmed[end - 1]))
+        {
+            end--;
+        }
+
+        var result = trimmed[start..end];
+        return result.Any(char.IsLetter) ? result : "Guest";
+    }
 }

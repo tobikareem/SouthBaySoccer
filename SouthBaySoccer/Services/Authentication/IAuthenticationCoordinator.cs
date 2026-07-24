@@ -16,6 +16,12 @@ public interface IAuthenticationCoordinator
         AuthenticationTokensResponse tokens,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Ends the current session: clears the persisted tokens, resets <see cref="IsAuthenticated"/>
+    /// to false, and returns to the sign-in screen so a different account can sign in.
+    /// </summary>
+    Task SignOutAsync(CancellationToken cancellationToken = default);
+
     Task<bool> TryCompleteChallengeAsync(
         string challengeToken,
         CancellationToken cancellationToken = default);

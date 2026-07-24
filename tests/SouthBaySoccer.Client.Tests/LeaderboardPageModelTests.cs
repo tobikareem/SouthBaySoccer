@@ -34,6 +34,20 @@ public class LeaderboardPageModelTests
         pageModel.Note.Should().Contain("ties use fewer appearances");
     }
 
+    [Fact]
+    public async Task Appearing_LeaderboardRows_ShowRankPositionAndAppearancesCleanly()
+    {
+        var pageModel = CreatePageModel();
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.Rankings.Count.Should().BeLessThanOrEqualTo(5, "each metric shows only its top 5");
+        pageModel.Rankings[0].Detail.Should().StartWith("1st", "the row leads with the player's leaderboard position");
+        pageModel.Rankings[0].Detail.Should().MatchRegex(@"\b\d+ apps?$", "and ends with the appearance count");
+        pageModel.Rankings.Should().OnlyContain(row => !row.Detail.Contains("Â"),
+            "the middle-dot separator must not be mojibake");
+    }
+
     [Theory]
     [InlineData(0, LeaderboardMetric.Goals, "12")]
     [InlineData(1, LeaderboardMetric.Assists, "11")]

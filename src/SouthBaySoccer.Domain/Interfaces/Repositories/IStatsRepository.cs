@@ -43,6 +43,16 @@ public interface IStatsRepository
         IReadOnlyList<MatchEvent> events,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Ensures the player has a participation row (Played = true) for the match, adding one if
+    /// absent. Leaderboards and player stats aggregate over participation, so a self-submitter who
+    /// was never drafted would otherwise have their approved goals/assists ignored.
+    /// </summary>
+    Task EnsurePlayerMatchParticipationAsync(
+        Guid matchId,
+        Guid playerProfileId,
+        CancellationToken cancellationToken = default);
+
     Task UpsertMatchResultsAsync(
         Guid matchId,
         IReadOnlyList<MatchResult> results,

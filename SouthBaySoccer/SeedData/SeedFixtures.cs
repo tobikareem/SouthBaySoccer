@@ -228,7 +228,8 @@ public static class SeedFixtures
         ReadOnly(
             new TeammateStatSubmissionDto(Players[2], 1, 2, true),
             new TeammateStatSubmissionDto(Players[3], 1, 0, false),
-            new TeammateStatSubmissionDto(Players[4], 2, 0, false)));
+            new TeammateStatSubmissionDto(Players[4], 2, 0, false)),
+        CanConfirmTeammates: true);
 
     public static IReadOnlyList<RateableTeammateDto> RateableTeammates { get; } = ReadOnly(
         new RateableTeammateDto(Players[1], "2 goals", 9, false, false),

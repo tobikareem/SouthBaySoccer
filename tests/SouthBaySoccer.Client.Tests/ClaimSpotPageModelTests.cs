@@ -50,6 +50,24 @@ public class ClaimSpotPageModelTests
     }
 
     [Fact]
+    public async Task NoneOfThese_DismissesTheSessionPromptAndNavigatesBack()
+    {
+        var client = new Mock<IGameDayClient>();
+        client.Setup(x => x.GetSessionClaimablesAsync(SessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SessionClaimablesDto(SessionId, "Captain", false,
+                [new ClaimableParticipantDto(ParticipantId, "Caio", false)]));
+        var nav = new Mock<IClaimSpotNavigator>();
+        var store = new Mock<IDismissedStatsPromptStore>();
+        var model = CreateModel(client, nav, SessionId, store);
+        await model.AppearingCommand.ExecuteAsync(null);
+
+        await model.NoneOfTheseCommand.ExecuteAsync(null);
+
+        store.Verify(x => x.Dismiss(SessionId), Times.Once);
+        nav.Verify(x => x.GoBackAsync(), Times.Once);
+    }
+
+    [Fact]
     public async Task Appearing_Onboarding_ListsRecentClaimableSessions()
     {
         var client = new Mock<IGameDayClient>();
@@ -80,9 +98,13 @@ public class ClaimSpotPageModelTests
     private static ClaimSpotPageModel CreateModel(
         Mock<IGameDayClient> client,
         Mock<IClaimSpotNavigator>? navigator = null,
-        Guid? sessionId = null)
+        Guid? sessionId = null,
+        Mock<IDismissedStatsPromptStore>? dismissedPromptStore = null)
     {
-        var model = new ClaimSpotPageModel(client.Object, (navigator ?? new Mock<IClaimSpotNavigator>()).Object);
+        var model = new ClaimSpotPageModel(
+            client.Object,
+            (navigator ?? new Mock<IClaimSpotNavigator>()).Object,
+            (dismissedPromptStore ?? new Mock<IDismissedStatsPromptStore>()).Object);
         var query = new Dictionary<string, object>();
         if (sessionId is { } id)
         {

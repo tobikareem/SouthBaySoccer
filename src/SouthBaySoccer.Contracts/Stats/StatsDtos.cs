@@ -11,7 +11,8 @@ public sealed record MatchStatsDto(
     int Goals,
     int Assists,
     bool IsPendingConfirmation,
-    IReadOnlyList<TeammateStatSubmissionDto> TeammateSubmissions);
+    IReadOnlyList<TeammateStatSubmissionDto> TeammateSubmissions,
+    bool CanConfirmTeammates = false);
 
 public sealed record TeammateStatSubmissionDto(
     PlayerSummaryDto Player,

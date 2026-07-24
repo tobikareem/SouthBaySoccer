@@ -194,7 +194,8 @@ public sealed class StatsFunctions(
                         submission.Goals,
                         submission.Assists,
                         submission.IsConfirmed))
-                    .ToArray()),
+                    .ToArray(),
+                model.CanConfirmTeammates),
             cancellationToken);
         return response;
     }

@@ -141,7 +141,11 @@ public partial class LeaderboardPageModel(
             Season = ranking.SeasonLabel;
         }
         SelectedMetric = ranking.Metric;
-        Rankings = ranking.Rows.Select(row => LeaderboardRowItem.From(row, ranking.Metric)).ToArray();
+        // Top 5 only, even if the server returns more.
+        Rankings = ranking.Rows
+            .Take(5)
+            .Select(row => LeaderboardRowItem.From(row, ranking.Metric))
+            .ToArray();
         Note = ranking.Note;
         IsEmpty = Rankings.Count == 0;
 
@@ -197,12 +201,41 @@ public sealed record LeaderboardRowItem(
             row.Player.Id,
             row.Player.Initials,
             row.Player.DisplayName,
-            $"{row.Player.Position} Â· {row.Appearances.ToString(CultureInfo.InvariantCulture)} apps",
+            BuildDetail(row),
             row.Rank == 1 ? Fonts.FontAwesomeGlyphs.Trophy : row.Rank.ToString(CultureInfo.InvariantCulture),
             row.Rank == 1 ? "FontAwesomeSolid" : "InterSemibold",
             row.Rank == 1 ? "Leader" : $"Rank {row.Rank.ToString(CultureInfo.InvariantCulture)}",
             FormatValue(row.Value, metric),
             row.Rank == 1);
+
+    // Detail reads "{ordinal position} · {field position} · {n} apps", dropping any part that is
+    // absent - imported players often carry no field position. The separator is written as an
+    // explicit · so it can never be mangled into "Â·" by a file-encoding round-trip.
+    private static string BuildDetail(LeaderboardRowDto row)
+    {
+        var appearances = row.Appearances;
+        var parts = new List<string>(3)
+        {
+            Ordinal(row.Rank),
+        };
+        if (!string.IsNullOrWhiteSpace(row.Player.Position))
+        {
+            parts.Add(row.Player.Position.Trim());
+        }
+
+        parts.Add(appearances == 1
+            ? "1 app"
+            : $"{appearances.ToString(CultureInfo.InvariantCulture)} apps");
+        return string.Join(" · ", parts);
+    }
+
+    private static string Ordinal(int rank)
+    {
+        var suffix = (rank % 100) is >= 11 and <= 13
+            ? "th"
+            : (rank % 10) switch { 1 => "st", 2 => "nd", 3 => "rd", _ => "th" };
+        return $"{rank.ToString(CultureInfo.InvariantCulture)}{suffix}";
+    }
 
     private static string FormatValue(decimal value, LeaderboardMetric metric) =>
         metric == LeaderboardMetric.Rating

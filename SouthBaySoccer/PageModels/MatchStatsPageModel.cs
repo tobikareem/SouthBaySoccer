@@ -78,6 +78,13 @@ public partial class MatchStatsPageModel(
 
     public bool HasTeammateSubmissions => TeammateSubmissions.Count > 0;
 
+    /// <summary>
+    /// True only for a captain of this match or a game admin - the "Confirm teammates" section is
+    /// their tool. A regular player never sees it, so it can't sit empty and unactionable.
+    /// </summary>
+    [ObservableProperty]
+    private bool _canConfirmTeammates;
+
     public bool CanEdit => SubmitState == MatchStatsSubmitState.Editable && !IsBusy;
 
     public bool CanSubmit => SubmitState == MatchStatsSubmitState.Editable && !IsBusy;
@@ -257,6 +264,7 @@ public partial class MatchStatsPageModel(
         MatchSubtitle = stats.MatchSubtitle;
         Goals = stats.Goals;
         Assists = stats.Assists;
+        CanConfirmTeammates = stats.CanConfirmTeammates;
         SubmitState = stats.IsPendingConfirmation
             ? MatchStatsSubmitState.Pending
             : MatchStatsSubmitState.Editable;
