@@ -75,6 +75,7 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<ReopenPostGameResultsCommandHandler>();
         builder.Services.AddScoped<LinkParticipantToProfileCommandHandler>();
         builder.Services.AddScoped<GetSessionClaimablesQueryHandler>();
+        builder.Services.AddScoped<GetSessionUnlinkedParticipantsQueryHandler>();
         builder.Services.AddScoped<GetMyClaimableSessionsQueryHandler>();
         builder.Services.AddScoped<ClaimParticipantCommandHandler>();
         builder.Services.AddSingleton<GameDayPickupPalRefreshService>();

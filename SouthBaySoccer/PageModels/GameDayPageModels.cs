@@ -25,6 +25,8 @@ public interface IGameDayNavigator
 
     Task OpenClaimSpotAsync();
 
+    Task OpenAdminMatchAsync(Guid sessionId);
+
     Task GoBackAsync();
 }
 
@@ -1201,6 +1203,9 @@ public sealed class ShellGameDayNavigator : IGameDayNavigator
     public Task OpenRecentGamesAsync() => Shell.Current.GoToAsync("recent-games");
 
     public Task OpenClaimSpotAsync() => Shell.Current.GoToAsync("claim-spot");
+
+    public Task OpenAdminMatchAsync(Guid sessionId) =>
+        Shell.Current.GoToAsync($"admin-match?sessionId={Uri.EscapeDataString(sessionId.ToString())}");
 
     public Task GoBackAsync() => Shell.Current.GoToAsync("..");
 

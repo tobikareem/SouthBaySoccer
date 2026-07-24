@@ -80,6 +80,12 @@
                                             CommandParameter="{Binding .}"
                                             SemanticProperties.Description="{Binding Title, StringFormat='Review stats for {0}'}" />
                                     </Grid>
+                                    <Button
+                                        Text="Match players"
+                                        Style="{StaticResource SecondaryButton}"
+                                        Command="{Binding Source={x:Reference RecentGames}, Path=BindingContext.OpenMatchCommand}"
+                                        CommandParameter="{Binding .}"
+                                        SemanticProperties.Description="{Binding Title, StringFormat='Match imported players for {0}'}" />
                                 </VerticalStackLayout>
                             </Border>
                         </DataTemplate>

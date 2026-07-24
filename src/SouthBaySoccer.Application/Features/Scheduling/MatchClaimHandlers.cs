@@ -25,6 +25,8 @@ public sealed record ClaimableSessionModel(
 
 public sealed record GetSessionClaimablesQuery(Guid SessionId);
 
+public sealed record GetSessionUnlinkedParticipantsQuery(Guid SessionId);
+
 public sealed record GetMyClaimableSessionsQuery;
 
 public sealed record ClaimParticipantCommand(Guid SessionId, Guid ParticipantId);
@@ -80,6 +82,30 @@ public sealed class GetSessionClaimablesQueryHandler(
                 .ToArray();
 
         return new SessionClaimablesModel(query.SessionId, actor.DisplayName, alreadyOnRoster, claimable);
+    }
+}
+
+/// <summary>
+/// A game's unclaimed imported entries, for a game admin to match to real profiles - unconditional,
+/// unlike the self-claim list which hides itself once the caller is on the roster.
+/// </summary>
+public sealed class GetSessionUnlinkedParticipantsQueryHandler(
+    ICurrentUser currentUser,
+    ISessionRepository sessionRepository,
+    IPickupPalGameRepository pickupPalGameRepository)
+{
+    public async Task<IReadOnlyList<ClaimableParticipantModel>> HandleAsync(
+        GetSessionUnlinkedParticipantsQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        GameDayWorkflowAuthorization.EnsureGameAdmin(currentUser);
+        _ = await GameDayWorkflowQueries.GetSessionAsync(sessionRepository, query.SessionId, cancellationToken);
+        var participants = await pickupPalGameRepository.ListParticipantsAsync(query.SessionId, cancellationToken);
+        return participants
+            .Where(p => p.PlayerProfileId is null)
+            .OrderBy(p => p.DisplayOrder)
+            .Select(p => new ClaimableParticipantModel(p.Id, p.DisplayName, p.IsWaitlist))
+            .ToArray();
     }
 }
 

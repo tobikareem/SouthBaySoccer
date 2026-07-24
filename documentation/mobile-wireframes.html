@@ -124,7 +124,7 @@
     <div>
       <div class="eyebrow">Product design benchmark</div>
       <h1>SouthBaySoccer mobile experience</h1>
-      <p class="sub">Clickable wireframes for sign-in, session RSVP, the upcoming-session schedule, game-day check-in, captain team selection, player stats, confirmation, ratings, and leaderboards. The design follows the reusable MAUI control system and the green-and-white Pickup Soccer brand.</p>
+      <p class="sub">Clickable wireframes for sign-in, session RSVP, the upcoming-session schedule, game-day check-in, captain team selection, self-claiming a spot on a recent game, player stats, confirmation, ratings, and leaderboards. The design follows the reusable MAUI control system and the green-and-white Pickup Soccer brand.</p>
     </div>
     <div class="controls" aria-label="Wireframe view">
       <button class="ctl active" id="c-flow" aria-pressed="true" onclick="setView('flow')"><i class="ti ti-device-mobile"></i> Interactive</button>
@@ -319,6 +319,8 @@
         <div class="card interactive" onclick="show('captains')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-users-group"></i></span><div style="flex:1"><div style="font-weight:700">Assign captains</div><div class="muted">2, 3, or 4 captains = 2, 3, or 4 teams</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
         <div class="card interactive" onclick="show('draft')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-list-check"></i></span><div style="flex:1"><div style="font-weight:700">Pick your team</div><div class="muted">Captain permission - session scoped</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
         <div class="card interactive" onclick="show('postgame')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-shield-check"></i></span><div style="flex:1"><div style="font-weight:700">Approve stats and result</div><div class="muted">After game - captains only</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
+        <div class="label" style="margin-top:14px">Not seeing yourself?</div>
+        <div class="card interactive" onclick="show('claim')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-user-question"></i></span><div style="flex:1"><div style="font-weight:700">Claim your spot</div><div class="muted">Find yourself on a recent game roster</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
       </div>
       <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a class="active" onclick="show('gameday')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
     </section>
@@ -374,6 +376,38 @@
         </div>
         <button class="btn primary"><i class="ti ti-lock-check"></i> Publish approved match</button>
       </div>
+    </section>
+
+    <!-- CLAIM SPOT - recent games with unclaimed entries (onboarding) -->
+    <section class="screen" data-s="claim">
+      <div class="ghdr"><span class="flag"></span><div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Signed in as Vic A</div><div style="font-size:17px;font-weight:500">Claim your spot</div></div></div></div>
+      <div class="scroll">
+        <div class="notice"><i class="ti ti-info-circle"></i><div>We couldn't match you automatically on these recent games. Tap one to find yourself on the roster.</div></div>
+        <div class="label" style="margin-top:14px">Recent games</div>
+        <div class="card interactive" onclick="show('claimpick')" style="cursor:pointer;padding:13px 14px"><div class="row"><span class="mini-action"><i class="ti ti-ball-football"></i></span><div style="flex:1"><div style="font-weight:700">Bay Area Soccer - Thursday pickup</div><div class="muted">Thu Jul 23, 7:30 PM - Google Field</div></div><span class="pill warn">16 unclaimed</span></div></div>
+        <div class="card interactive" onclick="show('claimpick')" style="cursor:pointer;padding:13px 14px"><div class="row"><span class="mini-action"><i class="ti ti-ball-football"></i></span><div style="flex:1"><div style="font-weight:700">Bay Area Soccer - Wednesday pickup</div><div class="muted">Wed Jul 22, 7:30 PM - Marina Field</div></div><span class="pill warn">6 unclaimed</span></div></div>
+      </div>
+      <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a class="active" onclick="show('gameday')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
+    </section>
+
+    <!-- CLAIM SPOT - pick your own name on one game -->
+    <section class="screen" data-s="claimpick">
+      <div class="ghdr"><span class="flag"></span><div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Bay Area Soccer - Wednesday</div><div style="font-size:17px;font-weight:500">Which one is you?</div></div></div></div>
+      <div class="scroll">
+        <div class="notice"><i class="ti ti-user-check"></i><div>You signed in as <strong>Vic A</strong>. Tap the name you played under - only you can claim your spot.</div></div>
+        <div class="label" style="margin-top:14px">Unclaimed players</div>
+        <div class="card claim-list" style="padding:6px 14px">
+          <div class="listrow"><span class="avatar" style="width:32px;height:32px;font-size:11px">V</span><div style="flex:1"><div style="font-weight:600">victor</div><div class="muted">waitlist</div></div><button class="btn ghost" style="width:auto;min-height:38px;padding:8px 12px;font-size:13px" onclick="claimSpot(this)"><i class="ti ti-hand-finger"></i> This is me</button></div>
+          <div class="listrow"><span class="avatar" style="width:32px;height:32px;font-size:11px">C</span><div style="flex:1"><div style="font-weight:600">chidu</div><div class="muted">going</div></div><button class="btn ghost" style="width:auto;min-height:38px;padding:8px 12px;font-size:13px" onclick="claimSpot(this)"><i class="ti ti-hand-finger"></i> This is me</button></div>
+          <div class="listrow"><span class="avatar" style="width:32px;height:32px;font-size:11px">J</span><div style="flex:1"><div style="font-weight:600">Joe D</div><div class="muted">going</div></div><button class="btn ghost" style="width:auto;min-height:38px;padding:8px 12px;font-size:13px" onclick="claimSpot(this)"><i class="ti ti-hand-finger"></i> This is me</button></div>
+          <div class="listrow" style="border:none"><span class="avatar" style="width:32px;height:32px;font-size:11px">T</span><div style="flex:1"><div style="font-weight:600">tope</div><div class="muted">waitlist</div></div><button class="btn ghost" style="width:auto;min-height:38px;padding:8px 12px;font-size:13px" onclick="claimSpot(this)"><i class="ti ti-hand-finger"></i> This is me</button></div>
+        </div>
+        <div class="claim-done" style="display:none">
+          <div class="card hero-card" style="text-align:center"><i class="ti ti-circle-check" style="font-size:34px"></i><div class="hero-title" style="margin-top:6px">You're on the roster</div><div style="font-size:13px;opacity:.9;margin-top:2px">Linked <span class="claim-name">victor</span> to Vic A</div></div>
+          <div class="card interactive" onclick="show('matchstats')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-report-analytics"></i></span><div style="flex:1"><div style="font-weight:700">Submit your latest stats</div><div class="muted">Add your goals and assists</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
+        </div>
+      </div>
+      <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a class="active" onclick="show('gameday')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
     </section>
 
     <!-- PROFILE / PLAYER DETAIL -->
@@ -589,8 +623,9 @@
   function draftToggle(input){ var n=activeScreen().querySelector('#pickCount'); if(!n) return; n.textContent=activeScreen().querySelectorAll('.checkrow input:checked').length; }
   function rotStep(el,key,d){ var card=el.closest('[data-team-count]'); var max=parseInt(card.dataset.teamCount,10)-1; var box=card.querySelector('[data-rot="'+key+'"]'); var vals={w:0,d:0,l:0}; ['w','d','l'].forEach(function(k){ vals[k]=parseInt(card.querySelector('[data-rot="'+k+'"]').textContent,10); }); var next=Math.max(0,vals[key]+d); var total=vals.w+vals.d+vals.l-vals[key]+next; if(total>max) return; box.textContent=next; total=vals.w+vals.d+vals.l-vals[key]+next; var note=card.querySelector('[data-rot-note] div'); if(note) note.textContent=total+' of '+max+' results recorded. Combined W/D/L cannot exceed teams minus 1.'; }
   function approveStat(btn){ var s=document.createElement('i'); s.className='ti ti-circle-check'; s.style.cssText='color:var(--g);font-size:22px'; btn.replaceWith(s); }
+  function claimSpot(btn){ var s=activeScreen(); var name=btn.closest('.listrow').querySelector('[style*="font-weight:600"]').textContent; s.querySelectorAll('.claim-name').forEach(function(n){ n.textContent=name; }); s.querySelector('.claim-list').style.display='none'; s.querySelector('.claim-done').style.display='block'; }
 
-  var order=['signin','home','session','schedule','adminsession','gameday','captains','draft','postgame','leaderboard','players','profile','matchstats','rate'];
+  var order=['signin','home','session','schedule','adminsession','gameday','captains','draft','postgame','claim','claimpick','leaderboard','players','profile','matchstats','rate'];
   function setView(v){
     var stage=document.getElementById('stage'); stage.dataset.view=v; hist=[];
     document.getElementById('c-flow').classList.toggle('active', v==='flow');

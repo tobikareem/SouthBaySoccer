@@ -19,6 +19,12 @@ public interface IGameDayClient
     /// <summary>Claims an unclaimed participant row as the signed-in player.</summary>
     Task<ClientCommandResult> ClaimParticipantAsync(Guid sessionId, Guid participantId, CancellationToken cancellationToken);
 
+    /// <summary>Game-admin: a session's unclaimed imported entries, to match to real profiles.</summary>
+    Task<IReadOnlyList<ClaimableParticipantDto>> GetUnlinkedParticipantsAsync(Guid sessionId, CancellationToken cancellationToken);
+
+    /// <summary>Game-admin: link (or re-link) an imported participant to a chosen player profile.</summary>
+    Task<ClientCommandResult> LinkParticipantAsync(Guid participantId, Guid playerProfileId, CancellationToken cancellationToken);
+
     Task<ClientCommandResult> CheckInAsync(
         Guid sessionId,
         Guid idempotencyKey,

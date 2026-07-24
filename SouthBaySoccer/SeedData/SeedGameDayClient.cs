@@ -49,6 +49,22 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
         return Task.FromResult(ClientCommandResult.Success);
     }
 
+    public Task<IReadOnlyList<ClaimableParticipantDto>> GetUnlinkedParticipantsAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<ClaimableParticipantDto>>(
+        [
+            new ClaimableParticipantDto(Guid.NewGuid(), "victor", IsWaitlist: true),
+            new ClaimableParticipantDto(Guid.NewGuid(), "chidu", IsWaitlist: false),
+        ]);
+    }
+
+    public Task<ClientCommandResult> LinkParticipantAsync(Guid participantId, Guid playerProfileId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(ClientCommandResult.Success);
+    }
+
     public Task<ClientCommandResult> CheckInAsync(
         Guid sessionId,
         Guid idempotencyKey,

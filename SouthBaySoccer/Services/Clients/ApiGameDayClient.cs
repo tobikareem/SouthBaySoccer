@@ -82,6 +82,37 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
         }, () => _idempotencyKeys.TryRemove(operation, out _));
     }
 
+    public async Task<IReadOnlyList<ClaimableParticipantDto>> GetUnlinkedParticipantsAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.GetAsync($"game-day/sessions/{sessionId}/unlinked", cancellationToken);
+        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NoContent)
+        {
+            return [];
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<ClaimableParticipantDto>>(
+                   cancellationToken: cancellationToken)
+               ?? [];
+    }
+
+    public Task<ClientCommandResult> LinkParticipantAsync(Guid participantId, Guid playerProfileId, CancellationToken cancellationToken)
+    {
+        var operation = $"link:{participantId}:{playerProfileId}";
+        return ExecuteCommandAsync(async () =>
+        {
+            using var request = CreateIdempotentRequest(
+                HttpMethod.Post,
+                $"game-day/participants/{participantId}/link",
+                new LinkParticipantRequest(playerProfileId),
+                GetIdempotencyKey(operation));
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            CompleteDefinitiveResponse(operation, response.StatusCode);
+            response.EnsureSuccessStatusCode();
+            return ClientCommandResult.Success;
+        }, () => _idempotencyKeys.TryRemove(operation, out _));
+    }
+
     public Task<ClientCommandResult> CheckInAsync(
         Guid sessionId,
         Guid idempotencyKey,

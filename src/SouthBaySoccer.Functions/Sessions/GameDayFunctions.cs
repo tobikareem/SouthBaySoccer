@@ -25,6 +25,7 @@ public sealed class GameDayFunctions(
     ReopenPostGameResultsCommandHandler reopenPostGameResultsHandler,
     LinkParticipantToProfileCommandHandler linkParticipantHandler,
     GetSessionClaimablesQueryHandler getSessionClaimablesHandler,
+    GetSessionUnlinkedParticipantsQueryHandler getUnlinkedParticipantsHandler,
     GetMyClaimableSessionsQueryHandler getMyClaimableSessionsHandler,
     ClaimParticipantCommandHandler claimParticipantHandler,
     IdempotentRequestExecutor idempotentRequestExecutor)
@@ -197,6 +198,25 @@ public sealed class GameDayFunctions(
                     ToResponse(result));
             },
             cancellationToken);
+    }
+
+    [Function(nameof(GetSessionUnlinked))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> GetSessionUnlinked(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "game-day/sessions/{sessionId:guid}/unlinked")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var entries = await getUnlinkedParticipantsHandler.HandleAsync(
+            new GetSessionUnlinkedParticipantsQuery(sessionId),
+            cancellationToken);
+        var response = request.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(
+            entries
+                .Select(c => new ClaimableParticipantDto(c.ParticipantId, c.DisplayName, c.IsWaitlist))
+                .ToArray(),
+            cancellationToken);
+        return response;
     }
 
     [Function(nameof(LinkParticipant))]

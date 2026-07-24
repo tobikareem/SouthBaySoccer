@@ -91,6 +91,35 @@ public sealed class ClaimParticipantHandlerTests
         result.Claimable.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Unlinked_AsGameAdmin_ListsOnlyUnclaimedEntriesRegardlessOfOwnRoster()
+    {
+        var admin = new Mock<ICurrentUser>();
+        admin.SetupGet(x => x.UserId).Returns(IdentityUserId);
+        admin.Setup(x => x.HasPolicy("CanManageSessions")).Returns(true);
+        var repo = GameRepo(
+            Participant("victor", playerProfileId: null),
+            Participant("linked", playerProfileId: Guid.NewGuid()),
+            Participant("chidu", playerProfileId: null));
+        var handler = new GetSessionUnlinkedParticipantsQueryHandler(
+            admin.Object, SessionRepo().Object, repo.Object);
+
+        var result = await handler.HandleAsync(new GetSessionUnlinkedParticipantsQuery(SessionId));
+
+        result.Select(x => x.DisplayName).Should().BeEquivalentTo(["victor", "chidu"]);
+    }
+
+    [Fact]
+    public async Task Unlinked_WhenCallerIsNotGameAdmin_IsForbidden()
+    {
+        var handler = new GetSessionUnlinkedParticipantsQueryHandler(
+            CurrentUser().Object, SessionRepo().Object, GameRepo().Object);
+
+        var act = () => handler.HandleAsync(new GetSessionUnlinkedParticipantsQuery(SessionId));
+
+        await act.Should().ThrowAsync<ApplicationForbiddenException>();
+    }
+
     private static PlayerProfile Profile(string name) =>
         new() { Id = Guid.NewGuid(), IdentityUserId = IdentityUserId, DisplayName = name };
 
