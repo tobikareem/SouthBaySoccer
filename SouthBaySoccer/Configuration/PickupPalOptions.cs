@@ -6,6 +6,8 @@ public sealed class PickupPalOptions
 {
     public const string DefaultApiBaseUrl = "http://localhost:7071/api/";
     public const string AndroidDebugApiBaseUrl = "http://10.0.2.2:7071/api/";
+    public const string ProductionApiBaseUrl =
+        "https://southbaysoccerfunc-cndha8gtc4bxdtfe.westus2-01.azurewebsites.net/api/";
     public const string ApiBaseUrlKey = "ApiBaseUrl";
     public const string ProductionApiBaseUrlKey = "PrdApiBaseUrl";
     public const string DefaultBotDisplayNumber = "+1 (650) 220-5416";
