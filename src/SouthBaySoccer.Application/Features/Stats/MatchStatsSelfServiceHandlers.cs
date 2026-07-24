@@ -371,8 +371,25 @@ public sealed class GetPendingStatSubmissionQueryHandler(
                 pickupPalGameRepository,
                 session.Id,
                 cancellationToken);
+
             if (!roster.Any(member => member.PlayerProfileId == actor.Id))
             {
+                // Not on the roster: if the game still has unclaimed imported entries this player
+                // might be one of them, so surface the prompt anyway and route it to self-claim -
+                // they link themselves first, then submit. If nothing is unclaimed there is no way
+                // to place them, so move on.
+                var participants = await pickupPalGameRepository.ListParticipantsAsync(session.Id, cancellationToken);
+                if (participants.Any(p => p.PlayerProfileId is null))
+                {
+                    return new PendingStatSubmissionModel(
+                        Guid.Empty,
+                        "Submit your latest stats",
+                        $"Find yourself on {session.Title} to add your goals and assists",
+                        IsPendingConfirmation: false,
+                        SessionId: session.Id,
+                        RequiresClaim: true);
+                }
+
                 continue;
             }
 
@@ -391,7 +408,8 @@ public sealed class GetPendingStatSubmissionQueryHandler(
                 isPending
                     ? $"Waiting on confirmation for {session.Title}"
                     : $"Add your goals and assists for {session.Title}",
-                isPending);
+                isPending,
+                SessionId: session.Id);
         }
 
         return null;

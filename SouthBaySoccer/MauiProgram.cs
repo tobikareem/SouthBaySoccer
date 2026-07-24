@@ -102,6 +102,8 @@ public static class MauiProgram
         builder.Services.AddProfileFeature();
         builder.Services.AddSingleton<ISessionsNavigator, ShellSessionsNavigator>();
         builder.Services.AddSingleton<IGameDayNavigator, ShellGameDayNavigator>();
+        builder.Services.AddSingleton<IClaimSpotNavigator, ShellClaimSpotNavigator>();
+        builder.Services.AddSingleton<IAdminMatchNavigator, ShellAdminMatchNavigator>();
         builder.Services.AddSingleton<IMatchStatsNavigator, ShellMatchStatsNavigator>();
         builder.Services.AddSingleton(new MatchStatsOptions());
         builder.Services.AddSingleton(new RateTeammatesOptions());
@@ -157,6 +159,8 @@ public static class MauiProgram
         builder.Services.AddTransientWithShellRoute<TeamDraftPage, TeamDraftPageModel>("draft");
         builder.Services.AddTransientWithShellRoute<PostGameApprovalPage, PostGameApprovalPageModel>("postgame");
         builder.Services.AddTransientWithShellRoute<RecentGamesPage, RecentGamesPageModel>("recent-games");
+        builder.Services.AddTransientWithShellRoute<ClaimSpotPage, ClaimSpotPageModel>("claim-spot");
+        builder.Services.AddTransientWithShellRoute<AdminMatchPage, AdminMatchPageModel>("admin-match");
         builder.Services.AddTransientWithShellRoute<MatchStatsPage, MatchStatsPageModel>("matchstats");
         builder.Services.AddTransientWithShellRoute<RateTeammatesPage, RateTeammatesPageModel>("rate-teammates");
 
