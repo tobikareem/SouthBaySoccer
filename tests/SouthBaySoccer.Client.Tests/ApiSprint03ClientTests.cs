@@ -50,6 +50,7 @@ public sealed class ApiSprint03ClientTests
 
         requests[0].Method.Should().Be(HttpMethod.Get);
         requests[0].RequestUri!.PathAndQuery.Should().Be("/sessions");
+        dashboard.GroupLabel.Should().Be("N9ja Bay");
         var featured = dashboard.FeaturedSession;
         featured.Should().NotBeNull();
         featured!.Id.Should().Be(SessionId);

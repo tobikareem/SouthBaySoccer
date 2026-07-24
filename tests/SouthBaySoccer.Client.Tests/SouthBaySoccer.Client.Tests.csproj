@@ -73,6 +73,7 @@
     <None Include="..\..\SouthBaySoccer\Controls\PlayerRow.xaml" Link="Client\Xaml\PlayerRow.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Controls\StateView.xaml" Link="Client\Xaml\StateView.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\AppShell.xaml" Link="Client\Xaml\AppShell.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\WelcomeBackPage.xaml" Link="Client\Xaml\WelcomeBackPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\StatsPage.xaml" Link="Client\Xaml\StatsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\PlayersPage.xaml" Link="Client\Xaml\PlayersPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\MatchStatsPage.xaml" Link="Client\Xaml\MatchStatsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
@@ -90,6 +91,7 @@
 
   <ItemGroup>
     <None Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationNavigator.cs" Link="Client\Source\AuthenticationNavigator.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\SouthBaySoccer.csproj" Link="Client\Source\SouthBaySoccer.csproj" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Services\Profile\ProfileFeatureServiceCollectionExtensions.cs" Link="Client\Source\ProfileFeatureServiceCollectionExtensions.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

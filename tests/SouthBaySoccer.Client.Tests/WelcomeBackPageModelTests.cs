@@ -186,7 +186,7 @@ public class WelcomeBackPageModelTests
         WelcomeBackPageModel.Heading.Should().Be("Your next game starts here.");
         WelcomeBackPageModel.SecurityHeading.Should().Be("Password-free and secure");
         WelcomeBackPageModel.SecurityMessage.Should().Be(
-            "Pickup Pal verifies your account. SouthBaySoccer stores only app session tokens on this device.");
+            "Pickup Pal verifies your account. N9ja Bay stores only app session tokens on this device.");
         WelcomeBackPageModel.BotHelpMessage.Should().Be(
             "Need help? Open the Pickup Pal bot for account support.");
         WelcomeBackPageModel.SignupHelpMessage.Should().Be(

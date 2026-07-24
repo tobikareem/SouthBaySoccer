@@ -174,7 +174,7 @@ appear behind it.
 
 1. Green-to-Pine brand header, approximately matching the wireframe's `34,16,30` padding.
    - 42-dip circular football mark on the left.
-   - `SouthBay Soccer` title.
+   - `N9ja Bay` title.
    - `Pickup soccer, organized.` subtitle.
    - white right-side flag stripe and low-opacity circular motif.
 2. Content area with 16-dip horizontal padding and 20-dip top padding.
@@ -190,7 +190,7 @@ appear behind it.
 4. Full-width `Sign in with phone` action using the primary brand button treatment.
 5. `NoticeSurface` with Font Awesome shield-check glyph and the exact security message:
    `Password-free and secure` followed by
-   `Pickup Pal verifies your account. SouthBaySoccer stores only app session tokens on this device.`
+   `Pickup Pal verifies your account. N9ja Bay stores only app session tokens on this device.`
 6. Pickup Pal bot `BrandCard` using `SurfaceAlt`.
    - uppercase `PICKUP PAL BOT` label;
    - configured display number (wireframe example `+1 (650) 220-5416`);

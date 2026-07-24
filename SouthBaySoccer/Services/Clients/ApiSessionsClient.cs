@@ -42,7 +42,7 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
         }
 
         return new SessionsDashboardDto(
-            "South Bay Soccer",
+            "N9ja Bay",
             "Welcome back",
             DuesStatus: string.Empty,
             featuredSummary,
