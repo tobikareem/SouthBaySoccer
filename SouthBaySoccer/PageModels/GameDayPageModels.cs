@@ -1102,6 +1102,21 @@ public partial class PostGameApprovalPageModel(
     [ObservableProperty]
     private ViewState _state = ViewState.Loading;
 
+    // The game/session being reviewed, shown in the header so a captain/admin knows which one.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ReviewSubtitle))]
+    private string _gameTitle = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ReviewSubtitle))]
+    private string _gameDateLabel = string.Empty;
+
+    public string ReviewSubtitle => string.IsNullOrWhiteSpace(GameTitle)
+        ? "Captain review"
+        : string.IsNullOrWhiteSpace(GameDateLabel)
+            ? GameTitle
+            : $"{GameTitle} · {GameDateLabel}";
+
     [ObservableProperty]
     private int _teamCount;
 
@@ -1246,6 +1261,8 @@ public partial class PostGameApprovalPageModel(
         }
 
         sessionId = dto.SessionId;
+        GameTitle = dto.GameTitle;
+        GameDateLabel = dto.DateLabel;
         TeamCount = dto.TeamCount;
         CanApprove = dto.CanApprove;
         NeedsReview = dto.NeedsReview;

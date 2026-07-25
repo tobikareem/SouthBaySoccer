@@ -171,7 +171,9 @@ public sealed record PostGameApprovalDto(
     int TeamCount,
     IReadOnlyList<TeamResultDto> TeamResults,
     IReadOnlyList<PendingStatApprovalDto> PendingApprovals,
-    bool CanReopenResults = false);
+    bool CanReopenResults = false,
+    string GameTitle = "",
+    string DateLabel = "");
 
 public sealed record LinkParticipantRequest(Guid PlayerProfileId);
 

@@ -33,7 +33,9 @@ public sealed class GetPlayerProfileQueryHandler(
                 stats.Assists,
                 stats.AverageRating,
                 stats.MvpAwards,
-                stats.Likes),
+                stats.Likes,
+                stats.Wins,
+                stats.Losses),
             BuildRecentForm(recentForm),
             profile.IsGuest ? "Guest profile" : null,
             profile.Role.ToString());

@@ -17,7 +17,7 @@
         <toolkit:EventToCommandBehavior BindingContext="{Binding Path=BindingContext, Source={x:Reference PostGamePage}, x:DataType=ContentPage}" EventName="Appearing" Command="{Binding AppearingCommand}" />
     </ContentPage.Behaviors>
     <Grid RowDefinitions="Auto,*">
-        <c:BrandHeader Title="Approve stats" Subtitle="Captain review" ShowBack="True" BackCommand="{Binding BackCommand}" />
+        <c:BrandHeader Title="Approve stats" Subtitle="{Binding ReviewSubtitle}" ShowBack="True" BackCommand="{Binding BackCommand}" />
         <c:StateView Grid.Row="1" State="{Binding State}" Glyph="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}" GlyphFontFamily="FontAwesomeSolid">
             <ScrollView>
                 <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">

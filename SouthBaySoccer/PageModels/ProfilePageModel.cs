@@ -78,6 +78,10 @@ public partial class ProfilePageModel(
 
     public string AssistsText => Profile?.CareerStats.Assists.ToString(CultureInfo.InvariantCulture) ?? "0";
 
+    public string WinsText => Profile?.CareerStats.Wins.ToString(CultureInfo.InvariantCulture) ?? "0";
+
+    public string LossesText => Profile?.CareerStats.Losses.ToString(CultureInfo.InvariantCulture) ?? "0";
+
     public string AverageRatingText =>
         Profile?.CareerStats.AverageRating.ToString("0.0", CultureInfo.InvariantCulture) ?? "0.0";
 
@@ -90,6 +94,8 @@ public partial class ProfilePageModel(
         OnPropertyChanged(nameof(MatchesText));
         OnPropertyChanged(nameof(GoalsText));
         OnPropertyChanged(nameof(AssistsText));
+        OnPropertyChanged(nameof(WinsText));
+        OnPropertyChanged(nameof(LossesText));
         OnPropertyChanged(nameof(AverageRatingText));
         OnPropertyChanged(nameof(MvpAwardsText));
         OnPropertyChanged(nameof(LikesText));

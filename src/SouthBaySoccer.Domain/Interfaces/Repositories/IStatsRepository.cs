@@ -134,7 +134,9 @@ public sealed record PlayerStatSummaryReadModel(
     decimal AverageRating,
     int RatingVoteCount,
     int Likes,
-    int MvpAwards);
+    int MvpAwards,
+    int Wins = 0,
+    int Losses = 0);
 
 public sealed record PlayerRecentFormReadModel(
     Guid MatchId,

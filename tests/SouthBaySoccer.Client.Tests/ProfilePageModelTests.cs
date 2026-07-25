@@ -300,8 +300,8 @@ public class ProfilePageModelTests
         statTiles.Select(tile => Attribute(tile, "Value"))
             .Should().Equal(
                 "{Binding MatchesText}",
-                "{Binding GoalsText}",
-                "{Binding AssistsText}",
+                "{Binding WinsText}",
+                "{Binding LossesText}",
                 "{Binding AverageRatingText}",
                 "{Binding MvpAwardsText}",
                 "{Binding LikesText}");

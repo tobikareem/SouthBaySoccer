@@ -125,7 +125,9 @@ public sealed class ProfileFunctions(
                 profile.CareerStats.Assists,
                 profile.CareerStats.AverageRating,
                 profile.CareerStats.MvpAwards,
-                profile.CareerStats.Likes),
+                profile.CareerStats.Likes,
+                profile.CareerStats.Wins,
+                profile.CareerStats.Losses),
             profile.RecentForm.Select(ToResponse).ToArray(),
             profile.PendingConfirmationNote,
             profile.Role);

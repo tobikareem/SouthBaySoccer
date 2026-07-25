@@ -43,7 +43,8 @@ public class LeaderboardPageModelTests
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
         pageModel.Rankings.Count.Should().BeLessThanOrEqualTo(5, "each metric shows only its top 5");
-        pageModel.Rankings[0].Detail.Should().StartWith("1st", "the row leads with the player's leaderboard position");
+        pageModel.Rankings[0].Detail.Should().NotContainAny("1st", "2nd", "3rd",
+            "the rank is already shown as the numbered leading indicator, so it is not repeated as an ordinal");
         pageModel.Rankings[0].Detail.Should().MatchRegex(@"\b\d+ apps?$", "and ends with the appearance count");
         pageModel.Rankings.Should().OnlyContain(row => !row.Detail.Contains("Â"),
             "the middle-dot separator must not be mojibake");
