@@ -30,7 +30,8 @@ public sealed record CaptainAssignmentModel(
     IReadOnlyList<Guid> SelectedCaptainIds,
     IReadOnlyList<CheckedInGameDayPlayerModel> CheckedInPlayers,
     bool CanLockTeams,
-    bool IsLocked);
+    bool IsLocked,
+    bool CanUnlockTeams = false);
 
 public sealed record GameDayMatchTeamModel(
     Guid TeamId,
@@ -95,6 +96,8 @@ public sealed record SaveCaptainTeamPicksCommand(
 
 public sealed record LockSessionTeamsCommand(Guid SessionId);
 
+public sealed record UnlockSessionTeamsCommand(Guid SessionId);
+
 public sealed record ApprovePostGameStatCommand(Guid SessionId, Guid MatchEventId);
 
 public sealed record SavePostGameTeamResultCommand(
@@ -141,6 +144,11 @@ public sealed class SaveCaptainTeamPicksCommandValidator : AbstractValidator<Sav
 public sealed class LockSessionTeamsCommandValidator : AbstractValidator<LockSessionTeamsCommand>
 {
     public LockSessionTeamsCommandValidator() => RuleFor(x => x.SessionId).NotEmpty();
+}
+
+public sealed class UnlockSessionTeamsCommandValidator : AbstractValidator<UnlockSessionTeamsCommand>
+{
+    public UnlockSessionTeamsCommandValidator() => RuleFor(x => x.SessionId).NotEmpty();
 }
 
 public sealed class ApprovePostGameStatCommandValidator : AbstractValidator<ApprovePostGameStatCommand>
@@ -200,6 +208,15 @@ public sealed class GetCaptainAssignmentQueryHandler(
             .Select(x => x.CaptainPlayerProfileId!.Value)
             .ToArray();
 
+        // An admin can unlock (revert InProgress -> Draft) as long as no results or stats have been
+        // recorded; once they have, changes go through the post-game reopen flow instead.
+        var canUnlockTeams = false;
+        if (match?.Status == MatchStatus.InProgress)
+        {
+            canUnlockTeams = (await statsRepository.ListMatchResultsAsync(match.Id, cancellationToken)).Count == 0
+                && (await statsRepository.ListMatchEventsAsync(match.Id, cancellationToken)).Count == 0;
+        }
+
         return new CaptainAssignmentModel(
             sessionId,
             match?.Id ?? Guid.Empty,
@@ -212,7 +229,8 @@ public sealed class GetCaptainAssignmentQueryHandler(
                 && teams.All(team => team.CaptainPlayerProfileId is { } captainId
                     && assignments.Any(assignment => assignment.MatchTeamId == team.Id
                         && assignment.PlayerProfileId == captainId)),
-            match is not null && match.Status != MatchStatus.Draft);
+            match is not null && match.Status != MatchStatus.Draft,
+            canUnlockTeams);
     }
 }
 
@@ -466,6 +484,73 @@ public sealed class LockSessionTeamsCommandHandler(
                 matchId = match.Id,
                 teamCount = teams.Count,
                 assignmentCount = assignments.Count,
+            }),
+            OccurredAtUtc = clock.UtcNow,
+        }, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return new GameDayMutationModel(session.Id, match.Id, 1);
+    }
+}
+
+public sealed class UnlockSessionTeamsCommandHandler(
+    ICurrentUser currentUser,
+    IClock clock,
+    IValidator<UnlockSessionTeamsCommand> validator,
+    IPlayerProfileRepository playerProfileRepository,
+    ISessionRepository sessionRepository,
+    IStatsRepository statsRepository,
+    IAuditLogRepository auditLogRepository,
+    IUnitOfWork unitOfWork)
+{
+    public async Task<GameDayMutationModel> HandleAsync(
+        UnlockSessionTeamsCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        await validator.ValidateAndThrowAsync(command, cancellationToken);
+        GameDayWorkflowAuthorization.EnsureGameAdmin(currentUser);
+        var actor = await GameDayWorkflowAuthorization.GetCurrentProfileAsync(
+            currentUser,
+            playerProfileRepository,
+            cancellationToken);
+        var session = await GameDayWorkflowQueries.GetSessionAsync(sessionRepository, command.SessionId, cancellationToken);
+        var match = await statsRepository.FindPrimaryMatchBySessionAsync(command.SessionId, cancellationToken)
+            ?? throw new ApplicationNotFoundException("Captain assignments were not found for this session.");
+        // No upper time bound, mirroring Lock (which an admin may do whenever the session is published):
+        // unlock is already fully constrained by requiring InProgress with no recorded results/stats, so
+        // the button's CanUnlockTeams and this handler agree.
+        if (match.Status == MatchStatus.Draft)
+        {
+            return new GameDayMutationModel(session.Id, match.Id, 0);
+        }
+
+        if (match.Status != MatchStatus.InProgress)
+        {
+            // Completed / NeedsReview / Published / Locked all mean the post-game has started; those
+            // are undone through the post-game reopen flow, not by unlocking the teams.
+            throw new ApplicationConflictException("Results have been recorded. Reopen the game from the post-game screen instead.");
+        }
+
+        if ((await statsRepository.ListMatchResultsAsync(match.Id, cancellationToken)).Count > 0
+            || (await statsRepository.ListMatchEventsAsync(match.Id, cancellationToken)).Count > 0)
+        {
+            throw new ApplicationConflictException("Results or stats have been recorded; reopen from the post-game screen instead.");
+        }
+
+        // Back to Draft so captains can pick again; the game has not really started, so clear the mark.
+        match.Status = MatchStatus.Draft;
+        match.StartedAtUtc = null;
+        await auditLogRepository.AddAsync(new AuditLogEntry
+        {
+            Id = Guid.NewGuid(),
+            ActorType = AuditActorType.PlayerProfile,
+            ActorPlayerProfileId = actor.Id,
+            Action = "TeamDraft.Unlock",
+            EntityName = nameof(Match),
+            EntityId = match.Id,
+            DetailsJson = JsonSerializer.Serialize(new
+            {
+                sessionId = session.Id,
+                matchId = match.Id,
             }),
             OccurredAtUtc = clock.UtcNow,
         }, cancellationToken);

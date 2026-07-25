@@ -59,4 +59,16 @@
             SemanticProperties.Description="Profile tab" />
     </TabBar>
 
+    <!--
+        Blocking group-link step. Declared outside the TabBar so it is not a visible tab, but is
+        reachable via the absolute route //link-group. The sign-in gate routes here first when the
+        player belongs to no group; the page navigates to //sessions once a group is linked.
+    -->
+    <ShellContent
+        x:Name="LinkGroupContent"
+        Title="Join your group"
+        ContentTemplate="{DataTemplate pages:LinkGroupPage}"
+        Route="link-group"
+        SemanticProperties.Description="Join your group" />
+
 </Shell>

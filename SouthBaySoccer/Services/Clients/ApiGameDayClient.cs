@@ -250,6 +250,34 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
         }, () => _idempotencyKeys.TryRemove(operation, out _));
     }
 
+    public Task<ClientCommandResult> UnlockTeamsAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var operation = $"unlock-teams:{sessionId}";
+        return ExecuteCommandAsync(async () =>
+        {
+            using var request = CreateIdempotentRequest(
+                HttpMethod.Post,
+                $"game-day/sessions/{sessionId}/teams/unlock",
+                GetIdempotencyKey(operation));
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            CompleteDefinitiveResponse(operation, response.StatusCode);
+            response.EnsureSuccessStatusCode();
+            return ClientCommandResult.Success;
+        }, () => _idempotencyKeys.TryRemove(operation, out _));
+    }
+
+    public async Task<SessionTeamsDto?> GetSessionTeamsAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.GetAsync(
+            $"game-day/sessions/{sessionId}/teams",
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<SessionTeamsDto>(
+            cancellationToken: cancellationToken);
+    }
+
     public async Task<PostGameApprovalDto?> GetPostGameApprovalAsync(
         Guid sessionId,
         CancellationToken cancellationToken)

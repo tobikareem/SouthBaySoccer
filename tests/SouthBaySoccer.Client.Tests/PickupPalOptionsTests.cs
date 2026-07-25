@@ -9,13 +9,16 @@ public class PickupPalOptionsTests
     // AUTH-9: external actions launch from typed configuration, signup is HTTPS, and the
     // deep-link callback uses the approved custom scheme (not duplicated page text).
     [Fact]
-    public void Defaults_UseHttpsSignupWhatsAppBotAndApprovedCallbackScheme()
+    public void Defaults_UsePickupPalSignupBotSetupAndApprovedCallbackScheme()
     {
         var options = new PickupPalOptions();
 
         options.ApiBaseUri.ToString().Should().Be("http://localhost:7071/api/");
         options.SignupUri.Scheme.Should().Be("https");
-        options.BotUri.Host.Should().Be("wa.me");
+        options.SignupUri.Host.Should().Be("www.pickuppal.xyz");
+        options.SignupUri.AbsolutePath.Should().Be("/auth/signup");
+        options.BotUri.Host.Should().Be("www.pickuppal.xyz");
+        options.BotUri.AbsolutePath.Should().Be("/bot-setup");
         options.CallbackUri.Scheme.Should().Be("southbaysoccer");
         options.BotDisplayNumber.Should().NotBeNullOrWhiteSpace();
     }

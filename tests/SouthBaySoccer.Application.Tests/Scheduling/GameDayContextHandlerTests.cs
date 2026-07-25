@@ -43,7 +43,7 @@ public sealed class GameDayContextHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_WhenWaitlisted_ReturnsBlockedWithoutCheckingEligibility()
+    public async Task HandleAsync_WhenWaitlistedEligibleAndInsideWindow_AllowsCheckIn()
     {
         var context = new TestContext();
         var session = context.SessionAt(Utc(2026, 7, 23, 2, 40));
@@ -60,12 +60,11 @@ public sealed class GameDayContextHandlerTests
         var result = await context.CreateHandler().HandleAsync();
 
         result.Should().NotBeNull();
-        result!.Status.Should().Be("Blocked");
-        result.IsSelfCheckInAvailable.Should().BeFalse();
-        result.BlockReason.Should().Contain("waitlisted");
+        result!.Status.Should().Be("Open");
+        result.IsSelfCheckInAvailable.Should().BeTrue("waitlisted players may now check in at the field");
         context.Eligibility.Verify(
             x => x.CheckAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
-            Times.Never);
+            Times.Once);
     }
 
     [Fact]

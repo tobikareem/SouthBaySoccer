@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="SouthBaySoccer.Controls.RosterListPopup"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    x:Name="PopupRoot"
+    x:DataType="controls:RosterListContent"
+    WidthRequest="360">
+    <Border Style="{StaticResource CardSurface}" Padding="{StaticResource LayoutPadding}">
+        <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+            <Label Text="{Binding Title}" Style="{StaticResource TextH2}" SemanticProperties.HeadingLevel="Level1" />
+            <BoxView HeightRequest="1" Color="{StaticResource HeaderOverlay}" />
+
+            <Label
+                Text="{Binding EmptyMessage}"
+                Style="{StaticResource TextCaption}"
+                IsVisible="{Binding IsEmpty}" />
+
+            <ScrollView MaximumHeightRequest="420" IsVisible="{Binding HasMembers}">
+                <VerticalStackLayout
+                    BindableLayout.ItemsSource="{Binding Members}"
+                    Spacing="{StaticResource SpaceXs}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="pageModels:GameDayRosterItem">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}" Padding="{StaticResource RowPadding}">
+                                <VerticalStackLayout Grid.Column="0" VerticalOptions="Center" Spacing="{StaticResource SpaceXs}">
+                                    <Label Text="{Binding DisplayName}" Style="{StaticResource TextBodyStrong}" />
+                                    <Label Text="{Binding StatusLabel}" Style="{StaticResource TextCaption}" />
+                                </VerticalStackLayout>
+                                <Button
+                                    Grid.Column="1"
+                                    Text="Check in"
+                                    Command="{Binding BindingContext.CheckInCommand, Source={x:Reference PopupRoot}}"
+                                    CommandParameter="{Binding .}"
+                                    Style="{StaticResource SecondaryButton}"
+                                    IsVisible="{Binding CanCheckIn}"
+                                    VerticalOptions="Center"
+                                    SemanticProperties.Description="{Binding DisplayName, StringFormat='Check in {0}'}" />
+                            </Grid>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+            </ScrollView>
+        </VerticalStackLayout>
+    </Border>
+</ContentView>

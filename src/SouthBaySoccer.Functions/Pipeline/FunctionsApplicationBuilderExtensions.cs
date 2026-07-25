@@ -1,4 +1,5 @@
 using SouthBaySoccer.Application.Features.Authentication;
+using SouthBaySoccer.Application.Features.Groups;
 using SouthBaySoccer.Application.Features.Payments;
 using SouthBaySoccer.Application.Features.Players;
 using SouthBaySoccer.Application.Features.Rsvps;
@@ -60,6 +61,7 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<IValidator<AssignSessionCaptainsCommand>, AssignSessionCaptainsCommandValidator>();
         builder.Services.AddScoped<IValidator<SaveCaptainTeamPicksCommand>, SaveCaptainTeamPicksCommandValidator>();
         builder.Services.AddScoped<IValidator<LockSessionTeamsCommand>, LockSessionTeamsCommandValidator>();
+        builder.Services.AddScoped<IValidator<UnlockSessionTeamsCommand>, UnlockSessionTeamsCommandValidator>();
         builder.Services.AddScoped<IValidator<ApprovePostGameStatCommand>, ApprovePostGameStatCommandValidator>();
         builder.Services.AddScoped<IValidator<SavePostGameTeamResultCommand>, SavePostGameTeamResultCommandValidator>();
         builder.Services.AddScoped<IValidator<PublishPostGameCommand>, PublishPostGameCommandValidator>();
@@ -68,6 +70,8 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<GetTeamDraftQueryHandler>();
         builder.Services.AddScoped<SaveCaptainTeamPicksCommandHandler>();
         builder.Services.AddScoped<LockSessionTeamsCommandHandler>();
+        builder.Services.AddScoped<UnlockSessionTeamsCommandHandler>();
+        builder.Services.AddScoped<GetSessionTeamsQueryHandler>();
         builder.Services.AddScoped<GetPostGameApprovalQueryHandler>();
         builder.Services.AddScoped<ApprovePostGameStatCommandHandler>();
         builder.Services.AddScoped<SavePostGameTeamResultCommandHandler>();
@@ -129,6 +133,10 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<SubmitMyMatchStatsCommandHandler>();
         builder.Services.AddScoped<ConfirmPlayerSubmissionCommandHandler>();
         builder.Services.AddScoped<GetPendingStatSubmissionQueryHandler>();
+        builder.Services.AddScoped<IValidator<LinkPlayerToGroupCommand>, LinkPlayerToGroupCommandValidator>();
+        builder.Services.AddScoped<GetAvailableGroupsQueryHandler>();
+        builder.Services.AddScoped<GetMyGroupsQueryHandler>();
+        builder.Services.AddScoped<LinkPlayerToGroupCommandHandler>();
         builder.Services.AddScoped<FunctionCurrentUser>();
         builder.Services.AddScoped<ICurrentUser>(services => services.GetRequiredService<FunctionCurrentUser>());
         builder.Services.AddScoped<IFunctionCurrentUserAccessor>(services => services.GetRequiredService<FunctionCurrentUser>());

@@ -9,6 +9,7 @@ using SouthBaySoccer.Services.Clients;
 using SouthBaySoccer.Services.Leaderboard;
 using SouthBaySoccer.Services.Navigation;
 using SouthBaySoccer.Services.Players;
+using SouthBaySoccer.Services.GameDay;
 using SouthBaySoccer.Services.Profile;
 using SouthBaySoccer.Services.Sessions;
 using Syncfusion.Maui.Toolkit.Hosting;
@@ -90,6 +91,9 @@ public static class MauiProgram
         builder.Services.AddTransient<AppShell>();
         builder.Services.AddTransient<WelcomeBackPage>();
         builder.Services.AddTransient<WelcomeBackPageModel>();
+        builder.Services.AddTransient<LinkGroupPage>();
+        builder.Services.AddTransient<LinkGroupPageModel>();
+        builder.Services.AddSingleton<IGroupLinkNavigator, ShellGroupLinkNavigator>();
 
         builder.Services.AddTransient<SessionsHomePage>();
         builder.Services.AddTransient<SessionsHomePageModel>();
@@ -97,6 +101,7 @@ public static class MauiProgram
         builder.Services.AddTransient<GameDayPageModel>();
         builder.Services.AddTransient<CaptainAssignmentPageModel>();
         builder.Services.AddTransient<TeamDraftPageModel>();
+        builder.Services.AddTransient<TeamsViewPageModel>();
         builder.Services.AddTransient<PostGameApprovalPageModel>();
         builder.Services.AddLeaderboardFeature();
         builder.Services.AddPlayersFeature();
@@ -105,6 +110,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IGameDayNavigator, ShellGameDayNavigator>();
         builder.Services.AddSingleton<IClaimSpotNavigator, ShellClaimSpotNavigator>();
         builder.Services.AddSingleton<IDismissedStatsPromptStore, DismissedStatsPromptStore>();
+        builder.Services.AddSingleton<IRosterListPresenter, PopupRosterListPresenter>();
         builder.Services.AddSingleton<IAdminMatchNavigator, ShellAdminMatchNavigator>();
         builder.Services.AddSingleton<IMatchStatsNavigator, ShellMatchStatsNavigator>();
         builder.Services.AddSingleton(new MatchStatsOptions());
@@ -159,8 +165,12 @@ public static class MauiProgram
         builder.Services.AddTransientWithShellRoute<CreateSessionPage, CreateSessionPageModel>("create-session");
         builder.Services.AddTransientWithShellRoute<CaptainAssignmentPage, CaptainAssignmentPageModel>("captains");
         builder.Services.AddTransientWithShellRoute<TeamDraftPage, TeamDraftPageModel>("draft");
+        builder.Services.AddTransientWithShellRoute<TeamsViewPage, TeamsViewPageModel>("teams-view");
         builder.Services.AddTransientWithShellRoute<PostGameApprovalPage, PostGameApprovalPageModel>("postgame");
         builder.Services.AddTransientWithShellRoute<RecentGamesPage, RecentGamesPageModel>("recent-games");
+        // Another player's profile is a pushed detail page; the Profile tab stays the signed-in
+        // player's own so its page model never carries a requested playerId.
+        builder.Services.AddTransientWithShellRoute<ProfilePage, ProfilePageModel>("player-profile");
         builder.Services.AddTransientWithShellRoute<ClaimSpotPage, ClaimSpotPageModel>("claim-spot");
         builder.Services.AddTransientWithShellRoute<AdminMatchPage, AdminMatchPageModel>("admin-match");
         builder.Services.AddTransientWithShellRoute<MatchStatsPage, MatchStatsPageModel>("matchstats");

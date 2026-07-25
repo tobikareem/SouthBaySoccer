@@ -284,7 +284,7 @@ public sealed class ApiSprint03ClientTests
                 """);
         }));
 
-        var leaderboard = await client.GetRankingAsync(seasonId, LeaderboardMetric.Goals, CancellationToken.None);
+        var leaderboard = await client.GetRankingAsync(seasonId, LeaderboardMetric.Goals, null, CancellationToken.None);
 
         leaderboard.SeasonId.Should().Be(seasonId);
         observed!.Method.Should().Be(HttpMethod.Get);
@@ -306,6 +306,7 @@ public sealed class ApiSprint03ClientTests
         var act = async () => await client.GetRankingAsync(
             Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
             LeaderboardMetric.Goals,
+            null,
             CancellationToken.None);
 
         await act.Should().ThrowAsync<ApiRequestException>();
@@ -322,6 +323,7 @@ public sealed class ApiSprint03ClientTests
         var act = async () => await client.GetRankingAsync(
             Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
             LeaderboardMetric.Goals,
+            null,
             CancellationToken.None);
 
         await act.Should().ThrowAsync<ApiRequestException>();

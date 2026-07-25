@@ -283,6 +283,115 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", true);
                 });
 
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Groups.GroupChat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("GroupName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LinkageCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Timezone")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("WhatsAppMemberCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExternalId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("GroupChats", (string)null);
+
+                    b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", true);
+                });
+
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Groups.PlayerGroupLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("GroupChatId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("PlayerProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GroupChatId");
+
+                    b.HasIndex("PlayerProfileId")
+                        .IsUnique()
+                        .HasFilter("[IsPrimary] = 1 AND [IsDeleted] = 0");
+
+                    b.HasIndex("PlayerProfileId", "GroupChatId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("PlayerGroupLinks", (string)null);
+
+                    b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", true);
+                });
+
             modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Identity.EmergencyContact", b =>
                 {
                     b.Property<Guid>("Id")
@@ -414,12 +523,12 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[IdentityUserId] IS NOT NULL AND [IsDeleted] = 0");
 
+                    b.HasIndex("PhoneNumberHash")
+                        .HasFilter("[PhoneNumberHash] IS NOT NULL AND [IsDeleted] = 0");
+
                     b.HasIndex("PickupPalUserId")
                         .IsUnique()
                         .HasFilter("[PickupPalUserId] IS NOT NULL AND [IsDeleted] = 0");
-
-                    b.HasIndex("PhoneNumberHash")
-                        .HasFilter("[PhoneNumberHash] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.HasIndex("WhatsAppJidHash")
                         .HasFilter("[WhatsAppJidHash] IS NOT NULL AND [IsDeleted] = 0");
@@ -2758,6 +2867,21 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.HasOne("SouthBaySoccer.Domain.Entities.Compliance.WaiverDocument", null)
                         .WithMany()
                         .HasForeignKey("WaiverDocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Groups.PlayerGroupLink", b =>
+                {
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Groups.GroupChat", null)
+                        .WithMany()
+                        .HasForeignKey("GroupChatId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Identity.PlayerProfile", null)
+                        .WithMany()
+                        .HasForeignKey("PlayerProfileId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

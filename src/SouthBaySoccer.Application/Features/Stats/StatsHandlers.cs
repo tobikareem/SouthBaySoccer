@@ -543,6 +543,7 @@ public sealed class GetSeasonLeaderboardQueryHandler(
             query.Metric,
             skip,
             query.PageSize,
+            query.GroupChatId,
             cancellationToken);
 
         return new LeaderboardModel(

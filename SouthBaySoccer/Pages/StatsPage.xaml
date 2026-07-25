@@ -42,10 +42,20 @@
                         <c:Badge
                             Grid.Column="1"
                             Text="{Binding Season}"
-                            Glyph="{x:Static fonts:FontAwesomeGlyphs.ChevronRight}"
                             Variant="Success"
                             SemanticProperties.Description="{Binding Season, StringFormat='Current season: {0}'}" />
                     </Grid>
+
+                    <!-- Group filter: the top 5 are scoped to the selected group's members, defaulting
+                         to the player's primary group. "All groups" aggregates across every group. -->
+                    <Picker
+                        Title="Group"
+                        ItemsSource="{Binding Groups}"
+                        ItemDisplayBinding="{Binding Name, x:DataType=pageModels:LeaderboardGroupOption}"
+                        SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
+                        IsEnabled="{Binding CanSelectGroup}"
+                        IsVisible="{Binding HasGroups}"
+                        SemanticProperties.Description="Filter the leaderboard by group chat" />
 
                     <c:SegmentedControl
                         ItemsSource="{Binding Metrics}"

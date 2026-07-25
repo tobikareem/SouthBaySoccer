@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using SouthBaySoccer.Domain.Entities.Compliance;
+using SouthBaySoccer.Domain.Entities.Groups;
 using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Operations;
 using SouthBaySoccer.Domain.Entities.Payments;
@@ -59,6 +60,8 @@ public class SouthBaySoccerDbContext : IdentityDbContext<ApplicationIdentityUser
     public DbSet<AlertRule> AlertRules => Set<AlertRule>();
     public DbSet<AlertInstance> AlertInstances => Set<AlertInstance>();
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
+    public DbSet<GroupChat> GroupChats => Set<GroupChat>();
+    public DbSet<PlayerGroupLink> PlayerGroupLinks => Set<PlayerGroupLink>();
     public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = null!;
 
     /// <inheritdoc />

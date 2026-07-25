@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.ApplicationModel;
 using SouthBaySoccer.Pages;
 using SouthBaySoccer.Services;
+using SouthBaySoccer.Services.Clients;
 
 namespace SouthBaySoccer.Services.Authentication;
 
@@ -29,12 +30,39 @@ public sealed class AuthenticationNavigator(
             void OnShellLoaded(object? sender, EventArgs e)
             {
                 shell.Loaded -= OnShellLoaded;
-                shell.GoToAsync("//sessions").FireAndForgetSafeAsync(errorHandler);
+                NavigateToInitialRouteAsync(shell, cancellationToken).FireAndForgetSafeAsync(errorHandler);
             }
 
             shell.Loaded += OnShellLoaded;
             window.Page = shell;
         });
+    }
+
+    // Routes to the blocking group-link step when the player belongs to no group yet; otherwise lands
+    // on the Sessions tab. A failure resolving link status must not trap the user on a blank shell, so
+    // any error falls through to //sessions.
+    private async Task NavigateToInitialRouteAsync(AppShell shell, CancellationToken cancellationToken)
+    {
+        var route = "//sessions";
+        try
+        {
+            var groupsClient = services.GetRequiredService<IGroupsClient>();
+            var myGroups = await groupsClient.GetMyGroupsAsync(cancellationToken);
+            if (!myGroups.IsLinked)
+            {
+                route = "//link-group";
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // Non-fatal: enter the app on the aggregate view rather than blocking on a link check.
+        }
+
+        await shell.GoToAsync(route);
     }
 
     public Task ShowSignInAsync(CancellationToken cancellationToken = default)

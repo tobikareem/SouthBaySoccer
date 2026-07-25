@@ -232,6 +232,44 @@ public sealed class RsvpCommandHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenWaitlistedPlayerSelfChecksIn_RecordsAttendance()
+    {
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = "Wade" };
+        var session = FutureSession();
+        var nowUtc = Utc(2026, 7, 7, 19, 30);
+        var checkIn = new CheckIn
+        {
+            Id = Guid.NewGuid(),
+            SessionId = session.Id,
+            PlayerProfileId = profile.Id,
+            CheckedInByPlayerProfileId = profile.Id,
+            CheckedInAtUtc = nowUtc,
+            Outcome = AttendanceOutcome.CheckedIn
+        };
+        var rsvpRepository = new Mock<IRsvpRepository>();
+        rsvpRepository
+            // IsCurrentPlayerGoing = false, IsCurrentPlayerWaitlisted = true.
+            .Setup(x => x.GetGameDayAttendanceAsync(session.Id, profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GameDayAttendanceRecord(20, 0, 0, false, true, false, []));
+        rsvpRepository
+            .Setup(x => x.RecordCheckInAsync(
+                session.Id, profile.Id, profile.Id, nowUtc, AttendanceOutcome.CheckedIn, null,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CheckInMutationResult(checkIn));
+        var handler = CreateSelfCheckInHandler(profile, session, nowUtc, EligibleService(), rsvpRepository.Object);
+
+        var result = await handler.HandleAsync(new SelfCheckInCommand(session.Id));
+
+        result.PlayerProfileId.Should().Be(profile.Id);
+        result.Outcome.Should().Be(nameof(AttendanceOutcome.CheckedIn));
+        rsvpRepository.Verify(
+            x => x.RecordCheckInAsync(
+                session.Id, profile.Id, profile.Id, nowUtc, AttendanceOutcome.CheckedIn, null,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenSelfCheckInIsOutsideWindow_DoesNotReadAttendanceOrMutate()
     {
         var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = "Ada" };

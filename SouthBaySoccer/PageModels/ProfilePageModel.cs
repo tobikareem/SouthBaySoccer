@@ -66,6 +66,12 @@ public partial class ProfilePageModel(
 
     public bool CanEditProfile => requestedPlayerId is null;
 
+    /// <summary>
+    /// True when this is another player's profile, opened as a pushed detail page. Drives the back
+    /// affordance, since the profile pages run with the Shell nav bar hidden.
+    /// </summary>
+    public bool IsViewingOtherPlayer => requestedPlayerId is not null;
+
     public string MatchesText => Profile?.CareerStats.Matches.ToString(CultureInfo.InvariantCulture) ?? "0";
 
     public string GoalsText => Profile?.CareerStats.Goals.ToString(CultureInfo.InvariantCulture) ?? "0";
@@ -103,6 +109,7 @@ public partial class ProfilePageModel(
         }
 
         OnPropertyChanged(nameof(CanEditProfile));
+        OnPropertyChanged(nameof(IsViewingOtherPlayer));
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -135,6 +142,9 @@ public partial class ProfilePageModel(
 
     [RelayCommand]
     private Task OpenLeaderboard() => navigator.OpenLeaderboardAsync();
+
+    [RelayCommand]
+    private Task Back() => navigator.GoBackAsync();
 
     // Sign out / switch account. Only offered on the signed-in player's own profile (CanEditProfile).
     [RelayCommand(AllowConcurrentExecutions = false)]

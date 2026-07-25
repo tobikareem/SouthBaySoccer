@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.LinkGroupPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:contracts="clr-namespace:SouthBaySoccer.Contracts.Groups;assembly=SouthBaySoccer.Contracts"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="LinkGroupPageName"
+    x:DataType="pageModels:LinkGroupPageModel"
+    Shell.NavBarIsVisible="False"
+    Shell.TabBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Join your group">
+
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference LinkGroupPageName}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+
+    <c:StateView
+        State="{Binding State}"
+        Title="{Binding StateTitle}"
+        Message="{Binding StateMessage}"
+        Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
+        GlyphFontFamily="FontAwesomeSolid"
+        RetryCommand="{Binding RefreshCommand}">
+        <Grid
+            Padding="{StaticResource LayoutPadding}"
+            RowDefinitions="Auto,*,Auto"
+            RowSpacing="{StaticResource SpaceLg}">
+
+            <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                <Label
+                    Text="Join your group"
+                    Style="{StaticResource TextH1}"
+                    SemanticProperties.HeadingLevel="Level1" />
+                <Label
+                    Text="Choose the WhatsApp group you play with to finish setting up your account."
+                    Style="{StaticResource TextCaption}" />
+            </VerticalStackLayout>
+
+            <CollectionView
+                Grid.Row="1"
+                ItemsSource="{Binding Groups}"
+                SelectionMode="Single"
+                SelectedItem="{Binding SelectedGroup, Mode=TwoWay}">
+                <CollectionView.ItemsLayout>
+                    <LinearItemsLayout Orientation="Vertical" ItemSpacing="{StaticResource SpaceSm}" />
+                </CollectionView.ItemsLayout>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="contracts:GroupChatDto">
+                        <Border
+                            x:Name="GroupRow"
+                            Style="{StaticResource CardSurface}"
+                            MinimumHeightRequest="{StaticResource TouchMin}"
+                            SemanticProperties.Description="{Binding GroupName, StringFormat='{0}, tap to select this group'}">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal" />
+                                    <VisualState x:Name="Selected">
+                                        <VisualState.Setters>
+                                            <Setter
+                                                Property="BackgroundColor"
+                                                Value="{AppThemeBinding Light={StaticResource StatSurfaceLight}, Dark={StaticResource StatSurfaceDark}}" />
+                                            <Setter
+                                                Property="Stroke"
+                                                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceMd}">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label
+                                        Text="{Binding GroupName}"
+                                        Style="{StaticResource TextBodyStrong}" />
+                                    <Label
+                                        Text="{Binding MemberCount, StringFormat='{0} members'}"
+                                        Style="{StaticResource TextCaption}" />
+                                </VerticalStackLayout>
+                                <Label
+                                    Grid.Column="1"
+                                    Text="{x:Static fonts:FontAwesomeGlyphs.ChevronRight}"
+                                    FontFamily="FontAwesomeSolid"
+                                    Style="{StaticResource TextCaption}"
+                                    VerticalTextAlignment="Center"
+                                    AutomationProperties.IsInAccessibleTree="False" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <Button
+                Grid.Row="2"
+                Text="Continue"
+                Style="{StaticResource PrimaryButton}"
+                Command="{Binding ContinueCommand}"
+                SemanticProperties.Description="Link the selected group and continue" />
+        </Grid>
+    </c:StateView>
+</ContentPage>

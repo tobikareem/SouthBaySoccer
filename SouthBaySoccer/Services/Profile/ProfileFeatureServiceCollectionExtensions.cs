@@ -28,6 +28,8 @@ public sealed class ProfileExternalLauncher(ProfileOptions options) : IProfileEx
 public sealed class ShellProfileNavigator : IProfileNavigator
 {
     public Task OpenLeaderboardAsync() => Shell.Current.GoToAsync("//stats");
+
+    public Task GoBackAsync() => Shell.Current.GoToAsync("..");
 }
 
 public static class ProfileFeatureServiceCollectionExtensions

@@ -239,7 +239,7 @@ public sealed class StatsQueryHandlerTests
         seasons.Setup(x => x.GetByIdAsync(seasonId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SouthBaySoccer.Domain.Entities.Scheduling.Season { Id = seasonId, Name = "Season 2026" });
         var stats = new Mock<IStatsRepository>();
-        stats.Setup(x => x.ListSeasonLeaderboardAsync(seasonId, StatLeaderboardMetric.Goals, 25, 25, It.IsAny<CancellationToken>()))
+        stats.Setup(x => x.ListSeasonLeaderboardAsync(seasonId, StatLeaderboardMetric.Goals, 25, 25, It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([
                 new LeaderboardReadModel(playerId, "Ada Okafor", "Forward", false, Guid.NewGuid(), 8, 10, 4, 8.2m, 6, 12, 2, 10m),
             ]);
@@ -275,7 +275,7 @@ public sealed class StatsQueryHandlerTests
                 EndsAtUtc = now.AddMonths(1),
             }]);
         var stats = new Mock<IStatsRepository>();
-        stats.Setup(x => x.ListSeasonLeaderboardAsync(activeSeasonId, StatLeaderboardMetric.Goals, 0, 25, It.IsAny<CancellationToken>()))
+        stats.Setup(x => x.ListSeasonLeaderboardAsync(activeSeasonId, StatLeaderboardMetric.Goals, 0, 25, It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([
                 new LeaderboardReadModel(Guid.NewGuid(), "Ada Okafor", "Forward", false, Guid.NewGuid(), 8, 10, 4, 8.2m, 6, 12, 2, 10m),
             ]);
@@ -324,7 +324,7 @@ public sealed class StatsQueryHandlerTests
         result.Rows.Should().BeEmpty();
         result.Note.Should().Contain("approved goals");
         stats.Verify(
-            x => x.ListSeasonLeaderboardAsync(It.IsAny<Guid>(), It.IsAny<StatLeaderboardMetric>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            x => x.ListSeasonLeaderboardAsync(It.IsAny<Guid>(), It.IsAny<StatLeaderboardMetric>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 

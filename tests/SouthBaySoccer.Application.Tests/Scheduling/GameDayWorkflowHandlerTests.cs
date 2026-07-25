@@ -433,6 +433,135 @@ public sealed class GameDayWorkflowHandlerTests
         context.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task Unlock_WhenInProgressWithNoResults_RevertsToDraft()
+    {
+        var context = new TestContext(postGame: true, isGameAdmin: true);
+        var team = context.Team(context.Actor.Id, 1);
+        context.ConfigureMatch([team], MatchStatus.InProgress);
+        context.Stats.Setup(x => x.ListMatchResultsAsync(context.Match.Id, It.IsAny<CancellationToken>())).ReturnsAsync([]);
+        context.Stats.Setup(x => x.ListMatchEventsAsync(context.Match.Id, It.IsAny<CancellationToken>())).ReturnsAsync([]);
+        var handler = CreateUnlockHandler(context);
+
+        var result = await handler.HandleAsync(new UnlockSessionTeamsCommand(context.Session.Id));
+
+        result.AffectedCount.Should().Be(1);
+        context.Match.Status.Should().Be(MatchStatus.Draft);
+        context.Match.StartedAtUtc.Should().BeNull();
+        context.Audits.Verify(x => x.AddAsync(
+            It.Is<AuditLogEntry>(entry => entry.Action == "TeamDraft.Unlock"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Unlock_WhenAlreadyDraft_IsNoOp()
+    {
+        var context = new TestContext(postGame: true, isGameAdmin: true);
+        var team = context.Team(context.Actor.Id, 1);
+        context.ConfigureMatch([team], MatchStatus.Draft);
+        var handler = CreateUnlockHandler(context);
+
+        var result = await handler.HandleAsync(new UnlockSessionTeamsCommand(context.Session.Id));
+
+        result.AffectedCount.Should().Be(0);
+        context.Match.Status.Should().Be(MatchStatus.Draft);
+    }
+
+    [Fact]
+    public async Task Unlock_WhenResultsRecorded_ThrowsAndLeavesMatchInProgress()
+    {
+        var context = new TestContext(postGame: true, isGameAdmin: true);
+        var team = context.Team(context.Actor.Id, 1);
+        context.ConfigureMatch([team], MatchStatus.InProgress);
+        context.Stats.Setup(x => x.ListMatchResultsAsync(context.Match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([context.Result(team.Id, wins: 1)]);
+        context.Stats.Setup(x => x.ListMatchEventsAsync(context.Match.Id, It.IsAny<CancellationToken>())).ReturnsAsync([]);
+        var handler = CreateUnlockHandler(context);
+
+        var act = () => handler.HandleAsync(new UnlockSessionTeamsCommand(context.Session.Id));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>();
+        context.Match.Status.Should().Be(MatchStatus.InProgress);
+    }
+
+    [Fact]
+    public async Task Unlock_WhenCompleted_ThrowsPointingToPostGameReopen()
+    {
+        var context = new TestContext(postGame: true, isGameAdmin: true);
+        var team = context.Team(context.Actor.Id, 1);
+        context.ConfigureMatch([team], MatchStatus.Completed);
+        var handler = CreateUnlockHandler(context);
+
+        var act = () => handler.HandleAsync(new UnlockSessionTeamsCommand(context.Session.Id));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>();
+    }
+
+    [Fact]
+    public async Task Unlock_WhenNotGameAdmin_IsForbidden()
+    {
+        var context = new TestContext(postGame: true, isGameAdmin: false);
+        var team = context.Team(context.Actor.Id, 1);
+        context.ConfigureMatch([team], MatchStatus.InProgress);
+        var handler = CreateUnlockHandler(context);
+
+        var act = () => handler.HandleAsync(new UnlockSessionTeamsCommand(context.Session.Id));
+
+        await act.Should().ThrowAsync<ApplicationForbiddenException>();
+    }
+
+    [Fact]
+    public async Task GetSessionTeams_ForRosteredPlayer_ReturnsTeamsWithTheirTeamMarked()
+    {
+        var context = new TestContext(postGame: true, isGameAdmin: false);
+        var team = context.Team(context.Actor.Id, 1);
+        context.ConfigureMatch([team], MatchStatus.InProgress);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([context.Roster(context.Actor.Id, "Ada Green")]);
+        context.Stats
+            .Setup(x => x.ListAssignmentsAsync(context.Match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([context.Assignment(team.Id, context.Actor.Id)]);
+        var handler = CreateSessionTeamsHandler(context);
+
+        var result = await handler.HandleAsync(context.Session.Id);
+
+        result.Teams.Should().ContainSingle();
+        result.Teams[0].IsMine.Should().BeTrue();
+        result.Teams[0].Members.Should().ContainSingle(member => member.IsMe && member.IsCaptain);
+    }
+
+    [Fact]
+    public async Task GetSessionTeams_ForPlayerNotOnRoster_IsForbidden()
+    {
+        var context = new TestContext(postGame: true, isGameAdmin: false);
+        var handler = CreateSessionTeamsHandler(context);
+
+        var act = () => handler.HandleAsync(context.Session.Id);
+
+        await act.Should().ThrowAsync<ApplicationForbiddenException>();
+    }
+
+    private static UnlockSessionTeamsCommandHandler CreateUnlockHandler(TestContext context) =>
+        new(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new UnlockSessionTeamsCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Stats.Object,
+            context.Audits.Object,
+            context.UnitOfWork.Object);
+
+    private static GetSessionTeamsQueryHandler CreateSessionTeamsHandler(TestContext context) =>
+        new(
+            context.CurrentUser.Object,
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Stats.Object);
+
     private sealed class TestContext
     {
         public TestContext(bool postGame, bool isGameAdmin)

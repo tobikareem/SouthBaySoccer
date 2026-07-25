@@ -218,9 +218,11 @@ public sealed class SelfCheckInCommandHandler(
             session.Id,
             profile.Id,
             cancellationToken);
-        if (!attendance.IsCurrentPlayerGoing)
+        // Going and waitlisted players may both self check in (a waitlisted player who arrives often
+        // takes a no-show's place); only someone with no confirmed spot at all is turned away.
+        if (!attendance.IsCurrentPlayerGoing && !attendance.IsCurrentPlayerWaitlisted)
         {
-            throw new ApplicationConflictException("A confirmed Going spot is required to check in.");
+            throw new ApplicationConflictException("A Going or waitlist spot is required to check in.");
         }
 
         var eligibility = await eligibilityService.CheckAsync(profile.Id, session.Id, cancellationToken);

@@ -371,7 +371,8 @@ public sealed class StatsFunctions(
                 ReadOptionalGuid(query, "seasonId"),
                 ToDomainMetric(ReadMetric(query)),
                 ReadOptionalInt(query, "page", 1),
-                ReadOptionalInt(query, "pageSize", 25)),
+                ReadOptionalInt(query, "pageSize", 25),
+                ReadOptionalGuid(query, "groupId")),
             cancellationToken);
 
         return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(result), cancellationToken);

@@ -49,7 +49,8 @@ public sealed record GameDayContextDto(
     IReadOnlyList<GameDayRosterEntryDto>? Roster = null,
     bool CanManageCheckIns = false,
     bool CanSubmitOwnStats = false,
-    IReadOnlyList<GameDayGameOptionDto>? TodaysGames = null);
+    IReadOnlyList<GameDayGameOptionDto>? TodaysGames = null,
+    bool CanViewTeams = false);
 
 /// <summary>
 /// One of today's games the player can act on. The Game Day screen shows a picker built from these
@@ -98,7 +99,26 @@ public sealed record CaptainAssignmentDto(
     IReadOnlyList<Guid> SelectedCaptainIds,
     IReadOnlyList<CheckedInPlayerDto> CheckedInPlayers,
     bool CanLockTeams = false,
-    bool IsLocked = false);
+    bool IsLocked = false,
+    bool CanUnlockTeams = false);
+
+public sealed record SessionTeamsDto(
+    Guid SessionId,
+    Guid MatchId,
+    IReadOnlyList<SessionTeamDto> Teams);
+
+public sealed record SessionTeamDto(
+    Guid TeamId,
+    string Name,
+    string CaptainName,
+    bool IsMine,
+    IReadOnlyList<SessionTeamMemberDto> Members);
+
+public sealed record SessionTeamMemberDto(
+    Guid PlayerProfileId,
+    string DisplayName,
+    bool IsCaptain,
+    bool IsMe);
 
 public sealed record AssignCaptainsRequest(
     int CaptainCount,
