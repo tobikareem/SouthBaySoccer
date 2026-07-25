@@ -107,15 +107,15 @@
                         <c:StatTile
                             Grid.Row="0"
                             Grid.Column="1"
-                            Value="{Binding GoalsText}"
-                            Label="Goals"
-                            SemanticProperties.Description="{Binding Profile.CareerStats.Goals, StringFormat='Goals: {0}'}" />
+                            Value="{Binding WinsText}"
+                            Label="Wins"
+                            SemanticProperties.Description="{Binding Profile.CareerStats.Wins, StringFormat='Wins: {0}'}" />
                         <c:StatTile
                             Grid.Row="0"
                             Grid.Column="2"
-                            Value="{Binding AssistsText}"
-                            Label="Assists"
-                            SemanticProperties.Description="{Binding Profile.CareerStats.Assists, StringFormat='Assists: {0}'}" />
+                            Value="{Binding LossesText}"
+                            Label="Losses"
+                            SemanticProperties.Description="{Binding Profile.CareerStats.Losses, StringFormat='Losses: {0}'}" />
                         <c:StatTile
                             Grid.Row="1"
                             Grid.Column="0"

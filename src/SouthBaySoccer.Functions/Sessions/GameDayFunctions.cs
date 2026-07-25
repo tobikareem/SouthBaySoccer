@@ -565,7 +565,9 @@ public sealed class GameDayFunctions(
                 Enum.Parse<StatApprovalStatus>(approval.Status),
                 approval.AssistPlayer is null ? null : ToResponse(approval.AssistPlayer),
                 approval.Detail)).ToArray(),
-            model.CanReopenResults);
+            model.CanReopenResults,
+            model.GameTitle,
+            $"{ToLocal(model.StartsAtUtc):ddd MMM d, h:mm tt}");
 
     private static CheckedInPlayerDto ToResponse(CheckedInGameDayPlayerModel player) =>
         new(ToResponse(player.Player), player.Detail);

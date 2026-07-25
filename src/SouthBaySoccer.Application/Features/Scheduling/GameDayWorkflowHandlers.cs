@@ -78,7 +78,9 @@ public sealed record PostGameApprovalModel(
     int TeamCount,
     IReadOnlyList<GameDayTeamResultModel> TeamResults,
     IReadOnlyList<PendingStatApprovalModel> PendingApprovals,
-    bool CanReopenResults = false);
+    bool CanReopenResults = false,
+    string GameTitle = "",
+    DateTime StartsAtUtc = default);
 
 public sealed record ReopenPostGameResultsCommand(Guid SessionId);
 
@@ -820,7 +822,9 @@ public sealed class GetPostGameApprovalQueryHandler(
             // A game admin can reopen a conflicted scoreline to re-enter the correct results.
             match.Status == MatchStatus.NeedsReview
                 && GameDayWorkflowAuthorization.IsGameAdmin(currentUser)
-                && GameDayWorkflowQueries.IsPostGameOpen(session, clock.UtcNow));
+                && GameDayWorkflowQueries.IsPostGameOpen(session, clock.UtcNow),
+            session.Title,
+            session.StartsAtUtc);
     }
 }
 

@@ -462,6 +462,21 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
         }
 
         var aggregate = await BuildPlayerStatAggregates(seasonId, playerProfileId).SingleOrDefaultAsync(cancellationToken);
+        // Career wins/losses are game-level: sum the player's team results across finalized matches
+        // (a session's rotation can be several games, so this matches the recent-form outcomes).
+        var record = await (
+                from assignment in dbContext.TeamAssignments
+                join result in dbContext.MatchResults
+                    on new { assignment.MatchId, assignment.MatchTeamId } equals new { result.MatchId, result.MatchTeamId }
+                join match in dbContext.Matches on assignment.MatchId equals match.Id
+                where assignment.PlayerProfileId == playerProfileId
+                    && (match.Status == MatchStatus.Completed
+                        || match.Status == MatchStatus.Published
+                        || match.Status == MatchStatus.Locked)
+                select result)
+            .GroupBy(_ => 1)
+            .Select(g => new { Wins = g.Sum(x => x.Wins), Losses = g.Sum(x => x.Losses) })
+            .SingleOrDefaultAsync(cancellationToken);
         return new PlayerStatSummaryReadModel(
             profile.Id,
             profile.DisplayName,
@@ -474,7 +489,9 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
             aggregate?.AverageRating ?? 0m,
             aggregate?.RatingVoteCount ?? 0,
             aggregate?.Likes ?? 0,
-            aggregate?.MvpAwards ?? 0);
+            aggregate?.MvpAwards ?? 0,
+            record?.Wins ?? 0,
+            record?.Losses ?? 0);
     }
 
     public async Task<IReadOnlyList<PlayerRecentFormReadModel>> ListPlayerRecentFormAsync(

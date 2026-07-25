@@ -142,6 +142,8 @@
                                             <Label
                                                 Text="{Binding Value}"
                                                 Style="{StaticResource TextBodyStrong}"
+                                                Margin="0,0,12,0"
+                                                VerticalTextAlignment="Center"
                                                 SemanticProperties.Description="{Binding Value, StringFormat='Metric value {0}'}">
                                                 <Label.Triggers>
                                                     <DataTrigger

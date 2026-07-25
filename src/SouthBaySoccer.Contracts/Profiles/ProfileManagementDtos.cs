@@ -18,7 +18,9 @@ public sealed record MyProfileResponse(
     string? PhotoUri,
     bool IsGuest,
     string Role,
-    EmergencyContactResponse? EmergencyContact);
+    EmergencyContactResponse? EmergencyContact,
+    CareerStatsDto? CareerStats = null,
+    IReadOnlyList<MatchResult>? RecentForm = null);
 
 public sealed record UpdateMyProfileRequest(
     string DisplayName,
