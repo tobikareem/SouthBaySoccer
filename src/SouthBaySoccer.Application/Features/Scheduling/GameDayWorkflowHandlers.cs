@@ -754,11 +754,19 @@ public sealed class GetPostGameApprovalQueryHandler(
         var profiles = (await playerProfileRepository.ListProfilesAsync(referencedPlayerIds, cancellationToken))
             .ToDictionary(x => x.Id);
         var results = await statsRepository.ListMatchResultsAsync(match.Id, cancellationToken);
+        var assignments = await statsRepository.ListAssignmentsAsync(match.Id, cancellationToken);
+        // A Draft game that was played but never explicitly locked can still be finalized by an admin -
+        // recording the first result auto-locks it. Enable the screen for an admin when the teams are
+        // lockable (2-4 teams, each with its captain assigned); otherwise it stays read-only.
+        var teamsLockable = teams.Count is >= 2 and <= 4
+            && teams.All(team => team.CaptainPlayerProfileId is { } captainId
+                && assignments.Any(a => a.MatchTeamId == team.Id && a.PlayerProfileId == captainId));
         var canApprove = GameDayWorkflowQueries.IsPostGameOpen(session, clock.UtcNow)
-            && match.Status is not MatchStatus.Draft
-                and not MatchStatus.NeedsReview
+            && match.Status is not MatchStatus.NeedsReview
                 and not MatchStatus.Published
-                and not MatchStatus.Locked;
+                and not MatchStatus.Locked
+            && (match.Status != MatchStatus.Draft
+                || (GameDayWorkflowAuthorization.IsGameAdmin(currentUser) && teamsLockable));
 
         return new PostGameApprovalModel(
             sessionId,
@@ -777,27 +785,37 @@ public sealed class GetPostGameApprovalQueryHandler(
                     result?.Draws ?? 0,
                     result?.Losses ?? 0);
             }).ToArray(),
-            events.Select(x => new PendingStatApprovalModel(
-                    x.Id,
-                    GameDayWorkflowQueries.ToPlayerModel(x.PlayerProfileId, profiles),
-                    x.EventType == MatchEventType.Goal ? 1 : 0,
-                    0,
-                    x.ReviewStatus switch
-                    {
-                        MatchEventReviewStatus.Approved => "Approved",
-                        MatchEventReviewStatus.Rejected => "NeedsReview",
-                        _ => "Pending",
-                    },
-                    x.AssistPlayerProfileId is { } assistId
-                        ? GameDayWorkflowQueries.ToPlayerModel(assistId, profiles)
-                        : null,
-                    x.EventType switch
-                    {
-                        MatchEventType.OwnGoal => "Own goal",
-                        MatchEventType.YellowCard => "Yellow card",
-                        MatchEventType.RedCard => "Red card",
-                        _ => "Goal",
-                    }))
+            events.Select(x =>
+                {
+                    // A self-submitted assist is stored as a Goal event with no scorer and only the
+                    // assister set. Show the assister as the row's player and label it an assist, so
+                    // it reads as "{assister} - Assist" instead of "Unknown player - Goal".
+                    var isAssistOnly = x.EventType == MatchEventType.Goal
+                        && x.PlayerProfileId is null
+                        && x.AssistPlayerProfileId is not null;
+                    var primaryPlayerId = x.PlayerProfileId ?? (isAssistOnly ? x.AssistPlayerProfileId : null);
+                    return new PendingStatApprovalModel(
+                        x.Id,
+                        GameDayWorkflowQueries.ToPlayerModel(primaryPlayerId, profiles),
+                        x.EventType == MatchEventType.Goal && x.PlayerProfileId is not null ? 1 : 0,
+                        isAssistOnly ? 1 : 0,
+                        x.ReviewStatus switch
+                        {
+                            MatchEventReviewStatus.Approved => "Approved",
+                            MatchEventReviewStatus.Rejected => "NeedsReview",
+                            _ => "Pending",
+                        },
+                        !isAssistOnly && x.AssistPlayerProfileId is { } assistId
+                            ? GameDayWorkflowQueries.ToPlayerModel(assistId, profiles)
+                            : null,
+                        isAssistOnly ? "Assist" : x.EventType switch
+                        {
+                            MatchEventType.OwnGoal => "Own goal",
+                            MatchEventType.YellowCard => "Yellow card",
+                            MatchEventType.RedCard => "Red card",
+                            _ => "Goal",
+                        });
+                })
                 .ToArray(),
             // A game admin can reopen a conflicted scoreline to re-enter the correct results.
             match.Status == MatchStatus.NeedsReview
@@ -1001,7 +1019,37 @@ public sealed class SavePostGameTeamResultCommandHandler(
 
         if (match.Status == MatchStatus.Draft)
         {
-            throw new ApplicationConflictException("Lock teams before recording post-game results.");
+            // Finalize-on-record: an admin recording results on a played-but-unlocked game locks the
+            // teams in place (Draft -> InProgress) rather than being turned away. A game may have been
+            // played without an explicit "Lock teams" step, and Recent Games has no lock affordance.
+            // Captains still cannot auto-lock.
+            if (!GameDayWorkflowAuthorization.IsGameAdmin(currentUser))
+            {
+                throw new ApplicationConflictException("Ask a game admin to lock the teams before recording results.");
+            }
+
+            var draftTeams = await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken);
+            var draftAssignments = await statsRepository.ListAssignmentsAsync(match.Id, cancellationToken);
+            if (draftTeams.Count is < 2 or > 4
+                || draftTeams.Any(t => t.CaptainPlayerProfileId is not { } captainId
+                    || !draftAssignments.Any(a => a.MatchTeamId == t.Id && a.PlayerProfileId == captainId)))
+            {
+                throw new ApplicationConflictException("Every team needs its assigned captain before results can be recorded.");
+            }
+
+            match.Status = MatchStatus.InProgress;
+            match.StartedAtUtc ??= session.StartsAtUtc;
+            await auditLogRepository.AddAsync(new AuditLogEntry
+            {
+                Id = Guid.NewGuid(),
+                ActorType = AuditActorType.PlayerProfile,
+                ActorPlayerProfileId = actor.Id,
+                Action = "TeamDraft.Lock.OnResult",
+                EntityName = nameof(Match),
+                EntityId = match.Id,
+                DetailsJson = JsonSerializer.Serialize(new { sessionId = session.Id, matchId = match.Id }),
+                OccurredAtUtc = clock.UtcNow,
+            }, cancellationToken);
         }
 
         if (match.Status == MatchStatus.NeedsReview)
