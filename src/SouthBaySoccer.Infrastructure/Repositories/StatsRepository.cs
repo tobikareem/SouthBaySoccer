@@ -377,9 +377,10 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
         StatLeaderboardMetric metric,
         int skip,
         int take,
+        Guid? groupChatId,
         CancellationToken cancellationToken = default)
     {
-        var query = BuildPlayerStatAggregates(seasonId, playerProfileId: null);
+        var query = BuildPlayerStatAggregates(seasonId, playerProfileId: null, groupChatId);
         var ordered = metric switch
         {
             StatLeaderboardMetric.Goals => query
@@ -478,7 +479,10 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
             .Take(matchTake)
             .ToArrayAsync(cancellationToken);
 
-    private IQueryable<PlayerStatAggregate> BuildPlayerStatAggregates(Guid? seasonId, Guid? playerProfileId)
+    private IQueryable<PlayerStatAggregate> BuildPlayerStatAggregates(
+        Guid? seasonId,
+        Guid? playerProfileId,
+        Guid? groupChatId = null)
     {
         var eligibleMatches = dbContext.Matches
             .Where(match => match.Status == MatchStatus.Completed || match.Status == MatchStatus.Published || match.Status == MatchStatus.Locked)
@@ -489,11 +493,21 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
                 (match, session) => new { Match = match, Session = session })
             .Where(x => !seasonId.HasValue || x.Session.SeasonId == seasonId.Value);
 
+        // Group-scoped leaderboards restrict the player set to members of the selected group chat.
+        // Membership drives this filter — the underlying match facts are never group-tagged. Applied
+        // as a conditional Where rather than a nullable-IQueryable predicate so it never depends on
+        // the provider funcletizing a null check.
+        var participants = groupChatId.HasValue
+            ? dbContext.PlayerMatchStats.Where(participant => dbContext.PlayerGroupLinks
+                .Any(link => link.GroupChatId == groupChatId.Value && link.PlayerProfileId == participant.PlayerProfileId))
+            : dbContext.PlayerMatchStats;
+
         return
-            from participant in dbContext.PlayerMatchStats
+            from participant in participants
             join eligibleMatch in eligibleMatches on participant.MatchId equals eligibleMatch.Match.Id
             join profile in dbContext.PlayerProfiles on participant.PlayerProfileId equals profile.Id
-            where participant.Played && (!playerProfileId.HasValue || participant.PlayerProfileId == playerProfileId.Value)
+            where participant.Played
+                && (!playerProfileId.HasValue || participant.PlayerProfileId == playerProfileId.Value)
             group new { participant, profile } by new
             {
                 profile.Id,

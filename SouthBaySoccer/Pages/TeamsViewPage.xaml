@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.TeamsViewPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:contracts="clr-namespace:SouthBaySoccer.Contracts.GameDay;assembly=SouthBaySoccer.Contracts"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="TeamsView"
+    x:DataType="pageModels:TeamsViewPageModel"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Teams">
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference TeamsView}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader
+            Title="Teams"
+            Subtitle="Your team and who you're up against"
+            ShowBack="True"
+            BackCommand="{Binding BackCommand}" />
+        <c:StateView
+            Grid.Row="1"
+            State="{Binding State}"
+            Title="{Binding StateTitle}"
+            Message="{Binding StateMessage}"
+            Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
+            GlyphFontFamily="FontAwesomeSolid"
+            RetryCommand="{Binding RetryCommand}">
+            <ScrollView>
+                <VerticalStackLayout
+                    Padding="{StaticResource LayoutPadding}"
+                    Spacing="{StaticResource SpaceMd}"
+                    BindableLayout.ItemsSource="{Binding Teams}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="contracts:SessionTeamDto">
+                            <Border Style="{StaticResource CardSurface}">
+                                <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                                        <VerticalStackLayout>
+                                            <Label Text="{Binding Name}" Style="{StaticResource TextBodyStrong}" />
+                                            <Label Text="{Binding CaptainName, StringFormat='Captain: {0}'}" Style="{StaticResource TextCaption}" />
+                                        </VerticalStackLayout>
+                                        <c:Badge Grid.Column="1" Text="Your team" Variant="Success" VerticalOptions="Center" IsVisible="{Binding IsMine}" />
+                                    </Grid>
+                                    <BoxView HeightRequest="1" Color="{StaticResource HeaderOverlay}" />
+                                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Members}" Spacing="{StaticResource SpaceXs}">
+                                        <BindableLayout.ItemTemplate>
+                                            <DataTemplate x:DataType="contracts:SessionTeamMemberDto">
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}" Padding="{StaticResource RowPadding}">
+                                                    <Label Text="{Binding DisplayName}" Style="{StaticResource TextBody}" VerticalOptions="Center" />
+                                                    <HorizontalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}" VerticalOptions="Center">
+                                                        <c:Badge Text="Captain" Variant="Neutral" IsVisible="{Binding IsCaptain}" />
+                                                        <c:Badge Text="You" Variant="Success" IsVisible="{Binding IsMe}" />
+                                                    </HorizontalStackLayout>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </BindableLayout.ItemTemplate>
+                                    </VerticalStackLayout>
+                                </VerticalStackLayout>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+            </ScrollView>
+        </c:StateView>
+    </Grid>
+</ContentPage>

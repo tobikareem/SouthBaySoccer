@@ -11,8 +11,8 @@ public sealed class PickupPalOptions
     public const string ApiBaseUrlKey = "ApiBaseUrl";
     public const string ProductionApiBaseUrlKey = "PrdApiBaseUrl";
     public const string DefaultBotDisplayNumber = "+1 (650) 220-5416";
-    public const string DefaultBotUri = "https://wa.me/16502205416";
-    public const string DefaultSignupUri = "https://pickuppal.app/";
+    public const string DefaultBotUri = "https://www.pickuppal.xyz/bot-setup";
+    public const string DefaultSignupUri = "https://www.pickuppal.xyz/auth/signup";
     public const string DefaultCallbackUri = "southbaysoccer://auth/whatsapp";
 
     public Uri ApiBaseUri { get; init; } = new(DefaultApiBaseUrl);

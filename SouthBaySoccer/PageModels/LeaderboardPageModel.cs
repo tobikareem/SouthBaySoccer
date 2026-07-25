@@ -13,6 +13,7 @@ namespace SouthBaySoccer.PageModels;
 /// </summary>
 public partial class LeaderboardPageModel(
     ILeaderboardClient leaderboardClient,
+    IGroupsClient groupsClient,
     ILeaderboardNavigator navigator,
     LeaderboardOptions options) : ObservableObject
 {
@@ -45,6 +46,21 @@ public partial class LeaderboardPageModel(
     private LeaderboardMetric _selectedMetric = LeaderboardMetric.Goals;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasGroups))]
+    private IReadOnlyList<LeaderboardGroupOption> _groups = [];
+
+    [ObservableProperty]
+    private LeaderboardGroupOption? _selectedGroup;
+
+    /// <summary>True once the group filter has options to show (linked groups plus "All").</summary>
+    public bool HasGroups => Groups.Count > 1;
+
+    // Guards the initial group population so setting SelectedGroup for the first time does not
+    // trigger a redundant reload before the very first ranking load runs.
+    private bool _suppressGroupReload;
+    private bool _groupsLoaded;
+
+    [ObservableProperty]
     private IReadOnlyList<LeaderboardRowItem> _rankings = [];
 
     /// <summary>
@@ -67,10 +83,13 @@ public partial class LeaderboardPageModel(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSelectMetric))]
+    [NotifyPropertyChangedFor(nameof(CanSelectGroup))]
     [NotifyCanExecuteChangedFor(nameof(SelectMetricCommand))]
     private bool _isBusy;
 
     public bool CanSelectMetric => !IsBusy;
+
+    public bool CanSelectGroup => !IsBusy;
 
     partial void OnSelectedMetricIndexChanged(int value)
     {
@@ -80,11 +99,61 @@ public partial class LeaderboardPageModel(
         }
     }
 
+    partial void OnSelectedGroupChanged(LeaderboardGroupOption? value)
+    {
+        // Reload when the player picks a different group, but not while we are seeding the list or a
+        // load is already running.
+        if (_suppressGroupReload || IsBusy)
+        {
+            return;
+        }
+
+        _ = LoadRankingAsync(CancellationToken.None);
+    }
+
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task Appearing(CancellationToken cancellationToken) => LoadRankingAsync(cancellationToken);
+    private async Task Appearing(CancellationToken cancellationToken)
+    {
+        await LoadGroupsAsync(cancellationToken);
+        await LoadRankingAsync(cancellationToken);
+    }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private Task Refresh(CancellationToken cancellationToken) => LoadRankingAsync(cancellationToken);
+
+    // Loads the player's linked groups once and seeds the filter with an "All" aggregate plus each
+    // group, defaulting to the player's primary group. A failure here is non-fatal — the leaderboard
+    // still loads on the aggregate view.
+    private async Task LoadGroupsAsync(CancellationToken cancellationToken)
+    {
+        if (_groupsLoaded)
+        {
+            return;
+        }
+
+        try
+        {
+            var myGroups = await groupsClient.GetMyGroupsAsync(cancellationToken);
+            var groupOptions = new List<LeaderboardGroupOption> { LeaderboardGroupOption.All };
+            groupOptions.AddRange(myGroups.Groups.Select(group =>
+                new LeaderboardGroupOption(group.Id, group.GroupName, group.IsPrimary)));
+
+            _suppressGroupReload = true;
+            Groups = groupOptions;
+            SelectedGroup = groupOptions.FirstOrDefault(option => option.IsPrimary) ?? LeaderboardGroupOption.All;
+            _suppressGroupReload = false;
+            _groupsLoaded = true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // Leave the filter empty (hidden) and fall back to the aggregate leaderboard.
+            _suppressGroupReload = false;
+        }
+    }
 
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanSelectMetric))]
     private Task SelectMetric(LeaderboardMetricOption? metric, CancellationToken cancellationToken)
@@ -110,6 +179,7 @@ public partial class LeaderboardPageModel(
             var ranking = await leaderboardClient.GetRankingAsync(
                 options.SeasonId,
                 SelectedMetric,
+                SelectedGroup?.Id,
                 cancellationToken);
 
             ApplyRanking(ranking);
@@ -170,6 +240,15 @@ public sealed class LeaderboardOptions
     public Guid SeasonId { get; init; } = Guid.Parse("40000000-0000-0000-0000-000000000001");
 
     public string SeasonLabel { get; init; } = "Season 2026";
+}
+
+/// <summary>
+/// One option in the leaderboard group filter. A null <see cref="Id"/> is the "All" aggregate across
+/// every group; otherwise it is the internal group-chat id passed to the leaderboard query.
+/// </summary>
+public sealed record LeaderboardGroupOption(Guid? Id, string Name, bool IsPrimary = false)
+{
+    public static LeaderboardGroupOption All { get; } = new(null, "All groups");
 }
 
 public sealed record LeaderboardMetricOption(LeaderboardMetric Metric, string Label)

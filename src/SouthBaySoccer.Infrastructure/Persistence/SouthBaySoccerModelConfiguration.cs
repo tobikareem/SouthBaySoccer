@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using SouthBaySoccer.Domain.Entities.Common;
 using SouthBaySoccer.Domain.Entities.Compliance;
+using SouthBaySoccer.Domain.Entities.Groups;
 using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Operations;
 using SouthBaySoccer.Domain.Entities.Payments;
@@ -29,6 +30,30 @@ internal static class SouthBaySoccerModelConfiguration
         ConfigureScheduling(modelBuilder);
         ConfigureStats(modelBuilder);
         ConfigureOperations(modelBuilder);
+        ConfigureGroups(modelBuilder);
+    }
+
+    private static void ConfigureGroups(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<GroupChat>(b =>
+        {
+            ConfigureBase(b, "GroupChats", softDelete: true);
+            b.Property(x => x.ExternalId).HasMaxLength(256).IsRequired();
+            b.Property(x => x.GroupName).HasMaxLength(256).IsRequired();
+            b.Property(x => x.LinkageCode).HasMaxLength(64);
+            b.Property(x => x.Status).HasMaxLength(32).IsRequired();
+            b.Property(x => x.Timezone).HasMaxLength(128);
+            b.HasIndex(x => x.ExternalId).IsUnique().HasFilter("[IsDeleted] = 0");
+        });
+        modelBuilder.Entity<PlayerGroupLink>(b =>
+        {
+            ConfigureBase(b, "PlayerGroupLinks", softDelete: true);
+            b.HasOne<PlayerProfile>().WithMany().HasForeignKey(x => x.PlayerProfileId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<GroupChat>().WithMany().HasForeignKey(x => x.GroupChatId).OnDelete(DeleteBehavior.Restrict);
+            b.HasIndex(x => new { x.PlayerProfileId, x.GroupChatId }).IsUnique().HasFilter("[IsDeleted] = 0");
+            // Enforce at most one primary group per player at the database level, not just in app logic.
+            b.HasIndex(x => x.PlayerProfileId).IsUnique().HasFilter("[IsPrimary] = 1 AND [IsDeleted] = 0");
+        });
     }
 
     private static void ConfigureIdentity(ModelBuilder modelBuilder)

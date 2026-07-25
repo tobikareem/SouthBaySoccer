@@ -16,6 +16,8 @@ public interface IGameDayNavigator
 
     Task OpenTeamDraftAsync(Guid sessionId);
 
+    Task OpenTeamsViewAsync(Guid sessionId);
+
     Task OpenPostGameApprovalAsync(Guid sessionId);
 
     Task OpenMatchStatsAsync(Guid matchId);
@@ -166,6 +168,7 @@ public partial class GameDayPageModel(
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasGameDayActions))]
     [NotifyPropertyChangedFor(nameof(ShowPickTeam))]
+    [NotifyPropertyChangedFor(nameof(ShowViewTeams))]
     [NotifyCanExecuteChangedFor(nameof(OpenCaptainAssignmentCommand))]
     [NotifyCanExecuteChangedFor(nameof(OpenTeamDraftCommand))]
     private bool _canAssignCaptains;
@@ -173,8 +176,14 @@ public partial class GameDayPageModel(
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasGameDayActions))]
     [NotifyPropertyChangedFor(nameof(ShowPickTeam))]
+    [NotifyPropertyChangedFor(nameof(ShowViewTeams))]
     [NotifyCanExecuteChangedFor(nameof(OpenTeamDraftCommand))]
     private bool _canDraftTeam;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowViewTeams))]
+    [NotifyCanExecuteChangedFor(nameof(OpenTeamsViewCommand))]
+    private bool _canViewTeams;
 
     /// <summary>
     /// Whether to surface the "Pick your team" entry. Admins see it throughout team setup (even
@@ -182,6 +191,12 @@ public partial class GameDayPageModel(
     /// actually draft.
     /// </summary>
     public bool ShowPickTeam => CanDraftTeam || CanAssignCaptains;
+
+    /// <summary>
+    /// Read-only "View your team" entry for players who can't draft (regular players). Captains and
+    /// admins use the draft screen instead, so this is hidden for them.
+    /// </summary>
+    public bool ShowViewTeams => CanViewTeams && !ShowPickTeam;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasGameDayActions))]
@@ -437,6 +452,12 @@ public partial class GameDayPageModel(
     // Executable whenever the entry is shown (ShowPickTeam); the handler guards the no-captains case.
     private bool CanOpenTeamDraft() => ShowPickTeam;
 
+    [RelayCommand(CanExecute = nameof(CanOpenTeamsView))]
+    private Task OpenTeamsView() =>
+        ShowViewTeams ? navigator.OpenTeamsViewAsync(sessionId) : Task.CompletedTask;
+
+    private bool CanOpenTeamsView() => ShowViewTeams;
+
     private bool CanOpenPostGameApproval() => CanApprovePostGame;
 
     // Both player-facing post-game screens are keyed off a real match id.
@@ -487,12 +508,11 @@ public partial class GameDayPageModel(
         StatusLabel = context.StatusLabel;
         PrimaryActionText = context.PrimaryActionText;
         BlockReason = context.BlockReason;
-        GoingCount = context.GoingCount;
-        CheckedInCount = context.CheckedInCount;
         LateCount = context.LateCount;
         CanCheckIn = context.IsSelfCheckInAvailable;
         CanAssignCaptains = context.CanAssignCaptains;
         CanDraftTeam = context.CanDraftTeam;
+        CanViewTeams = context.CanViewTeams;
         CanApprovePostGame = context.CanApprovePostGame;
         CanSubmitOwnStats = context.CanSubmitOwnStats;
         CanLateCheckIn = context.CanLateCheckIn;
@@ -508,8 +528,12 @@ public partial class GameDayPageModel(
                 context.CanManageCheckIns && !entry.IsCheckedIn,
                 entry.IsCheckedIn ? "Checked in" : entry.IsWaitlist ? "Waitlist" : "Going"))
             .ToArray();
-        // Derived from the roster so the count always matches the popup list shown on tap.
+        // All three tile counts are derived from the roster so each count always matches the popup
+        // list shown when it is tapped. (Going includes checked-in going players; Checked in is the
+        // subset that has arrived.)
+        GoingCount = Roster.Count(item => !item.IsWaitlist);
         WaitlistCount = Roster.Count(item => item.IsWaitlist);
+        CheckedInCount = Roster.Count(item => item.IsCheckedIn);
         StateTitle = string.Empty;
         StateMessage = string.Empty;
         State = ViewState.Content;
@@ -642,6 +666,10 @@ public partial class CaptainAssignmentPageModel(
     private bool _canLockTeams;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UnlockTeamsCommand))]
+    private bool _canUnlockTeams;
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(GrantCommand))]
     private bool _isLocked;
 
@@ -769,6 +797,19 @@ public partial class CaptainAssignmentPageModel(
 
     private bool CanExecuteLockTeams() => CanLockTeams && !IsLocked;
 
+    // Admin unlock: revert a locked match to Draft so captains can pick again.
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanExecuteUnlockTeams))]
+    private async Task UnlockTeams(CancellationToken cancellationToken)
+    {
+        var result = await gameDayClient.UnlockTeamsAsync(sessionId, cancellationToken);
+        if (result.IsSuccess)
+        {
+            await LoadAsync(cancellationToken);
+        }
+    }
+
+    private bool CanExecuteUnlockTeams() => CanUnlockTeams;
+
     partial void OnSearchTextChanged(string value) => ApplyFilter();
 
     private async Task LoadAsync(CancellationToken cancellationToken)
@@ -783,6 +824,7 @@ public partial class CaptainAssignmentPageModel(
         sessionId = dto.SessionId;
         CaptainCount = dto.CaptainCount;
         CanLockTeams = dto.CanLockTeams;
+        CanUnlockTeams = dto.CanUnlockTeams;
         IsLocked = dto.IsLocked;
         grantedCaptainIds.Clear();
         foreach (var id in dto.SelectedCaptainIds)
@@ -1442,6 +1484,9 @@ public sealed class ShellGameDayNavigator : IGameDayNavigator
 
     public Task OpenTeamDraftAsync(Guid sessionId) =>
         Shell.Current.GoToAsync(BuildRoute("draft", sessionId));
+
+    public Task OpenTeamsViewAsync(Guid sessionId) =>
+        Shell.Current.GoToAsync(BuildRoute("teams-view", sessionId));
 
     public Task OpenPostGameApprovalAsync(Guid sessionId) =>
         Shell.Current.GoToAsync(BuildRoute("postgame", sessionId));

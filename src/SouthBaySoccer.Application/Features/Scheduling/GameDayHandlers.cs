@@ -42,7 +42,8 @@ public sealed record GameDayContextModel(
     IReadOnlyList<GameDayRosterEntryModel> Roster,
     bool CanManageCheckIns,
     bool CanSubmitOwnStats,
-    IReadOnlyList<GameDayOptionModel> TodaysGames);
+    IReadOnlyList<GameDayOptionModel> TodaysGames,
+    bool CanViewTeams = false);
 
 /// <summary>
 /// One of today's games the player can act on, used to build the Game Day picker when more than one
@@ -245,6 +246,15 @@ public sealed class GetTodayGameDayContextQueryHandler(
             && match.Status is not MatchStatus.Published and not MatchStatus.Locked
             && roster.Any(member => member.PlayerProfileId == profile.Id);
 
+        // Any rostered player may view the teams read-only once they are settled (locked or later) -
+        // not mid-draft, when a player would see partial/stale sheets, and not after an admin unlock
+        // reverts to Draft. The client shows this only to players who cannot draft (captains/admins
+        // use the draft screen instead).
+        var canViewTeams = match is not null
+            && match.Status != MatchStatus.Draft
+            && teams.Count > 0
+            && roster.Any(member => member.PlayerProfileId == profile.Id);
+
         // The picker lists every game in the pool (ordered by kick-off), reusing the already-loaded
         // venue for the selected one and looking up the rest. Attendance is already fetched per game.
         var todaysGames = new List<GameDayOptionModel>(pool.Count);
@@ -287,7 +297,8 @@ public sealed class GetTodayGameDayContextQueryHandler(
             roster,
             canManageCheckIns,
             canSubmitOwnStats,
-            todaysGames);
+            todaysGames,
+            canViewTeams);
     }
 
     private static string DescribeAttendance(GameDayAttendanceRecord attendance) =>

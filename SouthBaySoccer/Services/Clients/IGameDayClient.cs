@@ -71,6 +71,14 @@ public interface IGameDayClient
         Guid sessionId,
         CancellationToken cancellationToken);
 
+    Task<ClientCommandResult> UnlockTeamsAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken);
+
+    Task<SessionTeamsDto?> GetSessionTeamsAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken);
+
     Task<PostGameApprovalDto?> GetPostGameApprovalAsync(
         Guid sessionId,
         CancellationToken cancellationToken);

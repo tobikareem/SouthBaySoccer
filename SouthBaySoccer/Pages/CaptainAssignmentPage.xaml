@@ -77,6 +77,8 @@
                     <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding IsLocked}">
                         <Label Text="Teams are locked. Captain picks can no longer change." Style="{StaticResource TextCaption}" />
                     </Border>
+                    <Button Text="Unlock teams" Command="{Binding UnlockTeamsCommand}" IsVisible="{Binding CanUnlockTeams}" Style="{StaticResource GhostButton}" />
+                    <Label Text="Unlocking reverts the game to drafting so captains can change picks. Available until results are recorded." Style="{StaticResource TextCaption}" HorizontalTextAlignment="Center" Opacity="0.7" IsVisible="{Binding CanUnlockTeams}" />
                 </VerticalStackLayout>
             </ScrollView>
         </c:StateView>

@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Xml.Linq;
 using FluentAssertions;
 using Moq;
+using SouthBaySoccer.Contracts.Groups;
 using SouthBaySoccer.Contracts.Leaderboards;
 using SouthBaySoccer.Contracts.Players;
 using SouthBaySoccer.Controls;
@@ -64,6 +65,7 @@ public class LeaderboardPageModelTests
             client.Setup(service => service.GetRankingAsync(
                     SeedFixtures.Season2026Id,
                     metric,
+                    It.IsAny<Guid?>(),
                     It.IsAny<CancellationToken>()))
                 .ReturnsAsync(SeedFixtures.Leaderboards[metric]);
         }
@@ -77,7 +79,45 @@ public class LeaderboardPageModelTests
         client.Verify(service => service.GetRankingAsync(
             SeedFixtures.Season2026Id,
             expectedMetric,
+            It.IsAny<Guid?>(),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Appearing_WhenPlayerHasNoLinkedGroups_DefaultsToAllAndHidesFilter()
+    {
+        var groups = new Mock<IGroupsClient>();
+        groups.Setup(service => service.GetMyGroupsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MyGroupsResponse(IsLinked: true, []));
+        var pageModel = CreatePageModel(groupsClient: groups);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.SelectedGroup.Should().Be(LeaderboardGroupOption.All);
+        pageModel.HasGroups.Should().BeFalse("only the 'All' option exists, so the filter stays hidden");
+    }
+
+    [Fact]
+    public async Task Appearing_DefaultsToPrimaryGroup_AndSwitchingGroupReloadsWithGroupId()
+    {
+        var groupId = Guid.NewGuid();
+        var groups = new Mock<IGroupsClient>();
+        groups.Setup(service => service.GetMyGroupsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MyGroupsResponse(
+                IsLinked: true,
+                [new GroupChatDto(groupId, "ext@g.us", "Bay Area Soccer", 349, IsLinked: true, IsPrimary: true)]));
+        var client = SeedLeaderboardClient();
+        var pageModel = CreatePageModel(client: client, groupsClient: groups);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        pageModel.SelectedGroup!.Id.Should().Be(groupId, "the leaderboard defaults to the player's primary group");
+
+        pageModel.SelectedGroup = LeaderboardGroupOption.All;
+
+        client.Verify(service => service.GetRankingAsync(
+            It.IsAny<Guid>(), It.IsAny<LeaderboardMetric>(), groupId, It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+        client.Verify(service => service.GetRankingAsync(
+            It.IsAny<Guid>(), It.IsAny<LeaderboardMetric>(), (Guid?)null, It.IsAny<CancellationToken>()), Times.AtLeastOnce);
     }
 
     [Fact]
@@ -100,6 +140,7 @@ public class LeaderboardPageModelTests
         client.Setup(service => service.GetRankingAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<LeaderboardMetric>(),
+                It.IsAny<Guid?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new LeaderboardDto(
                 SeedFixtures.Season2026Id,
@@ -125,6 +166,7 @@ public class LeaderboardPageModelTests
         client.Setup(service => service.GetRankingAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<LeaderboardMetric>(),
+                It.IsAny<Guid?>(),
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException());
         var pageModel = CreatePageModel(client: client);
@@ -142,6 +184,7 @@ public class LeaderboardPageModelTests
         client.Setup(service => service.GetRankingAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<LeaderboardMetric>(),
+                It.IsAny<Guid?>(),
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException());
         var pageModel = CreatePageModel(client: client);
@@ -164,9 +207,11 @@ public class LeaderboardPageModelTests
             Attribute(element, "Style") == "{StaticResource TextH1}");
         page.Descendants().Should().Contain(element =>
             element.Name.LocalName == "Badge" &&
-            Attribute(element, "Text") == "{Binding Season}" &&
-            Attribute(element, "Glyph") != null &&
-            Attribute(element, "Glyph")!.Contains("FontAwesomeGlyphs.ChevronRight"));
+            Attribute(element, "Text") == "{Binding Season}");
+        // The season chevron badge is now a group filter: a Picker bound to the player's groups.
+        page.Descendants().Should().Contain(element =>
+            element.Name.LocalName == "Picker" &&
+            Attribute(element, "SelectedItem") == "{Binding SelectedGroup, Mode=TwoWay}");
         page.Descendants().Should().Contain(element => element.Name.LocalName == "SegmentedControl");
         page.Descendants().Should().Contain(element => element.Name.LocalName == "PlayerRow");
         page.Descendants().Should().Contain(element =>
@@ -181,11 +226,21 @@ public class LeaderboardPageModelTests
 
     private static LeaderboardPageModel CreatePageModel(
         Mock<ILeaderboardClient>? client = null,
-        Mock<ILeaderboardNavigator>? navigator = null) =>
+        Mock<ILeaderboardNavigator>? navigator = null,
+        Mock<IGroupsClient>? groupsClient = null) =>
         new(
             (client ?? SeedLeaderboardClient()).Object,
+            (groupsClient ?? GroupsClient()).Object,
             (navigator ?? Navigator()).Object,
             new LeaderboardOptions { SeasonId = SeedFixtures.Season2026Id });
+
+    private static Mock<IGroupsClient> GroupsClient()
+    {
+        var client = new Mock<IGroupsClient>();
+        client.Setup(service => service.GetMyGroupsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MyGroupsResponse(IsLinked: true, []));
+        return client;
+    }
 
     private static Mock<ILeaderboardClient> SeedLeaderboardClient()
     {
@@ -195,6 +250,7 @@ public class LeaderboardPageModelTests
             client.Setup(service => service.GetRankingAsync(
                     SeedFixtures.Season2026Id,
                     metric,
+                    It.IsAny<Guid?>(),
                     It.IsAny<CancellationToken>()))
                 .ReturnsAsync(SeedFixtures.Leaderboards[metric]);
         }

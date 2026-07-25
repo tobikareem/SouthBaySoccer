@@ -95,6 +95,12 @@ public static class ClientServiceCollectionExtensions
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
+        services.AddHttpClient<IGroupsClient, ApiGroupsClient>(
+            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<AuthenticationHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+
         services.AddSingleton<IAuthenticationClient>(provider =>
             new AuthenticationClient(
                 provider.GetRequiredService<IHttpClientFactory>().CreateClient("SouthBaySoccer.Anonymous"),
@@ -146,6 +152,7 @@ public static class ClientServiceCollectionExtensions
         services.TryAddSingleton<ILeaderboardClient, SeedLeaderboardClient>();
         services.TryAddSingleton<IPlayersClient, SeedPlayersClient>();
         services.TryAddSingleton<IGameDayClient, SeedGameDayClient>();
+        services.TryAddSingleton<IGroupsClient, SeedGroupsClient>();
     }
 #endif
 

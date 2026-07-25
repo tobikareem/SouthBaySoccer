@@ -193,7 +193,8 @@ public class GameDayPageModelTests
         await pageModel.CheckInCommand.ExecuteAsync(null);
 
         pageModel.StatusLabel.Should().Be("Checked in");
-        pageModel.CheckedInCount.Should().Be(11);
+        // The checked-in tile count is derived from the roster, so it matches the popup list on tap.
+        pageModel.CheckedInCount.Should().Be(pageModel.Roster.Count(item => item.IsCheckedIn));
         pageModel.GoingCount.Should().Be(goingCount);
     }
 
@@ -489,15 +490,19 @@ public class GameDayPageModelTests
         IReadOnlyList<GameDayRosterEntryDto> roster,
         IReadOnlyList<GameDayGameOptionDto> todaysGames,
         bool canAssignCaptains = false,
-        bool canDraftTeam = false) =>
+        bool canDraftTeam = false,
+        bool canViewTeams = false) =>
         new(
             sessionId, Guid.NewGuid(), title, "Venue", "Fri Jul 24",
             "3:00 PM", "2:50 PM - 3:00 PM", "closes 3:00 PM",
             GameDayStatus.Open, "Open", false, "Check in", null, "Going",
             false, false, goingCount, 0, 0, canAssignCaptains, canDraftTeam, false,
-            Roster: roster, CanManageCheckIns: true, TodaysGames: todaysGames);
+            Roster: roster, CanManageCheckIns: true, TodaysGames: todaysGames, CanViewTeams: canViewTeams);
 
-    private static GameDayContextDto SingleGameContext(bool canAssignCaptains, bool canDraftTeam)
+    private static GameDayContextDto SingleGameContext(
+        bool canAssignCaptains,
+        bool canDraftTeam,
+        bool canViewTeams = false)
     {
         var game = Guid.NewGuid();
         return MakeContext(
@@ -507,7 +512,69 @@ public class GameDayPageModelTests
             roster: [],
             todaysGames: [new GameDayGameOptionDto(game, "Game", "Venue", new DateTime(2026, 7, 24, 20, 0, 0, DateTimeKind.Utc), "Open", true)],
             canAssignCaptains: canAssignCaptains,
-            canDraftTeam: canDraftTeam);
+            canDraftTeam: canDraftTeam,
+            canViewTeams: canViewTeams);
+    }
+
+    [Fact]
+    public async Task ViewTeams_RegularPlayer_ShowsEntryAndNavigatesToTeamsView()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SingleGameContext(canAssignCaptains: false, canDraftTeam: false, canViewTeams: true));
+        var navigator = Navigator();
+        var pageModel = new GameDayPageModel(client.Object, navigator.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.ShowViewTeams.Should().BeTrue();
+        pageModel.ShowPickTeam.Should().BeFalse();
+
+        await pageModel.OpenTeamsViewCommand.ExecuteAsync(null);
+
+        navigator.Verify(n => n.OpenTeamsViewAsync(It.IsAny<Guid>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ViewTeams_HiddenForAdminWhoCanDraft()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SingleGameContext(canAssignCaptains: true, canDraftTeam: true, canViewTeams: true));
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.ShowPickTeam.Should().BeTrue();
+        pageModel.ShowViewTeams.Should().BeFalse("captains and admins use the draft screen, not the read-only view");
+    }
+
+    [Fact]
+    public async Task CaptainAssignment_UnlockTeams_CallsClientWhenAvailable()
+    {
+        var checkedIn = new[]
+        {
+            new CheckedInPlayerDto(new PlayerSummaryDto(Guid.NewGuid(), "Ada", "A", "Midfielder", false), "going"),
+        };
+        var dto = new CaptainAssignmentDto(
+            Guid.NewGuid(), Guid.NewGuid(), 2, new[] { 2, 3, 4 },
+            [], checkedIn, CanLockTeams: false, IsLocked: true, CanUnlockTeams: true);
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetCaptainAssignmentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(dto);
+        client
+            .Setup(c => c.UnlockTeamsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Success);
+        var pageModel = new CaptainAssignmentPageModel(client.Object, Navigator().Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.CanUnlockTeams.Should().BeTrue();
+        pageModel.UnlockTeamsCommand.CanExecute(null).Should().BeTrue();
+
+        await pageModel.UnlockTeamsCommand.ExecuteAsync(null);
+
+        client.Verify(c => c.UnlockTeamsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

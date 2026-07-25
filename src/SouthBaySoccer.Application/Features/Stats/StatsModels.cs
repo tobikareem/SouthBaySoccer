@@ -137,7 +137,8 @@ public sealed record GetSeasonLeaderboardQuery(
     Guid? SeasonId,
     StatLeaderboardMetric Metric,
     int Page,
-    int PageSize);
+    int PageSize,
+    Guid? GroupChatId = null);
 
 public sealed record LeaderboardModel(
     Guid SeasonId,

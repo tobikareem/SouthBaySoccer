@@ -303,6 +303,25 @@ Scenario: Product UI follows the authoritative wireframe
 | Goals/assists +/- entry | `CounterStepper` |
 | RSVP / Submit / WhatsApp buttons | `PrimaryButton` / `GhostButton` / `WhatsAppButton` |
 | Loading / empty / error / offline | `StateView` |
+| Group selection (sign-in) & Stats group filter | `LinkGroupPage` (single-select `CollectionView`) / `Picker` |
+
+## 11.1 Group-chat linking & group-scoped leaderboard
+
+Players belong to WhatsApp group chats (mirrored from the read-only PickupPal API into our own
+database — see backend spec). Two client surfaces implement this:
+
+- **`LinkGroupPage` (route `//link-group`, blocking).** Shown immediately after sign-in when the
+  player is linked to no group (`AuthenticationNavigator` gates the initial route on
+  `IGroupsClient.GetMyGroupsAsync().IsLinked`). It is a **required** step: declared as a
+  `ShellContent` outside the `TabBar` (no tab, no back stack), `Shell.NavBarIsVisible="False"`,
+  `Shell.TabBarIsVisible="False"`, and `OnBackButtonPressed` returns `true`. Layout reuses
+  `StateView` + a single-select `CollectionView` of `CardSurface` rows (VSM `Selected` state tints
+  the row) + a `PrimaryButton` disabled until a group is picked. On link it routes to `//sessions`
+  via `IGroupLinkNavigator`.
+- **Stats leaderboard group filter.** The former season chevron badge is replaced by a `Picker`
+  bound to the player's linked groups plus an "All groups" aggregate, defaulting to the player's
+  **primary** group. The selected group id is threaded to `stats/leaderboards?groupId=…`; the top-5
+  is scoped to that group's members (membership-based, not game-tagged).
 
 ## 12. Out of scope / dependencies
 

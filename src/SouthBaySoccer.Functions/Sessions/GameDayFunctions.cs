@@ -16,6 +16,8 @@ public sealed class GameDayFunctions(
     GetCaptainAssignmentQueryHandler getCaptainAssignmentHandler,
     AssignSessionCaptainsCommandHandler assignCaptainsHandler,
     LockSessionTeamsCommandHandler lockSessionTeamsHandler,
+    UnlockSessionTeamsCommandHandler unlockSessionTeamsHandler,
+    GetSessionTeamsQueryHandler getSessionTeamsHandler,
     GetTeamDraftQueryHandler getTeamDraftHandler,
     SaveCaptainTeamPicksCommandHandler saveTeamPicksHandler,
     GetPostGameApprovalQueryHandler getPostGameApprovalHandler,
@@ -159,6 +161,41 @@ public sealed class GameDayFunctions(
                     ToResponse(result));
             },
             cancellationToken);
+    }
+
+    [Function(nameof(UnlockSessionTeams))]
+    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    public async Task<HttpResponseData> UnlockSessionTeams(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "game-day/sessions/{sessionId:guid}/teams/unlock")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(UnlockSessionTeams),
+            GetIdempotencyKey(request),
+            new { sessionId },
+            async token =>
+            {
+                var result = await unlockSessionTeamsHandler.HandleAsync(
+                    new UnlockSessionTeamsCommand(sessionId),
+                    token);
+                return new IdempotentResponse<GameDayMutationResponse>(
+                    HttpStatusCode.OK,
+                    ToResponse(result));
+            },
+            cancellationToken);
+    }
+
+    [Function(nameof(GetSessionTeams))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> GetSessionTeams(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "game-day/sessions/{sessionId:guid}/teams")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var result = await getSessionTeamsHandler.HandleAsync(sessionId, cancellationToken);
+        return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(result), cancellationToken);
     }
 
     [Function(nameof(GetCaptainAssignment))]
@@ -452,7 +489,8 @@ public sealed class GameDayFunctions(
                     game.StartsAtUtc,
                     game.StatusLabel,
                     game.IsSelected))
-                .ToArray());
+                .ToArray(),
+            context.CanViewTeams);
     }
 
     private static CaptainAssignmentDto ToResponse(CaptainAssignmentModel model) =>
@@ -464,7 +502,27 @@ public sealed class GameDayFunctions(
             model.SelectedCaptainIds,
             model.CheckedInPlayers.Select(ToResponse).ToArray(),
             model.CanLockTeams,
-            model.IsLocked);
+            model.IsLocked,
+            model.CanUnlockTeams);
+
+    private static SessionTeamsDto ToResponse(SessionTeamsModel model) =>
+        new(
+            model.SessionId,
+            model.MatchId,
+            model.Teams
+                .Select(team => new SessionTeamDto(
+                    team.TeamId,
+                    team.Name,
+                    team.CaptainName,
+                    team.IsMine,
+                    team.Members
+                        .Select(member => new SessionTeamMemberDto(
+                            member.PlayerProfileId,
+                            member.DisplayName,
+                            member.IsCaptain,
+                            member.IsMe))
+                        .ToArray()))
+                .ToArray());
 
     private static TeamDraftDto ToResponse(TeamDraftModel model) =>
         new(

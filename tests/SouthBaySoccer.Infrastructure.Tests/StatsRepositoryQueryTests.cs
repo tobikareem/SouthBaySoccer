@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using SouthBaySoccer.Application.Abstractions.Time;
+using SouthBaySoccer.Domain.Entities.Groups;
 using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Entities.Stats;
@@ -34,13 +35,49 @@ public sealed class StatsRepositoryQueryTests
         var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
         var (season, ada, tunde) = await SeedGoalLeaderboardAsync(db);
 
-        var rows = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, skip: 0, take: 10);
+        var rows = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, skip: 0, take: 10, groupChatId: null);
 
         rows.Select(x => x.PlayerProfileId).Should().StartWith([tunde.Id, ada.Id]);
         rows.Single(x => x.PlayerProfileId == tunde.Id).Goals.Should().Be(2);
         rows.Single(x => x.PlayerProfileId == ada.Id).Goals.Should().Be(2);
         rows.Single(x => x.PlayerProfileId == ada.Id).Assists.Should().Be(1);
         rows.Should().NotContain(x => x.Goals > 2);
+    }
+
+    [Fact]
+    public async Task ListSeasonLeaderboardAsync_WhenGroupFilterApplied_RestrictsToGroupMembers()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+        var (season, ada, tunde) = await SeedGoalLeaderboardAsync(db);
+
+        // Link only Tunde to the group; Ada is a member of no group.
+        var group = new GroupChat
+        {
+            Id = Guid.NewGuid(),
+            ExternalId = $"{Guid.NewGuid():N}@g.us",
+            GroupName = "Bay Area Soccer",
+            Status = "SUBSCRIBED",
+        };
+        await db.GroupChats.AddAsync(group);
+        await db.PlayerGroupLinks.AddAsync(new PlayerGroupLink
+        {
+            Id = Guid.NewGuid(),
+            PlayerProfileId = tunde.Id,
+            GroupChatId = group.Id,
+            IsPrimary = true,
+        });
+        await db.SaveChangesAsync();
+
+        var groupRows = await repository.ListSeasonLeaderboardAsync(
+            season.Id, StatLeaderboardMetric.Goals, skip: 0, take: 10, groupChatId: group.Id);
+        var allRows = await repository.ListSeasonLeaderboardAsync(
+            season.Id, StatLeaderboardMetric.Goals, skip: 0, take: 10, groupChatId: null);
+
+        groupRows.Select(x => x.PlayerProfileId).Should().Equal(tunde.Id);
+        allRows.Select(x => x.PlayerProfileId).Should().Contain([ada.Id, tunde.Id]);
     }
 
     private ServiceProvider CreateServiceProvider()

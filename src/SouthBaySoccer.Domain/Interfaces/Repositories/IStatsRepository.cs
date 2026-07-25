@@ -93,6 +93,7 @@ public interface IStatsRepository
         StatLeaderboardMetric metric,
         int skip,
         int take,
+        Guid? groupChatId,
         CancellationToken cancellationToken = default);
 
     Task<PlayerStatSummaryReadModel?> GetPlayerStatsAsync(

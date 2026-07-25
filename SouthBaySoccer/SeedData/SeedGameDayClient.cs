@@ -138,6 +138,36 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
         return Task.FromResult(state.LockTeams(sessionId));
     }
 
+    public Task<ClientCommandResult> UnlockTeamsAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(ClientCommandResult.Success);
+    }
+
+    public Task<SessionTeamsDto?> GetSessionTeamsAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var draft = state.GetTeamDraft(sessionId);
+        var names = draft.CheckedInPlayers.ToDictionary(p => p.Player.Id, p => p.Player.DisplayName);
+        var teams = draft.Teams
+            .Select(team => new SessionTeamDto(
+                team.TeamId,
+                team.Name,
+                team.CaptainName,
+                false,
+                team.PlayerIds
+                    .Select(id => new SessionTeamMemberDto(
+                        id,
+                        names.TryGetValue(id, out var name) ? name : "Player",
+                        id == team.CaptainId,
+                        false))
+                    .ToArray()))
+            .ToArray();
+        return Task.FromResult<SessionTeamsDto?>(new SessionTeamsDto(draft.SessionId, draft.MatchId, teams));
+    }
+
     public Task<PostGameApprovalDto?> GetPostGameApprovalAsync(
         Guid sessionId,
         CancellationToken cancellationToken)

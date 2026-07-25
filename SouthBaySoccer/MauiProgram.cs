@@ -91,6 +91,9 @@ public static class MauiProgram
         builder.Services.AddTransient<AppShell>();
         builder.Services.AddTransient<WelcomeBackPage>();
         builder.Services.AddTransient<WelcomeBackPageModel>();
+        builder.Services.AddTransient<LinkGroupPage>();
+        builder.Services.AddTransient<LinkGroupPageModel>();
+        builder.Services.AddSingleton<IGroupLinkNavigator, ShellGroupLinkNavigator>();
 
         builder.Services.AddTransient<SessionsHomePage>();
         builder.Services.AddTransient<SessionsHomePageModel>();
@@ -98,6 +101,7 @@ public static class MauiProgram
         builder.Services.AddTransient<GameDayPageModel>();
         builder.Services.AddTransient<CaptainAssignmentPageModel>();
         builder.Services.AddTransient<TeamDraftPageModel>();
+        builder.Services.AddTransient<TeamsViewPageModel>();
         builder.Services.AddTransient<PostGameApprovalPageModel>();
         builder.Services.AddLeaderboardFeature();
         builder.Services.AddPlayersFeature();
@@ -161,6 +165,7 @@ public static class MauiProgram
         builder.Services.AddTransientWithShellRoute<CreateSessionPage, CreateSessionPageModel>("create-session");
         builder.Services.AddTransientWithShellRoute<CaptainAssignmentPage, CaptainAssignmentPageModel>("captains");
         builder.Services.AddTransientWithShellRoute<TeamDraftPage, TeamDraftPageModel>("draft");
+        builder.Services.AddTransientWithShellRoute<TeamsViewPage, TeamsViewPageModel>("teams-view");
         builder.Services.AddTransientWithShellRoute<PostGameApprovalPage, PostGameApprovalPageModel>("postgame");
         builder.Services.AddTransientWithShellRoute<RecentGamesPage, RecentGamesPageModel>("recent-games");
         // Another player's profile is a pushed detail page; the Profile tab stays the signed-in
