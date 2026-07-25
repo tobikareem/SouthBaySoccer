@@ -62,17 +62,58 @@ public sealed class ClaimParticipantHandlerTests
     public async Task Claimables_WhenPlayerNotOnRoster_ListsOnlyUnclaimedEntries()
     {
         var actor = Profile("Vic");
+        var realOther = ClaimedProfile("real player");
         var repo = GameRepo(
             Participant("victor", playerProfileId: null),
-            Participant("linked player", playerProfileId: Guid.NewGuid()));
+            Participant("linked player", playerProfileId: realOther.Id));
         var handler = new GetSessionClaimablesQueryHandler(
-            CurrentUser().Object, ProfileRepo(actor).Object, SessionRepo().Object, RsvpRepo().Object, repo.Object);
+            CurrentUser().Object, ProfileRepo(actor, realOther).Object, SessionRepo().Object, RsvpRepo().Object, repo.Object);
 
         var result = await handler.HandleAsync(new GetSessionClaimablesQuery(SessionId));
 
         result.AlreadyOnRoster.Should().BeFalse();
         result.MyRegisteredName.Should().Be("Vic");
+        // A row owned by a signed-in player is never claimable; only the truly unclaimed one shows.
         result.Claimable.Select(c => c.DisplayName).Should().Equal("victor");
+    }
+
+    [Fact]
+    public async Task Claimables_IncludesRowsLinkedToUnclaimedProfiles()
+    {
+        var actor = Profile("Vic");
+        var duplicate = UnclaimedProfile("victor sanchez46");
+        var repo = GameRepo(
+            Participant("victor sanchez46", playerProfileId: duplicate.Id),
+            Participant("oz", playerProfileId: null));
+        var handler = new GetSessionClaimablesQueryHandler(
+            CurrentUser().Object, ProfileRepo(actor, duplicate).Object, SessionRepo().Object, RsvpRepo().Object, repo.Object);
+
+        var result = await handler.HandleAsync(new GetSessionClaimablesQuery(SessionId));
+
+        // The import duplicate (no login) is claimable alongside the never-linked row.
+        result.Claimable.Select(c => c.DisplayName).Should().BeEquivalentTo("victor sanchez46", "oz");
+    }
+
+    [Fact]
+    public async Task Claim_WhenRowLinkedToUnclaimedProfile_MergesDuplicateIntoCaller()
+    {
+        var actor = Profile("Vic");
+        var duplicate = UnclaimedProfile("victor46");
+        var participant = Participant("victor46", playerProfileId: duplicate.Id);
+        var repo = GameRepo(participant);
+        var profileRepo = ProfileRepo(actor, duplicate);
+        var stats = new Mock<IStatsRepository>();
+        var handler = new ClaimParticipantCommandHandler(
+            CurrentUser().Object, Clock().Object, profileRepo.Object, SessionRepo().Object,
+            RsvpRepo().Object, repo.Object, stats.Object, Mock.Of<IAuditLogRepository>(), Mock.Of<IUnitOfWork>());
+
+        await handler.HandleAsync(new ClaimParticipantCommand(SessionId, participant.Id));
+
+        stats.Verify(x => x.ReassignProfileStatsAsync(duplicate.Id, actor.Id, It.IsAny<CancellationToken>()), Times.Once);
+        profileRepo.Verify(x => x.AddProfileMergeAsync(
+            It.Is<ProfileMerge>(m => m.SourcePlayerProfileId == duplicate.Id && m.TargetPlayerProfileId == actor.Id),
+            It.IsAny<CancellationToken>()), Times.Once);
+        duplicate.IsDeleted.Should().BeTrue();
     }
 
     [Fact]
@@ -140,12 +181,27 @@ public sealed class ClaimParticipantHandlerTests
         return u;
     }
 
-    private static Mock<IPlayerProfileRepository> ProfileRepo(PlayerProfile actor)
+    private static Mock<IPlayerProfileRepository> ProfileRepo(PlayerProfile actor, params PlayerProfile[] linked)
     {
         var r = new Mock<IPlayerProfileRepository>();
         r.Setup(x => x.FindByIdentityUserIdAsync(IdentityUserId, It.IsAny<CancellationToken>())).ReturnsAsync(actor);
+        var all = new[] { actor }.Concat(linked).ToArray();
+        r.Setup(x => x.ListProfilesAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyCollection<Guid> ids, CancellationToken _) =>
+                all.Where(p => ids.Contains(p.Id)).ToArray());
+        foreach (var profile in linked)
+        {
+            r.Setup(x => x.FindProfileAsync(profile.Id, It.IsAny<CancellationToken>())).ReturnsAsync(profile);
+        }
+
         return r;
     }
+
+    private static PlayerProfile ClaimedProfile(string name) =>
+        new() { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = name };
+
+    private static PlayerProfile UnclaimedProfile(string name) =>
+        new() { Id = Guid.NewGuid(), IdentityUserId = null, DisplayName = name };
 
     private static Mock<ISessionRepository> SessionRepo()
     {
@@ -177,7 +233,8 @@ public sealed class ClaimParticipantHandlerTests
 
     private static ClaimParticipantCommandHandler ClaimHandler(
         PlayerProfile actor,
-        Mock<IPickupPalGameRepository> repo) =>
+        Mock<IPickupPalGameRepository> repo,
+        Mock<IStatsRepository>? statsRepo = null) =>
         new(
             CurrentUser().Object,
             Clock().Object,
@@ -185,6 +242,7 @@ public sealed class ClaimParticipantHandlerTests
             SessionRepo().Object,
             RsvpRepo().Object,
             repo.Object,
+            (statsRepo ?? new Mock<IStatsRepository>()).Object,
             Mock.Of<IAuditLogRepository>(),
             Mock.Of<IUnitOfWork>());
 

@@ -2,6 +2,7 @@ using System.Text.Json;
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
+using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Operations;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Enumerations;
@@ -71,12 +72,27 @@ public sealed class GetSessionClaimablesQueryHandler(
         var waitlist = await rsvpRepository.ListActiveWaitlistRosterAsync(query.SessionId, cancellationToken);
         var alreadyOnRoster = MatchClaimQueries.IsOnRoster(participants, going, waitlist, actor.Id);
 
-        // Unclaimed = snapshot-only rows with no linked profile at all. Someone already resolved to a
-        // profile (guest or real) is out of scope for a plain self-claim.
+        // Claimable = rows nobody with a login owns: never linked, OR linked to an *unclaimed*
+        // profile (no IdentityUserId) - the common import-duplicate case (e.g. "arturo sanchez46").
+        // Rows owned by a signed-in player are never offered, so a claim can't steal a real account;
+        // claiming an unclaimed-linked row merges that duplicate into the caller.
+        var linkedProfileIds = participants
+            .Where(p => p.PlayerProfileId is { } id && id != actor.Id)
+            .Select(p => p.PlayerProfileId!.Value)
+            .Distinct()
+            .ToArray();
+        var claimedProfileIds = linkedProfileIds.Length == 0
+            ? new HashSet<Guid>()
+            : (await playerProfileRepository.ListProfilesAsync(linkedProfileIds, cancellationToken))
+                .Where(profile => profile.IdentityUserId is not null)
+                .Select(profile => profile.Id)
+                .ToHashSet();
+
         var claimable = alreadyOnRoster
             ? []
             : participants
-                .Where(p => p.PlayerProfileId is null)
+                .Where(p => p.PlayerProfileId is null
+                    || (p.PlayerProfileId != actor.Id && !claimedProfileIds.Contains(p.PlayerProfileId.Value)))
                 .OrderBy(p => p.DisplayOrder)
                 .Select(p => new ClaimableParticipantModel(p.Id, p.DisplayName, p.IsWaitlist))
                 .ToArray();
@@ -174,6 +190,7 @@ public sealed class ClaimParticipantCommandHandler(
     ISessionRepository sessionRepository,
     IRsvpRepository rsvpRepository,
     IPickupPalGameRepository pickupPalGameRepository,
+    IStatsRepository statsRepository,
     IAuditLogRepository auditLogRepository,
     IUnitOfWork unitOfWork)
 {
@@ -193,9 +210,23 @@ public sealed class ClaimParticipantCommandHandler(
             throw new ApplicationNotFoundException("That player entry was not found.");
         }
 
-        if (participant.PlayerProfileId is not null)
+        if (participant.PlayerProfileId == actor.Id)
         {
-            throw new ApplicationConflictException("That spot has already been claimed.");
+            // Already the caller's - nothing to do.
+            return new GameDayMutationModel(participant.SessionId, Guid.Empty, 0);
+        }
+
+        // A row already linked to a real (signed-in) player is never claimable. A row linked to an
+        // unclaimed duplicate profile (no login) is the import-duplicate case: claiming it merges
+        // that profile into the caller so their whole history follows.
+        PlayerProfile? duplicate = null;
+        if (participant.PlayerProfileId is { } linkedId)
+        {
+            duplicate = await playerProfileRepository.FindProfileAsync(linkedId, cancellationToken);
+            if (duplicate is null || duplicate.IdentityUserId is not null)
+            {
+                throw new ApplicationConflictException("That spot has already been claimed.");
+            }
         }
 
         var participants = await pickupPalGameRepository.ListParticipantsAsync(command.SessionId, cancellationToken);
@@ -206,14 +237,39 @@ public sealed class ClaimParticipantCommandHandler(
             throw new ApplicationConflictException("You already have a spot on this game.");
         }
 
-        participant.PlayerProfileId = actor.Id;
-        pickupPalGameRepository.UpdateParticipant(participant);
+        string action;
+        if (duplicate is not null)
+        {
+            // Merge the unclaimed duplicate into the caller: re-points this participant and every
+            // other reference (stats, assignments, check-ins, ratings) then retires the duplicate.
+            await statsRepository.ReassignProfileStatsAsync(duplicate.Id, actor.Id, cancellationToken);
+            duplicate.IsDeleted = true;
+            playerProfileRepository.Update(duplicate);
+            await playerProfileRepository.AddProfileMergeAsync(new ProfileMerge
+            {
+                Id = Guid.NewGuid(),
+                SourcePlayerProfileId = duplicate.Id,
+                TargetPlayerProfileId = actor.Id,
+                Status = ProfileMergeStatus.Completed,
+                MergedAtUtc = clock.UtcNow,
+                MergedByActorType = AuditActorType.PlayerProfile,
+                MergedByActorId = actor.Id.ToString("D"),
+            }, cancellationToken);
+            action = "PickupPalParticipant.ClaimMerge";
+        }
+        else
+        {
+            participant.PlayerProfileId = actor.Id;
+            pickupPalGameRepository.UpdateParticipant(participant);
+            action = "PickupPalParticipant.SelfClaim";
+        }
+
         await auditLogRepository.AddAsync(new AuditLogEntry
         {
             Id = Guid.NewGuid(),
             ActorType = AuditActorType.PlayerProfile,
             ActorPlayerProfileId = actor.Id,
-            Action = "PickupPalParticipant.SelfClaim",
+            Action = action,
             EntityName = nameof(PickupPalGameParticipant),
             EntityId = participant.Id,
             DetailsJson = JsonSerializer.Serialize(new
@@ -222,6 +278,7 @@ public sealed class ClaimParticipantCommandHandler(
                 participantId = participant.Id,
                 claimedDisplayName = participant.DisplayName,
                 playerProfileId = actor.Id,
+                mergedFromProfileId = duplicate?.Id,
             }),
             OccurredAtUtc = clock.UtcNow,
         }, cancellationToken);
