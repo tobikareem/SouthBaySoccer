@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Entities.Stats;
 using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
@@ -366,6 +367,25 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
                 correction.CorrectedByPlayerProfileId = targetPlayerProfileId;
                 affected++;
             }
+        }
+
+        // Roster membership: the imported snapshot row and the check-in both key a player onto a
+        // session by profile id, so a merge that skipped these left the target off the roster (the
+        // very bug that made a merged player unable to submit stats). Dedup on (session, profile).
+        affected += await ReassignUniqueRowsAsync(
+            await dbContext.Set<PickupPalGameParticipant>().Where(x => x.PlayerProfileId == sourcePlayerProfileId).ToArrayAsync(cancellationToken),
+            row => dbContext.Set<PickupPalGameParticipant>().Any(x => x.SessionId == row.SessionId && x.PlayerProfileId == targetPlayerProfileId),
+            row => row.PlayerProfileId = targetPlayerProfileId);
+
+        affected += await ReassignUniqueRowsAsync(
+            await dbContext.CheckIns.Where(x => x.PlayerProfileId == sourcePlayerProfileId).ToArrayAsync(cancellationToken),
+            row => dbContext.CheckIns.Any(x => x.SessionId == row.SessionId && x.PlayerProfileId == targetPlayerProfileId),
+            row => row.PlayerProfileId = targetPlayerProfileId);
+
+        foreach (var checkIn in await dbContext.CheckIns.Where(x => x.CheckedInByPlayerProfileId == sourcePlayerProfileId).ToArrayAsync(cancellationToken))
+        {
+            checkIn.CheckedInByPlayerProfileId = targetPlayerProfileId;
+            affected++;
         }
 
         return affected;

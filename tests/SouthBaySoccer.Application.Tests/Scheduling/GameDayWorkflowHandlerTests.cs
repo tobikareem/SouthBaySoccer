@@ -369,6 +369,67 @@ public sealed class GameDayWorkflowHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenAdminRecordsResultOnDraftMatch_AutoLocksThenRecords()
+    {
+        var context = new TestContext(postGame: true, isGameAdmin: true);
+        var otherCaptainId = Guid.NewGuid();
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var otherTeam = context.Team(otherCaptainId, 2);
+        context.ConfigureMatch([actorTeam, otherTeam], MatchStatus.Draft);
+        context.Stats
+            .Setup(x => x.ListAssignmentsAsync(context.Match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Assignment(actorTeam.Id, context.Actor.Id),
+                context.Assignment(otherTeam.Id, otherCaptainId)
+            ]);
+        context.Stats
+            .Setup(x => x.ListMatchResultsAsync(context.Match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        var handler = new SavePostGameTeamResultCommandHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new SavePostGameTeamResultCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Stats.Object,
+            context.Audits.Object,
+            context.UnitOfWork.Object);
+
+        var result = await handler.HandleAsync(new SavePostGameTeamResultCommand(context.Session.Id, actorTeam.Id, 1, 0, 0));
+
+        context.Match.Status.Should().Be(MatchStatus.InProgress);
+        result.AffectedCount.Should().Be(1);
+        context.Audits.Verify(x => x.AddAsync(
+            It.Is<AuditLogEntry>(entry => entry.Action == "TeamDraft.Lock.OnResult"),
+            It.IsAny<CancellationToken>()), Times.Once);
+        context.Stats.Verify(x => x.UpsertMatchResultsAsync(
+            context.Match.Id, It.IsAny<IReadOnlyList<MatchResult>>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenCaptainRecordsResultOnDraftMatch_IsRejected()
+    {
+        var context = new TestContext(postGame: true, isGameAdmin: false);
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var otherTeam = context.Team(Guid.NewGuid(), 2);
+        context.ConfigureMatch([actorTeam, otherTeam], MatchStatus.Draft);
+        var handler = new SavePostGameTeamResultCommandHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new SavePostGameTeamResultCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Stats.Object,
+            context.Audits.Object,
+            context.UnitOfWork.Object);
+
+        var act = () => handler.HandleAsync(new SavePostGameTeamResultCommand(context.Session.Id, actorTeam.Id, 1, 0, 0));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>().WithMessage("*game admin*");
+        context.Match.Status.Should().Be(MatchStatus.Draft);
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenAnEventIsPending_RejectsPublish()
     {
         var context = new TestContext(postGame: true, isGameAdmin: false);
