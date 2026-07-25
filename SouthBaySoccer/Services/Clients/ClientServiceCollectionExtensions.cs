@@ -32,6 +32,14 @@ public static class ClientServiceCollectionExtensions
         };
     }
 
+    // Shared config for every typed API client. The explicit timeout matters: HttpClient's default
+    // is 100 seconds, which reads as a frozen button when the backend is unreachable or cold-starting.
+    private static void ConfigureApiClient(HttpClient client, PickupPalOptions pickupPalOptions)
+    {
+        client.BaseAddress = pickupPalOptions.ApiBaseUri;
+        client.Timeout = TimeSpan.FromSeconds(30);
+    }
+
     private static IServiceCollection AddApiClients(IServiceCollection services, PickupPalOptions pickupPalOptions)
     {
         // ApiSessionsClient formats display labels in device-local time from a TimeProvider; the
@@ -43,60 +51,60 @@ public static class ClientServiceCollectionExtensions
 
         services.AddHttpClient(
             "SouthBaySoccer.Anonymous",
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
         services.AddHttpClient<IProfileClient, ApiProfileClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
         services.AddHttpClient<ISessionAdminClient, ApiSessionAdminClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
         services.AddHttpClient<IPlayersClient, ApiPlayersClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
         services.AddHttpClient<ISessionsClient, ApiSessionsClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
         services.AddHttpClient<IRosterClient, ApiRosterClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
         services.AddHttpClient<IStatsClient, ApiStatsClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
         services.AddHttpClient<ILeaderboardClient, ApiLeaderboardClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
         services.AddHttpClient<IGameDayClient, ApiGameDayClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
         services.AddHttpClient<IGroupsClient, ApiGroupsClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();

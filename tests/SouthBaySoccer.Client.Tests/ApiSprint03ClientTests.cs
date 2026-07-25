@@ -202,14 +202,30 @@ public sealed class ApiSprint03ClientTests
                 : JsonResponse(GoingRsvpJson);
         }));
 
-        var firstAttempt = async () => await client.SetRsvpIntentAsync(SessionId, isGoing: true, CancellationToken.None);
-        await firstAttempt.Should().ThrowAsync<HttpRequestException>();
+        // A 5xx is an actionable failure result (not a thrown exception) so page models can show a
+        // real error instead of an unobserved crash — but it must NOT clear the idempotency key.
+        var firstAttempt = await client.SetRsvpIntentAsync(SessionId, isGoing: true, CancellationToken.None);
+        firstAttempt.IsSuccess.Should().BeFalse();
         (await client.SetRsvpIntentAsync(SessionId, isGoing: true, CancellationToken.None))
             .IsSuccess.Should().BeTrue();
         await client.SetRsvpIntentAsync(SessionId, isGoing: true, CancellationToken.None);
 
         keys[1].Should().Be(keys[0], "a retry after a failed attempt must replay the same key");
         keys[2].Should().NotBe(keys[0], "a new operation after success must use a fresh key");
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_JoinWaitlistAsync_ConnectivityFailure_PropagatesForOfflineState()
+    {
+        // Load-bearing contract: a connectivity fault (HttpRequestException with NO status code) must
+        // propagate — not be converted to a Failure result — so page models can show Offline.
+        var client = new ApiSessionsClient(
+            CreateHttpClient(_ => throw new HttpRequestException("connection refused")),
+            TimeProvider.System);
+
+        var act = async () => await client.JoinWaitlistAsync(SessionId, CancellationToken.None);
+
+        await act.Should().ThrowAsync<HttpRequestException>();
     }
 
     [Fact]

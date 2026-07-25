@@ -501,6 +501,40 @@ public class SessionsHomePageModelTests
     }
 
     [Fact]
+    public async Task JoinWaitlist_HttpTimeout_ShowsErrorInsteadOfHanging()
+    {
+        // Regression: an HttpClient timeout surfaces as TaskCanceledException whose token is NOT the
+        // command's token. The old unguarded catch rethrew it out of the fire-and-forget command, so
+        // the user saw no response at all ("the button hangs"). It must land in the Error state.
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.JoinWaitlistAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new TaskCanceledException("A task was canceled (HttpClient timeout)."));
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
+
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
+
+        pageModel.State.Should().Be(ViewState.Error);
+    }
+
+    [Fact]
+    public async Task JoinWaitlist_ConnectivityFailure_ShowsOfflineState()
+    {
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.JoinWaitlistAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("connection refused"));
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
+
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
+
+        pageModel.State.Should().Be(ViewState.Offline);
+        pageModel.StateTitle.Should().Be(SessionsHomePageModel.OfflineTitle);
+    }
+
+    [Fact]
     public async Task JoinWaitlist_ClientFailure_DoesNotRefreshDashboard()
     {
         var sessionsClient = new Mock<ISessionsClient>();

@@ -49,15 +49,20 @@ public sealed class ApiRosterClient(HttpClient httpClient) : IRosterClient
                 ? await SubmitGoingAsync(sessionId, cancellationToken)
                 : await CancelAsync(sessionId, cancellationToken);
         }
-        catch (ApiRequestException ex) when (IsClientError(ex.StatusCode))
+        catch (ApiRequestException ex)
         {
-            return ClientCommandResult.Failure($"http_{(int)ex.StatusCode!.Value}", ex.UserMessage);
+            // Mirror ApiSessionsClient.ExecuteCommandAsync: any server-produced status (4xx or 5xx)
+            // becomes an actionable failure; only pure connectivity faults propagate for Offline.
+            return ClientCommandResult.Failure(ToErrorCode(ex.StatusCode), ex.UserMessage);
         }
-        catch (HttpRequestException ex) when (IsClientError(ex.StatusCode))
+        catch (HttpRequestException ex) when (ex.StatusCode is not null)
         {
-            return ClientCommandResult.Failure($"http_{(int)ex.StatusCode!.Value}", ex.Message);
+            return ClientCommandResult.Failure(ToErrorCode(ex.StatusCode), ex.Message);
         }
     }
+
+    private static string ToErrorCode(HttpStatusCode? statusCode) =>
+        statusCode is { } status ? $"http_{(int)status}" : "http_error";
 
     private async Task<ClientCommandResult> SubmitGoingAsync(Guid sessionId, CancellationToken cancellationToken)
     {
@@ -90,9 +95,6 @@ public sealed class ApiRosterClient(HttpClient httpClient) : IRosterClient
         _cancelIdempotencyKeysBySessionId.TryRemove(sessionId, out _);
         return ClientCommandResult.Success;
     }
-
-    private static bool IsClientError(HttpStatusCode? statusCode) =>
-        statusCode is >= HttpStatusCode.BadRequest and < HttpStatusCode.InternalServerError;
 
     private static string NewIdempotencyKey() => Guid.NewGuid().ToString("N");
 }
