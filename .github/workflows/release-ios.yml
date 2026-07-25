@@ -1,17 +1,25 @@
 # iOS TestFlight delivery for the N9ja Bay MAUI client.
 #
 # Trigger: every push to release/ios — merging a PR into release/ios IS a push, so a merge
-# automatically ships a build. workflow_dispatch allows manual re-runs from the Actions tab.
+# automatically ships a build. workflow_dispatch allows manual runs from the Actions tab.
 #
-# Flow: checkout -> install .NET + iOS workload -> import signing identity into a throwaway
-# keychain -> stamp a unique build number -> publish a signed .ipa -> upload to App Store
-# Connect (appears in TestFlight after Apple finishes processing).
+# Flow: test gate (ubuntu, cheap) -> macOS: pin Xcode + .NET + iOS workload -> import signing
+# identity into a throwaway keychain -> validate the signing inputs -> stamp a re-run-safe build
+# number -> publish a signed .ipa -> retain it as an artifact -> upload to App Store Connect.
 #
-# Required repository secrets (Settings -> Secrets and variables -> Actions):
+# Build number scheme: (run_number * 100) + run_attempt + offset. run_number increments per run,
+# run_attempt per "Re-run jobs" click — so a retry after a successful upload never reuses the
+# number Apple already accepted (run 1 attempt 1 = 111, attempt 2 = 112, run 2 = 211).
+#
+# Toolchain is pinned (SDK, workload set, Xcode) and Xcode compatibility validation stays ON.
+# If the runner image drops the pinned Xcode, the "Select Xcode" step fails fast and prints the
+# available versions — update XCODE_VERSION below to re-pin.
+#
+# Required secrets (repo-level, or move into the "testflight" environment for protection rules):
 #   IOS_DIST_CERT_P12_BASE64        base64 of the Apple Distribution certificate exported as .p12
 #   IOS_DIST_CERT_PASSWORD          password chosen when exporting the .p12
 #   IOS_PROVISIONING_PROFILE_BASE64 base64 of the "N9ja Bay App Store" .mobileprovision
-#   APPSTORE_API_KEY_ID             App Store Connect API key id (e.g. 2X9R4HXF34)
+#   APPSTORE_API_KEY_ID             App Store Connect API key id
 #   APPSTORE_ISSUER_ID              App Store Connect issuer id (UUID)
 #   APPSTORE_API_PRIVATE_KEY        full contents of the AuthKey_<KEYID>.p8 file
 
@@ -23,36 +31,92 @@ on:
       - release/ios
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+# Serialize releases: a second merge queues behind an in-flight upload instead of racing it, and
+# never cancels it (a cancelled Apple upload can leave a half-processed build).
+concurrency:
+  group: release-ios-testflight
+  cancel-in-progress: false
+
 env:
   PROJECT: SouthBaySoccer/SouthBaySoccer.csproj
-  DOTNET_VERSION: '10.0.x'
+  DOTNET_SDK_VERSION: '10.0.301'
+  IOS_WORKLOAD_SET_VERSION: '10.0.302'
+  XCODE_VERSION: '26.6'
   TFM: net10.0-ios
-  # Keep generated build numbers above any number already uploaded manually. Bump this if a
-  # manual upload ever races ahead of run numbers.
+  # Keeps generated numbers above any manual upload (last manual build: 3). Bump if a manual
+  # upload ever races ahead of the generated sequence.
   BUILD_NUMBER_OFFSET: 10
   CODESIGN_KEY: 'Apple Distribution: Oluwatobi Kareem (WF2MPD5GKS)'
   CODESIGN_PROVISION: 'N9ja Bay App Store'
+  EXPECTED_APP_ID: 'WF2MPD5GKS.com.pickupsoccer.n9jabay'
+  EXPECTED_TEAM_ID: 'WF2MPD5GKS'
 
 jobs:
+  # Cheap gate: nothing ships unless the portable test suites pass. Infrastructure.Tests is
+  # excluded on purpose — it requires SQL Server LocalDB (Windows-only).
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup .NET ${{ env.DOTNET_SDK_VERSION }}
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Run test suites
+        run: |
+          set -euo pipefail
+          for project in \
+            tests/SouthBaySoccer.Domain.Tests/SouthBaySoccer.Domain.Tests.csproj \
+            tests/SouthBaySoccer.Application.Tests/SouthBaySoccer.Application.Tests.csproj \
+            tests/SouthBaySoccer.Functions.Tests/SouthBaySoccer.Functions.Tests.csproj \
+            tests/SouthBaySoccer.Client.Tests/SouthBaySoccer.Client.Tests.csproj
+          do
+            dotnet test "$project" --configuration Release
+          done
+
   build-and-upload:
+    needs: test
     runs-on: macos-15
     timeout-minutes: 60
+    # Created automatically on first run; add reviewers/branch restrictions and move the Apple
+    # secrets into it (Settings -> Environments -> testflight) to gate releases.
+    environment: testflight
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Setup .NET ${{ env.DOTNET_VERSION }}
-        uses: actions/setup-dotnet@v4
+      - name: Setup .NET ${{ env.DOTNET_SDK_VERSION }}
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
 
-      - name: Install iOS workload
-        run: dotnet workload install ios
+      # Pin the Xcode the iOS workload was validated against. Fails fast (with the available
+      # versions listed) if the runner image drops it — update XCODE_VERSION to re-pin.
+      - name: Select Xcode ${{ env.XCODE_VERSION }}
+        run: |
+          set -euo pipefail
+          XCODE_APP="/Applications/Xcode_${XCODE_VERSION}.app"
+          if [ ! -d "$XCODE_APP" ]; then
+            echo "::error::Pinned Xcode $XCODE_VERSION is not on this runner image. Available:"
+            ls /Applications | grep -i '^Xcode' || true
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE_APP/Contents/Developer"
+          xcodebuild -version
+
+      - name: Install iOS workload (set ${{ env.IOS_WORKLOAD_SET_VERSION }})
+        run: dotnet workload install ios --version "$IOS_WORKLOAD_SET_VERSION"
 
       # A dedicated throwaway keychain keeps the runner's login keychain untouched and lets
-      # codesign run headless (no GUI prompt): the keychain is created unlocked with a random
-      # password and destroyed in the cleanup step.
+      # codesign run headless: created unlocked with a random password, destroyed in cleanup.
       - name: Import signing certificate and provisioning profile
         env:
           P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
@@ -63,7 +127,8 @@ jobs:
           KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
           KEYCHAIN_PASSWORD=$(uuidgen)
 
-          echo "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          printf '%s' "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          chmod 600 "$RUNNER_TEMP/dist.p12"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 3600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
@@ -74,15 +139,47 @@ jobs:
 
           PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PROFILE_DIR"
-          echo "$PROFILE_BASE64" | base64 --decode > "$PROFILE_DIR/n9jabay-appstore.mobileprovision"
+          PROFILE_PATH="$PROFILE_DIR/n9jabay-appstore.mobileprovision"
+          printf '%s' "$PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+          chmod 600 "$PROFILE_PATH"
 
-          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+          # Later steps need these paths.
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "PROFILE_PATH=$PROFILE_PATH" >> "$GITHUB_ENV"
+
+      # Fail in seconds — not 20 minutes into a build — if the profile/cert don't represent the
+      # app we intend to ship.
+      - name: Validate signing inputs
+        run: |
+          set -euo pipefail
+          security cms -D -i "$PROFILE_PATH" > "$RUNNER_TEMP/profile.plist"
+
+          APP_ID=$(plutil -extract 'Entitlements.application-identifier' raw "$RUNNER_TEMP/profile.plist")
+          TEAM_ID=$(plutil -extract 'TeamIdentifier.0' raw "$RUNNER_TEMP/profile.plist")
+          EXPIRY=$(plutil -extract 'ExpirationDate' raw "$RUNNER_TEMP/profile.plist")
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          [ "$APP_ID" = "$EXPECTED_APP_ID" ] \
+            || { echo "::error::Profile app id '$APP_ID' != expected '$EXPECTED_APP_ID'"; exit 1; }
+          [ "$TEAM_ID" = "$EXPECTED_TEAM_ID" ] \
+            || { echo "::error::Profile team '$TEAM_ID' != expected '$EXPECTED_TEAM_ID'"; exit 1; }
+          [[ "$EXPIRY" > "$NOW" ]] \
+            || { echo "::error::Provisioning profile expired at $EXPIRY"; exit 1; }
+
+          # The profile's signing certificate must be the identity we imported.
+          PROFILE_CERT_SHA=$(plutil -extract 'DeveloperCertificates.0' raw "$RUNNER_TEMP/profile.plist" \
+            | base64 --decode | openssl x509 -inform DER -noout -fingerprint -sha1 \
+            | sed 's/^.*=//; s/://g')
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -q "$PROFILE_CERT_SHA" \
+            || { echo "::error::Profile cert $PROFILE_CERT_SHA is not in the imported keychain"; exit 1; }
+
+          echo "Signing inputs OK: $APP_ID / $TEAM_ID / expires $EXPIRY / cert $PROFILE_CERT_SHA"
 
       - name: Stamp build number
         id: buildnumber
         shell: pwsh
         run: |
-          $buildNumber = ${{ github.run_number }} + ${{ env.BUILD_NUMBER_OFFSET }}
+          $buildNumber = (${{ github.run_number }} * 100) + ${{ github.run_attempt }} + ${{ env.BUILD_NUMBER_OFFSET }}
           ./Scripts/Set-IosBuildNumber.ps1 -BuildNumber $buildNumber -Project "${{ env.PROJECT }}"
 
       - name: Publish signed .ipa
@@ -93,8 +190,30 @@ jobs:
             -p:ArchiveOnBuild=true \
             -p:RuntimeIdentifier=ios-arm64 \
             -p:CodesignKey="$CODESIGN_KEY" \
-            -p:CodesignProvision="$CODESIGN_PROVISION" \
-            -p:ValidateXcodeVersion=false
+            -p:CodesignProvision="$CODESIGN_PROVISION"
+
+      - name: Locate .ipa (require exactly one)
+        id: ipa
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          ipas=(SouthBaySoccer/bin/Release/${TFM}/ios-arm64/publish/*.ipa)
+          if [ "${#ipas[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one .ipa, found ${#ipas[@]}: ${ipas[*]:-none}"
+            exit 1
+          fi
+          echo "path=${ipas[0]}" >> "$GITHUB_OUTPUT"
+          echo "Found ${ipas[0]}"
+
+      # Retained BEFORE the Apple upload so a rejected/failed upload still leaves the exact
+      # artifact for diagnosis or manual delivery via Transporter.
+      - name: Keep .ipa as a workflow artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: n9jabay-ios-build-${{ steps.buildnumber.outputs.build-number }}
+          path: ${{ steps.ipa.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload to TestFlight
         env:
@@ -103,25 +222,22 @@ jobs:
           API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
         run: |
           set -euo pipefail
-          IPA=$(ls SouthBaySoccer/bin/Release/${TFM}/ios-arm64/publish/*.ipa | head -1)
-          echo "Uploading $IPA (build ${{ steps.buildnumber.outputs.build-number }})"
+          echo "Uploading ${{ steps.ipa.outputs.path }} (build ${{ steps.buildnumber.outputs.build-number }})"
 
-          # altool discovers the key at ./private_keys or ~/private_keys by key id.
+          # altool discovers the key at ~/private_keys by key id.
           mkdir -p ~/private_keys
-          echo "$API_PRIVATE_KEY" > ~/private_keys/AuthKey_${API_KEY_ID}.p8
+          printf '%s' "$API_PRIVATE_KEY" > ~/private_keys/AuthKey_${API_KEY_ID}.p8
+          chmod 600 ~/private_keys/AuthKey_${API_KEY_ID}.p8
 
-          xcrun altool --upload-app --type ios --file "$IPA" \
+          xcrun altool --upload-app --type ios --file "${{ steps.ipa.outputs.path }}" \
             --apiKey "$API_KEY_ID" --apiIssuer "$ISSUER_ID"
-
-      - name: Keep .ipa as a workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: n9jabay-ios-build-${{ steps.buildnumber.outputs.build-number }}
-          path: SouthBaySoccer/bin/Release/net10.0-ios/ios-arm64/publish/*.ipa
-          retention-days: 30
 
       - name: Clean up signing material
         if: always()
+        env:
+          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
         run: |
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
-          rm -f "$RUNNER_TEMP/dist.p12" ~/private_keys/AuthKey_*.p8 || true
+          rm -f "$RUNNER_TEMP/dist.p12" "$RUNNER_TEMP/profile.plist" || true
+          rm -f "${PROFILE_PATH:-}" || true
+          rm -f ~/private_keys/AuthKey_${API_KEY_ID}.p8 || true

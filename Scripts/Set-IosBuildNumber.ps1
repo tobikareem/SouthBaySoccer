@@ -18,7 +18,7 @@
     pwsh Scripts/Set-IosBuildNumber.ps1 -BuildNumber 42 # set exactly 42 (CI)
 #>
 param(
-    [int]$BuildNumber = 0,
+    [long]$BuildNumber = 0,
 
     [string]$Project = "SouthBaySoccer/SouthBaySoccer.csproj"
 )
@@ -37,7 +37,7 @@ if (-not $match.Success) {
     throw "Could not find <ApplicationVersion> in '$Project'."
 }
 
-$current = [int]$match.Groups[1].Value
+$current = [long]$match.Groups[1].Value
 $next = if ($BuildNumber -gt 0) { $BuildNumber } else { $current + 1 }
 
 if ($next -le $current -and $BuildNumber -gt 0) {
