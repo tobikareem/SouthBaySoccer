@@ -162,18 +162,21 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
         {
             return await operation();
         }
-        catch (ApiRequestException ex) when (IsClientError(ex.StatusCode))
+        catch (ApiRequestException ex)
         {
-            return ClientCommandResult.Failure($"http_{(int)ex.StatusCode!.Value}", ex.UserMessage);
+            // Any response the server actually produced (4xx or 5xx) becomes an actionable failure
+            // with the server's own message. Only genuine connectivity faults (no status at all)
+            // propagate, so page models can show their Offline state.
+            return ClientCommandResult.Failure(ToErrorCode(ex.StatusCode), ex.UserMessage);
         }
-        catch (HttpRequestException ex) when (IsClientError(ex.StatusCode))
+        catch (HttpRequestException ex) when (ex.StatusCode is not null)
         {
-            return ClientCommandResult.Failure($"http_{(int)ex.StatusCode!.Value}", ex.Message);
+            return ClientCommandResult.Failure(ToErrorCode(ex.StatusCode), ex.Message);
         }
     }
 
-    private static bool IsClientError(HttpStatusCode? statusCode) =>
-        statusCode is >= HttpStatusCode.BadRequest and < HttpStatusCode.InternalServerError;
+    private static string ToErrorCode(HttpStatusCode? statusCode) =>
+        statusCode is { } status ? $"http_{(int)status}" : "http_error";
 
     private SessionSummaryDto ToSummary(
         SessionAdminResponse session,

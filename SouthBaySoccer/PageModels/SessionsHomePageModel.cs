@@ -147,14 +147,19 @@ public partial class SessionsHomePageModel(
 
             await LoadDashboardAsync(forceProfileRefresh: false, cancellationToken);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
+        catch (HttpRequestException)
+        {
+            ApplyErrorState(ViewState.Offline, OfflineTitle, OfflineMessage);
+        }
         catch (Exception)
         {
-            // Refresh failed after a successful join; surface the standard error state
-            // rather than throwing out of the command.
+            // Includes HttpClient timeouts (TaskCanceledException whose token is NOT ours — the
+            // guarded catch above lets them fall through here). Rethrowing them out of a
+            // fire-and-forget command showed no UI at all, which read as a hang.
             ApplyErrorState(ViewState.Error, ErrorTitle, ErrorMessage);
         }
     }
