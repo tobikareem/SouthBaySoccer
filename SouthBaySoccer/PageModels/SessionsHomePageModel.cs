@@ -18,11 +18,13 @@ public partial class SessionsHomePageModel(
     ISessionsClient sessionsClient,
     ISessionsNavigator navigator,
     IProfileClient profileClient,
+    IGroupsClient groupsClient,
     IDismissedStatsPromptStore dismissedPromptStore,
     TimeProvider timeProvider) : ObservableObject
 {
     private string? _cachedProfileDisplayName;
     private string? _cachedProfileRole;
+    private string? _cachedGroupLabel;
 
     public const string ErrorTitle = "Couldn't load your sessions";
     public const string ErrorMessage = "Something went wrong loading your home screen. Please try again.";
@@ -169,8 +171,12 @@ public partial class SessionsHomePageModel(
                 dashboard.Greeting,
                 forceProfileRefresh,
                 cancellationToken);
+            var groupLabel = await ResolveGroupLabelOrDefaultAsync(
+                dashboard.GroupLabel,
+                forceProfileRefresh,
+                cancellationToken);
 
-            ApplyDashboard(dashboard, profileContext.Greeting, profileContext.CanManageSessions);
+            ApplyDashboard(dashboard, profileContext.Greeting, groupLabel, profileContext.CanManageSessions);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -190,9 +196,9 @@ public partial class SessionsHomePageModel(
         }
     }
 
-    private void ApplyDashboard(SessionsDashboardDto dashboard, string greeting, bool canManageSessions)
+    private void ApplyDashboard(SessionsDashboardDto dashboard, string greeting, string groupLabel, bool canManageSessions)
     {
-        GroupLabel = dashboard.GroupLabel;
+        GroupLabel = groupLabel;
         Greeting = greeting;
         DuesStatus = dashboard.DuesStatus;
         FeaturedSession = dashboard.FeaturedSession;
@@ -253,6 +259,44 @@ public partial class SessionsHomePageModel(
         catch (Exception)
         {
             return new ProfileHomeContext(fallbackGreeting, IsAdministrativeRole(_cachedProfileRole));
+        }
+    }
+
+    // The header shows the player's own group chat (their primary/default group, or the first one they
+    // linked) instead of a hardcoded brand label. Falls back to the dashboard's default label when the
+    // player hasn't linked a group yet. Cached like the profile name so we don't re-fetch on every
+    // Appearing; a pull-to-refresh forces a reload.
+    private async Task<string> ResolveGroupLabelOrDefaultAsync(
+        string fallbackLabel,
+        bool forceRefresh,
+        CancellationToken cancellationToken)
+    {
+        if (!forceRefresh && !string.IsNullOrWhiteSpace(_cachedGroupLabel))
+        {
+            return _cachedGroupLabel;
+        }
+
+        try
+        {
+            var myGroups = await groupsClient.GetMyGroupsAsync(cancellationToken);
+            var primary = myGroups.Groups.FirstOrDefault(group => group.IsPrimary)
+                ?? myGroups.Groups.FirstOrDefault();
+
+            if (primary is null || string.IsNullOrWhiteSpace(primary.GroupName))
+            {
+                return string.IsNullOrWhiteSpace(_cachedGroupLabel) ? fallbackLabel : _cachedGroupLabel;
+            }
+
+            _cachedGroupLabel = primary.GroupName;
+            return _cachedGroupLabel;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return string.IsNullOrWhiteSpace(_cachedGroupLabel) ? fallbackLabel : _cachedGroupLabel;
         }
     }
 

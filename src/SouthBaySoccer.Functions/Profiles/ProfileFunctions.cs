@@ -22,7 +22,23 @@ public sealed class ProfileFunctions(
         CancellationToken cancellationToken)
     {
         var result = await getMyProfileHandler.HandleAsync(cancellationToken);
-        return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(result), cancellationToken);
+        // The Profile tab reads its stats from this endpoint, so include the same career stats and
+        // recent form as the by-id profile - otherwise the signed-in player's own counts show zero.
+        var detail = await getPlayerProfileHandler.HandleAsync(result.PlayerProfileId, cancellationToken);
+        var response = ToResponse(result) with
+        {
+            CareerStats = new CareerStatsDto(
+                detail.CareerStats.Matches,
+                detail.CareerStats.Goals,
+                detail.CareerStats.Assists,
+                detail.CareerStats.AverageRating,
+                detail.CareerStats.MvpAwards,
+                detail.CareerStats.Likes,
+                detail.CareerStats.Wins,
+                detail.CareerStats.Losses),
+            RecentForm = detail.RecentForm.Select(ToResponse).ToArray(),
+        };
+        return await WriteJsonAsync(request, HttpStatusCode.OK, response, cancellationToken);
     }
 
     [Function(nameof(GetPlayerProfile))]

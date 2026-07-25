@@ -2,6 +2,7 @@ using System.Net.Http;
 using FluentAssertions;
 using Moq;
 using SouthBaySoccer.Contracts.Common;
+using SouthBaySoccer.Contracts.Groups;
 using SouthBaySoccer.Contracts.Profiles;
 using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Controls;
@@ -174,6 +175,45 @@ public class SessionsHomePageModelTests
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
         pageModel.Greeting.Should().Be("Good morning, Captain");
+    }
+
+    [Fact]
+    public async Task Appearing_WithLinkedGroups_UsesPrimaryGroupNameAsHeaderLabel()
+    {
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with { GroupLabel = "N9ja Bay" });
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var groupsClient = GroupsClientReturning(
+            new GroupChatDto(Guid.NewGuid(), "ext-1", "Weekend Warriors", 12, IsLinked: true, IsPrimary: false),
+            new GroupChatDto(Guid.NewGuid(), "ext-2", "Sunday League", 20, IsLinked: true, IsPrimary: true));
+        var pageModel = CreatePageModel(
+            sessionsClient.Object,
+            navigator.Object,
+            groupsClient: groupsClient.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.GroupLabel.Should().Be("Sunday League", "the header shows the player's primary group chat");
+    }
+
+    [Fact]
+    public async Task Appearing_WithNoLinkedGroups_FallsBackToDashboardGroupLabel()
+    {
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with { GroupLabel = "N9ja Bay" });
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(
+            sessionsClient.Object,
+            navigator.Object,
+            groupsClient: GroupsClientReturning().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.GroupLabel.Should().Be("N9ja Bay");
     }
 
     [Fact]
@@ -487,13 +527,25 @@ public class SessionsHomePageModelTests
         ISessionsNavigator navigator,
         IProfileClient? profileClient = null,
         int hour = 9,
-        IDismissedStatsPromptStore? dismissedPromptStore = null) =>
+        IDismissedStatsPromptStore? dismissedPromptStore = null,
+        IGroupsClient? groupsClient = null) =>
         new(
             sessionsClient,
             navigator,
             profileClient ?? ProfileClientReturning("Tobi Kareem").Object,
+            groupsClient ?? GroupsClientReturning().Object,
             dismissedPromptStore ?? new Mock<IDismissedStatsPromptStore>().Object,
             new FixedTimeProvider(hour));
+
+    private static Mock<IGroupsClient> GroupsClientReturning(params GroupChatDto[] groups)
+    {
+        var groupsClient = new Mock<IGroupsClient>();
+        groupsClient
+            .Setup(client => client.GetMyGroupsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MyGroupsResponse(groups.Length > 0, groups));
+
+        return groupsClient;
+    }
 
     private static Mock<IProfileClient> ProfileClientReturning(string displayName, string role = "GameAdmin")
     {
