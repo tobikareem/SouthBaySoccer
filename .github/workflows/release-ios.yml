@@ -114,8 +114,10 @@ jobs:
           sudo xcode-select -s "$XCODE_APP/Contents/Developer"
           xcodebuild -version
 
-      - name: Install iOS workload (set ${{ env.IOS_WORKLOAD_SET_VERSION }})
-        run: dotnet workload install ios --version "$IOS_WORKLOAD_SET_VERSION"
+      # maui-ios (not bare "ios"): a UseMaui project needs the MAUI build packs; the bare ios
+      # workload alone fails restore with a misleading "install maui-tizen" error.
+      - name: Install MAUI iOS workload (set ${{ env.IOS_WORKLOAD_SET_VERSION }})
+        run: dotnet workload install maui-ios --version "$IOS_WORKLOAD_SET_VERSION"
 
       # A dedicated throwaway keychain keeps the runner's login keychain untouched and lets
       # codesign run headless: created unlocked with a random password, destroyed in cleanup.
