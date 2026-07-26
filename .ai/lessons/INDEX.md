@@ -10,3 +10,4 @@ One line per lesson. Skim this at the start of a task; read the full entry when 
 
 - [android-defer-session-restore](2026-07-06-android-defer-session-restore.md) - Defer stored-token restore until after the startup page loads to avoid Android ANRs
 - [ef-retry-strategy-manual-transactions](2026-07-21-ef-retry-strategy-manual-transactions.md) - EnableRetryOnFailure rejects bare BeginTransactionAsync; wrap transactions in a retry-idempotent execution-strategy delegate
+- [maui-ios-ci-publish-pitfalls](2026-07-25-maui-ios-ci-publish-pitfalls.md) - CI iOS publish needs macos-26 + maui-ios workload + a csproj-scoped TFM conditional; never override TargetFrameworks globally
