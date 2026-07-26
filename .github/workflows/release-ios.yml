@@ -83,7 +83,9 @@ jobs:
 
   build-and-upload:
     needs: test
-    runs-on: macos-15
+    # macos-26: the only image carrying Xcode 26.6, which iOS workload set 10.0.302 requires
+    # (macos-15 tops out at Xcode 26.3 — verified against actions/runner-images).
+    runs-on: macos-26
     timeout-minutes: 60
     # Created automatically on first run; add reviewers/branch restrictions and move the Apple
     # secrets into it (Settings -> Environments -> testflight) to gate releases.
