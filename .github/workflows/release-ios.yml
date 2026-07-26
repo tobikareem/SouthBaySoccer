@@ -184,11 +184,15 @@ jobs:
           $buildNumber = (${{ github.run_number }} * 100) + ${{ github.run_attempt }} + ${{ env.BUILD_NUMBER_OFFSET }}
           ./Scripts/Set-IosBuildNumber.ps1 -BuildNumber $buildNumber -Project "${{ env.PROJECT }}"
 
+      # TargetFrameworks is overridden to iOS-only: the csproj multi-targets android/ios/maccatalyst
+      # and restore would otherwise demand the Android + Mac Catalyst workloads on every run just to
+      # evaluate TFMs we are not shipping.
       - name: Publish signed .ipa
         run: |
           dotnet publish "$PROJECT" \
             -f "$TFM" \
             -c Release \
+            -p:TargetFrameworks="$TFM" \
             -p:ArchiveOnBuild=true \
             -p:RuntimeIdentifier=ios-arm64 \
             -p:CodesignKey="$CODESIGN_KEY" \
