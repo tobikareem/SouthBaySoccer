@@ -31,6 +31,8 @@ internal sealed class UnitOfWork : IUnitOfWork
     {
         try
         {
+            // Cache eviction is drained by AuditSoftDeleteSaveChangesInterceptor.SavedChangesAsync,
+            // so every commit path is covered, not just this one.
             return await _context.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)

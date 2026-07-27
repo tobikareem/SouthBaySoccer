@@ -9,6 +9,8 @@ using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Infrastructure.Persistence;
 using SouthBaySoccer.Infrastructure.Persistence.Interceptors;
 using Xunit;
+using Microsoft.Extensions.Caching.Memory;
+using SouthBaySoccer.Infrastructure.Caching;
 
 namespace SouthBaySoccer.Infrastructure.Tests;
 
@@ -140,6 +142,6 @@ public sealed class OperationalRecordContractTests
         var currentUser = new Mock<ICurrentUser>();
         currentUser.SetupGet(x => x.UserId).Returns((Guid?)null);
 
-        return database.CreateDbContext(new AuditSoftDeleteSaveChangesInterceptor(clock.Object, currentUser.Object));
+        return database.CreateDbContext(new AuditSoftDeleteSaveChangesInterceptor(clock.Object, currentUser.Object, new CacheEvictionQueue(new MemoryCache(new MemoryCacheOptions()))));
     }
 }

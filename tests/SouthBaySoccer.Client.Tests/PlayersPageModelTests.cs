@@ -7,6 +7,7 @@ using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -192,7 +193,8 @@ public class PlayersPageModelTests
         Mock<IPlayersNavigator>? navigator = null) =>
         new(
             (client ?? SeedPlayersClient()).Object,
-            (navigator ?? Navigator()).Object);
+            (navigator ?? Navigator()).Object,
+            new ClientResponseCache(TimeProvider.System));
 
     private static Mock<IPlayersClient> SeedPlayersClient()
     {

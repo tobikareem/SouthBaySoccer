@@ -28,6 +28,70 @@ internal sealed class PlayerProfileRepository(SouthBaySoccerDbContext dbContext)
             .OrderBy(x => x.CreatedAt)
             .FirstOrDefaultAsync(x => x.WhatsAppJidHash == whatsAppJidHash, cancellationToken);
 
+    public async Task<IReadOnlyList<PlayerProfile>> ListByPickupPalUserIdsAsync(
+        IReadOnlyCollection<string> pickupPalUserIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (pickupPalUserIds.Count == 0)
+        {
+            return [];
+        }
+
+        var idArray = pickupPalUserIds as string[] ?? pickupPalUserIds.ToArray();
+        return await dbContext.PlayerProfiles
+            .Where(x => x.PickupPalUserId != null && idArray.Contains(x.PickupPalUserId))
+            .OrderBy(x => x.CreatedAt)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<PlayerProfile>> ListByPhoneNumberHashesAsync(
+        IReadOnlyCollection<string> phoneNumberHashes,
+        CancellationToken cancellationToken = default)
+    {
+        if (phoneNumberHashes.Count == 0)
+        {
+            return [];
+        }
+
+        var hashArray = phoneNumberHashes as string[] ?? phoneNumberHashes.ToArray();
+        return await dbContext.PlayerProfiles
+            .Where(x => x.PhoneNumberHash != null && hashArray.Contains(x.PhoneNumberHash))
+            .OrderBy(x => x.CreatedAt)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<PlayerProfile>> ListByWhatsAppJidHashesAsync(
+        IReadOnlyCollection<string> whatsAppJidHashes,
+        CancellationToken cancellationToken = default)
+    {
+        if (whatsAppJidHashes.Count == 0)
+        {
+            return [];
+        }
+
+        var hashArray = whatsAppJidHashes as string[] ?? whatsAppJidHashes.ToArray();
+        return await dbContext.PlayerProfiles
+            .Where(x => x.WhatsAppJidHash != null && hashArray.Contains(x.WhatsAppJidHash))
+            .OrderBy(x => x.CreatedAt)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<PlayerProfile>> ListByNormalizedDisplayNamesAsync(
+        IReadOnlyCollection<string> normalizedDisplayNames,
+        CancellationToken cancellationToken = default)
+    {
+        if (normalizedDisplayNames.Count == 0)
+        {
+            return [];
+        }
+
+        var nameArray = normalizedDisplayNames as string[] ?? normalizedDisplayNames.ToArray();
+        return await dbContext.PlayerProfiles
+            .Where(x => nameArray.Contains(x.NormalizedDisplayName))
+            .OrderBy(x => x.CreatedAt)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task<PlayerProfile?> FindSingleByNormalizedDisplayNameAsync(
         string normalizedDisplayName,
         CancellationToken cancellationToken = default)
@@ -52,22 +116,38 @@ internal sealed class PlayerProfileRepository(SouthBaySoccerDbContext dbContext)
             .ThenBy(x => x.Id)
             .ToArrayAsync(cancellationToken);
 
-    public async Task<IReadOnlyList<PlayerDirectoryReadModel>> ListDirectoryAsync(CancellationToken cancellationToken = default) =>
-        await (
-            from profile in dbContext.PlayerProfiles
-            let matches = dbContext.PlayerMatchStats
-                .Where(stat => stat.PlayerProfileId == profile.Id)
-                .Select(stat => stat.MatchId)
-                .Distinct()
-                .Count()
-            orderby profile.NormalizedDisplayName, profile.DisplayName
-            select new PlayerDirectoryReadModel(
-                profile.Id,
-                profile.DisplayName,
-                profile.PreferredPosition,
-                profile.IsGuest,
-                matches))
-        .ToArrayAsync(cancellationToken);
+    // Two flat queries instead of a per-profile correlated count: the subquery ran once per row, so
+    // its cost grew with the square of the directory. Matches played are grouped once and merged.
+    public async Task<IReadOnlyList<PlayerDirectoryReadModel>> ListDirectoryAsync(CancellationToken cancellationToken = default)
+    {
+        var profiles = await dbContext.PlayerProfiles
+            .OrderBy(x => x.NormalizedDisplayName)
+            .ThenBy(x => x.DisplayName)
+            .ThenBy(x => x.Id)
+            .Select(x => new { x.Id, x.DisplayName, x.PreferredPosition, x.IsGuest })
+            .ToArrayAsync(cancellationToken);
+        if (profiles.Length == 0)
+        {
+            return [];
+        }
+
+        var matchCounts = (await dbContext.PlayerMatchStats
+                .GroupBy(stat => stat.PlayerProfileId)
+                .Select(grouped => new
+                {
+                    PlayerProfileId = grouped.Key,
+                    Matches = grouped.Count(),
+                })
+                .ToArrayAsync(cancellationToken))
+            .ToDictionary(row => row.PlayerProfileId, row => row.Matches);
+
+        return profiles.Select(profile => new PlayerDirectoryReadModel(
+            profile.Id,
+            profile.DisplayName,
+            profile.PreferredPosition,
+            profile.IsGuest,
+            matchCounts.GetValueOrDefault(profile.Id))).ToArray();
+    }
 
     public Task<EmergencyContact?> FindEmergencyContactAsync(Guid playerProfileId, CancellationToken cancellationToken = default) =>
         dbContext.EmergencyContacts.SingleOrDefaultAsync(x => x.PlayerProfileId == playerProfileId, cancellationToken);

@@ -9,6 +9,7 @@ using SouthBaySoccer.SeedData;
 using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -489,7 +490,8 @@ public class ProfilePageModelTests
             (launcher ?? LauncherReturning(true)).Object,
             (navigator ?? Navigator()).Object,
             (authenticationCoordinator ?? new Mock<IAuthenticationCoordinator>()).Object,
-            (dialogService ?? new Mock<IUserDialogService>()).Object);
+            (dialogService ?? new Mock<IUserDialogService>()).Object,
+            new ClientResponseCache(TimeProvider.System));
 
     private static Mock<IProfileExternalLauncher> LauncherReturning(bool result)
     {

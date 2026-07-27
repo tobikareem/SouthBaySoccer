@@ -79,11 +79,14 @@ public sealed class CancelRsvpCommandHandler(
         var profile = await SubmitRsvpCommandHandler.GetCurrentProfileAsync(currentUser, playerProfileRepository, cancellationToken);
         var session = await SubmitRsvpCommandHandler.GetOpenSessionAsync(sessionRepository, command.SessionId, clock.UtcNow, cancellationToken);
 
+        // The whole waitlist is evaluated in one batched compliance read instead of two queries per
+        // candidate, but still inside the repository's transaction so an expiry never acts on a
+        // verdict that was read before the transaction opened.
         var result = await rsvpRepository.CancelAndPromoteAsync(
             session.Id,
             profile.Id,
-            async (candidatePlayerProfileId, token) =>
-                (await eligibilityService.CheckAsync(candidatePlayerProfileId, session.Id, token)).IsEligible,
+            (candidatePlayerProfileIds, token) =>
+                eligibilityService.CheckManyAsync(candidatePlayerProfileIds, session.Id, token),
             cancellationToken);
 
         return RsvpMapper.ToModel(result);

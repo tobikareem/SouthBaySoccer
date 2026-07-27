@@ -418,6 +418,10 @@ public sealed class ApiPipelineTests
 
     private sealed class StaticSessionRefresher(string accessToken) : IAuthenticationSessionRefresher
     {
+        public void InvalidateCachedToken()
+        {
+        }
+
         public Task<string?> GetValidAccessTokenAsync(
             bool forceRefresh = false,
             CancellationToken cancellationToken = default) =>
@@ -426,6 +430,10 @@ public sealed class ApiPipelineTests
 
     private sealed class SequenceSessionRefresher(params string[] accessTokens) : IAuthenticationSessionRefresher
     {
+        public void InvalidateCachedToken()
+        {
+        }
+
         private int index;
 
         public int ForceRefreshCount { get; private set; }

@@ -8,6 +8,7 @@ using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
 using ViewState = SouthBaySoccer.Controls.ViewState;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -81,6 +82,7 @@ public sealed class ScreenRequestCountTests
         var pageModel = new SchedulePageModel(
             new ApiSessionsClient(CreateHttpClient(handler), Clock),
             new Mock<ISessionsNavigator>(MockBehavior.Strict).Object,
+            new ClientResponseCache(TimeProvider.System),
             Clock);
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
@@ -130,7 +132,8 @@ public sealed class ScreenRequestCountTests
             new Mock<IProfileExternalLauncher>(MockBehavior.Strict).Object,
             new Mock<IProfileNavigator>(MockBehavior.Strict).Object,
             new Mock<IAuthenticationCoordinator>(MockBehavior.Strict).Object,
-            new Mock<IUserDialogService>(MockBehavior.Strict).Object);
+            new Mock<IUserDialogService>(MockBehavior.Strict).Object,
+            new ClientResponseCache(TimeProvider.System));
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
@@ -212,6 +215,7 @@ public sealed class ScreenRequestCountTests
             new ApiProfileClient(httpClient),
             new ApiGroupsClient(httpClient),
             new Mock<IDismissedStatsPromptStore>().Object,
+            new ClientResponseCache(TimeProvider.System),
             Clock);
     }
 
@@ -225,7 +229,8 @@ public sealed class ScreenRequestCountTests
     private static PlayersPageModel CreatePlayersPageModel(CountingHttpMessageHandler handler) =>
         new(
             new ApiPlayersClient(CreateHttpClient(handler)),
-            new Mock<IPlayersNavigator>(MockBehavior.Strict).Object);
+            new Mock<IPlayersNavigator>(MockBehavior.Strict).Object,
+            new ClientResponseCache(TimeProvider.System));
 
     private sealed class FixedTimeProvider : TimeProvider
     {
@@ -336,4 +341,52 @@ public sealed class ScreenRequestCountTests
           "waitlist": []
         }
         """;
+
+    [Fact]
+    public async Task SessionsHome_WhenReturnedToInsideTheCacheWindow_IssuesNoFurtherRequests()
+    {
+        var handler = CreateSessionsHomeHandler();
+        var httpClient = CreateHttpClient(handler);
+        var cache = new ClientResponseCache(TimeProvider.System);
+        var pageModel = CreateCachedSessionsHomePageModel(httpClient, cache);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        var afterFirstAppearing = handler.Requests.Count;
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        afterFirstAppearing.Should().BeGreaterThan(0);
+        handler.Requests.Should().HaveCount(
+            afterFirstAppearing,
+            "returning to a tab inside the cache window must not re-request anything");
+    }
+
+    [Fact]
+    public async Task SessionsHome_WhenPulledToRefresh_RefetchesEvenInsideTheCacheWindow()
+    {
+        var handler = CreateSessionsHomeHandler();
+        var httpClient = CreateHttpClient(handler);
+        var cache = new ClientResponseCache(TimeProvider.System);
+        var pageModel = CreateCachedSessionsHomePageModel(httpClient, cache);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        var afterFirstAppearing = handler.Requests.Count;
+        await pageModel.RefreshCommand.ExecuteAsync(null);
+
+        handler.Count("/sessions").Should().BeGreaterThan(
+            1,
+            "an explicit pull-to-refresh must bypass the cache the tab switch is served from");
+        handler.Requests.Count.Should().BeGreaterThan(afterFirstAppearing);
+    }
+
+    private static SessionsHomePageModel CreateCachedSessionsHomePageModel(
+        HttpClient httpClient,
+        IClientResponseCache cache) =>
+        new(
+            new CachedSessionsClient(new ApiSessionsClient(httpClient, Clock), cache),
+            new Mock<ISessionsNavigator>(MockBehavior.Strict).Object,
+            new CachedProfileClient(new ApiProfileClient(httpClient), cache),
+            new CachedGroupsClient(new ApiGroupsClient(httpClient), cache),
+            new Mock<IDismissedStatsPromptStore>().Object,
+            cache,
+            Clock);
 }

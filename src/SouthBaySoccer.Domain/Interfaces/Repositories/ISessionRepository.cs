@@ -13,6 +13,20 @@ public interface ISessionRepository : IRepository<Session>
     Task<Session?> FindByOccurrenceKeyAsync(string occurrenceKey, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Lists the sessions with the given ids in one query.
+    /// </summary>
+    Task<IReadOnlyList<Session>> ListByIdsAsync(
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the sessions carrying the given occurrence keys in one query.
+    /// </summary>
+    Task<IReadOnlyList<Session>> ListByOccurrenceKeysAsync(
+        IReadOnlyCollection<string> occurrenceKeys,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Determines whether an active (non-canceled) session already exists at the same venue with
     /// the same title and the same start time.
     /// </summary>

@@ -9,6 +9,7 @@ using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Stats;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 using Xunit;
+using SouthBaySoccer.Application.Tests.TestSupport;
 
 namespace SouthBaySoccer.Application.Tests.Stats;
 
@@ -249,6 +250,7 @@ public sealed class StatsQueryHandlerTests
             new GetSeasonLeaderboardQueryValidator(),
             seasons.Object,
             stats.Object,
+            new PassThroughReadThroughCache(),
             clock.Object);
 
         var result = await handler.HandleAsync(new GetSeasonLeaderboardQuery(seasonId, StatLeaderboardMetric.Goals, Page: 2, PageSize: 25));
@@ -285,6 +287,7 @@ public sealed class StatsQueryHandlerTests
             new GetSeasonLeaderboardQueryValidator(),
             seasons.Object,
             stats.Object,
+            new PassThroughReadThroughCache(),
             clock.Object);
 
         var result = await handler.HandleAsync(new GetSeasonLeaderboardQuery(null, StatLeaderboardMetric.Goals, Page: 1, PageSize: 25));
@@ -315,6 +318,7 @@ public sealed class StatsQueryHandlerTests
             new GetSeasonLeaderboardQueryValidator(),
             seasons.Object,
             stats.Object,
+            new PassThroughReadThroughCache(),
             clock.Object);
 
         var result = await handler.HandleAsync(new GetSeasonLeaderboardQuery(null, StatLeaderboardMetric.Goals, Page: 1, PageSize: 25));

@@ -13,6 +13,7 @@ using SouthBaySoccer.Domain.Interfaces.Repositories;
 using SouthBaySoccer.Functions.Authentication;
 using SouthBaySoccer.Functions.Players;
 using SouthBaySoccer.Functions.Pipeline;
+using SouthBaySoccer.Functions.Tests.TestSupport;
 
 namespace SouthBaySoccer.Functions.Tests;
 
@@ -40,7 +41,7 @@ public sealed class PlayersEndpointMetadataTests
             .ReturnsAsync([
                 new PlayerDirectoryReadModel(playerId, "Ada Johnson", "Midfielder", false, 12),
             ]);
-        var function = new PlayersFunctions(new GetPlayerDirectoryQueryHandler(repository.Object));
+        var function = new PlayersFunctions(new GetPlayerDirectoryQueryHandler(repository.Object, new PassThroughReadThroughCache()));
         var responseBody = new MemoryStream();
         using var services = CreateFunctionServices();
         var context = CreateFunctionContext(services);

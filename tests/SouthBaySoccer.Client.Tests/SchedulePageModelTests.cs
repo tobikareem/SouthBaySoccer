@@ -7,6 +7,7 @@ using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -174,6 +175,7 @@ public class SchedulePageModelTests
         new(
             sessionsClient,
             navigator ?? Mock.Of<ISessionsNavigator>(),
+            new ClientResponseCache(TimeProvider.System),
             new FixedTimeProvider());
 
     private static Mock<ISessionsClient> ClientReturning(SessionsDashboardDto dashboard)

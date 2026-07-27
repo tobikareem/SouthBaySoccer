@@ -5,6 +5,7 @@ using SouthBaySoccer.Configuration;
 using SouthBaySoccer.SeedData;
 using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -72,13 +73,14 @@ public class SeedClientRegistrationTests
         provider.GetRequiredService<IAuthenticationClient>()
             .Should().BeOfType<AuthenticationClient>();
         provider.GetRequiredService<IProfileClient>()
-            .Should().BeOfType<ApiProfileClient>();
+            .Should().BeOfType<CachedProfileClient>();
         provider.GetRequiredService<IPlayersClient>()
-            .Should().BeOfType<ApiPlayersClient>();
+            .Should().BeOfType<CachedPlayersClient>();
+        // API mode resolves the caching decorator, which wraps the real Api client.
         provider.GetRequiredService<ISessionsClient>()
-            .Should().BeOfType<ApiSessionsClient>();
+            .Should().BeOfType<CachedSessionsClient>();
         provider.GetRequiredService<IRosterClient>()
-            .Should().BeOfType<ApiRosterClient>();
+            .Should().BeOfType<CachedRosterClient>();
         provider.GetRequiredService<IStatsClient>()
             .Should().BeOfType<ApiStatsClient>();
         provider.GetRequiredService<ILeaderboardClient>()

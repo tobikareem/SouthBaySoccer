@@ -18,12 +18,17 @@ public interface IRsvpRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Cancels the player's active RSVP or waitlist state and promotes the next eligible waitlist entry.
+    /// Cancels the player's active RSVP or waitlist state and promotes the next eligible waitlist
+    /// entry. <paramref name="checkPromotionEligibilityAsync"/> is invoked at most once with every
+    /// active waitlist candidate and must return a verdict per candidate; candidates it omits are
+    /// treated as ineligible. Evaluating the whole waitlist in one call keeps the compliance read
+    /// inside the transaction — so an expiry is never written from a stale verdict — while costing
+    /// one query instead of one per candidate.
     /// </summary>
     Task<RsvpMutationResult> CancelAndPromoteAsync(
         Guid sessionId,
         Guid playerProfileId,
-        Func<Guid, CancellationToken, Task<bool>> isEligibleForPromotion,
+        Func<IReadOnlyCollection<Guid>, CancellationToken, Task<IReadOnlyDictionary<Guid, bool>>> checkPromotionEligibilityAsync,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -88,6 +93,15 @@ public interface IRsvpRepository
     /// <summary>Gets the compact attendance projection used by the Game Day screen.</summary>
     Task<GameDayAttendanceRecord> GetGameDayAttendanceAsync(
         Guid sessionId,
+        Guid currentPlayerProfileId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the game-day attendance projection for several sessions in two batched queries.
+    /// Every requested session id is present in the result, including sessions with no attendance.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, GameDayAttendanceRecord>> GetGameDayAttendanceBatchAsync(
+        IReadOnlyCollection<Guid> sessionIds,
         Guid currentPlayerProfileId,
         CancellationToken cancellationToken = default);
 }

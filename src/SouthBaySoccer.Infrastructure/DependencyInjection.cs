@@ -2,9 +2,11 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using SouthBaySoccer.Application.Abstractions.Authentication;
+using SouthBaySoccer.Application.Abstractions.Caching;
 using SouthBaySoccer.Application.Abstractions.Maps;
 using SouthBaySoccer.Application.Abstractions.Payments;
 using SouthBaySoccer.Application.Abstractions.Time;
@@ -18,6 +20,7 @@ using SouthBaySoccer.Infrastructure.Groups;
 using SouthBaySoccer.Infrastructure.Identity;
 using SouthBaySoccer.Infrastructure.Idempotency;
 using SouthBaySoccer.Infrastructure.Maps;
+using SouthBaySoccer.Infrastructure.Caching;
 using SouthBaySoccer.Infrastructure.Persistence;
 using SouthBaySoccer.Infrastructure.Persistence.Interceptors;
 using SouthBaySoccer.Infrastructure.Payments;
@@ -50,11 +53,24 @@ public static class DependencyInjection
                 .UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure())
                 .AddInterceptors(serviceProvider.GetRequiredService<AuditSoftDeleteSaveChangesInterceptor>());
         });
+        services.AddMemoryCache();
+        services.AddScoped<CacheEvictionQueue>();
+        services.AddScoped<IReadThroughCache, MemoryReadThroughCache>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IPlayerProfileRepository, PlayerProfileRepository>();
         services.AddScoped<IWaiverRepository, WaiverRepository>();
-        services.AddScoped<ISeasonRepository, SeasonRepository>();
-        services.AddScoped<IVenueRepository, VenueRepository>();
+        // Reference lists read on nearly every request path, decorated with a short cache that the
+        // unit of work invalidates after a successful commit.
+        services.AddScoped<SeasonRepository>();
+        services.AddScoped<ISeasonRepository>(provider => new CachedSeasonRepository(
+            provider.GetRequiredService<SeasonRepository>(),
+            provider.GetRequiredService<IMemoryCache>(),
+            provider.GetRequiredService<CacheEvictionQueue>()));
+        services.AddScoped<VenueRepository>();
+        services.AddScoped<IVenueRepository>(provider => new CachedVenueRepository(
+            provider.GetRequiredService<VenueRepository>(),
+            provider.GetRequiredService<IMemoryCache>(),
+            provider.GetRequiredService<CacheEvictionQueue>()));
         services.AddScoped<ISessionRepository, SessionRepository>();
         services.AddScoped<IRsvpRepository, RsvpRepository>();
         services.AddScoped<IPaymentRepository, PaymentRepository>();
@@ -76,8 +92,14 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(10));
         services.AddHttpClient<IPickupPalGamesClient, PickupPalGamesClient>(client =>
             client.Timeout = TimeSpan.FromSeconds(5));
-        services.AddHttpClient<IPickupPalGroupClient, PickupPalGroupClient>(client =>
+        // Registered by concrete type so the caching decorator below owns the IPickupPalGroupClient
+        // registration; the typed HttpClient plumbing is unchanged.
+        services.AddHttpClient<PickupPalGroupClient>(client =>
             client.Timeout = TimeSpan.FromSeconds(10));
+        services.AddScoped<IPickupPalGroupClient>(provider => new CachedPickupPalGroupClient(
+            provider.GetRequiredService<PickupPalGroupClient>(),
+            provider.GetRequiredService<IMemoryCache>(),
+            provider.GetRequiredService<IClock>()));
         services.AddScoped<IPickupPalGameRepository, PickupPalGameRepository>();
         services.AddScoped<IGroupChatRepository, GroupChatRepository>();
         services.AddScoped<IPlayerGroupLinkRepository, PlayerGroupLinkRepository>();
