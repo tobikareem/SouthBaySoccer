@@ -4,6 +4,10 @@
 		<TargetFrameworks>net10.0-android</TargetFrameworks>
 		<TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
 		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+		<!-- CI escape hatch (release-ios.yml): build only the iOS TFM so the runner needs no
+		     Android/MacCatalyst workloads. A scoped property (not a global TargetFrameworks
+		     override) so referenced net10.0 libraries keep their own frameworks. -->
+		<TargetFrameworks Condition="'$(PublishIosOnly)' == 'true'">net10.0-ios</TargetFrameworks>
 
 		<!-- Note for MacCatalyst:
 		The default runtime is maccatalyst-x64, except in Release config, in which case the default is maccatalyst-x64;maccatalyst-arm64.

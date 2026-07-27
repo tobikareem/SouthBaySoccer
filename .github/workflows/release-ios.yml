@@ -83,7 +83,9 @@ jobs:
 
   build-and-upload:
     needs: test
-    runs-on: macos-15
+    # macos-26: the only image carrying Xcode 26.6, which iOS workload set 10.0.302 requires
+    # (macos-15 tops out at Xcode 26.3 — verified against actions/runner-images).
+    runs-on: macos-26
     timeout-minutes: 60
     # Created automatically on first run; add reviewers/branch restrictions and move the Apple
     # secrets into it (Settings -> Environments -> testflight) to gate releases.
@@ -112,8 +114,10 @@ jobs:
           sudo xcode-select -s "$XCODE_APP/Contents/Developer"
           xcodebuild -version
 
-      - name: Install iOS workload (set ${{ env.IOS_WORKLOAD_SET_VERSION }})
-        run: dotnet workload install ios --version "$IOS_WORKLOAD_SET_VERSION"
+      # maui-ios (not bare "ios"): a UseMaui project needs the MAUI build packs; the bare ios
+      # workload alone fails restore with a misleading "install maui-tizen" error.
+      - name: Install MAUI iOS workload (set ${{ env.IOS_WORKLOAD_SET_VERSION }})
+        run: dotnet workload install maui-ios --version "$IOS_WORKLOAD_SET_VERSION"
 
       # A dedicated throwaway keychain keeps the runner's login keychain untouched and lets
       # codesign run headless: created unlocked with a random password, destroyed in cleanup.
@@ -182,11 +186,16 @@ jobs:
           $buildNumber = (${{ github.run_number }} * 100) + ${{ github.run_attempt }} + ${{ env.BUILD_NUMBER_OFFSET }}
           ./Scripts/Set-IosBuildNumber.ps1 -BuildNumber $buildNumber -Project "${{ env.PROJECT }}"
 
+      # PublishIosOnly flips a conditional in the csproj that scopes THAT project to the iOS TFM
+      # (so no Android/MacCatalyst workloads are needed) without overriding TargetFrameworks
+      # globally — a global override propagates to referenced net10.0 libraries and corrupts
+      # their restore (run 4's failure).
       - name: Publish signed .ipa
         run: |
           dotnet publish "$PROJECT" \
             -f "$TFM" \
             -c Release \
+            -p:PublishIosOnly=true \
             -p:ArchiveOnBuild=true \
             -p:RuntimeIdentifier=ios-arm64 \
             -p:CodesignKey="$CODESIGN_KEY" \
