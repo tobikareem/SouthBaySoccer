@@ -262,7 +262,18 @@ jobs:
             exit 1
           fi
 
+          # Android upload certificates are self-signed, so strict verification returns warning
+          # category 4 for the expected untrusted certificate chain. Tolerate only that category;
+          # unsigned entries, corruption, or any other strict-warning category remain fatal.
+          set +e
           jarsigner -verify -strict "${bundles[0]}"
+          jarsigner_status=$?
+          set -e
+
+          if [ "$jarsigner_status" -ne 0 ] && [ "$jarsigner_status" -ne 4 ]; then
+            echo "::error::Strict AAB signature verification failed with exit code $jarsigner_status."
+            exit "$jarsigner_status"
+          fi
 
           normalize_fingerprint() {
             printf '%s' "$1" | tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]'

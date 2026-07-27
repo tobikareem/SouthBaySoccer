@@ -12,3 +12,4 @@ One line per lesson. Skim this at the start of a task; read the full entry when 
 - [ef-retry-strategy-manual-transactions](2026-07-21-ef-retry-strategy-manual-transactions.md) - EnableRetryOnFailure rejects bare BeginTransactionAsync; wrap transactions in a retry-idempotent execution-strategy delegate
 - [shared-sql-fixture-unique-test-data](2026-07-26-shared-sql-fixture-unique-test-data.md) - Shared SQL fixtures require scenario-unique business keys so full-suite results match isolated runs
 - [maui-ios-ci-publish-pitfalls](2026-07-25-maui-ios-ci-publish-pitfalls.md) - CI iOS publish needs macos-26 + maui-ios workload + a csproj-scoped TFM conditional; never override TargetFrameworks globally
+- [android-jarsigner-strict-upload-key](2026-07-27-android-jarsigner-strict-upload-key.md) - Allow only jarsigner strict status 4 for a pinned self-signed Android upload certificate
