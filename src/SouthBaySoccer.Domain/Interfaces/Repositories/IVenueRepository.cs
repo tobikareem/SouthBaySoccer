@@ -11,4 +11,11 @@ public interface IVenueRepository : IRepository<Venue>
     /// Lists active venues ordered by name.
     /// </summary>
     Task<IReadOnlyList<Venue>> ListActiveAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the venues with the given ids in one query.
+    /// </summary>
+    Task<IReadOnlyList<Venue>> ListByIdsAsync(
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken = default);
 }

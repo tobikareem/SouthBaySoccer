@@ -52,6 +52,11 @@ public sealed class ImportPickupPalGamesCommandHandler(
         var imported = 0;
         var warnings = new List<string>();
 
+        // Every lookup this pass needs is read up front in a fixed number of batched queries, so
+        // the per-game and per-participant work below touches memory only. Without this the pass
+        // issued four queries per participant plus a full venue read per game.
+        var lookups = await PrefetchAsync(games, cancellationToken);
+
         // Profiles created during this pass are not visible to repository lookups until the final
         // SaveChanges, so the same person appearing on several games resolves through this cache.
         var profileCache = new Dictionary<string, PlayerProfile>(StringComparer.Ordinal);
@@ -72,7 +77,7 @@ public sealed class ImportPickupPalGamesCommandHandler(
                 warnings.Add(publishWarning);
             }
 
-            await ImportGameAsync(game, season.Id, publish, profileCache, cancellationToken);
+            await ImportGameAsync(game, season.Id, publish, lookups, profileCache, cancellationToken);
             imported++;
         }
 
@@ -88,21 +93,22 @@ public sealed class ImportPickupPalGamesCommandHandler(
         PickupPalGame game,
         Guid seasonId,
         bool publish,
+        ImportLookups lookups,
         Dictionary<string, PlayerProfile> profileCache,
         CancellationToken cancellationToken)
     {
         var occurrenceKey = BuildOccurrenceKey(game.Id);
-        var snapshot = await gameRepository.FindSnapshotByGameIdAsync(game.Id, cancellationToken);
+        var snapshot = lookups.SnapshotsByGameId.GetValueOrDefault(game.Id);
 
         // Only adopt a session this import previously created — matched by its snapshot or its
         // Pickup Pal occurrence key. A manual session that merely coincides in start time is left
         // untouched; a new imported session is created for the game instead.
         var session = snapshot is not null
-            ? await sessionRepository.GetByIdAsync(snapshot.SessionId, cancellationToken)
+            ? lookups.SessionsById.GetValueOrDefault(snapshot.SessionId)
             : null;
-        session ??= await sessionRepository.FindByOccurrenceKeyAsync(occurrenceKey, cancellationToken);
+        session ??= lookups.SessionsByOccurrenceKey.GetValueOrDefault(occurrenceKey);
 
-        var venue = await ResolveOrCreateVenueAsync(game.Location, cancellationToken);
+        var venue = await ResolveOrCreateVenueAsync(game.Location, lookups, cancellationToken);
 
         if (session is null)
         {
@@ -127,16 +133,20 @@ public sealed class ImportPickupPalGamesCommandHandler(
             ApplySnapshot(snapshot, game, session.Id, sanitizedJson);
             await gameRepository.AddSnapshotAsync(snapshot, cancellationToken);
         }
-        else
+        else if (!SnapshotMatches(snapshot, game, session.Id, sanitizedJson))
         {
             ApplySnapshot(snapshot, game, session.Id, sanitizedJson);
             gameRepository.UpdateSnapshot(snapshot);
         }
 
+        // An unchanged game writes no snapshot row at all. SanitizedGameJson holds the whole game
+        // payload, and Update marks every column modified, so re-importing an idle game used to
+        // rewrite that blob on every pass. CapturedAtUtc therefore records when the content last
+        // changed, not when it was last polled.
         var participants = new List<PickupPalGameParticipant>(game.Participants.Count);
         foreach (var (participant, index) in game.Participants.Select((p, i) => (p, i)))
         {
-            var profile = await ResolveOrCreateProfileAsync(participant, profileCache, cancellationToken);
+            var profile = await ResolveOrCreateProfileAsync(participant, lookups, profileCache, cancellationToken);
             participants.Add(new PickupPalGameParticipant
             {
                 Id = Guid.NewGuid(),
@@ -162,6 +172,7 @@ public sealed class ImportPickupPalGamesCommandHandler(
     /// </summary>
     private async Task<PlayerProfile?> ResolveOrCreateProfileAsync(
         PickupPalGameParticipantInfo participant,
+        ImportLookups lookups,
         Dictionary<string, PlayerProfile> profileCache,
         CancellationToken cancellationToken)
     {
@@ -186,12 +197,12 @@ public sealed class ImportPickupPalGamesCommandHandler(
         PlayerProfile? profile = null;
         if (participant.UserId is { } userId)
         {
-            profile = await playerProfileRepository.FindByPickupPalUserIdAsync(userId, cancellationToken);
+            profile = lookups.ProfilesByPickupPalUserId.GetValueOrDefault(userId);
         }
 
         if (profile is null && participant.PhoneNumberHash is { } phoneHash)
         {
-            profile = await playerProfileRepository.FindByPhoneNumberHashAsync(phoneHash, cancellationToken);
+            profile = lookups.ProfilesByPhoneNumberHash.GetValueOrDefault(phoneHash);
             if (HasConflictingPickupPalUser(profile, participant.UserId))
             {
                 profile = null;
@@ -200,7 +211,7 @@ public sealed class ImportPickupPalGamesCommandHandler(
 
         if (profile is null && participant.WhatsAppJidHash is { } jidHash)
         {
-            profile = await playerProfileRepository.FindByWhatsAppJidHashAsync(jidHash, cancellationToken);
+            profile = lookups.ProfilesByWhatsAppJidHash.GetValueOrDefault(jidHash);
             if (HasConflictingPickupPalUser(profile, participant.UserId))
             {
                 profile = null;
@@ -210,12 +221,11 @@ public sealed class ImportPickupPalGamesCommandHandler(
         // Last resort: some participants arrive with no user id, no phone, and only an opaque
         // WhatsApp id that a signed-in profile never carries, so no key can ever match and the same
         // person ends up with a second profile. Fall back to an unambiguous display-name match -
-        // the repository returns null when the name is shared, so this never merges two people.
+        // shared names are excluded when the lookup is built, so this never merges two people.
         if (profile is null && !string.IsNullOrWhiteSpace(participant.DisplayName))
         {
-            profile = await playerProfileRepository.FindSingleByNormalizedDisplayNameAsync(
-                participant.DisplayName.Trim().ToUpperInvariant(),
-                cancellationToken);
+            profile = lookups.ProfilesByUnambiguousDisplayName.GetValueOrDefault(
+                participant.DisplayName.Trim().ToUpperInvariant());
             if (HasConflictingPickupPalUser(profile, participant.UserId))
             {
                 profile = null;
@@ -326,6 +336,21 @@ public sealed class ImportPickupPalGamesCommandHandler(
         snapshot.SanitizedGameJson = sanitizedJson;
     }
 
+    // CapturedAtUtc is deliberately excluded: it is the only field that changes on every pass, so
+    // including it would defeat the check and rewrite the payload blob each time.
+    private static bool SnapshotMatches(
+        PickupPalGameSnapshot snapshot,
+        PickupPalGame game,
+        Guid sessionId,
+        string sanitizedJson) =>
+        snapshot.SessionId == sessionId
+        && snapshot.StartsAtUtc == game.StartsAtUtc
+        && string.Equals(snapshot.Location, Truncate(game.Location, 512), StringComparison.Ordinal)
+        && snapshot.MaxPlayers == game.MaxPlayers
+        && string.Equals(snapshot.Status, Truncate(game.Status, 32), StringComparison.Ordinal)
+        && string.Equals(snapshot.GroupName, Truncate(game.GroupName, 160), StringComparison.Ordinal)
+        && string.Equals(snapshot.SanitizedGameJson, sanitizedJson, StringComparison.Ordinal);
+
     private static void ApplyGame(Session session, PickupPalGame game, Venue venue, string occurrenceKey, bool publish)
     {
         session.VenueId = venue.Id;
@@ -367,13 +392,13 @@ public sealed class ImportPickupPalGamesCommandHandler(
         return true;
     }
 
-    private async Task<Venue> ResolveOrCreateVenueAsync(string location, CancellationToken cancellationToken)
+    private async Task<Venue> ResolveOrCreateVenueAsync(
+        string location,
+        ImportLookups lookups,
+        CancellationToken cancellationToken)
     {
         var name = Truncate(string.IsNullOrWhiteSpace(location) ? "Pickup Pal venue" : location.Trim(), 160);
-        var venues = await venueRepository.ListActiveAsync(cancellationToken);
-        var existing = venues.FirstOrDefault(x =>
-            string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
-        if (existing is not null)
+        if (lookups.VenuesByName.TryGetValue(name, out var existing))
         {
             return existing;
         }
@@ -386,7 +411,158 @@ public sealed class ImportPickupPalGamesCommandHandler(
             Address = Truncate(location.Trim(), 512),
         };
         await venueRepository.AddAsync(venue, cancellationToken);
+        // Register immediately: a venue added in this pass is not yet queryable, so without this a
+        // second game at the same new location would insert a duplicate venue row.
+        lookups.VenuesByName[name] = venue;
         return venue;
+    }
+
+    /// <summary>
+    /// Reads every session, snapshot, venue, and player-profile row this pass can need, in a fixed
+    /// number of batched queries rather than a per-game and per-participant lookup each.
+    /// </summary>
+    private async Task<ImportLookups> PrefetchAsync(
+        IReadOnlyList<PickupPalGame> games,
+        CancellationToken cancellationToken)
+    {
+        var lookups = new ImportLookups();
+
+        // ListActiveAsync is ordered by name, so TryAdd keeps the same row FirstOrDefault picked.
+        foreach (var venue in await venueRepository.ListActiveAsync(cancellationToken))
+        {
+            lookups.VenuesByName.TryAdd(venue.Name, venue);
+        }
+
+        var gameIds = games.Select(game => game.Id).Distinct(StringComparer.Ordinal).ToArray();
+        var snapshots = await gameRepository.ListSnapshotsByGameIdsAsync(gameIds, cancellationToken);
+        IndexByRequestedKey(
+            gameIds,
+            snapshots,
+            snapshot => snapshot.PickupPalGameId,
+            lookups.SnapshotsByGameId);
+
+        var snapshotSessionIds = snapshots.Select(snapshot => snapshot.SessionId).Distinct().ToArray();
+        foreach (var session in await sessionRepository.ListByIdsAsync(snapshotSessionIds, cancellationToken))
+        {
+            lookups.SessionsById.TryAdd(session.Id, session);
+        }
+
+        var occurrenceKeys = gameIds.Select(BuildOccurrenceKey).ToArray();
+        IndexByRequestedKey(
+            occurrenceKeys,
+            await sessionRepository.ListByOccurrenceKeysAsync(occurrenceKeys, cancellationToken),
+            session => session.OccurrenceKey,
+            lookups.SessionsByOccurrenceKey);
+
+        var participants = games.SelectMany(game => game.Participants).ToArray();
+
+        var userIds = participants
+            .Select(participant => participant.UserId)
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        IndexByRequestedKey(
+            userIds,
+            await playerProfileRepository.ListByPickupPalUserIdsAsync(userIds, cancellationToken),
+            profile => profile.PickupPalUserId,
+            lookups.ProfilesByPickupPalUserId);
+
+        var phoneHashes = participants
+            .Select(participant => participant.PhoneNumberHash)
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        IndexByRequestedKey(
+            phoneHashes,
+            await playerProfileRepository.ListByPhoneNumberHashesAsync(phoneHashes, cancellationToken),
+            profile => profile.PhoneNumberHash,
+            lookups.ProfilesByPhoneNumberHash);
+
+        var jidHashes = participants
+            .Select(participant => participant.WhatsAppJidHash)
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        IndexByRequestedKey(
+            jidHashes,
+            await playerProfileRepository.ListByWhatsAppJidHashesAsync(jidHashes, cancellationToken),
+            profile => profile.WhatsAppJidHash,
+            lookups.ProfilesByWhatsAppJidHash);
+
+        var displayNames = participants
+            .Select(participant => participant.DisplayName)
+            .Where(displayName => !string.IsNullOrWhiteSpace(displayName))
+            .Select(displayName => displayName.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var profilesByName = await playerProfileRepository.ListByNormalizedDisplayNamesAsync(
+            displayNames,
+            cancellationToken);
+        // Mirrors FindSingleByNormalizedDisplayNameAsync: a name shared by more than one profile
+        // resolves to nobody, so a common nickname never links two different players. Matching is
+        // per requested name for the reason described on IndexByRequestedKey.
+        foreach (var requestedName in displayNames)
+        {
+            var matches = profilesByName
+                .Where(profile => MatchesRequestedKey(profile.NormalizedDisplayName, requestedName))
+                .Take(2)
+                .ToArray();
+            if (matches.Length == 1)
+            {
+                lookups.ProfilesByUnambiguousDisplayName[requestedName] = matches[0];
+            }
+        }
+
+        return lookups;
+    }
+
+    /// <summary>
+    /// Indexes batch results by the key the caller asked for rather than the value SQL returned.
+    /// The two are not interchangeable: SQL Server's <c>IN</c> comparison is case-insensitive and
+    /// ignores trailing spaces under the default collation, so a row can come back from the query
+    /// and still miss an exact-match dictionary keyed on its stored value. Keying on the request
+    /// reproduces what the per-key lookups resolved. Sources are ordered oldest-first, so the first
+    /// match wins exactly as <c>FirstOrDefault</c> did.
+    /// </summary>
+    private static void IndexByRequestedKey<T>(
+        IReadOnlyList<string> requestedKeys,
+        IReadOnlyList<T> rows,
+        Func<T, string?> selectRowKey,
+        Dictionary<string, T> destination)
+    {
+        foreach (var requestedKey in requestedKeys)
+        {
+            var match = rows.FirstOrDefault(row => MatchesRequestedKey(selectRowKey(row), requestedKey));
+            if (match is not null)
+            {
+                destination[requestedKey] = match;
+            }
+        }
+    }
+
+    private static bool MatchesRequestedKey(string? rowKey, string requestedKey) =>
+        rowKey is not null
+        && string.Equals(rowKey.TrimEnd(), requestedKey.TrimEnd(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Row sets read once per import pass and resolved from memory thereafter.</summary>
+    private sealed class ImportLookups
+    {
+        public Dictionary<string, Venue> VenuesByName { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public Dictionary<string, PickupPalGameSnapshot> SnapshotsByGameId { get; } = new(StringComparer.Ordinal);
+
+        public Dictionary<Guid, Session> SessionsById { get; } = [];
+
+        public Dictionary<string, Session> SessionsByOccurrenceKey { get; } = new(StringComparer.Ordinal);
+
+        public Dictionary<string, PlayerProfile> ProfilesByPickupPalUserId { get; } = new(StringComparer.Ordinal);
+
+        public Dictionary<string, PlayerProfile> ProfilesByPhoneNumberHash { get; } = new(StringComparer.Ordinal);
+
+        public Dictionary<string, PlayerProfile> ProfilesByWhatsAppJidHash { get; } = new(StringComparer.Ordinal);
+
+        public Dictionary<string, PlayerProfile> ProfilesByUnambiguousDisplayName { get; } =
+            new(StringComparer.OrdinalIgnoreCase);
     }
 
     private static string BuildOccurrenceKey(string gameId) => $"pickuppal:{gameId}";

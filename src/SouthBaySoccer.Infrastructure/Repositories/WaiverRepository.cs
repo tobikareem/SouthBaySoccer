@@ -33,6 +33,32 @@ internal sealed class WaiverRepository(SouthBaySoccerDbContext dbContext) : IWai
                 cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Guid>> ListPlayerIdsWithCurrentAcceptanceAsync(
+        IReadOnlyCollection<Guid> playerProfileIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (playerProfileIds.Count == 0)
+        {
+            return [];
+        }
+
+        var currentWaiverId = await dbContext.WaiverDocuments
+            .Where(x => x.Status == WaiverDocumentStatus.Published)
+            .Select(x => (Guid?)x.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (currentWaiverId is null)
+        {
+            return [];
+        }
+
+        var idArray = playerProfileIds as Guid[] ?? playerProfileIds.ToArray();
+        return await dbContext.WaiverAcceptances
+            .Where(x => x.WaiverDocumentId == currentWaiverId.Value && idArray.Contains(x.PlayerProfileId))
+            .Select(x => x.PlayerProfileId)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task AddAcceptanceAsync(WaiverAcceptance acceptance, CancellationToken cancellationToken = default) =>
         await dbContext.WaiverAcceptances.AddAsync(acceptance, cancellationToken);
 }

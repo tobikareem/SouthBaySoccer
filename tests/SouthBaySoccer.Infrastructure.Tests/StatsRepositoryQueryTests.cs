@@ -80,6 +80,145 @@ public sealed class StatsRepositoryQueryTests
         allRows.Select(x => x.PlayerProfileId).Should().Contain([ada.Id, tunde.Id]);
     }
 
+    [Fact]
+    public async Task ListSeasonLeaderboardAsync_AssemblesEveryAggregateFromItsOwnFactTable()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (season, ada, tunde) = await SeedGoalLeaderboardAsync(db);
+        var seasonMatchIds = await db.Matches
+            .Join(db.Sessions, match => match.SessionId, session => session.Id, (match, session) => new { match, session })
+            .Where(x => x.session.SeasonId == season.Id)
+            .OrderBy(x => x.match.CompletedAtUtc)
+            .Select(x => x.match.Id)
+            .ToArrayAsync();
+        var bola = await db.PlayerProfiles.SingleAsync(x => x.DisplayName == "Bola Ade");
+        var firstMatchId = seasonMatchIds[0];
+        // Ratings, likes and awards each come from a separate table and are now assembled by their
+        // own grouped query, so each needs facts that differ from the others to be distinguishable.
+        await db.PlayerRatingVotes.AddRangeAsync(
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = firstMatchId, VoterPlayerProfileId = tunde.Id, RatedPlayerProfileId = ada.Id, Score = 8 },
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = firstMatchId, VoterPlayerProfileId = bola.Id, RatedPlayerProfileId = ada.Id, Score = 6 });
+        await db.PlayerLikes.AddAsync(
+            new PlayerLike { Id = Guid.NewGuid(), MatchId = firstMatchId, GiverPlayerProfileId = bola.Id, ReceiverPlayerProfileId = ada.Id });
+        await db.MatchAwards.AddAsync(
+            new MatchAward { Id = Guid.NewGuid(), MatchId = firstMatchId, PlayerProfileId = ada.Id, AwardType = MatchAwardType.Mvp });
+        await db.SaveChangesAsync();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+
+        var rows = await repository.ListSeasonLeaderboardAsync(
+            season.Id,
+            StatLeaderboardMetric.Rating,
+            skip: 0,
+            take: 25,
+            groupChatId: null);
+
+        var adaRow = rows.Single(row => row.PlayerProfileId == ada.Id);
+        adaRow.Appearances.Should().Be(2);
+        adaRow.Goals.Should().Be(2, "the second match's goal is still Pending review");
+        adaRow.Assists.Should().Be(1);
+        adaRow.AverageRating.Should().Be(7m);
+        adaRow.RatingVoteCount.Should().Be(2);
+        adaRow.Likes.Should().Be(1);
+        adaRow.MvpAwards.Should().Be(1);
+        adaRow.Value.Should().Be(7m, "the requested metric is Rating");
+        rows.Single(row => row.PlayerProfileId == tunde.Id).AverageRating
+            .Should().Be(0m, "a player with no votes must not inherit another player's average");
+    }
+
+    [Fact]
+    public async Task GetPlayerStatsAsync_ForOnePlayer_MatchesThatPlayersLeaderboardRow()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (season, ada, _) = await SeedGoalLeaderboardAsync(db);
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+
+        var summary = await repository.GetPlayerStatsAsync(ada.Id, season.Id);
+        var leaderboardRow = (await repository.ListSeasonLeaderboardAsync(
+                season.Id,
+                StatLeaderboardMetric.Goals,
+                skip: 0,
+                take: 25,
+                groupChatId: null))
+            .Single(row => row.PlayerProfileId == ada.Id);
+
+        summary.Should().NotBeNull();
+        summary!.Appearances.Should().Be(leaderboardRow.Appearances);
+        summary.Goals.Should().Be(leaderboardRow.Goals);
+        summary.Assists.Should().Be(leaderboardRow.Assists);
+        summary.AverageRating.Should().Be(leaderboardRow.AverageRating);
+        summary.Likes.Should().Be(leaderboardRow.Likes);
+        summary.MvpAwards.Should().Be(leaderboardRow.MvpAwards);
+    }
+
+    [Fact]
+    public async Task ListSeasonLeaderboardAsync_WhenPaging_ReturnsDisjointPagesInRankOrder()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (season, _, _) = await SeedGoalLeaderboardAsync(db);
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+
+        var allRows = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, 0, 25, null);
+        var firstPage = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, 0, 2, null);
+        var secondPage = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, 2, 2, null);
+
+        firstPage.Should().HaveCount(2);
+        firstPage.Select(x => x.PlayerProfileId).Should().Equal(allRows.Take(2).Select(x => x.PlayerProfileId));
+        secondPage.Select(x => x.PlayerProfileId).Should().Equal(allRows.Skip(2).Take(2).Select(x => x.PlayerProfileId));
+        firstPage.Select(x => x.PlayerProfileId).Should().NotIntersectWith(secondPage.Select(x => x.PlayerProfileId));
+    }
+
+    [Fact]
+    public async Task ListSeasonLeaderboardAsync_WhenScorerDidNotPlayThatMatch_WithholdsCreditAndKeepsThemOffTheBoard()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (season, _, _) = await SeedGoalLeaderboardAsync(db);
+        var firstMatchId = await db.Matches
+            .Join(db.Sessions, match => match.SessionId, session => session.Id, (match, session) => new { match, session })
+            .Where(x => x.session.SeasonId == season.Id)
+            .OrderBy(x => x.match.CompletedAtUtc)
+            .Select(x => x.match.Id)
+            .FirstAsync();
+        // A ghost has an approved goal but no Played participation row, which is exactly what the
+        // PlayerMatchStats semi-join exists to reject. Every other seeded player plays every match,
+        // so without this case the guard could be deleted and the suite would stay green.
+        var ghost = CreatePlayer("Ghost Scorer", "Forward");
+        await db.PlayerProfiles.AddAsync(ghost);
+        await db.MatchEvents.AddAsync(Goal(firstMatchId, ghost.Id, null, MatchEventReviewStatus.Approved));
+        await db.SaveChangesAsync();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+
+        var rows = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, 0, 25, null);
+
+        rows.Should().NotContain(row => row.PlayerProfileId == ghost.Id,
+            "the leaderboard is driven by players with a Played participation row");
+        var ghostSummary = await repository.GetPlayerStatsAsync(ghost.Id, season.Id);
+        ghostSummary!.Goals.Should().Be(0, "a goal in a match the player did not play earns no credit");
+    }
+
+    [Fact]
+    public async Task ListSeasonLeaderboardAsync_WhenPlayerOnlyScoredAnOwnGoal_CreditsThemWithNoGoals()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (season, _, _) = await SeedGoalLeaderboardAsync(db);
+        var bola = await db.PlayerProfiles.SingleAsync(x => x.DisplayName == "Bola Ade");
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+
+        var rows = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, 0, 25, null);
+
+        // Bola's only seeded event is an OwnGoal; scorer credit must never include it.
+        rows.Single(row => row.PlayerProfileId == bola.Id).Goals.Should().Be(0);
+    }
+
     private ServiceProvider CreateServiceProvider()
     {
         var clock = new Mock<IClock>();

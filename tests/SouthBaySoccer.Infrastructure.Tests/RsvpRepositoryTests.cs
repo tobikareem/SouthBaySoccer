@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using SouthBaySoccer.Application.Abstractions.Time;
+using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Enumerations;
@@ -109,7 +110,8 @@ public sealed class RsvpRepositoryTests
         var result = await repository.CancelAndPromoteAsync(
             session.Id,
             confirmedPlayer.Id,
-            (candidateId, _) => Task.FromResult(candidateId == waitlistedPlayer.Id));
+            (_, _) => Task.FromResult<IReadOnlyDictionary<Guid, bool>>(
+                new Dictionary<Guid, bool> { [waitlistedPlayer.Id] = true }));
 
         result.State.Should().Be(RsvpMutationState.Canceled);
         result.PromotedPlayerProfileId.Should().Be(waitlistedPlayer.Id);
@@ -146,7 +148,12 @@ public sealed class RsvpRepositoryTests
         var result = await repository.CancelAndPromoteAsync(
             session.Id,
             waitlistedPlayer.Id,
-            (_, _) => Task.FromResult(true));
+            (_, _) => Task.FromResult<IReadOnlyDictionary<Guid, bool>>(
+                new Dictionary<Guid, bool>
+                {
+                    [waitlistedPlayer.Id] = true,
+                    [secondWaitlistedPlayer.Id] = true
+                }));
 
         result.PromotedPlayerProfileId.Should().BeNull();
         (await db.RsvpResponses.AnyAsync(x => x.SessionId == session.Id && x.PlayerProfileId == secondWaitlistedPlayer.Id && x.Status == RsvpStatus.Going)).Should().BeFalse();
@@ -201,6 +208,115 @@ public sealed class RsvpRepositoryTests
         count.Should().Be(1);
         (await db.RsvpResponses.SingleAsync(x => x.SessionId == session.Id && x.PlayerProfileId == player.Id)).Status.Should().Be(RsvpStatus.Going);
         (await db.CheckIns.SingleAsync(x => x.SessionId == session.Id && x.PlayerProfileId == player.Id)).Outcome.Should().Be(AttendanceOutcome.NoShow);
+    }
+
+    [Fact]
+    public async Task SubmitRsvpAsync_WhenTwoPlayersRaceForTheLastSpot_ConfirmsExactlyOneAndWaitlistsTheOther()
+    {
+        using var provider = CreateServiceProvider();
+        using var seedScope = provider.CreateScope();
+        var seedDb = seedScope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (session, playerOne, playerTwo) = await SeedSessionAsync(seedDb, capacity: 1);
+
+        // Each racer needs its own scope: DbContext is not thread-safe, and the serializable
+        // transaction only proves anything when the two writers are genuinely concurrent.
+        var results = await Task.WhenAll(
+            SubmitInOwnScopeAsync(provider, session.Id, playerOne.Id),
+            SubmitInOwnScopeAsync(provider, session.Id, playerTwo.Id));
+
+        results.Count(x => x == RsvpMutationState.Going).Should().Be(1);
+        results.Count(x => x == RsvpMutationState.Going || x == RsvpMutationState.Waitlisted)
+            .Should().BeGreaterThanOrEqualTo(1);
+        (await seedDb.RsvpResponses.CountAsync(x => x.SessionId == session.Id && x.Status == RsvpStatus.Going))
+            .Should().Be(1, "capacity is 1 and the serializable transaction must never admit two");
+        (await seedDb.WaitlistEntries.CountAsync(x => x.SessionId == session.Id && x.Status == WaitlistEntryStatus.Active))
+            .Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetGameDayAttendanceBatchAsync_WhenSessionsHaveMixedAttendance_MatchesPerSessionResults()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (sessionOne, playerOne, playerTwo) = await SeedSessionAsync(db, capacity: 1);
+        var (sessionTwo, _, _) = await SeedSessionAsync(db, capacity: 5);
+        var repository = scope.ServiceProvider.GetRequiredService<IRsvpRepository>();
+        await repository.SubmitRsvpAsync(sessionOne.Id, playerOne.Id, RsvpStatus.Going);
+        await repository.SubmitRsvpAsync(sessionOne.Id, playerTwo.Id, RsvpStatus.Going);
+
+        var batch = await repository.GetGameDayAttendanceBatchAsync(
+            [sessionOne.Id, sessionTwo.Id],
+            playerOne.Id);
+
+        batch.Should().ContainKeys(
+            new[] { sessionOne.Id, sessionTwo.Id },
+            "the batch contract returns an entry for every requested session, including empty ones");
+        batch[sessionOne.Id].Should().BeEquivalentTo(
+            await repository.GetGameDayAttendanceAsync(sessionOne.Id, playerOne.Id));
+        batch[sessionTwo.Id].Should().BeEquivalentTo(
+            await repository.GetGameDayAttendanceAsync(sessionTwo.Id, playerOne.Id));
+        batch[sessionOne.Id].GoingCount.Should().Be(1);
+        batch[sessionOne.Id].IsCurrentPlayerGoing.Should().BeTrue();
+        batch[sessionTwo.Id].GoingCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task CancelAndPromoteAsync_WhenWaitlistHasCandidates_ChecksEligibilityOnceForAllOfThem()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (session, confirmedPlayer, firstCandidate) = await SeedSessionAsync(db, capacity: 1);
+        var secondCandidate = CreatePlayer("Kemi");
+        await db.PlayerProfiles.AddAsync(secondCandidate);
+        await db.SaveChangesAsync();
+        var repository = scope.ServiceProvider.GetRequiredService<IRsvpRepository>();
+        await repository.SubmitRsvpAsync(session.Id, confirmedPlayer.Id, RsvpStatus.Going);
+        await repository.SubmitRsvpAsync(session.Id, firstCandidate.Id, RsvpStatus.Going);
+        await repository.SubmitRsvpAsync(session.Id, secondCandidate.Id, RsvpStatus.Going);
+
+        // One batched call must cover the whole waitlist: the per-candidate query this replaced ran
+        // inside the serializable transaction, so its cost scaled with waitlist depth.
+        var eligibilityCallCount = 0;
+        var checkedPlayerProfileIds = new List<Guid>();
+        var result = await repository.CancelAndPromoteAsync(
+            session.Id,
+            confirmedPlayer.Id,
+            (candidateIds, _) =>
+            {
+                eligibilityCallCount++;
+                checkedPlayerProfileIds.AddRange(candidateIds);
+                return Task.FromResult<IReadOnlyDictionary<Guid, bool>>(
+                    candidateIds.ToDictionary(id => id, id => id == secondCandidate.Id));
+            });
+
+        eligibilityCallCount.Should().Be(1);
+        checkedPlayerProfileIds.Should().BeEquivalentTo([firstCandidate.Id, secondCandidate.Id]);
+        result.PromotedPlayerProfileId.Should().Be(secondCandidate.Id);
+        (await db.WaitlistEntries.SingleAsync(x => x.SessionId == session.Id && x.PlayerProfileId == firstCandidate.Id))
+            .Status.Should().Be(WaitlistEntryStatus.Expired, "an ineligible candidate ahead in the queue is expired");
+    }
+
+    private static async Task<RsvpMutationState?> SubmitInOwnScopeAsync(
+        ServiceProvider provider,
+        Guid sessionId,
+        Guid playerProfileId)
+    {
+        using var scope = provider.CreateScope();
+        var repository = scope.ServiceProvider.GetRequiredService<IRsvpRepository>();
+        try
+        {
+            var result = await repository.SubmitRsvpAsync(sessionId, playerProfileId, RsvpStatus.Going);
+            return result.State;
+        }
+        catch (ApplicationConflictException)
+        {
+            // Two serializable writers on one session can deadlock past the retry budget. Losing
+            // that way is correct behaviour, not a test failure: the invariant under test is that
+            // nobody is admitted beyond capacity.
+            return null;
+        }
     }
 
     private ServiceProvider CreateServiceProvider()

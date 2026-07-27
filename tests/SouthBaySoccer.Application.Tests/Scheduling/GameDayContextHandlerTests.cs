@@ -340,6 +340,30 @@ public sealed class GameDayContextHandlerTests
             Venues
                 .Setup(x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((Guid id, CancellationToken _) => new Venue { Id = id, Name = "Marina Field" });
+            Venues
+                .Setup(x => x.ListByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyCollection<Guid> ids, CancellationToken _) =>
+                    ids.Select(id => new Venue { Id = id, Name = "Marina Field" }).ToArray());
+            // The handler reads attendance for every candidate in one batched call. Fan the batch
+            // back out to the per-session stubs so each test keeps expressing attendance one game
+            // at a time, and mirror the repository contract of an entry per requested session.
+            Rsvps
+                .Setup(x => x.GetGameDayAttendanceBatchAsync(
+                    It.IsAny<IReadOnlyCollection<Guid>>(),
+                    It.IsAny<Guid>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns(async (IReadOnlyCollection<Guid> sessionIds, Guid playerProfileId, CancellationToken token) =>
+                {
+                    var attendance = new Dictionary<Guid, GameDayAttendanceRecord>(sessionIds.Count);
+                    foreach (var sessionId in sessionIds.Distinct())
+                    {
+                        attendance[sessionId] =
+                            await Rsvps.Object.GetGameDayAttendanceAsync(sessionId, playerProfileId, token)
+                            ?? new GameDayAttendanceRecord(0, 0, 0, false, false, false, []);
+                    }
+
+                    return (IReadOnlyDictionary<Guid, GameDayAttendanceRecord>)attendance;
+                });
             Eligibility
                 .Setup(x => x.CheckAsync(Profile.Id, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new PlayerSessionEligibilityResult(true, null));

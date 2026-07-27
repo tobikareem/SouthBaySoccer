@@ -62,7 +62,7 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
     public Task<RsvpMutationResult> CancelAndPromoteAsync(
         Guid sessionId,
         Guid playerProfileId,
-        Func<Guid, CancellationToken, Task<bool>> isEligibleForPromotion,
+        Func<IReadOnlyCollection<Guid>, CancellationToken, Task<IReadOnlyDictionary<Guid, bool>>> checkPromotionEligibilityAsync,
         CancellationToken cancellationToken = default) =>
         ExecuteInSerializableTransactionAsync(async token =>
         {
@@ -88,7 +88,7 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
             CancelWaitlist(await FindActiveWaitlistEntryAsync(sessionId, playerProfileId, token));
             var promotedEntry = releasedConfirmedSpot
                 && attendanceAfter.GoingKeys.Count < session.Capacity
-                ? await PromoteNextEligibleAsync(sessionId, isEligibleForPromotion, token)
+                ? await PromoteNextEligibleAsync(sessionId, checkPromotionEligibilityAsync, token)
                 : null;
 
             return new RsvpMutationResult(
@@ -317,48 +317,59 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
     public async Task<GameDayAttendanceRecord> GetGameDayAttendanceAsync(
         Guid sessionId,
         Guid currentPlayerProfileId,
+        CancellationToken cancellationToken = default) =>
+        (await GetGameDayAttendanceBatchAsync([sessionId], currentPlayerProfileId, cancellationToken))[sessionId];
+
+    public async Task<IReadOnlyDictionary<Guid, GameDayAttendanceRecord>> GetGameDayAttendanceBatchAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        Guid currentPlayerProfileId,
         CancellationToken cancellationToken = default)
     {
-        var localGoingIds = dbContext.RsvpResponses
-            .Where(x => x.SessionId == sessionId && x.Status == RsvpStatus.Going)
-            .Select(x => x.PlayerProfileId);
-        var importedGoingIds = dbContext.Set<PickupPalGameParticipant>()
-            .Where(x => x.SessionId == sessionId && !x.IsWaitlist && x.PlayerProfileId != null)
-            .Select(x => x.PlayerProfileId!.Value);
-        var confirmedIds = localGoingIds.Concat(importedGoingIds).Distinct();
+        var results = new Dictionary<Guid, GameDayAttendanceRecord>(sessionIds.Count);
+        if (sessionIds.Count == 0)
+        {
+            return results;
+        }
 
-        var goingCount = await confirmedIds.CountAsync(cancellationToken);
-        var isGoing = await confirmedIds.ContainsAsync(currentPlayerProfileId, cancellationToken);
-        var isWaitlisted = await dbContext.WaitlistEntries
-            .AnyAsync(x => x.SessionId == sessionId
-                    && x.PlayerProfileId == currentPlayerProfileId
-                    && x.Status == WaitlistEntryStatus.Active,
-                cancellationToken)
-            || await dbContext.Set<PickupPalGameParticipant>()
-                .AnyAsync(x => x.SessionId == sessionId
-                        && x.PlayerProfileId == currentPlayerProfileId
-                        && x.IsWaitlist,
-                    cancellationToken);
-        var sessionCheckIns = dbContext.CheckIns
-            .Where(x => x.SessionId == sessionId
-                && (x.Outcome == AttendanceOutcome.CheckedIn || x.Outcome == AttendanceOutcome.Late));
-        var checkedInPlayerProfileIds = await sessionCheckIns
-            .Select(x => x.PlayerProfileId)
-            .Distinct()
+        var attendanceRows = await ListAttendanceRowsAsync(sessionIds, cancellationToken);
+        var idArray = sessionIds as Guid[] ?? sessionIds.ToArray();
+        var checkInRows = await dbContext.CheckIns
+            .Where(x => idArray.Contains(x.SessionId)
+                && (x.Outcome == AttendanceOutcome.CheckedIn || x.Outcome == AttendanceOutcome.Late))
+            .Select(x => new { x.SessionId, x.PlayerProfileId, x.Outcome })
             .ToArrayAsync(cancellationToken);
-        var checkedInCount = checkedInPlayerProfileIds.Length;
-        var lateCount = await sessionCheckIns.CountAsync(x => x.Outcome == AttendanceOutcome.Late, cancellationToken);
-        var isCheckedIn = await sessionCheckIns
-            .AnyAsync(x => x.PlayerProfileId == currentPlayerProfileId, cancellationToken);
+        var attendanceBySession = attendanceRows.ToLookup(row => row.SessionId);
+        var checkInsBySession = checkInRows.ToLookup(row => row.SessionId);
 
-        return new GameDayAttendanceRecord(
-            goingCount,
-            checkedInCount,
-            lateCount,
-            isGoing,
-            isWaitlisted,
-            isCheckedIn,
-            checkedInPlayerProfileIds);
+        foreach (var sessionId in idArray.Distinct())
+        {
+            var sessionAttendance = attendanceBySession[sessionId].ToArray();
+            // Confirmed spots count local Going rows plus linked imported participants, deduplicated
+            // by profile id — unlinked imported participants have no profile to count here, which is
+            // why the null check guards the Value access.
+            var goingIds = sessionAttendance
+                .Where(row => !row.IsWaitlist && row.PlayerProfileId is not null)
+                .Select(row => row.PlayerProfileId!.Value)
+                .ToHashSet();
+            var isWaitlisted = sessionAttendance.Any(row => row.IsWaitlist
+                && row.PlayerProfileId == currentPlayerProfileId);
+            var sessionCheckIns = checkInsBySession[sessionId].ToArray();
+            var checkedInPlayerProfileIds = sessionCheckIns
+                .Select(row => row.PlayerProfileId)
+                .Distinct()
+                .ToArray();
+
+            results[sessionId] = new GameDayAttendanceRecord(
+                goingIds.Count,
+                checkedInPlayerProfileIds.Length,
+                sessionCheckIns.Count(row => row.Outcome == AttendanceOutcome.Late),
+                goingIds.Contains(currentPlayerProfileId),
+                isWaitlisted,
+                sessionCheckIns.Any(row => row.PlayerProfileId == currentPlayerProfileId),
+                checkedInPlayerProfileIds);
+        }
+
+        return results;
     }
 
     private async Task<T> ExecuteInSerializableTransactionAsync<T>(
@@ -416,6 +427,10 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
                 && x.Status == WaitlistEntryStatus.Active,
             cancellationToken);
 
+    // Deliberately three single-session queries rather than the batched UNION below: this runs
+    // inside the serializable transaction, where `SessionId == @id` keeps a narrow index seek.
+    // A collection Contains translates to an OPENJSON join whose plan can take far wider key-range
+    // locks, which would cost more in deadlocks than the two saved round trips are worth.
     private async Task<IReadOnlyList<SessionAttendanceEntry>> ListAttendanceEntriesAsync(
         Guid sessionId,
         CancellationToken cancellationToken)
@@ -461,6 +476,63 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
             .ToArray();
     }
 
+    // One UNION ALL round trip for local Going, active waitlist, and imported participant rows
+    // across many sessions. Read-only and never used inside a transaction — see the comment on
+    // ListAttendanceEntriesAsync for why the transactional path keeps its per-session queries.
+    private async Task<IReadOnlyList<AttendanceRow>> ListAttendanceRowsAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        CancellationToken cancellationToken)
+    {
+        var idArray = sessionIds as Guid[] ?? sessionIds.ToArray();
+        var rows = await dbContext.RsvpResponses
+            .Where(x => idArray.Contains(x.SessionId) && x.Status == RsvpStatus.Going)
+            .Select(x => new
+            {
+                x.SessionId,
+                PlayerProfileId = (Guid?)x.PlayerProfileId,
+                ParticipantId = (string?)null,
+                IsWaitlist = false,
+                IsImported = false
+            })
+            .Concat(dbContext.WaitlistEntries
+                .Where(x => idArray.Contains(x.SessionId) && x.Status == WaitlistEntryStatus.Active)
+                .Select(x => new
+                {
+                    x.SessionId,
+                    PlayerProfileId = (Guid?)x.PlayerProfileId,
+                    ParticipantId = (string?)null,
+                    IsWaitlist = true,
+                    IsImported = false
+                }))
+            .Concat(dbContext.Set<PickupPalGameParticipant>()
+                .Where(x => idArray.Contains(x.SessionId))
+                .Select(x => new
+                {
+                    x.SessionId,
+                    x.PlayerProfileId,
+                    ParticipantId = (string?)x.PickupPalParticipantId,
+                    x.IsWaitlist,
+                    IsImported = true
+                }))
+            .ToArrayAsync(cancellationToken);
+
+        return rows
+            .Select(row => new AttendanceRow(
+                row.SessionId,
+                row.PlayerProfileId,
+                row.ParticipantId,
+                row.IsWaitlist,
+                row.IsImported))
+            .ToArray();
+    }
+
+    private sealed record AttendanceRow(
+        Guid SessionId,
+        Guid? PlayerProfileId,
+        string? ParticipantId,
+        bool IsWaitlist,
+        bool IsImported);
+
     private async Task<RsvpResponse> UpsertRsvpAsync(
         RsvpResponse? rsvp,
         Guid sessionId,
@@ -502,17 +574,28 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
 
     private async Task<WaitlistEntry?> PromoteNextEligibleAsync(
         Guid sessionId,
-        Func<Guid, CancellationToken, Task<bool>> isEligibleForPromotion,
+        Func<IReadOnlyCollection<Guid>, CancellationToken, Task<IReadOnlyDictionary<Guid, bool>>> checkPromotionEligibilityAsync,
         CancellationToken cancellationToken)
     {
         var entries = await dbContext.WaitlistEntries
             .Where(x => x.SessionId == sessionId && x.Status == WaitlistEntryStatus.Active)
             .OrderBy(x => x.Position)
             .ToArrayAsync(cancellationToken);
+        if (entries.Length == 0)
+        {
+            return null;
+        }
+
+        // One eligibility read for the whole waitlist. Expiring an entry is irreversible, so the
+        // verdict driving it is read here, inside the transaction, rather than handed in from a
+        // read taken before it opened.
+        var eligibility = await checkPromotionEligibilityAsync(
+            entries.Select(entry => entry.PlayerProfileId).ToArray(),
+            cancellationToken);
 
         foreach (var entry in entries)
         {
-            if (!await isEligibleForPromotion(entry.PlayerProfileId, cancellationToken))
+            if (!eligibility.TryGetValue(entry.PlayerProfileId, out var isEligible) || !isEligible)
             {
                 entry.Status = WaitlistEntryStatus.Expired;
                 continue;

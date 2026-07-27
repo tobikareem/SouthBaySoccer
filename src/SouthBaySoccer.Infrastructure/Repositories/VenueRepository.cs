@@ -13,6 +13,21 @@ internal sealed class VenueRepository(SouthBaySoccerDbContext dbContext) : IVenu
     public async Task<IReadOnlyList<Venue>> ListActiveAsync(CancellationToken cancellationToken = default) =>
         await dbContext.Venues.OrderBy(x => x.Name).Take(100).ToArrayAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Venue>> ListByIdsAsync(
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var idArray = ids as Guid[] ?? ids.ToArray();
+        return await dbContext.Venues
+            .Where(x => idArray.Contains(x.Id))
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task AddAsync(Venue entity, CancellationToken cancellationToken = default) =>
         await dbContext.Venues.AddAsync(entity, cancellationToken);
 

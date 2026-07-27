@@ -2,6 +2,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
+using SouthBaySoccer.Infrastructure.Caching;
 
 namespace SouthBaySoccer.Infrastructure.Persistence;
 
@@ -12,14 +13,17 @@ namespace SouthBaySoccer.Infrastructure.Persistence;
 internal sealed class UnitOfWork : IUnitOfWork
 {
     private readonly SouthBaySoccerDbContext _context;
+    private readonly CacheEvictionQueue _cacheEvictionQueue;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="UnitOfWork"/> class.
     /// </summary>
     /// <param name="context">The EF Core context to commit.</param>
-    public UnitOfWork(SouthBaySoccerDbContext context)
+    /// <param name="cacheEvictionQueue">Cache keys to evict once the commit succeeds.</param>
+    public UnitOfWork(SouthBaySoccerDbContext context, CacheEvictionQueue cacheEvictionQueue)
     {
         _context = context;
+        _cacheEvictionQueue = cacheEvictionQueue;
     }
 
     /// <summary>
@@ -31,7 +35,11 @@ internal sealed class UnitOfWork : IUnitOfWork
     {
         try
         {
-            return await _context.SaveChangesAsync(cancellationToken);
+            var written = await _context.SaveChangesAsync(cancellationToken);
+            // Only after the write is durable: evicting earlier lets a concurrent read repopulate
+            // the entry from pre-commit state and pin it for a whole TTL.
+            _cacheEvictionQueue.Flush();
+            return written;
         }
         catch (DbUpdateConcurrencyException)
         {

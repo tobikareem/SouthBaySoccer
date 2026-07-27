@@ -14,6 +14,39 @@ internal sealed class SessionRepository(SouthBaySoccerDbContext dbContext) : ISe
     public Task<Session?> FindByOccurrenceKeyAsync(string occurrenceKey, CancellationToken cancellationToken = default) =>
         dbContext.Sessions.SingleOrDefaultAsync(x => x.OccurrenceKey == occurrenceKey, cancellationToken);
 
+    public async Task<IReadOnlyList<Session>> ListByIdsAsync(
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var idArray = ids as Guid[] ?? ids.ToArray();
+        return await dbContext.Sessions
+            .Where(x => idArray.Contains(x.Id))
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Session>> ListByOccurrenceKeysAsync(
+        IReadOnlyCollection<string> occurrenceKeys,
+        CancellationToken cancellationToken = default)
+    {
+        if (occurrenceKeys.Count == 0)
+        {
+            return [];
+        }
+
+        // Ordered so that an occurrence key held by more than one session resolves deterministically
+        // to the oldest; the single-key lookup used SingleOrDefault and simply threw on duplicates.
+        var keyArray = occurrenceKeys as string[] ?? occurrenceKeys.ToArray();
+        return await dbContext.Sessions
+            .Where(x => x.OccurrenceKey != null && keyArray.Contains(x.OccurrenceKey))
+            .OrderBy(x => x.CreatedAt)
+            .ToArrayAsync(cancellationToken);
+    }
+
     // Title equality relies on the database's default case-insensitive collation; canceled
     // sessions are excluded so a replacement for a canceled game is not treated as a duplicate.
     public Task<bool> ExistsDuplicateAsync(

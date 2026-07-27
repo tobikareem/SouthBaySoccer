@@ -49,6 +49,39 @@ public interface IPlayerProfileRepository : IRepository<PlayerProfile>
         string normalizedDisplayName,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lists the profiles carrying the given Pickup Pal user ids in one query.
+    /// </summary>
+    Task<IReadOnlyList<PlayerProfile>> ListByPickupPalUserIdsAsync(
+        IReadOnlyCollection<string> pickupPalUserIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the profiles carrying the given phone-number hashes in one query, oldest first, so a
+    /// caller resolving a hash to one profile picks the same row the single-hash lookup would.
+    /// </summary>
+    Task<IReadOnlyList<PlayerProfile>> ListByPhoneNumberHashesAsync(
+        IReadOnlyCollection<string> phoneNumberHashes,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the profiles carrying the given WhatsApp JID hashes in one query, oldest first, so a
+    /// caller resolving a hash to one profile picks the same row the single-hash lookup would.
+    /// </summary>
+    Task<IReadOnlyList<PlayerProfile>> ListByWhatsAppJidHashesAsync(
+        IReadOnlyCollection<string> whatsAppJidHashes,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the profiles carrying the given normalized display names in one query, oldest first.
+    /// Callers must apply the same ambiguity rule as
+    /// <see cref="FindSingleByNormalizedDisplayNameAsync"/>: a name matching more than one profile
+    /// resolves to nobody, so a shared nickname never links two different players.
+    /// </summary>
+    Task<IReadOnlyList<PlayerProfile>> ListByNormalizedDisplayNamesAsync(
+        IReadOnlyCollection<string> normalizedDisplayNames,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<PlayerDirectoryReadModel>> ListDirectoryAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

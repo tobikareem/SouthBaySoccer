@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using SouthBaySoccer.Application.Abstractions.Authentication;
+using SouthBaySoccer.Application.Abstractions.Caching;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Scheduling;
@@ -519,6 +520,7 @@ public sealed class GetSeasonLeaderboardQueryHandler(
     IValidator<GetSeasonLeaderboardQuery> validator,
     ISeasonRepository seasonRepository,
     IStatsRepository statsRepository,
+    IReadThroughCache cache,
     IClock clock)
 {
     public async Task<LeaderboardModel> HandleAsync(GetSeasonLeaderboardQuery query, CancellationToken cancellationToken = default)
@@ -538,12 +540,19 @@ public sealed class GetSeasonLeaderboardQueryHandler(
         }
 
         var skip = (query.Page - 1) * query.PageSize;
-        var rows = await statsRepository.ListSeasonLeaderboardAsync(
-            season.Id,
-            query.Metric,
-            skip,
-            query.PageSize,
-            query.GroupChatId,
+        // Short-TTL response memoization, not a projection store: raw match facts stay the only
+        // source of truth and nothing writes through here. A newly approved stat shows up within a
+        // minute, which is well inside how quickly post-game results are reviewed.
+        var rows = await cache.GetOrCreateAsync(
+            $"lb:{season.Id:N}:{query.Metric}:{skip}:{query.PageSize}:{query.GroupChatId:N}",
+            TimeSpan.FromSeconds(60),
+            token => statsRepository.ListSeasonLeaderboardAsync(
+                season.Id,
+                query.Metric,
+                skip,
+                query.PageSize,
+                query.GroupChatId,
+                token),
             cancellationToken);
 
         return new LeaderboardModel(
