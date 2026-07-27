@@ -36,3 +36,5 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [game-day-today-projection](game-day-today-projection.md) - Server-authoritative Pacific game-day selection, self check-in, and audited late overrides
 - [game-day-team-workflows](game-day-team-workflows.md) - Server-enforced captain, draft, explicit team-lock, and postgame workflow transitions
 - [session-feed-attendance-projection](session-feed-attendance-projection.md) - Shared local + Pickup Pal counts and capacity semantics for Sessions feeds and RSVP writes
+- [azure-release-migrations](azure-release-migrations.md) - release/azure validates, migrates with a deployment credential, then deploys Functions; startup never migrates
+- [perf-baseline-and-telemetry](perf-baseline-and-telemetry.md) - Perf baseline/plan in _specs/perf/; prod SQL serverless auto-pause; App Insights requests-only telemetry
