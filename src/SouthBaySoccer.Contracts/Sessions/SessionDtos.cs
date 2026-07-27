@@ -40,8 +40,15 @@ public sealed record SessionSummaryDto(
     bool IsGoing = false,
     bool IsWaitlisted = false,
     bool CanJoinWaitlist = false,
-    bool IsRsvpClosed = false)
+    bool IsRsvpClosed = false,
+    string? GroupChatName = null)
 {
+    /// <summary>
+    /// Whether this session carries a WhatsApp group chat name. Sessions an organizer created by
+    /// hand have none, so the schedule card hides the group chip rather than rendering it blank.
+    /// </summary>
+    public bool HasGroupChatName => !string.IsNullOrWhiteSpace(GroupChatName);
+
     public string DisplayTitle =>
         string.IsNullOrWhiteSpace(Venue)
             ? Title

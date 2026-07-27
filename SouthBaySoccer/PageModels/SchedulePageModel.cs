@@ -110,8 +110,13 @@ public partial class SchedulePageModel(
         try
         {
             var dashboard = await sessionsClient.GetDashboardAsync(cancellationToken);
+            // Start instant first; sessions kicking off at the same moment are then ordered by group
+            // chat name so the list reads predictably instead of in dashboard arrival order.
+            // Ungrouped sessions sort after grouped ones at the same time.
             var sessions = EnumerateSessions(dashboard)
                 .OrderBy(session => session.StartsAtUtc)
+                .ThenBy(session => !session.HasGroupChatName)
+                .ThenBy(session => session.GroupChatName, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
             if (sessions.Length == 0)

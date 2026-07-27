@@ -80,10 +80,15 @@ public interface ISessionRepository : IRepository<Session>
 }
 
 /// <summary>Authoritative persisted facts for one card in the player-facing Sessions feed.</summary>
+/// <param name="GroupName">
+/// The WhatsApp group chat name the session was imported from, or <see langword="null"/> for a
+/// session an organizer created by hand (those carry no Pickup Pal group).
+/// </param>
 public sealed record SessionFeedRecord(
     Session Session,
     string VenueName,
     int GoingCount,
     int WaitlistCount,
     bool IsCurrentPlayerGoing,
-    bool IsCurrentPlayerWaitlisted);
+    bool IsCurrentPlayerWaitlisted,
+    string? GroupName = null);
