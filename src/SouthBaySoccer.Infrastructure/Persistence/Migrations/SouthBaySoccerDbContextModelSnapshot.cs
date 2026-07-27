@@ -523,6 +523,11 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[IdentityUserId] IS NOT NULL AND [IsDeleted] = 0");
 
+                    b.HasIndex("NormalizedDisplayName")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("NormalizedDisplayName"), new[] { "DisplayName", "PreferredPosition", "IsGuest" });
+
                     b.HasIndex("PhoneNumberHash")
                         .HasFilter("[PhoneNumberHash] IS NOT NULL AND [IsDeleted] = 0");
 
@@ -1632,6 +1637,11 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SessionId", "CheckedInAtUtc");
 
+                    b.HasIndex("SessionId", "Outcome")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("SessionId", "Outcome"), new[] { "PlayerProfileId" });
+
                     b.HasIndex("SessionId", "PlayerProfileId")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
@@ -2176,6 +2186,9 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
 
+                    b.HasIndex("Status", "SessionId")
+                        .HasFilter("[IsDeleted] = 0");
+
                     b.ToTable("Matches", (string)null);
 
                     b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", true);
@@ -2223,6 +2236,9 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.HasIndex("MatchId", "AwardType")
                         .IsUnique()
                         .HasFilter("[AwardType] = 'Mvp' AND [IsDeleted] = 0");
+
+                    b.HasIndex("AwardType", "PlayerProfileId", "MatchId")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("MatchAwards", (string)null);
 
@@ -2292,8 +2308,6 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AssistPlayerProfileId");
-
                     b.HasIndex("ReviewedByPlayerProfileId");
 
                     b.HasIndex("SubmittedByPlayerProfileId");
@@ -2302,7 +2316,15 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("MatchId", "ReviewStatus");
 
-                    b.HasIndex("PlayerProfileId", "EventType");
+                    b.HasIndex("AssistPlayerProfileId", "EventType", "ReviewStatus")
+                        .HasFilter("[IsDeleted] = 0 AND [AssistPlayerProfileId] IS NOT NULL");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("AssistPlayerProfileId", "EventType", "ReviewStatus"), new[] { "MatchId" });
+
+                    b.HasIndex("PlayerProfileId", "EventType", "ReviewStatus")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("PlayerProfileId", "EventType", "ReviewStatus"), new[] { "MatchId" });
 
                     b.ToTable("MatchEvents", null, t =>
                         {
@@ -2456,6 +2478,9 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ReceiverPlayerProfileId", "MatchId")
+                        .HasFilter("[IsDeleted] = 0");
+
                     b.HasIndex("MatchId", "GiverPlayerProfileId", "ReceiverPlayerProfileId")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
@@ -2515,11 +2540,16 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PlayerProfileId");
-
                     b.HasIndex("MatchId", "PlayerProfileId")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("MatchId", "PlayerProfileId"), new[] { "Played" });
+
+                    b.HasIndex("PlayerProfileId", "MatchId")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("PlayerProfileId", "MatchId"), new[] { "Played", "MinutesPlayed" });
 
                     b.ToTable("PlayerMatchStats", (string)null);
 
@@ -2562,6 +2592,11 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RatedPlayerProfileId", "MatchId")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("RatedPlayerProfileId", "MatchId"), new[] { "Score" });
 
                     b.HasIndex("MatchId", "VoterPlayerProfileId", "RatedPlayerProfileId")
                         .IsUnique()

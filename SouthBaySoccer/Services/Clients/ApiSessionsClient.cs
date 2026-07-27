@@ -127,7 +127,12 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
             .Where(session =>
                 string.Equals(session.Status, PublishedStatus, StringComparison.OrdinalIgnoreCase)
                 || IsCanceled(session))
+            // Same ordering contract as SchedulePageModel: start instant first, then group chat name
+            // so two games kicking off together read in a stable, predictable order. Ungrouped
+            // sessions sort last rather than leading with a blank chip.
             .OrderBy(session => session.StartsAtUtc)
+            .ThenBy(session => string.IsNullOrWhiteSpace(session.GroupName))
+            .ThenBy(session => session.GroupName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
@@ -204,7 +209,8 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
             IsWaitlisted: session.IsCurrentPlayerWaitlisted,
             CanJoinWaitlist: session.CanJoinWaitlist,
             IsRsvpClosed: !IsCanceled(session)
-                && timeProvider.GetUtcNow().UtcDateTime >= session.RsvpDeadlineUtc);
+                && timeProvider.GetUtcNow().UtcDateTime >= session.RsvpDeadlineUtc,
+            GroupChatName: session.GroupName);
     }
 
     private string? BuildSummaryDeadlineLabel(SessionAdminResponse session)

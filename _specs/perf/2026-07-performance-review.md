@@ -476,6 +476,323 @@ Android session restore; no vertical CollectionView nested in vertical ScrollVie
   Baseline data before this date reflects the paused-serverless era; the §2.4 re-run (~2 weeks
   after the Phase 1 deploy) should show `Refresh`/`SignInByPhone` tails and failures collapsing.
 
+### 2026-07-27 — Phase 2.2 + 2.3 implemented (2.1 not started)
+
+- **2.2 Game-day batching.** `IRsvpRepository.GetGameDayAttendanceBatchAsync` added; the
+  single-session method now delegates to it, so there is one code path. `GetTodayGameDayContext`
+  replaced its per-candidate attendance loop (7 round trips each) and its per-candidate venue
+  lookups with two batched reads; `GetRecentGames` batches venues via the new
+  `IVenueRepository.ListByIdsAsync`. On a 3-game day: ~30 round trips → ~4.
+- **2.3 RSVP transaction slimming.** `ListAttendanceRowsAsync` merges the three attendance reads
+  into one `UNION ALL` round trip **for the read-only game-day batch only**. The transactional path
+  keeps its three per-session queries on purpose: `SessionId == @id` holds a narrow index seek,
+  whereas a collection `Contains` translates to an `OPENJSON` join whose plan can take much wider
+  key-range locks under SERIALIZABLE — more costly in deadlocks than two saved round trips are
+  worth. `CancelAndPromoteAsync` now takes a callback that is invoked **once with the whole
+  waitlist** (`IPlayerSessionEligibilityService.CheckManyAsync` + the new `IWaiverRepository`
+  `ListPlayerIdsWithCurrentAcceptanceAsync`), so cancel with an N-deep waitlist goes from 2N
+  eligibility queries to **one**, still inside the transaction.
+  - C3/C4/C5 held: capacity/waitlist decisions, the combined attendance projection, the outbox
+    write, serializable isolation, and the ≤3-attempt→409 budget are unchanged and in-transaction.
+  - Eligibility is read *inside* the transaction by design. An earlier revision prefetched it
+    outside and was rejected in review: expiring a waitlist entry is irreversible, and a player who
+    signed their waiver moments after the prefetch would have been expired on a stale verdict.
+  - Still per-candidate: `IPaymentEligibilityService.CheckAsync` inside `CheckManyAsync`. Harmless
+    today (the provider is a deferred no-op) but it needs its own batch method before M5 payments.
+- Guards added: 2 Application tests (eligibility prefetched and passed; empty-waitlist path) and
+  3 Infrastructure tests — **two players racing for the last spot** (exactly one Going, never two),
+  batch-equals-per-session equivalence, and the skip-without-expiring rule. The first is the
+  over-capacity proof Phase 2 required; all three run in the Windows CI job.
+- Gate for 2.2/2.3 superseded by the combined Phase 2 gate below.
+### 2026-07-27 — Phase 2.1 implemented (Phase 2 complete)
+
+- **Import batching.** `ImportPickupPalGamesCommandHandler.PrefetchAsync` now reads everything the
+  pass needs in ~8 batched queries into an `ImportLookups` bag: venues, snapshots by game id,
+  sessions by id and by occurrence key, and profiles by PickupPal user id / phone hash / WhatsApp
+  JID hash / normalized display name. Per-game and per-participant resolution then hits
+  dictionaries only. New batch members on `IPickupPalGameRepository`, `ISessionRepository`,
+  `IPlayerProfileRepository` (+ Infrastructure implementations). **5 games × 20 participants:
+  ~425 → ~10 round trips.**
+- Resolution parity is deliberate and exact: batches are ordered oldest-first and folded with
+  `TryAdd`, so a hash matching several profiles picks the same row `FirstOrDefault(OrderBy
+  CreatedAt)` returned; display names are grouped and a name matching more than one profile
+  resolves to nobody, mirroring `FindSingleByNormalizedDisplayNameAsync`. `profileCache` still
+  handles same-pass reuse, so which duplicates get created is unchanged.
+- **One deliberate behavior fix:** venues created during a pass are now registered in the lookup.
+  Previously two games at the same new location created two venue rows, because an added-but-unsaved
+  venue is invisible to `ListActiveAsync`. Guarded by a new test.
+- **Snapshot writes are skipped when nothing changed** (`SnapshotMatches`, deliberately excluding
+  `CapturedAtUtc`). `SanitizedGameJson` holds the whole payload and `Update` marks every column
+  modified, so an idle game used to rewrite that blob on every pass. Consequence to know:
+  `CapturedAtUtc` now records the last content change, not the last poll.
+- Guards added: ambiguous display name never links to either namesake; an unchanged payload writes
+  no snapshot; two games sharing a new location create one venue. The first two stub the batch
+  methods directly so they exercise the new grouping/change-detection rather than the harness
+  fan-out.
+- Known pre-existing quirk left intact (not introduced here): a participant whose identity keys
+  differ between games (e.g. phone-only in game 1, user-id in game 2) still creates two profiles,
+  because `BuildProfileCacheKeys` returns only the user key when a user id is present and the
+  game-1 profile is not yet queryable. Worth revisiting separately.
+- **Code review (dotnet-code-reviewer) found three blockers; all fixed before hand-off:**
+  1. *Batch dictionaries were keyed on the value SQL returned, not the value requested.* SQL Server's
+     `IN` ignores case and trailing spaces under the default collation, so a row could be returned by
+     the query and still miss an exact-match dictionary — silently creating duplicate profiles and
+     sessions. `IndexByRequestedKey` now matches on the requested key. This was a real defect: the
+     new `HandleAsync_WhenStoredNameDiffersFromRequestByCaseOrTrailingSpace_...` theory fails against
+     the pre-fix code. It is reachable today because `NormalizedDisplayName` is stored without a
+     `Trim` but looked up with one.
+  2. *`Contains` inside the serializable transaction* — reverted, see the 2.3 entry above.
+  3. *Waitlist expiry acting on a pre-transaction verdict* — redesigned, see the 2.3 entry above.
+  Also applied: deterministic `OrderBy(CreatedAt)` on the snapshot/occurrence-key batches (the
+  single-key versions used `SingleOrDefault` and threw on duplicates; the batches must not pick
+  arbitrarily), `ToLookup` in the game-day batch, and a race-test that treats a retry-exhausted
+  409 as "not admitted" rather than failing CI for correct behaviour.
+- Known-remaining, deliberately not in scope (raised in review): `GetRecentGamesQueryHandler` still
+  issues per-session match/teams/events queries (venues are batched); `PrefetchAsync` inherits
+  `ListActiveAsync`'s `Take(100)` cap, so a 100+ venue estate would resume duplicating venues — a
+  targeted `ListByNamesAsync` would fix both correctness and cost.
+- Gate: solution build 0 errors / 0 new warnings; Application 191, Functions 121, Domain 1,
+  Client 512, Infrastructure non-DB 18 — all passing locally. The DB-backed Infrastructure tests
+  (race, batch-equivalence, batched-eligibility) are macOS-unrunnable by design (C17) and are a
+  hard merge gate in the Windows CI job — the EF translation of the new `Concat`/`Contains` queries
+  is verified there and nowhere else.
+
+### 2026-07-27 — Phase 3 implemented
+
+- **3.1 Index migration** `20260727180445_PerfReadModelIndexes` adds the eight planned indexes
+  (`Matches(Status,SessionId)`, two covering `MatchEvents` indexes for the goal and assist paths,
+  `PlayerRatingVotes(RatedPlayerProfileId,MatchId)` INCLUDE `Score`,
+  `PlayerLikes(ReceiverPlayerProfileId,MatchId)`, `MatchAwards(PlayerProfileId,AwardType,MatchId)`,
+  `PlayerProfiles(NormalizedDisplayName)`, `CheckIns(SessionId,Outcome)` INCLUDE `PlayerProfileId`),
+  all filtered `[IsDeleted] = 0` to match the global query filter. EF also drops the now-redundant
+  single-column `IX_MatchEvents_AssistPlayerProfileId`, which the new composite supersedes.
+  `artifacts/migrations/SouthBaySoccer.sql` regenerated (idempotent). Nothing runs at startup —
+  `StartupMigrationGuardTests` stays green.
+- **3.2 Leaderboard rewrite.** `BuildPlayerStatAggregates` (6 correlated subqueries *per grouped
+  player*, each re-inlining the eligible-match join) is replaced by `ListPlayerStatAggregatesAsync`:
+  one grouped query per fact type — appearances/minutes, goals, assists, ratings, likes, MVPs —
+  merged in memory. The eligible-match set stays a subquery so SQL resolves it as a semi-join rather
+  than a per-row lookup. Cost stops scaling with players × facts.
+- Ordering and paging moved into `LeaderboardProjection` (new). This is not a behaviour regression:
+  the old SQL ordered by computed aggregates, so it already had to evaluate every player before it
+  could page — the page never reduced work. One deliberate difference: display-name tie-breaks now
+  compare with `InvariantCultureIgnoreCase` instead of the database collation, so ordering no longer
+  varies with server collation; the trailing player-id comparison keeps the order total either way.
+- **3.3 Players directory** is two flat queries (profiles ordered by the newly indexed
+  `NormalizedDisplayName`; match counts grouped once) merged in memory, replacing a correlated
+  per-row `Distinct().Count()`. Response shape unchanged — pagination remains the deferred
+  wire-contract decision.
+- Guards: **`LeaderboardProjectionTests` (10 tests) pin every metric's tie-break chain and run on
+  any machine**, because the ranking rules are now a pure function — that is the part of the
+  rewrite most likely to drift. Three new DB-backed tests cover what the query layer changed and
+  had no coverage for: full aggregate assembly across all five fact tables (ratings, likes, MVP
+  included), `GetPlayerStatsAsync` agreeing with the same player's leaderboard row, and disjoint
+  in-order pages. `SchemaContractTests` uses additive assertions, so the new indexes do not break it.
+- **Code review found two blockers; both fixed before hand-off.** The reviewer independently
+  reproduced all five new query shapes against EF 10.0.10 and confirmed they translate (notably
+  `COUNT(DISTINCT …)` inside a `GroupBy`, and `eligibleMatchIds.Contains(…)` compiling to a real
+  semi-join rather than a per-row lookup), and verified semantic parity including the assist
+  correlation column and own-goal exclusion.
+  1. *`GetPlayerStatsAsync` regressed.* `playerProfileId` was applied only to the base query, so the
+     profile page aggregated the whole season's facts to serve one player — a regression on a hot
+     endpoint, in a performance change. The optional filter is now pushed into all five fact
+     queries; EF funcletizes it away when null, so the leaderboard SQL is unchanged.
+  2. *No index on `PlayerMatchStats`* — the table the rewrite reads hardest. Added
+     `(PlayerProfileId, MatchId) INCLUDE (Played, MinutesPlayed)` for the base grouping and the
+     directory count, plus `Played` as an INCLUDE on the existing unique `(MatchId, PlayerProfileId)`
+     so the goal/assist semi-join probe is covering.
+  Also applied: `MatchAwards` re-keyed to `(AwardType, PlayerProfileId, MatchId)` because the MVP
+  query always filters on `AwardType`; `NormalizedDisplayName` made covering so the directory's
+  ordering does not fall back to a scan-plus-sort; the now-redundant `(PlayerProfileId, EventType)`
+  index dropped rather than paying write amplification; and the directory's `Distinct()` removed
+  (the unique `(MatchId, PlayerProfileId)` index already guarantees distinct matches per player).
+- Latency shape to expect at the next measurement: the leaderboard's floor is now ~6 sequential
+  round trips (they cannot be parallelized on a shared `DbContext`) instead of one large query, and
+  `GetPlayerStatsAsync` ≈ 8. That trade removes the per-player subquery fan-out; watch it in §2.4.
+- Test gaps the review caught, now closed: the `Played` semi-join guard and own-goal exclusion were
+  both passing vacuously (every seeded player played every match, and own goals were only covered by
+  an indirect assertion), and one tie-break case would have passed with its comparator deleted.
+- Gate: solution build 0 errors / 0 new warnings; Application 191, Functions 121, Domain 1,
+  Client 512, Infrastructure non-DB 28 — all passing locally. The DB-backed stats tests and the
+  migration itself verify in the Windows CI job.
+
+### 2026-07-27 — Phase 4 implemented (backend caching)
+
+Mechanism: `AddMemoryCache()` plus `Infrastructure/Caching/`. Two shapes, chosen per target rather
+than forcing one pattern:
+
+- **Repository decorators** for reference lists that need write invalidation — `CachedSeasonRepository`
+  (`seasons:active`, 15 min) and `CachedVenueRepository` (`venues:active`, 5 min), registered around
+  the concrete repositories so the interface registration stays the only thing callers see.
+- **`IReadThroughCache`** (Application abstraction, `MemoryReadThroughCache` in Infrastructure) for
+  TTL-only response memoization at the handler, where the policy is visible at the use site:
+  players directory (`players:directory`, 60 s) and the leaderboard page
+  (`lb:{season}:{metric}:{skip}:{pageSize}:{group}`, 60 s). `IStatsRepository` has ~30 members, so a
+  decorator there would have been delegation boilerplate obscuring one cached method.
+- **`CachedPickupPalGroupClient`** (`pickuppal:groups:catalog`, 5 min fresh, serve-stale ≤30 min on
+  provider error). Highest measured value in the phase: `GetMyGroups` had a p50 of 408 ms with
+  effectively no sub-100 ms mode because every request made its own provider call for a list that is
+  identical for every player. Serving stale on error also stops a Pickup Pal outage breaking sign-in.
+- **Invalidation happens after commit, not at write time.** `CacheEvictionQueue` (scoped) collects
+  keys and `UnitOfWork.SaveChangesAsync` drains it once the write is durable. Evicting at write time
+  leaves a window in which a concurrent read repopulates from pre-commit state and pins stale data
+  for a whole TTL; a request that never commits now correctly evicts nothing. Two tests pin both
+  halves of that rule.
+- Deliberately **not** cached: the current waiver document (spec listed it, but there is no waiver
+  publish path in the app and `GET waivers/current` saw 1 call in 30 days — surface without benefit);
+  `IVenueRepository.ListByIdsAsync` and `GetByIdAsync` (keyed by arbitrary id sets, would mostly miss);
+  `GetLinkedGroupsAsync` (per-player link state). The §6 DO-NOT-CACHE list is otherwise untouched —
+  no RSVP capacity, compliance, payment, or auth read goes through any cache added here, and every
+  cache key carries internal identifiers only.
+- Guards: 13 new tests — group-catalog hit/expiry/stale-on-error/throw-with-nothing-cached and
+  "linked groups are never cached"; reference-repo hit, before-flush, after-flush, season
+  invalidation, and "GetById is never served from the list cache"; read-through hit, key isolation,
+  and "a failed factory poisons nothing". Handler tests use a `PassThroughReadThroughCache` fake so
+  memoization never hides the repository interactions they assert.
+- **Code review found three blockers; all fixed.**
+  1. *The `venues:active` cache fed a **write** decision.* `PrefetchAsync` seeded the import's
+     venue lookup from the cached list, and a miss there does not serve stale data — it INSERTS a
+     venue. On a second instance a ≤5-min-old list would miss a venue this instance just created
+     and duplicate the row, with no unique index on `Venue.Name` to stop it. Fixed by adding
+     `IVenueRepository.ListByNamesAsync` (live, name-scoped, never cached) and moving the import
+     onto it, which also drops the `Take(100)` cap the import inherited. Venue-name derivation is
+     now a single `ResolveVenueName` helper so the prefetch and the create-or-reuse decision cannot
+     disagree.
+  2. *`catch (Exception) when (cached is not null)` swallowed caller cancellation*, returning a
+     stale catalog as a normal result on host shutdown or an abandoned request. Now rethrows when
+     `cancellationToken.IsCancellationRequested`, matching `GameDayPickupPalRefreshService`; an
+     `HttpClient` timeout still falls through to stale because it leaves the caller's token
+     unsignalled. A test pins the distinction.
+  3. *Change-tracked EF entities in a process-wide cache.* Neither `ListActiveAsync` used
+     `AsNoTracking`, so the singleton cache held entities attached to a long-disposed `DbContext`
+     and handed the same mutable graph to every request for a whole TTL. Latent (no caller mutates
+     a list-sourced entity today) but one line each to remove permanently.
+  Also applied: **eviction is now drained by `AuditSoftDeleteSaveChangesInterceptor.SavedChangesAsync`
+  instead of `UnitOfWork`**, so every commit path is covered by construction — seven services call
+  `dbContext.SaveChangesAsync` directly, and any of them commits everything tracked in the shared
+  scoped context. Season TTL cut 15 → 5 min, because on a second instance the longer window makes a
+  newly created season invisible and *silently skips imports* rather than merely serving stale data.
+- Known and accepted, recorded rather than fixed: the leaderboard read-through has no stampede
+  protection (N concurrent misses at the TTL flip each cost ~6 sequential round trips); the players
+  directory is TTL-only, not invalidated on profile writes as §6 says; and caching the group catalog
+  means `ResolveGroupAsync` can 404 for a group created in the last 5 minutes. Each is worth a
+  follow-up but none is a correctness break in the current single-instance deployment.
+- Gate: solution build 0 errors / 0 new warnings; Application 191, Functions 121, Domain 1,
+  Client 519, Infrastructure non-DB 43 — all passing locally.
+
+### 2026-07-27 — Phase 5 partially implemented (client)
+
+**Done:**
+- **5.1 In-memory access-token copy** in the singleton `AuthenticationSessionRefresher`. Secure
+  storage stays the durable record; the memory copy removes two platform-keystore decrypts from
+  every authenticated request, which is a fixed cost every screen load multiplies. Populated on
+  read and directly on refresh, and cleared on every definitive rejection path alongside
+  `tokenStore.ClearAsync()`. The refresh semaphore and all rejection semantics are unchanged.
+  3 tests: warm path reads storage once, an expired token inside the refresh skew is not served,
+  and a refresh serves the new token without re-reading storage.
+- **5.2 (partial) `ClientResponseCache`** + `CachedSessionsClient` (`sessions:dashboard`, 30 s),
+  registered so the decorator owns the `ISessionsClient` registration while the
+  correlation → auth → exception handler chain is untouched. Sessions Home and Schedule both call
+  `GetDashboardAsync`, so the duplicate is gone and a tab switch inside 30 s costs no request. Any
+  waitlist mutation invalidates `sessions:` — deliberately regardless of the reported outcome,
+  because a timeout on a committed write would otherwise leave a stale feed. `GetSessionAsync` is
+  left uncached: the detail screen is exactly where someone checks live capacity. 4 cache tests
+  plus 2 updated registration assertions (the existing suite correctly caught the type change).
+
+**Completed 2026-07-27 (same day):**
+- **Sign-out and sign-in `Clear()` the response cache** — the correctness gate that had to land
+  before any per-player data was cached. Cached responses outlive a token, so without this the next
+  account to sign in on a shared device could be shown the previous one's profile or groups. A test
+  pins it.
+- **Pull-to-refresh invalidates before loading** on Sessions Home and Schedule. Returning to a tab
+  is served from cache; an explicit pull is not, which is the whole distinction between the two
+  gestures. Both are pinned by request-count tests.
+- **Decorators added** for profile (`profile:me`, 5 min), groups (`groups:me` / `groups:available`,
+  5 min, invalidated on link) and the players directory (`players:directory`, 60 s). Deliberately
+  uncached: another player's profile (opened intentionally, and the key space would grow with
+  everyone ever viewed) and `GetSessionAsync` (the detail screen is where live capacity is checked).
+- **`ScreenRequestCountTests` extended** with the two tests that state the phase's goal directly:
+  a second Appearing inside the window issues **no** further requests, and pull-to-refresh refetches
+  anyway. Five registration assertions across the existing suite were updated — the suite correctly
+  caught every decorator swap.
+
+**Still open (deliberately):**
+- **5.3 gzip not applied.** The audit's finding assumed the managed handler default, but MAUI uses
+  the native Android/iOS handlers, which already negotiate gzip. Forcing
+  `ConfigurePrimaryHttpMessageHandler(new HttpClientHandler { AutomaticDecompression = … })` would
+  replace the platform handler — and its TLS behaviour — to fix something that may not be broken.
+  Needs a device capture of the real request headers before anything changes.
+- GET-only retry not added; the 401-replay path and idempotency-keyed mutations already exist, so
+  this is an availability nicety rather than a correctness gap.
+- Leaderboard and stats-prompt reads are still uncached on the client (both are cached server-side).
+- Gate: solution build 0 errors / 0 new warnings; Application 191, Functions 121, Domain 1,
+  Client 522, Infrastructure non-DB 43 — all passing locally.
+
+### 2026-07-27 — Phase 5 code review: five issues fixed
+
+The review found two blockers that no test could see, plus a security bug I introduced:
+
+1. **Release did not compile.** The `using …Clients.Caching;` was added inside a `#if !RELEASE`
+   block while the types are referenced from `AddApiClients`, which compiles in every
+   configuration. Debug and the whole suite passed; the shipping configuration was broken.
+   `dotnet build -c Release` is now part of the gate.
+2. **Seed mode could not start.** `IClientResponseCache` was registered only inside
+   `AddApiClients`, but `AuthenticationCoordinator` takes it unconditionally and Debug defaults to
+   Seed — first resolution threw. Registration hoisted above the mode switch.
+3. **The in-memory access token survived sign-out**, so the next account to sign in on the device
+   would have authenticated as the previous one — every read *and write* executed as them. Strictly
+   worse than the response-cache leak `Clear()` was added to prevent, and the same omission.
+   `IAuthenticationSessionRefresher.InvalidateCachedToken()` added and called from every token
+   write/clear: sign-in, sign-out, the WhatsApp callback, and all three `AppStartupService` sites.
+4. **A response in flight during `Clear()` was written back after it**, re-seeding the previous
+   account's data immediately after sign-out dropped it. `ClientResponseCache` now stamps a
+   generation on entry and discards a write whose generation is stale.
+5. **RSVP did not invalidate the cached dashboard.** `SetRsvpIntentAsync` goes through
+   `IRosterClient`, which had no decorator, so the feed kept pre-RSVP counts for up to 30 s — a
+   §6 DO-NOT-CACHE violation ("RSVP capacity / attendance counts"), not just staleness. Added
+   `CachedRosterClient`; roster reads themselves stay uncached.
+6. **Pull-to-refresh was a no-op on Profile, Players and Link Group.** Worst on Link Group, where a
+   player just added to a WhatsApp group could not clear the blocking link step for five minutes.
+   All three now invalidate before loading.
+
+Still open from the review, recorded not fixed: no per-key single-flight in `ClientResponseCache`
+(concurrent misses double-fire; the current call sites are sequential); Sessions Home still flashes
+`Loading` on a cache hit, so the 0-request tab switch is not yet visually free; `"sessions:"` etc.
+are magic strings duplicated across page models; and the game-day/stats/admin mutation clients still
+do not invalidate the dashboard.
+
+Gate: Debug **and Release** build clean; Application 191, Functions 121, Domain 1, Client 523,
+Infrastructure non-DB 43.
+
+### 2026-07-27 — Phase 6 assessment (two audit items corrected before implementing)
+
+Phase 6a was re-checked against the actual project configuration before changing anything, and two
+of its planned items do not hold up. Recording this so the work is not done speculatively:
+
+- **"Add `x:DataType` to `PlayerRow.xaml` / `Avatar.xaml` — ~14 reflection bindings per row" is
+  almost certainly already solved.** The audit inferred reflection bindings from the absence of
+  `x:DataType`, but `SouthBaySoccer.csproj:33` sets
+  `<MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>`,
+  which compiles bindings that specify a `Source` by inferring the type from the source itself.
+  Every binding in those two controls is `{Binding X, Source={x:Reference Root}}`, so they are
+  compiled already. Adding `x:DataType` would be a no-op at best and wrong at worst (the binding
+  context of those elements is not the control). **Verify with a build-log binding diagnostic or a
+  profiler before spending effort here.**
+- **The `GameDayPageModels.cs:1274` "PropertyChanged leak" is overstated.** The subscription chain
+  is item → lambda → page model, and a new `TeamResultItem` is constructed on every reload, so
+  `TeamResults.Clear()` makes both the items and their closures collectable. Handlers do not stack
+  across reloads because the instances are never reused. Worth tidying for clarity, but it is not
+  the leak the audit describes and should not be prioritised as one.
+
+**Remaining genuine Phase 6 work** (not started):
+- `PlayersPage` virtualization — still the real win, and still the riskiest change in the plan:
+  the `CollectionView` must own page scrolling with header content moved into `CollectionView.Header`
+  (never a vertical `CollectionView` inside a vertical `ScrollView`, per the documented Android ANR
+  hazard at `SchedulePage.xaml:47-50`), and the structural XAML tests must be updated in the same PR.
+- Debounced directory search, reusing the CTS catch-up-loop pattern in `CreateSessionPage.xaml.cs`.
+- 6b build/publish items (Functions ReadyToRun, Android profiled AOT, font pruning, STJ source-gen),
+  each of which needs a device or CI validation loop before merging.
+
 ## 10. Decisions needed
 
 1. **SQL auto-pause — RESOLVED 2026-07-26.** Switched to Standard S1 (~$29/mo flat, always-on); free-limit offer opted out (permanent). See §9 execution log.

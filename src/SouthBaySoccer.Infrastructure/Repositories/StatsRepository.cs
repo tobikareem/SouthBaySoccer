@@ -400,37 +400,17 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
         Guid? groupChatId,
         CancellationToken cancellationToken = default)
     {
-        var query = BuildPlayerStatAggregates(seasonId, playerProfileId: null, groupChatId);
-        var ordered = metric switch
-        {
-            StatLeaderboardMetric.Goals => query
-                .OrderByDescending(x => x.Goals)
-                .ThenBy(x => x.Appearances)
-                .ThenByDescending(x => x.Assists)
-                .ThenBy(x => x.DisplayName)
-                .ThenBy(x => x.PlayerProfileId),
-            StatLeaderboardMetric.Assists => query
-                .OrderByDescending(x => x.Assists)
-                .ThenBy(x => x.MinutesPlayed)
-                .ThenByDescending(x => x.Goals)
-                .ThenBy(x => x.DisplayName)
-                .ThenBy(x => x.PlayerProfileId),
-            StatLeaderboardMetric.Rating => query
-                .OrderByDescending(x => x.AverageRating)
-                .ThenByDescending(x => x.RatingVoteCount)
-                .ThenByDescending(x => x.Appearances)
-                .ThenBy(x => x.DisplayName)
-                .ThenBy(x => x.PlayerProfileId),
-            StatLeaderboardMetric.Mvp => query
-                .OrderByDescending(x => x.MvpAwards)
-                .ThenBy(x => x.Appearances)
-                .ThenByDescending(x => x.AverageRating)
-                .ThenBy(x => x.DisplayName)
-                .ThenBy(x => x.PlayerProfileId),
-            _ => query.OrderBy(x => x.DisplayName).ThenBy(x => x.PlayerProfileId),
-        };
+        var aggregates = await ListPlayerStatAggregatesAsync(
+            seasonId,
+            playerProfileId: null,
+            groupChatId,
+            cancellationToken);
 
-        var rows = await ordered.Skip(skip).Take(take).ToArrayAsync(cancellationToken);
+        // Ordering and paging happen in memory. The ranking keys are all derived aggregates, so the
+        // old SQL ORDER BY had to compute every player's totals before it could page anyway — the
+        // page never reduced the work. A pickup community is hundreds of players, so sorting the
+        // materialized set costs nothing and keeps the ordering contract in one testable place.
+        var rows = LeaderboardProjection.Order(aggregates, metric).Skip(skip).Take(take);
         return rows.Select(row => new LeaderboardReadModel(
             row.PlayerProfileId,
             row.DisplayName,
@@ -444,7 +424,7 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
             row.RatingVoteCount,
             row.Likes,
             row.MvpAwards,
-            GetMetricValue(row, metric))).ToArray();
+            LeaderboardProjection.GetMetricValue(row, metric))).ToArray();
     }
 
     public async Task<PlayerStatSummaryReadModel?> GetPlayerStatsAsync(
@@ -461,7 +441,12 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
             return null;
         }
 
-        var aggregate = await BuildPlayerStatAggregates(seasonId, playerProfileId).SingleOrDefaultAsync(cancellationToken);
+        var aggregate = (await ListPlayerStatAggregatesAsync(
+                seasonId,
+                playerProfileId,
+                groupChatId: null,
+                cancellationToken))
+            .SingleOrDefault();
         // Career wins/losses are game-level: sum the player's team results across finalized matches
         // (a session's rotation can be several games, so this matches the recent-form outcomes).
         var record = await (
@@ -516,22 +501,31 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
             .Take(matchTake)
             .ToArrayAsync(cancellationToken);
 
-    private IQueryable<PlayerStatAggregate> BuildPlayerStatAggregates(
+    /// <summary>
+    /// Assembles per-player season aggregates from raw match facts using one flat grouped query per
+    /// fact type. The previous shape ran six correlated subqueries per grouped player, each
+    /// re-inlining the eligible-match join, which made cost scale with players x facts.
+    /// </summary>
+    private async Task<IReadOnlyList<PlayerStatAggregate>> ListPlayerStatAggregatesAsync(
         Guid? seasonId,
         Guid? playerProfileId,
-        Guid? groupChatId = null)
+        Guid? groupChatId,
+        CancellationToken cancellationToken)
     {
-        var eligibleMatches = dbContext.Matches
+        // Kept as a subquery rather than materialized ids: used once per grouped query below, SQL
+        // Server resolves it as a semi-join instead of the per-row lookup the old shape forced.
+        var eligibleMatchIds = dbContext.Matches
             .Where(match => match.Status == MatchStatus.Completed || match.Status == MatchStatus.Published || match.Status == MatchStatus.Locked)
             .Join(
                 dbContext.Sessions,
                 match => match.SessionId,
                 session => session.Id,
                 (match, session) => new { Match = match, Session = session })
-            .Where(x => !seasonId.HasValue || x.Session.SeasonId == seasonId.Value);
+            .Where(x => !seasonId.HasValue || x.Session.SeasonId == seasonId.Value)
+            .Select(x => x.Match.Id);
 
         // Group-scoped leaderboards restrict the player set to members of the selected group chat.
-        // Membership drives this filter — the underlying match facts are never group-tagged. Applied
+        // Membership drives this filter - the underlying match facts are never group-tagged. Applied
         // as a conditional Where rather than a nullable-IQueryable predicate so it never depends on
         // the provider funcletizing a null check.
         var participants = groupChatId.HasValue
@@ -539,13 +533,13 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
                 .Any(link => link.GroupChatId == groupChatId.Value && link.PlayerProfileId == participant.PlayerProfileId))
             : dbContext.PlayerMatchStats;
 
-        return
+        var baseRows = await (
             from participant in participants
-            join eligibleMatch in eligibleMatches on participant.MatchId equals eligibleMatch.Match.Id
             join profile in dbContext.PlayerProfiles on participant.PlayerProfileId equals profile.Id
             where participant.Played
+                && eligibleMatchIds.Contains(participant.MatchId)
                 && (!playerProfileId.HasValue || participant.PlayerProfileId == playerProfileId.Value)
-            group new { participant, profile } by new
+            group participant by new
             {
                 profile.Id,
                 profile.DisplayName,
@@ -554,64 +548,111 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
                 profile.IdentityUserId,
             }
             into grouped
-            select new PlayerStatAggregate
+            select new
             {
-                PlayerProfileId = grouped.Key.Id,
-                DisplayName = grouped.Key.DisplayName,
-                PreferredPosition = grouped.Key.PreferredPosition,
-                IsGuest = grouped.Key.IsGuest,
-                IdentityUserId = grouped.Key.IdentityUserId,
+                grouped.Key.Id,
+                grouped.Key.DisplayName,
+                grouped.Key.PreferredPosition,
+                grouped.Key.IsGuest,
+                grouped.Key.IdentityUserId,
                 Appearances = grouped.Count(),
-                MinutesPlayed = grouped.Sum(x => x.participant.MinutesPlayed ?? 0),
-                Goals = dbContext.MatchEvents.Count(matchEvent =>
-                    matchEvent.PlayerProfileId == grouped.Key.Id
-                    && matchEvent.EventType == MatchEventType.Goal
+                MinutesPlayed = grouped.Sum(x => x.MinutesPlayed ?? 0),
+            }).ToArrayAsync(cancellationToken);
+
+        if (baseRows.Length == 0)
+        {
+            return [];
+        }
+
+        // A scoring or assisting player only earns credit for a match they are recorded as having
+        // played, which is why both event queries keep the PlayerMatchStats semi-join.
+        var goals = await CountByPlayerAsync(
+            dbContext.MatchEvents
+                .Where(matchEvent => matchEvent.EventType == MatchEventType.Goal
                     && matchEvent.ReviewStatus == MatchEventReviewStatus.Approved
-                    && eligibleMatches.Any(x => x.Match.Id == matchEvent.MatchId)
-                    && dbContext.PlayerMatchStats.Any(x => x.MatchId == matchEvent.MatchId && x.PlayerProfileId == grouped.Key.Id && x.Played)),
-                Assists = dbContext.MatchEvents.Count(matchEvent =>
-                    matchEvent.AssistPlayerProfileId == grouped.Key.Id
-                    && matchEvent.EventType == MatchEventType.Goal
+                    && matchEvent.PlayerProfileId != null
+                    && (!playerProfileId.HasValue || matchEvent.PlayerProfileId == playerProfileId.Value)
+                    && eligibleMatchIds.Contains(matchEvent.MatchId)
+                    && dbContext.PlayerMatchStats.Any(x => x.MatchId == matchEvent.MatchId && x.PlayerProfileId == matchEvent.PlayerProfileId && x.Played))
+                // Null-forgiving is safe and never actually executed: this is an expression tree,
+                // and the predicate above already restricts the set to non-null scorers.
+                .Select(matchEvent => matchEvent.PlayerProfileId!.Value),
+            cancellationToken);
+
+        var assists = await CountByPlayerAsync(
+            dbContext.MatchEvents
+                .Where(matchEvent => matchEvent.EventType == MatchEventType.Goal
                     && matchEvent.ReviewStatus == MatchEventReviewStatus.Approved
-                    && eligibleMatches.Any(x => x.Match.Id == matchEvent.MatchId)
-                    && dbContext.PlayerMatchStats.Any(x => x.MatchId == matchEvent.MatchId && x.PlayerProfileId == grouped.Key.Id && x.Played)),
-                AverageRating = dbContext.PlayerRatingVotes
-                    .Where(vote => vote.RatedPlayerProfileId == grouped.Key.Id && eligibleMatches.Any(x => x.Match.Id == vote.MatchId))
-                    .Average(vote => (decimal?)vote.Score) ?? 0m,
-                RatingVoteCount = dbContext.PlayerRatingVotes.Count(vote => vote.RatedPlayerProfileId == grouped.Key.Id && eligibleMatches.Any(x => x.Match.Id == vote.MatchId)),
-                Likes = dbContext.PlayerLikes.Count(like => like.ReceiverPlayerProfileId == grouped.Key.Id && eligibleMatches.Any(x => x.Match.Id == like.MatchId)),
-                MvpAwards = dbContext.MatchAwards.Count(award =>
-                    award.PlayerProfileId == grouped.Key.Id
-                    && award.AwardType == MatchAwardType.Mvp
-                    && eligibleMatches.Any(x => x.Match.Id == award.MatchId)),
+                    && matchEvent.AssistPlayerProfileId != null
+                    && (!playerProfileId.HasValue || matchEvent.AssistPlayerProfileId == playerProfileId.Value)
+                    && eligibleMatchIds.Contains(matchEvent.MatchId)
+                    && dbContext.PlayerMatchStats.Any(x => x.MatchId == matchEvent.MatchId && x.PlayerProfileId == matchEvent.AssistPlayerProfileId && x.Played))
+                // Null-forgiving is safe for the same reason as the scorer projection above.
+                .Select(matchEvent => matchEvent.AssistPlayerProfileId!.Value),
+            cancellationToken);
+
+        var ratings = (await dbContext.PlayerRatingVotes
+                .Where(vote => eligibleMatchIds.Contains(vote.MatchId)
+                    && (!playerProfileId.HasValue || vote.RatedPlayerProfileId == playerProfileId.Value))
+                .GroupBy(vote => vote.RatedPlayerProfileId)
+                .Select(grouped => new
+                {
+                    PlayerProfileId = grouped.Key,
+                    Average = grouped.Average(vote => (decimal?)vote.Score),
+                    Count = grouped.Count(),
+                })
+                .ToArrayAsync(cancellationToken))
+            .ToDictionary(row => row.PlayerProfileId, row => new RatingAggregate(row.Average, row.Count));
+
+        var likes = await CountByPlayerAsync(
+            dbContext.PlayerLikes
+                .Where(like => eligibleMatchIds.Contains(like.MatchId)
+                    && (!playerProfileId.HasValue || like.ReceiverPlayerProfileId == playerProfileId.Value))
+                .Select(like => like.ReceiverPlayerProfileId),
+            cancellationToken);
+
+        var mvpAwards = await CountByPlayerAsync(
+            dbContext.MatchAwards
+                .Where(award => award.AwardType == MatchAwardType.Mvp
+                    && eligibleMatchIds.Contains(award.MatchId)
+                    && (!playerProfileId.HasValue || award.PlayerProfileId == playerProfileId.Value))
+                .Select(award => award.PlayerProfileId),
+            cancellationToken);
+
+        return baseRows.Select(row =>
+        {
+            var rating = ratings.GetValueOrDefault(row.Id);
+            return new PlayerStatAggregate
+            {
+                PlayerProfileId = row.Id,
+                DisplayName = row.DisplayName,
+                PreferredPosition = row.PreferredPosition,
+                IsGuest = row.IsGuest,
+                IdentityUserId = row.IdentityUserId,
+                Appearances = row.Appearances,
+                MinutesPlayed = row.MinutesPlayed,
+                Goals = goals.GetValueOrDefault(row.Id),
+                Assists = assists.GetValueOrDefault(row.Id),
+                AverageRating = rating?.Average ?? 0m,
+                RatingVoteCount = rating?.Count ?? 0,
+                Likes = likes.GetValueOrDefault(row.Id),
+                MvpAwards = mvpAwards.GetValueOrDefault(row.Id),
             };
+        }).ToArray();
     }
 
-    private static decimal GetMetricValue(PlayerStatAggregate row, StatLeaderboardMetric metric) => metric switch
-    {
-        StatLeaderboardMetric.Goals => row.Goals,
-        StatLeaderboardMetric.Assists => row.Assists,
-        StatLeaderboardMetric.Rating => row.AverageRating,
-        StatLeaderboardMetric.Mvp => row.MvpAwards,
-        _ => 0m,
-    };
+    /// <summary>A player's rating totals, absent from the map when they have no votes.</summary>
+    private sealed record RatingAggregate(decimal? Average, int Count);
 
-    private sealed class PlayerStatAggregate
-    {
-        public Guid PlayerProfileId { get; set; }
-        public string DisplayName { get; set; } = string.Empty;
-        public string PreferredPosition { get; set; } = string.Empty;
-        public bool IsGuest { get; set; }
-        public Guid? IdentityUserId { get; set; }
-        public int Appearances { get; set; }
-        public int MinutesPlayed { get; set; }
-        public int Goals { get; set; }
-        public int Assists { get; set; }
-        public decimal AverageRating { get; set; }
-        public int RatingVoteCount { get; set; }
-        public int Likes { get; set; }
-        public int MvpAwards { get; set; }
-    }
+    private static async Task<Dictionary<Guid, int>> CountByPlayerAsync(
+        IQueryable<Guid> playerProfileIds,
+        CancellationToken cancellationToken) =>
+        (await playerProfileIds
+            .GroupBy(playerProfileId => playerProfileId)
+            .Select(grouped => new { PlayerProfileId = grouped.Key, Count = grouped.Count() })
+            .ToArrayAsync(cancellationToken))
+        .ToDictionary(row => row.PlayerProfileId, row => row.Count);
+
     private static async Task<int> ReassignUniqueRowsAsync<T>(
         IReadOnlyList<T> rows,
         Func<T, bool> hasTargetDuplicate,

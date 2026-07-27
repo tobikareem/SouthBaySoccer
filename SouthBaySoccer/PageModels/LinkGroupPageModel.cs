@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using SouthBaySoccer.Contracts.Groups;
 using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 using ViewState = SouthBaySoccer.Controls.ViewState;
 
 namespace SouthBaySoccer.PageModels;
@@ -22,7 +23,8 @@ public interface IGroupLinkNavigator
 public partial class LinkGroupPageModel(
     IGroupsClient groupsClient,
     IGroupLinkNavigator navigator,
-    IUserDialogService dialogService) : ObservableObject
+    IUserDialogService dialogService,
+    IClientResponseCache responseCache) : ObservableObject
 {
     public const string EmptyTitle = "No groups available";
     public const string EmptyMessage = "There are no groups to join yet. Please check back shortly.";
@@ -62,7 +64,12 @@ public partial class LinkGroupPageModel(
     private Task Appearing(CancellationToken cancellationToken) => LoadGroupsAsync(cancellationToken);
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task Refresh(CancellationToken cancellationToken) => LoadGroupsAsync(cancellationToken);
+    private Task Refresh(CancellationToken cancellationToken)
+    {
+        // An explicit pull must not be answered from the cache that serves tab switches.
+        responseCache.Invalidate("groups:");
+        return LoadGroupsAsync(cancellationToken);
+    }
 
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanContinue))]
     private async Task Continue(CancellationToken cancellationToken)

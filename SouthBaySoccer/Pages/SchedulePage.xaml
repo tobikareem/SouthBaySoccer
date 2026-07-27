@@ -115,8 +115,15 @@
                                                                 </controls:Badge.Triggers>
                                                             </controls:Badge>
                                                         </Grid>
-                                                        <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
-                                                            <Border Style="{StaticResource MetadataChip}">
+                                                        <!-- FlexLayout, not HorizontalStackLayout: the
+                                                             group chat chip makes four chips, which
+                                                             clip on a narrow phone. Wrap="Wrap" lets
+                                                             the row spill onto a second line. -->
+                                                        <FlexLayout Direction="Row"
+                                                                    Wrap="Wrap"
+                                                                    JustifyContent="Start"
+                                                                    AlignItems="Center">
+                                                            <Border Style="{StaticResource MetadataChip}" Margin="0,0,8,4">
                                                                 <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
                                                                     <Label Text="{x:Static fonts:FontAwesomeGlyphs.Calendar}"
                                                                            FontFamily="FontAwesomeSolid"
@@ -124,7 +131,7 @@
                                                                     <Label Text="{Binding DateLabel}" Style="{StaticResource TextCaption}" />
                                                                 </HorizontalStackLayout>
                                                             </Border>
-                                                            <Border Style="{StaticResource MetadataChip}">
+                                                            <Border Style="{StaticResource MetadataChip}" Margin="0,0,8,4">
                                                                 <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
                                                                     <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}"
                                                                            FontFamily="FontAwesomeSolid"
@@ -132,7 +139,7 @@
                                                                     <Label Text="{Binding TimeLabel}" Style="{StaticResource TextCaption}" />
                                                                 </HorizontalStackLayout>
                                                             </Border>
-                                                            <Border Style="{StaticResource MetadataChip}">
+                                                            <Border Style="{StaticResource MetadataChip}" Margin="0,0,8,4">
                                                                 <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
                                                                     <Label Text="{x:Static fonts:FontAwesomeGlyphs.Users}"
                                                                            FontFamily="FontAwesomeSolid"
@@ -140,7 +147,20 @@
                                                                     <Label Text="{Binding Format}" Style="{StaticResource TextCaption}" />
                                                                 </HorizontalStackLayout>
                                                             </Border>
-                                                        </HorizontalStackLayout>
+                                                            <Border Style="{StaticResource MetadataChip}"
+                                                                    Margin="0,0,8,4"
+                                                                    IsVisible="{Binding HasGroupChatName}"
+                                                                    SemanticProperties.Description="{Binding GroupChatName, StringFormat='Group chat {0}'}">
+                                                                <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                                                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
+                                                                           FontFamily="FontAwesomeBrands"
+                                                                           Style="{StaticResource TextCaption}" />
+                                                                    <Label Text="{Binding GroupChatName}"
+                                                                           Style="{StaticResource TextCaption}"
+                                                                           LineBreakMode="TailTruncation" />
+                                                                </HorizontalStackLayout>
+                                                            </Border>
+                                                        </FlexLayout>
                                                         <controls:CapacityBar Current="{Binding GoingCount}"
                                                                               Max="{Binding Capacity}"
                                                                               IsVisible="{Binding IsCanceled, Converter={StaticResource InvertedBool}}" />

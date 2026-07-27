@@ -21,4 +21,29 @@ public sealed class PlayerSessionEligibilityService(
             ? new PlayerSessionEligibilityResult(true, null)
             : new PlayerSessionEligibilityResult(false, payment.Reason ?? "Payment required.");
     }
+
+    public async Task<IReadOnlyDictionary<Guid, bool>> CheckManyAsync(
+        IReadOnlyCollection<Guid> playerProfileIds,
+        Guid sessionId,
+        CancellationToken cancellationToken = default)
+    {
+        var results = new Dictionary<Guid, bool>(playerProfileIds.Count);
+        if (playerProfileIds.Count == 0)
+        {
+            return results;
+        }
+
+        var acceptedIds = (await waiverRepository.ListPlayerIdsWithCurrentAcceptanceAsync(
+                playerProfileIds,
+                cancellationToken))
+            .ToHashSet();
+
+        foreach (var playerProfileId in playerProfileIds.Distinct())
+        {
+            results[playerProfileId] = acceptedIds.Contains(playerProfileId)
+                && (await paymentEligibilityService.CheckAsync(playerProfileId, sessionId, cancellationToken)).IsEligible;
+        }
+
+        return results;
+    }
 }

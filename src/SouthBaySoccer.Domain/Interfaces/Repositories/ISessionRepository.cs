@@ -13,6 +13,20 @@ public interface ISessionRepository : IRepository<Session>
     Task<Session?> FindByOccurrenceKeyAsync(string occurrenceKey, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Lists the sessions with the given ids in one query.
+    /// </summary>
+    Task<IReadOnlyList<Session>> ListByIdsAsync(
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the sessions carrying the given occurrence keys in one query.
+    /// </summary>
+    Task<IReadOnlyList<Session>> ListByOccurrenceKeysAsync(
+        IReadOnlyCollection<string> occurrenceKeys,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Determines whether an active (non-canceled) session already exists at the same venue with
     /// the same title and the same start time.
     /// </summary>
@@ -66,10 +80,15 @@ public interface ISessionRepository : IRepository<Session>
 }
 
 /// <summary>Authoritative persisted facts for one card in the player-facing Sessions feed.</summary>
+/// <param name="GroupName">
+/// The WhatsApp group chat name the session was imported from, or <see langword="null"/> for a
+/// session an organizer created by hand (those carry no Pickup Pal group).
+/// </param>
 public sealed record SessionFeedRecord(
     Session Session,
     string VenueName,
     int GoingCount,
     int WaitlistCount,
     bool IsCurrentPlayerGoing,
-    bool IsCurrentPlayerWaitlisted);
+    bool IsCurrentPlayerWaitlisted,
+    string? GroupName = null);

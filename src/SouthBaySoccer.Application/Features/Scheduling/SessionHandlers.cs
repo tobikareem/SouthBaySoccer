@@ -120,7 +120,8 @@ public sealed class ListUpcomingSessionsQueryHandler(
                 isFull,
                 record.IsCurrentPlayerGoing,
                 record.IsCurrentPlayerWaitlisted,
-                canJoinWaitlist);
+                canJoinWaitlist,
+                record.GroupName);
         }).ToArray();
     }
 }

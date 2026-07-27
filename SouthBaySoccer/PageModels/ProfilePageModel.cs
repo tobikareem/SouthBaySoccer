@@ -7,6 +7,7 @@ using SouthBaySoccer.Contracts.Profiles;
 using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 using ViewState = SouthBaySoccer.Controls.ViewState;
 
 namespace SouthBaySoccer.PageModels;
@@ -19,7 +20,8 @@ public partial class ProfilePageModel(
     IProfileExternalLauncher externalLauncher,
     IProfileNavigator navigator,
     IAuthenticationCoordinator authenticationCoordinator,
-    IUserDialogService dialogService) : ObservableObject
+    IUserDialogService dialogService,
+    IClientResponseCache responseCache) : ObservableObject
 {
     public const string EmptyTitle = "Profile not found";
     public const string EmptyMessage = "Your profile data is not available.";
@@ -122,7 +124,12 @@ public partial class ProfilePageModel(
     private Task Appearing(CancellationToken cancellationToken) => LoadProfileAsync(cancellationToken);
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task Refresh(CancellationToken cancellationToken) => LoadProfileAsync(cancellationToken);
+    private Task Refresh(CancellationToken cancellationToken)
+    {
+        // An explicit pull must not be answered from the cache that serves tab switches.
+        responseCache.Invalidate("profile:");
+        return LoadProfileAsync(cancellationToken);
+    }
 
     [RelayCommand]
     private async Task EditOnPickupPal(CancellationToken cancellationToken)

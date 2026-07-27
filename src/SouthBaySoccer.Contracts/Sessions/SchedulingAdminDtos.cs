@@ -44,7 +44,8 @@ public sealed record SessionAdminResponse(
     bool IsFull = false,
     bool IsCurrentPlayerGoing = false,
     bool IsCurrentPlayerWaitlisted = false,
-    bool CanJoinWaitlist = false);
+    bool CanJoinWaitlist = false,
+    string? GroupName = null);
 
 public sealed record CreateSessionAdminRequest(
     Guid SeasonId,

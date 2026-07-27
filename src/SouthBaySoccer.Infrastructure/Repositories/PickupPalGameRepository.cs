@@ -13,6 +13,24 @@ internal sealed class PickupPalGameRepository(SouthBaySoccerDbContext dbContext)
         dbContext.Set<PickupPalGameSnapshot>()
             .SingleOrDefaultAsync(x => x.PickupPalGameId == pickupPalGameId, cancellationToken);
 
+    public async Task<IReadOnlyList<PickupPalGameSnapshot>> ListSnapshotsByGameIdsAsync(
+        IReadOnlyCollection<string> pickupPalGameIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (pickupPalGameIds.Count == 0)
+        {
+            return [];
+        }
+
+        // Ordered so that a game id with more than one snapshot row resolves deterministically to
+        // the oldest; the single-id lookup used SingleOrDefault and simply threw on duplicates.
+        var idArray = pickupPalGameIds as string[] ?? pickupPalGameIds.ToArray();
+        return await dbContext.Set<PickupPalGameSnapshot>()
+            .Where(x => idArray.Contains(x.PickupPalGameId))
+            .OrderBy(x => x.CreatedAt)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task AddSnapshotAsync(
         PickupPalGameSnapshot snapshot,
         CancellationToken cancellationToken = default) =>
