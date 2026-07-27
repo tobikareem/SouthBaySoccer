@@ -68,16 +68,25 @@ public static class DependencyInjection
         services.AddSingleton<IWhatsAppChallengeTokenGenerator, WhatsAppChallengeTokenGenerator>();
         services.AddSingleton<IWhatsAppChallengeDeliverySender, UnavailableWhatsAppChallengeDeliverySender>();
         services.AddScoped<IWhatsAppIdentityResolver, WhatsAppIdentityResolver>();
-        services.AddHttpClient<IPickupPalUserClient, PickupPalUserClient>();
-        services.AddHttpClient<IPickupPalGamesClient, PickupPalGamesClient>();
-        services.AddHttpClient<IPickupPalGroupClient, PickupPalGroupClient>();
+        // Caps replace HttpClient's 100-second default so a slow Pickup Pal cannot hang requests.
+        // The games client stays inside the import path's 5s budget; the user and group clients sit
+        // on interactive sign-in/link flows, where 10s leaves headroom for the provider's own cold
+        // starts while staying well under the mobile client's 30s timeout.
+        services.AddHttpClient<IPickupPalUserClient, PickupPalUserClient>(client =>
+            client.Timeout = TimeSpan.FromSeconds(10));
+        services.AddHttpClient<IPickupPalGamesClient, PickupPalGamesClient>(client =>
+            client.Timeout = TimeSpan.FromSeconds(5));
+        services.AddHttpClient<IPickupPalGroupClient, PickupPalGroupClient>(client =>
+            client.Timeout = TimeSpan.FromSeconds(10));
         services.AddScoped<IPickupPalGameRepository, PickupPalGameRepository>();
         services.AddScoped<IGroupChatRepository, GroupChatRepository>();
         services.AddScoped<IPlayerGroupLinkRepository, PlayerGroupLinkRepository>();
         services.AddSingleton<IConfiguredAdminPhoneNumberService, ConfiguredAdminPhoneNumberService>();
         services.AddScoped<IPickupPalUserSyncService, PickupPalUserSyncService>();
         services.AddScoped<IAuthenticationTokenIssuer, AuthenticationTokenIssuer>();
-        services.AddScoped<ITokenService, JwtTokenService>();
+        // Stateless after construction (immutable options + clock), so one instance serves all
+        // requests instead of rebuilding the signing-key index per authenticated request.
+        services.AddSingleton<ITokenService, JwtTokenService>();
         services.AddScoped<IRefreshTokenExchangeService, RefreshTokenExchangeService>();
         services.AddSingleton<IRefreshTokenHasher, RefreshTokenHasher>();
         services.AddSingleton<IRefreshTokenSecretGenerator, RefreshTokenSecretGenerator>();
