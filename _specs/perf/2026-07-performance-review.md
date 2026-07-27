@@ -699,23 +699,34 @@ than forcing one pattern:
   left uncached: the detail screen is exactly where someone checks live capacity. 4 cache tests
   plus 2 updated registration assertions (the existing suite correctly caught the type change).
 
-**Not done — remaining Phase 5 work:**
-- Decorators for profile, groups, players directory, leaderboard, and the stats prompt.
-- Pull-to-refresh must call `IClientResponseCache.Invalidate` before reloading, and sign-out must
-  call `Clear()`. **Until that is wired, a decorated client's pull-to-refresh can serve cache
-  inside the TTL** — acceptable for the 30 s dashboard, but it must land before the longer-TTL
-  profile/groups caches (5 min) are added, and `Clear()` on sign-out is a correctness requirement
-  before any per-player response is cached.
-- `ScreenRequestCountTests` expectations still describe the pre-cache behaviour; they should be
-  re-pinned (first Appearing = N, second inside TTL = 0) in the same PR that finishes the decorators.
-- **5.3 gzip deliberately not applied.** The audit's finding assumed the managed handler default,
-  but MAUI uses the native Android/iOS handlers, which already negotiate gzip. Forcing
+**Completed 2026-07-27 (same day):**
+- **Sign-out and sign-in `Clear()` the response cache** — the correctness gate that had to land
+  before any per-player data was cached. Cached responses outlive a token, so without this the next
+  account to sign in on a shared device could be shown the previous one's profile or groups. A test
+  pins it.
+- **Pull-to-refresh invalidates before loading** on Sessions Home and Schedule. Returning to a tab
+  is served from cache; an explicit pull is not, which is the whole distinction between the two
+  gestures. Both are pinned by request-count tests.
+- **Decorators added** for profile (`profile:me`, 5 min), groups (`groups:me` / `groups:available`,
+  5 min, invalidated on link) and the players directory (`players:directory`, 60 s). Deliberately
+  uncached: another player's profile (opened intentionally, and the key space would grow with
+  everyone ever viewed) and `GetSessionAsync` (the detail screen is where live capacity is checked).
+- **`ScreenRequestCountTests` extended** with the two tests that state the phase's goal directly:
+  a second Appearing inside the window issues **no** further requests, and pull-to-refresh refetches
+  anyway. Five registration assertions across the existing suite were updated — the suite correctly
+  caught every decorator swap.
+
+**Still open (deliberately):**
+- **5.3 gzip not applied.** The audit's finding assumed the managed handler default, but MAUI uses
+  the native Android/iOS handlers, which already negotiate gzip. Forcing
   `ConfigurePrimaryHttpMessageHandler(new HttpClientHandler { AutomaticDecompression = … })` would
-  replace the platform handler to fix something that may not be broken. Needs a device capture of
-  the actual request headers before changing anything.
-- GET-only retry not added yet.
+  replace the platform handler — and its TLS behaviour — to fix something that may not be broken.
+  Needs a device capture of the real request headers before anything changes.
+- GET-only retry not added; the 401-replay path and idempotency-keyed mutations already exist, so
+  this is an availability nicety rather than a correctness gap.
+- Leaderboard and stats-prompt reads are still uncached on the client (both are cached server-side).
 - Gate: solution build 0 errors / 0 new warnings; Application 191, Functions 121, Domain 1,
-  Client 519, Infrastructure non-DB 41 — all passing locally.
+  Client 522, Infrastructure non-DB 43 — all passing locally.
 
 ## 10. Decisions needed
 

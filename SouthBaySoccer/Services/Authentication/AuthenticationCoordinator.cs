@@ -1,6 +1,7 @@
 using System.Net;
 using SouthBaySoccer.Contracts.Authentication;
 using SouthBaySoccer.Configuration;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Services.Authentication;
 
@@ -8,6 +9,7 @@ public sealed class AuthenticationCoordinator(
     IAuthenticationClient authenticationClient,
     ISecureTokenStore tokenStore,
     IAuthenticationNavigator navigator,
+    IClientResponseCache responseCache,
     PickupPalOptions options,
     ClientDataSourceOptions dataSourceOptions) : IAuthenticationCoordinator
 {
@@ -26,6 +28,8 @@ public sealed class AuthenticationCoordinator(
             }
 
             await tokenStore.StoreAsync(tokens);
+            // A different account may have used this device: start from an empty cache.
+            responseCache.Clear();
             _completed = true;
             await navigator.ShowAuthenticatedAppAsync(cancellationToken);
         }
@@ -43,6 +47,9 @@ public sealed class AuthenticationCoordinator(
             // Clear the persisted tokens first, then the in-memory flag, so even if navigation fails
             // the app is genuinely signed out (next launch finds no refresh token and shows sign-in).
             await tokenStore.ClearAsync();
+            // Cached responses outlive the token, so drop them here: the next account to sign in on
+            // this device must never be shown the previous one's data.
+            responseCache.Clear();
             _completed = false;
             await navigator.ShowSignInAsync(cancellationToken);
         }

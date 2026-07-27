@@ -59,11 +59,14 @@ public static class ClientServiceCollectionExtensions
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
-        services.AddHttpClient<IProfileClient, ApiProfileClient>(
+        services.AddHttpClient<ApiProfileClient>(
             client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
+        services.AddTransient<IProfileClient>(provider => new CachedProfileClient(
+            provider.GetRequiredService<ApiProfileClient>(),
+            provider.GetRequiredService<IClientResponseCache>()));
 
         services.AddHttpClient<ISessionAdminClient, ApiSessionAdminClient>(
             client => ConfigureApiClient(client, pickupPalOptions))
@@ -71,11 +74,14 @@ public static class ClientServiceCollectionExtensions
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
-        services.AddHttpClient<IPlayersClient, ApiPlayersClient>(
+        services.AddHttpClient<ApiPlayersClient>(
             client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
+        services.AddTransient<IPlayersClient>(provider => new CachedPlayersClient(
+            provider.GetRequiredService<ApiPlayersClient>(),
+            provider.GetRequiredService<IClientResponseCache>()));
 
         // Registered by concrete type so the caching decorator owns the ISessionsClient
         // registration; the handler pipeline below is unchanged and every real request still
@@ -113,11 +119,14 @@ public static class ClientServiceCollectionExtensions
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
-        services.AddHttpClient<IGroupsClient, ApiGroupsClient>(
+        services.AddHttpClient<ApiGroupsClient>(
             client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
+        services.AddTransient<IGroupsClient>(provider => new CachedGroupsClient(
+            provider.GetRequiredService<ApiGroupsClient>(),
+            provider.GetRequiredService<IClientResponseCache>()));
 
         services.AddSingleton<IAuthenticationClient>(provider =>
             new AuthenticationClient(

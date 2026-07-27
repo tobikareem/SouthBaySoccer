@@ -73,9 +73,9 @@ public class SeedClientRegistrationTests
         provider.GetRequiredService<IAuthenticationClient>()
             .Should().BeOfType<AuthenticationClient>();
         provider.GetRequiredService<IProfileClient>()
-            .Should().BeOfType<ApiProfileClient>();
+            .Should().BeOfType<CachedProfileClient>();
         provider.GetRequiredService<IPlayersClient>()
-            .Should().BeOfType<ApiPlayersClient>();
+            .Should().BeOfType<CachedPlayersClient>();
         // API mode resolves the caching decorator, which wraps the real Api client.
         provider.GetRequiredService<ISessionsClient>()
             .Should().BeOfType<CachedSessionsClient>();
