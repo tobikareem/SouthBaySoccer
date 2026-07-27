@@ -33,7 +33,7 @@ public sealed class StatsRepositoryQueryTests
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
         var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
-        var (season, ada, tunde) = await SeedGoalLeaderboardAsync(db);
+        var (season, ada, tunde, _) = await SeedGoalLeaderboardAsync(db);
 
         var rows = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, skip: 0, take: 10, groupChatId: null);
 
@@ -51,7 +51,7 @@ public sealed class StatsRepositoryQueryTests
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
         var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
-        var (season, ada, tunde) = await SeedGoalLeaderboardAsync(db);
+        var (season, ada, tunde, _) = await SeedGoalLeaderboardAsync(db);
 
         // Link only Tunde to the group; Ada is a member of no group.
         var group = new GroupChat
@@ -86,14 +86,13 @@ public sealed class StatsRepositoryQueryTests
         using var provider = CreateServiceProvider();
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
-        var (season, ada, tunde) = await SeedGoalLeaderboardAsync(db);
+        var (season, ada, tunde, bola) = await SeedGoalLeaderboardAsync(db);
         var seasonMatchIds = await db.Matches
             .Join(db.Sessions, match => match.SessionId, session => session.Id, (match, session) => new { match, session })
             .Where(x => x.session.SeasonId == season.Id)
             .OrderBy(x => x.match.CompletedAtUtc)
             .Select(x => x.match.Id)
             .ToArrayAsync();
-        var bola = await db.PlayerProfiles.SingleAsync(x => x.DisplayName == "Bola Ade");
         var firstMatchId = seasonMatchIds[0];
         // Ratings, likes and awards each come from a separate table and are now assembled by their
         // own grouped query, so each needs facts that differ from the others to be distinguishable.
@@ -133,7 +132,7 @@ public sealed class StatsRepositoryQueryTests
         using var provider = CreateServiceProvider();
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
-        var (season, ada, _) = await SeedGoalLeaderboardAsync(db);
+        var (season, ada, _, _) = await SeedGoalLeaderboardAsync(db);
         var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
 
         var summary = await repository.GetPlayerStatsAsync(ada.Id, season.Id);
@@ -160,7 +159,7 @@ public sealed class StatsRepositoryQueryTests
         using var provider = CreateServiceProvider();
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
-        var (season, _, _) = await SeedGoalLeaderboardAsync(db);
+        var (season, _, _, bola) = await SeedGoalLeaderboardAsync(db);
         var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
 
         var allRows = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, 0, 25, null);
@@ -179,7 +178,7 @@ public sealed class StatsRepositoryQueryTests
         using var provider = CreateServiceProvider();
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
-        var (season, _, _) = await SeedGoalLeaderboardAsync(db);
+        var (season, _, _, bola) = await SeedGoalLeaderboardAsync(db);
         var firstMatchId = await db.Matches
             .Join(db.Sessions, match => match.SessionId, session => session.Id, (match, session) => new { match, session })
             .Where(x => x.session.SeasonId == season.Id)
@@ -209,8 +208,7 @@ public sealed class StatsRepositoryQueryTests
         using var provider = CreateServiceProvider();
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
-        var (season, _, _) = await SeedGoalLeaderboardAsync(db);
-        var bola = await db.PlayerProfiles.SingleAsync(x => x.DisplayName == "Bola Ade");
+        var (season, _, _, bola) = await SeedGoalLeaderboardAsync(db);
         var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
 
         var rows = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, 0, 25, null);
@@ -229,7 +227,7 @@ public sealed class StatsRepositoryQueryTests
         return services.BuildServiceProvider();
     }
 
-    private static async Task<(Season Season, PlayerProfile Ada, PlayerProfile Tunde)> SeedGoalLeaderboardAsync(SouthBaySoccerDbContext db)
+    private static async Task<(Season Season, PlayerProfile Ada, PlayerProfile Tunde, PlayerProfile Bola)> SeedGoalLeaderboardAsync(SouthBaySoccerDbContext db)
     {
         var season = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2026, 1, 1), EndsAtUtc = Utc(2026, 12, 31) };
         var otherSeason = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2025, 1, 1), EndsAtUtc = Utc(2025, 12, 31) };
@@ -265,7 +263,7 @@ public sealed class StatsRepositoryQueryTests
             Goal(otherMatch.Id, ada.Id, null, MatchEventReviewStatus.Approved));
 
         await db.SaveChangesAsync();
-        return (season, ada, tunde);
+        return (season, ada, tunde, bola);
     }
 
     private static async Task AddTeamsAndParticipantsAsync(SouthBaySoccerDbContext db, SoccerMatch match, params PlayerProfile[] players)
