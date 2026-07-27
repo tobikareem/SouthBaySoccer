@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 using ViewState = SouthBaySoccer.Controls.ViewState;
 
 namespace SouthBaySoccer.PageModels;
@@ -20,6 +21,7 @@ public partial class SessionsHomePageModel(
     IProfileClient profileClient,
     IGroupsClient groupsClient,
     IDismissedStatsPromptStore dismissedPromptStore,
+    IClientResponseCache responseCache,
     TimeProvider timeProvider) : ObservableObject
 {
     private string? _cachedProfileDisplayName;
@@ -106,7 +108,13 @@ public partial class SessionsHomePageModel(
     private Task Appearing(CancellationToken cancellationToken) => LoadDashboardAsync(forceProfileRefresh: false, cancellationToken);
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task Refresh(CancellationToken cancellationToken) => LoadDashboardAsync(forceProfileRefresh: true, cancellationToken);
+    private Task Refresh(CancellationToken cancellationToken)
+    {
+        // Pulling to refresh is an explicit "I want current data" gesture, so it must not be
+        // answered from the cache the way returning to the tab is.
+        responseCache.Invalidate("sessions:");
+        return LoadDashboardAsync(forceProfileRefresh: true, cancellationToken);
+    }
 
     [RelayCommand]
     private Task ViewSessionDetail(Guid sessionId) => navigator.GoToSessionAsync(sessionId);

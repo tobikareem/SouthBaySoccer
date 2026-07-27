@@ -1,6 +1,8 @@
 using System.Net;
 using SouthBaySoccer.Contracts.Authentication;
 using SouthBaySoccer.Configuration;
+using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Services.Authentication;
 
@@ -8,6 +10,8 @@ public sealed class AuthenticationCoordinator(
     IAuthenticationClient authenticationClient,
     ISecureTokenStore tokenStore,
     IAuthenticationNavigator navigator,
+    IClientResponseCache responseCache,
+    IAuthenticationSessionRefresher sessionRefresher,
     PickupPalOptions options,
     ClientDataSourceOptions dataSourceOptions) : IAuthenticationCoordinator
 {
@@ -26,6 +30,7 @@ public sealed class AuthenticationCoordinator(
             }
 
             await tokenStore.StoreAsync(tokens);
+            ResetSessionCaches();
             _completed = true;
             await navigator.ShowAuthenticatedAppAsync(cancellationToken);
         }
@@ -43,6 +48,7 @@ public sealed class AuthenticationCoordinator(
             // Clear the persisted tokens first, then the in-memory flag, so even if navigation fails
             // the app is genuinely signed out (next launch finds no refresh token and shows sign-in).
             await tokenStore.ClearAsync();
+            ResetSessionCaches();
             _completed = false;
             await navigator.ShowSignInAsync(cancellationToken);
         }
@@ -50,6 +56,18 @@ public sealed class AuthenticationCoordinator(
         {
             _completionLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Drops everything scoped to the signed-in session. Both caches outlive the stored tokens -
+    /// the response cache holds another account's data, and the refresher's in-memory access token
+    /// would otherwise let the next account authenticate as the previous one - so every token write
+    /// or clear must run this.
+    /// </summary>
+    private void ResetSessionCaches()
+    {
+        responseCache.Clear();
+        sessionRefresher.InvalidateCachedToken();
     }
 
     private readonly SemaphoreSlim _completionLock = new(1, 1);
@@ -132,6 +150,7 @@ public sealed class AuthenticationCoordinator(
                 challengeToken,
                 cancellationToken);
             await tokenStore.StoreAsync(tokens);
+            ResetSessionCaches();
             // Authentication is established once tokens are persisted; record it before the UI swap
             // so a transient navigation hiccup does not force a re-verification on retry.
             _completed = true;

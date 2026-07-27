@@ -65,7 +65,8 @@ public static class SeedFixtures
             20,
             false,
             0,
-            "Next match · in 2 days"),
+            "Next match · in 2 days",
+            GroupChatName: "N9ja Bay"),
         new StatsPromptDto(
             FeaturedMatchId,
             "Submit your latest stats",
@@ -86,7 +87,8 @@ public static class SeedFixtures
                 20,
                 true,
                 3,
-                null)),
+                null,
+                GroupChatName: "South Bay Ballers")),
         CanManageSessions: true);
 
     public static IReadOnlyList<VenueDto> Venues { get; } = ReadOnly(

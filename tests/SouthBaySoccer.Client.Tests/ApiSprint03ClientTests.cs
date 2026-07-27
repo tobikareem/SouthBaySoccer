@@ -10,6 +10,7 @@ using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Contracts.Stats;
 using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -29,8 +30,9 @@ public sealed class ApiSprint03ClientTests
             new PickupPalOptions());
         using var provider = services.BuildServiceProvider();
 
-        provider.GetRequiredService<ISessionsClient>().Should().BeOfType<ApiSessionsClient>();
-        provider.GetRequiredService<IRosterClient>().Should().BeOfType<ApiRosterClient>();
+        // API mode resolves the caching decorator, which wraps the real Api client.
+        provider.GetRequiredService<ISessionsClient>().Should().BeOfType<CachedSessionsClient>();
+        provider.GetRequiredService<IRosterClient>().Should().BeOfType<CachedRosterClient>();
         provider.GetRequiredService<IStatsClient>().Should().BeOfType<ApiStatsClient>();
         provider.GetRequiredService<ILeaderboardClient>().Should().BeOfType<ApiLeaderboardClient>();
         provider.GetRequiredService<IGameDayClient>().Should().BeOfType<ApiGameDayClient>();
@@ -62,6 +64,30 @@ public sealed class ApiSprint03ClientTests
         dashboard.DuesStatus.Should().BeEmpty("no membership-status endpoint exists yet");
         dashboard.StatsPrompt.Should().BeNull("no stats-prompt endpoint exists yet");
         dashboard.ComingUpSessions.Should().BeEmpty("the draft session must be filtered out");
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_GetDashboardAsync_WhenSessionCarriesGroupName_MapsGroupChatName()
+    {
+        var client = CreateSessionsClient(_ => JsonResponse(SessionsJson));
+
+        var dashboard = await client.GetDashboardAsync(CancellationToken.None);
+
+        dashboard.FeaturedSession!.GroupChatName.Should().Be("N9ja Bay");
+        dashboard.FeaturedSession.HasGroupChatName.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_GetDashboardAsync_WhenSessionsShareStartTime_OrdersByGroupName()
+    {
+        var client = CreateSessionsClient(_ => JsonResponse(SameStartTimeSessionsJson));
+
+        var dashboard = await client.GetDashboardAsync(CancellationToken.None);
+
+        // The featured card takes the first session; the rest keep the same ordering contract.
+        dashboard.FeaturedSession!.GroupChatName.Should().Be("Ballers United");
+        dashboard.ComingUpSessions.Select(session => session.GroupChatName)
+            .Should().Equal("N9ja Bay", null);
     }
 
     [Fact]
@@ -685,6 +711,67 @@ public sealed class ApiSprint03ClientTests
         });
     }
 
+    // Three published sessions kicking off at the same instant, deliberately returned out of group
+    // order (and with one ungrouped) so the client's tie-break ordering is what fixes the sequence.
+    private const string SameStartTimeSessionsJson =
+        """
+        [
+          {
+            "sessionId": "55555555-5555-5555-5555-555555555555",
+            "seasonId": "22222222-2222-2222-2222-222222222222",
+            "venueId": "33333333-3333-3333-3333-333333333333",
+            "recurrenceRuleId": null,
+            "title": "Zulu pickup",
+            "format": "7v7",
+            "capacity": 20,
+            "teamCount": 2,
+            "startsAtUtc": "2026-07-25T16:00:00Z",
+            "checkInOpensAtUtc": "2026-07-25T15:45:00Z",
+            "checkInClosesAtUtc": "2026-07-25T16:05:00Z",
+            "rsvpDeadlineUtc": "2026-07-25T15:00:00Z",
+            "occurrenceKey": null,
+            "status": "Published",
+            "venueName": "Marina Field"
+          },
+          {
+            "sessionId": "66666666-6666-6666-6666-666666666666",
+            "seasonId": "22222222-2222-2222-2222-222222222222",
+            "venueId": "33333333-3333-3333-3333-333333333333",
+            "recurrenceRuleId": null,
+            "title": "N9ja pickup",
+            "format": "7v7",
+            "capacity": 20,
+            "teamCount": 2,
+            "startsAtUtc": "2026-07-25T16:00:00Z",
+            "checkInOpensAtUtc": "2026-07-25T15:45:00Z",
+            "checkInClosesAtUtc": "2026-07-25T16:05:00Z",
+            "rsvpDeadlineUtc": "2026-07-25T15:00:00Z",
+            "occurrenceKey": null,
+            "status": "Published",
+            "venueName": "Marina Field",
+            "groupName": "N9ja Bay"
+          },
+          {
+            "sessionId": "77777777-7777-7777-7777-777777777777",
+            "seasonId": "22222222-2222-2222-2222-222222222222",
+            "venueId": "33333333-3333-3333-3333-333333333333",
+            "recurrenceRuleId": null,
+            "title": "Ballers pickup",
+            "format": "7v7",
+            "capacity": 20,
+            "teamCount": 2,
+            "startsAtUtc": "2026-07-25T16:00:00Z",
+            "checkInOpensAtUtc": "2026-07-25T15:45:00Z",
+            "checkInClosesAtUtc": "2026-07-25T16:05:00Z",
+            "rsvpDeadlineUtc": "2026-07-25T15:00:00Z",
+            "occurrenceKey": null,
+            "status": "Published",
+            "venueName": "Marina Field",
+            "groupName": "Ballers United"
+          }
+        ]
+        """;
+
     private const string SessionsJson =
         """
         [
@@ -709,7 +796,8 @@ public sealed class ApiSprint03ClientTests
             "isFull": false,
             "isCurrentPlayerGoing": false,
             "isCurrentPlayerWaitlisted": false,
-            "canJoinWaitlist": false
+            "canJoinWaitlist": false,
+            "groupName": "N9ja Bay"
           },
           {
             "sessionId": "44444444-4444-4444-4444-444444444444",

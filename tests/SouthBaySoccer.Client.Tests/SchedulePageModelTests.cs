@@ -7,6 +7,7 @@ using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -55,6 +56,59 @@ public class SchedulePageModelTests
 
         pageModel.Groups.Single().Sessions.Select(session => session.Title)
             .Should().Equal("Earlier", "Later");
+    }
+
+    [Fact]
+    public async Task Appearing_SessionsAtTheSameStartTime_OrdersByGroupChatName()
+    {
+        var zulu = Summary("Zulu game", ThisWeekStart, groupChatName: "Zulu FC");
+        var ballers = Summary("Ballers game", ThisWeekStart, groupChatName: "ballers united");
+        var n9ja = Summary("N9ja game", ThisWeekStart, groupChatName: "N9ja Bay");
+        var dashboard = Dashboard(Featured(zulu), ballers, n9ja);
+        var pageModel = CreatePageModel(ClientReturning(dashboard).Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.Groups.Single().Sessions.Select(session => session.GroupChatName)
+            .Should().Equal("ballers united", "N9ja Bay", "Zulu FC");
+    }
+
+    [Fact]
+    public async Task Appearing_UngroupedSessionAtTheSameStartTime_SortsAfterGroupedSessions()
+    {
+        var ungrouped = Summary("Admin game", ThisWeekStart);
+        var grouped = Summary("Imported game", ThisWeekStart, groupChatName: "N9ja Bay");
+        var dashboard = Dashboard(Featured(ungrouped), grouped);
+        var pageModel = CreatePageModel(ClientReturning(dashboard).Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.Groups.Single().Sessions.Select(session => session.Title)
+            .Should().Equal("Imported game", "Admin game");
+    }
+
+    [Fact]
+    public async Task Appearing_SessionWithoutGroupChatName_HasGroupChatNameIsFalse()
+    {
+        var dashboard = Dashboard(Featured(Summary("Admin game", ThisWeekStart)));
+        var pageModel = CreatePageModel(ClientReturning(dashboard).Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.Groups.Single().Sessions.Single().HasGroupChatName.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Appearing_SessionWithGroupChatName_HasGroupChatNameIsTrue()
+    {
+        var dashboard = Dashboard(Featured(Summary("Imported game", ThisWeekStart, "N9ja Bay")));
+        var pageModel = CreatePageModel(ClientReturning(dashboard).Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        var session = pageModel.Groups.Single().Sessions.Single();
+        session.HasGroupChatName.Should().BeTrue();
+        session.GroupChatName.Should().Be("N9ja Bay");
     }
 
     [Fact]
@@ -174,6 +228,7 @@ public class SchedulePageModelTests
         new(
             sessionsClient,
             navigator ?? Mock.Of<ISessionsNavigator>(),
+            new ClientResponseCache(TimeProvider.System),
             new FixedTimeProvider());
 
     private static Mock<ISessionsClient> ClientReturning(SessionsDashboardDto dashboard)
@@ -200,7 +255,10 @@ public class SchedulePageModelTests
 
     private static SessionSummaryDto Featured(SessionSummaryDto summary) => summary;
 
-    private static SessionSummaryDto Summary(string title, DateTime startsAtUtc) =>
+    private static SessionSummaryDto Summary(
+        string title,
+        DateTime startsAtUtc,
+        string? groupChatName = null) =>
         new(
             Guid.NewGuid(),
             title,
@@ -214,7 +272,8 @@ public class SchedulePageModelTests
             Capacity: 20,
             IsFull: false,
             WaitlistCount: 0,
-            RelativeLabel: null);
+            RelativeLabel: null,
+            GroupChatName: groupChatName);
 
     private sealed class FixedTimeProvider : TimeProvider
     {

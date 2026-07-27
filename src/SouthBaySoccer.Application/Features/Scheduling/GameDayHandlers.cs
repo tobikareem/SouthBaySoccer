@@ -89,11 +89,16 @@ public sealed class GetRecentGamesQueryHandler(
             nowUtc,
             cancellationToken);
 
+        var venuesById = (await venueRepository.ListByIdsAsync(
+                sessions.Select(session => session.VenueId).Distinct().ToArray(),
+                cancellationToken))
+            .ToDictionary(venue => venue.Id);
+
         var games = new List<RecentGameModel>(sessions.Count);
         foreach (var session in sessions.OrderByDescending(x => x.StartsAtUtc))
         {
             var match = await statsRepository.FindPrimaryMatchBySessionAsync(session.Id, cancellationToken);
-            var venue = await venueRepository.GetByIdAsync(session.VenueId, cancellationToken);
+            var venue = venuesById.GetValueOrDefault(session.VenueId);
             var teams = match is null
                 ? []
                 : await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken);
@@ -154,14 +159,10 @@ public sealed class GetTodayGameDayContextQueryHandler(
             return null;
         }
 
-        var attendanceBySessionId = new Dictionary<Guid, GameDayAttendanceRecord>(candidates.Count);
-        foreach (var candidate in candidates)
-        {
-            attendanceBySessionId[candidate.Id] = await rsvpRepository.GetGameDayAttendanceAsync(
-                candidate.Id,
-                profile.Id,
-                cancellationToken);
-        }
+        var attendanceBySessionId = await rsvpRepository.GetGameDayAttendanceBatchAsync(
+            candidates.Select(candidate => candidate.Id).ToArray(),
+            profile.Id,
+            cancellationToken);
 
         var confirmedCandidates = candidates
             .Where(candidate => attendanceBySessionId[candidate.Id].IsCurrentPlayerGoing)
@@ -255,22 +256,24 @@ public sealed class GetTodayGameDayContextQueryHandler(
             && teams.Count > 0
             && roster.Any(member => member.PlayerProfileId == profile.Id);
 
-        // The picker lists every game in the pool (ordered by kick-off), reusing the already-loaded
-        // venue for the selected one and looking up the rest. Attendance is already fetched per game.
-        var todaysGames = new List<GameDayOptionModel>(pool.Count);
-        foreach (var candidate in pool.OrderBy(candidate => candidate.StartsAtUtc))
-        {
-            var candidateVenue = candidate.VenueId == session.VenueId
-                ? venue
-                : await venueRepository.GetByIdAsync(candidate.VenueId, cancellationToken);
-            todaysGames.Add(new GameDayOptionModel(
+        // The picker lists every game in the pool (ordered by kick-off). Venues load in one batched
+        // query rather than one per game; attendance is already fetched for every candidate.
+        var poolVenuesById = (await venueRepository.ListByIdsAsync(
+                pool.Select(candidate => candidate.VenueId).Distinct().ToArray(),
+                cancellationToken))
+            .ToDictionary(poolVenue => poolVenue.Id);
+        var todaysGames = pool
+            .OrderBy(candidate => candidate.StartsAtUtc)
+            .Select(candidate => new GameDayOptionModel(
                 candidate.Id,
                 candidate.Title,
-                candidateVenue?.Name ?? "Unknown venue",
+                (candidate.VenueId == session.VenueId
+                    ? venue
+                    : poolVenuesById.GetValueOrDefault(candidate.VenueId))?.Name ?? "Unknown venue",
                 candidate.StartsAtUtc,
                 DescribeAttendance(attendanceBySessionId[candidate.Id]),
-                candidate.Id == session.Id));
-        }
+                candidate.Id == session.Id))
+            .ToList();
 
         return new GameDayContextModel(
             session.Id,

@@ -395,7 +395,8 @@ public sealed class SchedulingFunctions(
             feed.IsFull,
             feed.IsCurrentPlayerGoing,
             feed.IsCurrentPlayerWaitlisted,
-            feed.CanJoinWaitlist);
+            feed.CanJoinWaitlist,
+            feed.GroupName);
 
     private static CreateSessionDraftCommand ToDraftCommand(ContractCreateSessionCommand command) =>
         new(

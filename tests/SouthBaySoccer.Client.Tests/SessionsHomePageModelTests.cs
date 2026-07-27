@@ -9,6 +9,7 @@ using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -569,6 +570,7 @@ public class SessionsHomePageModelTests
             profileClient ?? ProfileClientReturning("Tobi Kareem").Object,
             groupsClient ?? GroupsClientReturning().Object,
             dismissedPromptStore ?? new Mock<IDismissedStatsPromptStore>().Object,
+            new ClientResponseCache(TimeProvider.System),
             new FixedTimeProvider(hour));
 
     private static Mock<IGroupsClient> GroupsClientReturning(params GroupChatDto[] groups)

@@ -88,9 +88,60 @@ public sealed class RsvpCommandHandlerTests
             x => x.CancelAndPromoteAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<Guid>(),
-                It.IsAny<Func<Guid, CancellationToken, Task<bool>>>(),
+                It.IsAny<Func<IReadOnlyCollection<Guid>, CancellationToken, Task<IReadOnlyDictionary<Guid, bool>>>>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenCanceling_ResolvesWholeWaitlistEligibilityInOneBatchedCall()
+    {
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = "Ada" };
+        var session = FutureSession();
+        var eligibleCandidateId = Guid.NewGuid();
+        var ineligibleCandidateId = Guid.NewGuid();
+        var rsvpRepository = new Mock<IRsvpRepository>();
+        IReadOnlyDictionary<Guid, bool>? verdicts = null;
+        rsvpRepository
+            .Setup(x => x.CancelAndPromoteAsync(
+                session.Id,
+                profile.Id,
+                It.IsAny<Func<IReadOnlyCollection<Guid>, CancellationToken, Task<IReadOnlyDictionary<Guid, bool>>>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(async (
+                Guid _,
+                Guid _,
+                Func<IReadOnlyCollection<Guid>, CancellationToken, Task<IReadOnlyDictionary<Guid, bool>>> check,
+                CancellationToken token) =>
+            {
+                verdicts = await check([eligibleCandidateId, ineligibleCandidateId], token);
+                return new RsvpMutationResult(session.Id, profile.Id, RsvpMutationState.Canceled);
+            });
+        var eligibilityService = new Mock<IPlayerSessionEligibilityService>();
+        eligibilityService
+            .Setup(x => x.CheckManyAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(),
+                session.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, bool>
+            {
+                [eligibleCandidateId] = true,
+                [ineligibleCandidateId] = false
+            });
+        var handler = CreateCancelHandler(profile, session, rsvpRepository.Object, eligibilityService.Object);
+
+        await handler.HandleAsync(new CancelRsvpCommand(session.Id));
+
+        eligibilityService.Verify(
+            x => x.CheckManyAsync(
+                It.Is<IReadOnlyCollection<Guid>>(ids =>
+                    ids.Contains(eligibleCandidateId) && ids.Contains(ineligibleCandidateId)),
+                session.Id,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        verdicts.Should().NotBeNull();
+        verdicts![eligibleCandidateId].Should().BeTrue();
+        verdicts[ineligibleCandidateId].Should().BeFalse();
     }
 
     [Fact]
@@ -369,7 +420,8 @@ public sealed class RsvpCommandHandlerTests
     private static CancelRsvpCommandHandler CreateCancelHandler(
         PlayerProfile profile,
         Session session,
-        IRsvpRepository rsvpRepository)
+        IRsvpRepository rsvpRepository,
+        IPlayerSessionEligibilityService? playerSessionEligibilityService = null)
     {
         var currentUser = new Mock<ICurrentUser>();
         currentUser.SetupGet(x => x.UserId).Returns(profile.IdentityUserId);
@@ -389,7 +441,7 @@ public sealed class RsvpCommandHandlerTests
             clock.Object,
             playerProfileRepository.Object,
             sessionRepository.Object,
-            Mock.Of<IPlayerSessionEligibilityService>(),
+            playerSessionEligibilityService ?? Mock.Of<IPlayerSessionEligibilityService>(),
             rsvpRepository);
     }
 

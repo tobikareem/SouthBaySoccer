@@ -12,6 +12,14 @@ public interface IPickupPalGameRepository
         string pickupPalGameId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lists the snapshots for the given Pickup Pal game ids in one query. Game ids with no
+    /// snapshot are simply absent from the result.
+    /// </summary>
+    Task<IReadOnlyList<PickupPalGameSnapshot>> ListSnapshotsByGameIdsAsync(
+        IReadOnlyCollection<string> pickupPalGameIds,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Adds a new game snapshot.</summary>
     Task AddSnapshotAsync(PickupPalGameSnapshot snapshot, CancellationToken cancellationToken = default);
 

@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 using ViewState = SouthBaySoccer.Controls.ViewState;
 
 namespace SouthBaySoccer.PageModels;
@@ -23,6 +24,7 @@ public sealed record ScheduleGroup(string Title, IReadOnlyList<SessionSummaryDto
 public partial class SchedulePageModel(
     ISessionsClient sessionsClient,
     ISessionsNavigator navigator,
+    IClientResponseCache responseCache,
     TimeProvider timeProvider) : ObservableObject
 {
     public const string ThisWeekTitle = "This week";
@@ -53,7 +55,12 @@ public partial class SchedulePageModel(
     private Task Appearing(CancellationToken cancellationToken) => LoadScheduleAsync(cancellationToken);
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task Refresh(CancellationToken cancellationToken) => LoadScheduleAsync(cancellationToken);
+    private Task Refresh(CancellationToken cancellationToken)
+    {
+        // See SessionsHomePageModel.Refresh: an explicit pull must bypass the shared dashboard cache.
+        responseCache.Invalidate("sessions:");
+        return LoadScheduleAsync(cancellationToken);
+    }
 
     [RelayCommand]
     private Task ViewSessionDetail(Guid sessionId) => navigator.GoToSessionAsync(sessionId);
@@ -103,8 +110,13 @@ public partial class SchedulePageModel(
         try
         {
             var dashboard = await sessionsClient.GetDashboardAsync(cancellationToken);
+            // Start instant first; sessions kicking off at the same moment are then ordered by group
+            // chat name so the list reads predictably instead of in dashboard arrival order.
+            // Ungrouped sessions sort after grouped ones at the same time.
             var sessions = EnumerateSessions(dashboard)
                 .OrderBy(session => session.StartsAtUtc)
+                .ThenBy(session => !session.HasGroupChatName)
+                .ThenBy(session => session.GroupChatName, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
             if (sessions.Length == 0)

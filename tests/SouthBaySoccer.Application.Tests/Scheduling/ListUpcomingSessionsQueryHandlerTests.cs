@@ -64,6 +64,32 @@ public sealed class ListUpcomingSessionsQueryHandlerTests
         result[0].CanJoinWaitlist.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task HandleAsync_WhenFeedRecordCarriesGroupName_ProjectsGroupNameOntoTheModel()
+    {
+        var now = Utc(2026, 7, 23, 12, 0);
+        var profile = Profile();
+        var grouped = SessionAt(now.AddDays(2), capacity: 20);
+        var ungrouped = SessionAt(now.AddDays(3), capacity: 20);
+        var repository = new Mock<ISessionRepository>();
+        repository
+            .Setup(x => x.ListUpcomingFeedAsync(
+                now,
+                25,
+                profile.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new SessionFeedRecord(grouped, "Stanford Turf", 4, 0, false, false, "N9ja Bay"),
+                new SessionFeedRecord(ungrouped, "Marina Field", 4, 0, false, false)
+            ]);
+        var handler = CreateHandler(now, profile, repository.Object);
+
+        var result = await handler.HandleAsync();
+
+        result[0].GroupName.Should().Be("N9ja Bay");
+        result[1].GroupName.Should().BeNull("sessions created by hand carry no Pickup Pal group");
+    }
+
     private static ListUpcomingSessionsQueryHandler CreateHandler(
         DateTime now,
         PlayerProfile profile,
