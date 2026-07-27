@@ -97,6 +97,7 @@ public sealed class PickupPalUserSyncServiceTests
         using var provider = CreateServiceProvider();
         var service = provider.GetRequiredService<IPickupPalUserSyncService>();
         var db = provider.GetRequiredService<SouthBaySoccerDbContext>();
+        const string claimPhoneNumber = "15106949422";
 
         // A prior games import created an unclaimed guest profile keyed only by phone hash. The
         // hash is computed the same way the sync service does: "+" + digits, then SHA-256.
@@ -108,13 +109,14 @@ public sealed class PickupPalUserSyncServiceTests
             PreferredPosition = string.Empty,
             Role = PlayerRole.Guest,
             IsGuest = true,
-            PhoneNumberHash = Sha256Hex("+15106949421"),
-            MaskedPhoneNumber = "+******9421",
+            PhoneNumberHash = Sha256Hex($"+{claimPhoneNumber}"),
+            MaskedPhoneNumber = "+******9422",
         };
         db.PlayerProfiles.Add(importedProfile);
         await db.SaveChangesAsync();
 
-        var subject = await service.SyncAsync(CreatePickupPalUser("pickuppal-user-claim", "claim@example.test"));
+        var subject = await service.SyncAsync(
+            CreatePickupPalUser("pickuppal-user-claim", "claim@example.test", claimPhoneNumber));
 
         subject.PlayerProfileId.Should().Be(
             importedProfile.Id, "first sign-in claims the imported profile instead of creating a duplicate");
@@ -137,11 +139,14 @@ public sealed class PickupPalUserSyncServiceTests
         return services.BuildServiceProvider();
     }
 
-    private static PickupPalUser CreatePickupPalUser(string id, string email) =>
+    private static PickupPalUser CreatePickupPalUser(
+        string id,
+        string email,
+        string phoneNumber = "15106949421") =>
         new(
             id,
             email,
-            "15106949421",
+            phoneNumber,
             "Vic",
             "A",
             null,
