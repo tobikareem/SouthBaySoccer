@@ -3,6 +3,7 @@ using Moq;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Contracts.Authentication;
 using SouthBaySoccer.Services.Authentication;
+using SouthBaySoccer.Services.Clients;
 using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
@@ -17,6 +18,7 @@ public class AuthenticationCoordinatorTests
             new Mock<ISecureTokenStore>(MockBehavior.Strict).Object,
             new Mock<IAuthenticationNavigator>(MockBehavior.Strict).Object,
             new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
@@ -37,6 +39,7 @@ public class AuthenticationCoordinatorTests
             tokenStore.Object,
             navigator.Object,
             new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
@@ -59,6 +62,7 @@ public class AuthenticationCoordinatorTests
             tokenStore.Object,
             navigator.Object,
             new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
         await coordinator.CompleteSignInAsync(tokens);
@@ -91,6 +95,7 @@ public class AuthenticationCoordinatorTests
             tokenStore.Object,
             navigator.Object,
             new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
@@ -110,6 +115,7 @@ public class AuthenticationCoordinatorTests
             new Mock<ISecureTokenStore>(MockBehavior.Strict).Object,
             new Mock<IAuthenticationNavigator>(MockBehavior.Strict).Object,
             new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
@@ -127,6 +133,7 @@ public class AuthenticationCoordinatorTests
             new Mock<ISecureTokenStore>(MockBehavior.Strict).Object,
             new Mock<IAuthenticationNavigator>(MockBehavior.Strict).Object,
             new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
@@ -154,6 +161,7 @@ public class AuthenticationCoordinatorTests
             tokenStore.Object,
             navigator.Object,
             new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
         (await coordinator.TryClaimAuthenticationAsync()).Should().BeTrue();
@@ -177,6 +185,7 @@ public class AuthenticationCoordinatorTests
             tokenStore.Object,
             navigator.Object,
             new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
         (await coordinator.TryClaimAuthenticationAsync()).Should().BeTrue();
@@ -210,6 +219,7 @@ public class AuthenticationCoordinatorTests
             tokenStore.Object,
             navigator.Object,
             new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
         var callback = new Uri("southbaysoccer://auth/whatsapp?token=verified-token");
@@ -234,6 +244,7 @@ public class AuthenticationCoordinatorTests
             tokenStore.Object,
             navigator.Object,
             new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
@@ -257,6 +268,7 @@ public class AuthenticationCoordinatorTests
             tokenStore.Object,
             navigator.Object,
             new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
@@ -291,6 +303,7 @@ public class AuthenticationCoordinatorTests
             tokenStore.Object,
             navigator.Object,
             new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Seed });
 
@@ -312,6 +325,7 @@ public class AuthenticationCoordinatorTests
             tokenStore.Object,
             navigator.Object,
             new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
@@ -331,12 +345,14 @@ public class AuthenticationCoordinatorTests
         var navigator = new Mock<IAuthenticationNavigator>();
         navigator.Setup(x => x.ShowSignInAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var cache = new ClientResponseCache(TimeProvider.System);
+        var sessionRefresher = new Mock<IAuthenticationSessionRefresher>();
         await cache.GetOrCreateAsync("profile:me", TimeSpan.FromMinutes(5), _ => Task.FromResult("previous account"));
         var coordinator = new AuthenticationCoordinator(
             new Mock<IAuthenticationClient>().Object,
             tokenStore.Object,
             navigator.Object,
             cache,
+            sessionRefresher.Object,
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
 
@@ -349,5 +365,8 @@ public class AuthenticationCoordinatorTests
             _ => { calls++; return Task.FromResult("next account"); });
         calls.Should().Be(1, "a cached response must never outlive the session that fetched it");
         afterSignOut.Should().Be("next account");
+        // The refresher is a singleton holding an in-memory access token; leaving it in place would
+        // let the next account to sign in on this device authenticate as the previous one.
+        sessionRefresher.Verify(x => x.InvalidateCachedToken(), Times.Once);
     }
 }

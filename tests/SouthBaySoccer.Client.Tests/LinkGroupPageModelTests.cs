@@ -5,6 +5,7 @@ using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
 using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -19,7 +20,7 @@ public class LinkGroupPageModelTests
         var groups = new Mock<IGroupsClient>();
         groups.Setup(x => x.GetAvailableGroupsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([BayArea]);
-        var pageModel = new LinkGroupPageModel(groups.Object, Navigator().Object, Dialogs().Object);
+        var pageModel = new LinkGroupPageModel(groups.Object, Navigator().Object, Dialogs().Object, new ClientResponseCache(TimeProvider.System));
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
@@ -37,7 +38,7 @@ public class LinkGroupPageModelTests
         var groups = new Mock<IGroupsClient>();
         groups.Setup(x => x.GetAvailableGroupsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
-        var pageModel = new LinkGroupPageModel(groups.Object, Navigator().Object, Dialogs().Object);
+        var pageModel = new LinkGroupPageModel(groups.Object, Navigator().Object, Dialogs().Object, new ClientResponseCache(TimeProvider.System));
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
@@ -54,7 +55,7 @@ public class LinkGroupPageModelTests
         groups.Setup(x => x.LinkAsync(BayArea.ExternalId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MyGroupsResponse(IsLinked: true, [BayArea]));
         var navigator = Navigator();
-        var pageModel = new LinkGroupPageModel(groups.Object, navigator.Object, Dialogs().Object);
+        var pageModel = new LinkGroupPageModel(groups.Object, navigator.Object, Dialogs().Object, new ClientResponseCache(TimeProvider.System));
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
         pageModel.SelectedGroup = BayArea;
@@ -74,7 +75,7 @@ public class LinkGroupPageModelTests
             .ThrowsAsync(new InvalidOperationException("boom"));
         var navigator = Navigator();
         var dialogs = Dialogs();
-        var pageModel = new LinkGroupPageModel(groups.Object, navigator.Object, dialogs.Object);
+        var pageModel = new LinkGroupPageModel(groups.Object, navigator.Object, dialogs.Object, new ClientResponseCache(TimeProvider.System));
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
         pageModel.SelectedGroup = BayArea;

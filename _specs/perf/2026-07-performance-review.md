@@ -728,6 +728,71 @@ than forcing one pattern:
 - Gate: solution build 0 errors / 0 new warnings; Application 191, Functions 121, Domain 1,
   Client 522, Infrastructure non-DB 43 — all passing locally.
 
+### 2026-07-27 — Phase 5 code review: five issues fixed
+
+The review found two blockers that no test could see, plus a security bug I introduced:
+
+1. **Release did not compile.** The `using …Clients.Caching;` was added inside a `#if !RELEASE`
+   block while the types are referenced from `AddApiClients`, which compiles in every
+   configuration. Debug and the whole suite passed; the shipping configuration was broken.
+   `dotnet build -c Release` is now part of the gate.
+2. **Seed mode could not start.** `IClientResponseCache` was registered only inside
+   `AddApiClients`, but `AuthenticationCoordinator` takes it unconditionally and Debug defaults to
+   Seed — first resolution threw. Registration hoisted above the mode switch.
+3. **The in-memory access token survived sign-out**, so the next account to sign in on the device
+   would have authenticated as the previous one — every read *and write* executed as them. Strictly
+   worse than the response-cache leak `Clear()` was added to prevent, and the same omission.
+   `IAuthenticationSessionRefresher.InvalidateCachedToken()` added and called from every token
+   write/clear: sign-in, sign-out, the WhatsApp callback, and all three `AppStartupService` sites.
+4. **A response in flight during `Clear()` was written back after it**, re-seeding the previous
+   account's data immediately after sign-out dropped it. `ClientResponseCache` now stamps a
+   generation on entry and discards a write whose generation is stale.
+5. **RSVP did not invalidate the cached dashboard.** `SetRsvpIntentAsync` goes through
+   `IRosterClient`, which had no decorator, so the feed kept pre-RSVP counts for up to 30 s — a
+   §6 DO-NOT-CACHE violation ("RSVP capacity / attendance counts"), not just staleness. Added
+   `CachedRosterClient`; roster reads themselves stay uncached.
+6. **Pull-to-refresh was a no-op on Profile, Players and Link Group.** Worst on Link Group, where a
+   player just added to a WhatsApp group could not clear the blocking link step for five minutes.
+   All three now invalidate before loading.
+
+Still open from the review, recorded not fixed: no per-key single-flight in `ClientResponseCache`
+(concurrent misses double-fire; the current call sites are sequential); Sessions Home still flashes
+`Loading` on a cache hit, so the 0-request tab switch is not yet visually free; `"sessions:"` etc.
+are magic strings duplicated across page models; and the game-day/stats/admin mutation clients still
+do not invalidate the dashboard.
+
+Gate: Debug **and Release** build clean; Application 191, Functions 121, Domain 1, Client 523,
+Infrastructure non-DB 43.
+
+### 2026-07-27 — Phase 6 assessment (two audit items corrected before implementing)
+
+Phase 6a was re-checked against the actual project configuration before changing anything, and two
+of its planned items do not hold up. Recording this so the work is not done speculatively:
+
+- **"Add `x:DataType` to `PlayerRow.xaml` / `Avatar.xaml` — ~14 reflection bindings per row" is
+  almost certainly already solved.** The audit inferred reflection bindings from the absence of
+  `x:DataType`, but `SouthBaySoccer.csproj:33` sets
+  `<MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>`,
+  which compiles bindings that specify a `Source` by inferring the type from the source itself.
+  Every binding in those two controls is `{Binding X, Source={x:Reference Root}}`, so they are
+  compiled already. Adding `x:DataType` would be a no-op at best and wrong at worst (the binding
+  context of those elements is not the control). **Verify with a build-log binding diagnostic or a
+  profiler before spending effort here.**
+- **The `GameDayPageModels.cs:1274` "PropertyChanged leak" is overstated.** The subscription chain
+  is item → lambda → page model, and a new `TeamResultItem` is constructed on every reload, so
+  `TeamResults.Clear()` makes both the items and their closures collectable. Handlers do not stack
+  across reloads because the instances are never reused. Worth tidying for clarity, but it is not
+  the leak the audit describes and should not be prioritised as one.
+
+**Remaining genuine Phase 6 work** (not started):
+- `PlayersPage` virtualization — still the real win, and still the riskiest change in the plan:
+  the `CollectionView` must own page scrolling with header content moved into `CollectionView.Header`
+  (never a vertical `CollectionView` inside a vertical `ScrollView`, per the documented Android ANR
+  hazard at `SchedulePage.xaml:47-50`), and the structural XAML tests must be updated in the same PR.
+- Debounced directory search, reusing the CTS catch-up-loop pattern in `CreateSessionPage.xaml.cs`.
+- 6b build/publish items (Functions ReadyToRun, Android profiled AOT, font pruning, STJ source-gen),
+  each of which needs a device or CI validation loop before merging.
+
 ## 10. Decisions needed
 
 1. **SQL auto-pause — RESOLVED 2026-07-26.** Switched to Standard S1 (~$29/mo flat, always-on); free-limit offer opted out (permanent). See §9 execution log.

@@ -15,6 +15,10 @@ public sealed class ClientResponseCache : IClientResponseCache
 {
     private readonly ConcurrentDictionary<string, Entry> entries = new(StringComparer.Ordinal);
     private readonly TimeProvider timeProvider;
+    // Bumped by every Clear/Invalidate. A factory that was already running when the cache was reset
+    // must not write its result back afterwards - on sign-out that would re-seed the previous
+    // account's data immediately after it was dropped.
+    private long generation;
 
     public ClientResponseCache(TimeProvider timeProvider)
     {
@@ -35,15 +39,21 @@ public sealed class ClientResponseCache : IClientResponseCache
             return cached;
         }
 
+        var startedAtGeneration = Interlocked.Read(ref generation);
         var value = await factory(cancellationToken);
-        // A null response means "not found", which is a real answer worth remembering for the
-        // window; the TryGetValue type check above simply misses and refetches if it cannot cast.
-        entries[key] = new Entry(value, nowUtc.Add(timeToLive));
+        if (Interlocked.Read(ref generation) == startedAtGeneration)
+        {
+            // Note a null result is stored but never served: the type check above fails for null,
+            // so a not-found answer refetches each time rather than being remembered.
+            entries[key] = new Entry(value, nowUtc.Add(timeToLive));
+        }
+
         return value;
     }
 
     public void Invalidate(string keyPrefix)
     {
+        Interlocked.Increment(ref generation);
         foreach (var key in entries.Keys)
         {
             if (key.StartsWith(keyPrefix, StringComparison.Ordinal))
@@ -53,7 +63,11 @@ public sealed class ClientResponseCache : IClientResponseCache
         }
     }
 
-    public void Clear() => entries.Clear();
+    public void Clear()
+    {
+        Interlocked.Increment(ref generation);
+        entries.Clear();
+    }
 
     private sealed record Entry(object? Value, DateTimeOffset ExpiresAtUtc);
 }

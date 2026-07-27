@@ -16,6 +16,8 @@ public sealed class AuthenticationSessionRefresher(
     // fill, so a torn read is not possible.
     private volatile CachedAccessToken? cachedAccessToken;
 
+    public void InvalidateCachedToken() => cachedAccessToken = null;
+
     public async Task<string?> GetValidAccessTokenAsync(
         bool forceRefresh = false,
         CancellationToken cancellationToken = default)

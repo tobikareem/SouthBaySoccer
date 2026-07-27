@@ -80,7 +80,7 @@ public class SeedClientRegistrationTests
         provider.GetRequiredService<ISessionsClient>()
             .Should().BeOfType<CachedSessionsClient>();
         provider.GetRequiredService<IRosterClient>()
-            .Should().BeOfType<ApiRosterClient>();
+            .Should().BeOfType<CachedRosterClient>();
         provider.GetRequiredService<IStatsClient>()
             .Should().BeOfType<ApiStatsClient>();
         provider.GetRequiredService<ILeaderboardClient>()

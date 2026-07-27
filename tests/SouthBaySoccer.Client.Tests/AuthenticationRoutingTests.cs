@@ -3,6 +3,7 @@ using Moq;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Contracts.Authentication;
 using SouthBaySoccer.Services.Authentication;
+using SouthBaySoccer.Services.Clients;
 using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
@@ -218,6 +219,7 @@ public class AuthenticationCoordinatorRoutingTests
             tokenStore.Object,
             navigator.Object,
             new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
             new PickupPalOptions(),
             new ClientDataSourceOptions { DataSource = ClientDataSource.Seed });
 

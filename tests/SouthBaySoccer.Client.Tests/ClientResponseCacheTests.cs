@@ -71,4 +71,24 @@ public sealed class ClientResponseCacheTests
 
         calls.Should().Be(1);
     }
+
+    [Fact]
+    public async Task GetOrCreateAsync_WhenClearRunsWhileTheFactoryIsInFlight_DoesNotWriteTheResultBack()
+    {
+        var cache = new ClientResponseCache(new AdvanceableTimeProvider());
+        var release = new TaskCompletionSource();
+
+        var inFlight = cache.GetOrCreateAsync("profile:me", TimeSpan.FromMinutes(5), async _ =>
+        {
+            await release.Task;
+            return "previous account";
+        });
+        cache.Clear();
+        release.SetResult();
+        await inFlight;
+
+        var calls = 0;
+        await cache.GetOrCreateAsync("profile:me", TimeSpan.FromMinutes(5), _ => { calls++; return Task.FromResult("next"); });
+        calls.Should().Be(1, "a response already in flight at sign-out must not re-seed the cache after it");
+    }
 }

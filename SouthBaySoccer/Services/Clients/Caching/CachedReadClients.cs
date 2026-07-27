@@ -1,3 +1,5 @@
+using SouthBaySoccer.Contracts.Rosters;
+using SouthBaySoccer.Contracts.Common;
 using SouthBaySoccer.Contracts.Groups;
 using SouthBaySoccer.Contracts.Players;
 using SouthBaySoccer.Contracts.Profiles;
@@ -67,4 +69,30 @@ internal sealed class CachedPlayersClient(IPlayersClient inner, IClientResponseC
 
     public Task<PlayerDirectoryDto> GetDirectoryAsync(CancellationToken cancellationToken) =>
         cache.GetOrCreateAsync(DirectoryCacheKey, DirectoryTimeToLive, inner.GetDirectoryAsync, cancellationToken);
+}
+
+/// <summary>
+/// Invalidates the cached sessions dashboard when an RSVP changes.
+/// </summary>
+/// <remarks>
+/// The dashboard payload carries IsGoing, GoingCount, WaitlistCount and IsFull, so an RSVP made on
+/// the detail screen changes what a cached feed reports. Roster reads themselves are never cached —
+/// live capacity is exactly what the detail screen exists to show.
+/// </remarks>
+internal sealed class CachedRosterClient(IRosterClient inner, IClientResponseCache cache) : IRosterClient
+{
+    public Task<RosterDto?> GetRosterAsync(Guid sessionId, CancellationToken cancellationToken) =>
+        inner.GetRosterAsync(sessionId, cancellationToken);
+
+    public async Task<ClientCommandResult> SetRsvpIntentAsync(
+        Guid sessionId,
+        bool isGoing,
+        CancellationToken cancellationToken)
+    {
+        var result = await inner.SetRsvpIntentAsync(sessionId, isGoing, cancellationToken);
+        // Invalidate regardless of reported outcome: a timeout on a committed write would otherwise
+        // leave the feed showing the pre-RSVP state.
+        cache.Invalidate("sessions:");
+        return result;
+    }
 }

@@ -32,7 +32,7 @@ public sealed class ApiSprint03ClientTests
 
         // API mode resolves the caching decorator, which wraps the real Api client.
         provider.GetRequiredService<ISessionsClient>().Should().BeOfType<CachedSessionsClient>();
-        provider.GetRequiredService<IRosterClient>().Should().BeOfType<ApiRosterClient>();
+        provider.GetRequiredService<IRosterClient>().Should().BeOfType<CachedRosterClient>();
         provider.GetRequiredService<IStatsClient>().Should().BeOfType<ApiStatsClient>();
         provider.GetRequiredService<ILeaderboardClient>().Should().BeOfType<ApiLeaderboardClient>();
         provider.GetRequiredService<IGameDayClient>().Should().BeOfType<ApiGameDayClient>();

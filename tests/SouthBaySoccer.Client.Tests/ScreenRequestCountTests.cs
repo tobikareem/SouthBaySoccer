@@ -132,7 +132,8 @@ public sealed class ScreenRequestCountTests
             new Mock<IProfileExternalLauncher>(MockBehavior.Strict).Object,
             new Mock<IProfileNavigator>(MockBehavior.Strict).Object,
             new Mock<IAuthenticationCoordinator>(MockBehavior.Strict).Object,
-            new Mock<IUserDialogService>(MockBehavior.Strict).Object);
+            new Mock<IUserDialogService>(MockBehavior.Strict).Object,
+            new ClientResponseCache(TimeProvider.System));
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
@@ -228,7 +229,8 @@ public sealed class ScreenRequestCountTests
     private static PlayersPageModel CreatePlayersPageModel(CountingHttpMessageHandler handler) =>
         new(
             new ApiPlayersClient(CreateHttpClient(handler)),
-            new Mock<IPlayersNavigator>(MockBehavior.Strict).Object);
+            new Mock<IPlayersNavigator>(MockBehavior.Strict).Object,
+            new ClientResponseCache(TimeProvider.System));
 
     private sealed class FixedTimeProvider : TimeProvider
     {
