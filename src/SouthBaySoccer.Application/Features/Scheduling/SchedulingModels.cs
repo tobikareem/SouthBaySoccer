@@ -49,7 +49,8 @@ public sealed record SessionFeedModel(
     bool IsFull,
     bool IsCurrentPlayerGoing,
     bool IsCurrentPlayerWaitlisted,
-    bool CanJoinWaitlist);
+    bool CanJoinWaitlist,
+    string? GroupName = null);
 
 public sealed record CreateSessionCommand(
     Guid SeasonId,

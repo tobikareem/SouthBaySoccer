@@ -111,6 +111,17 @@ internal sealed class SessionRepository(SouthBaySoccerDbContext dbContext) : ISe
                 x.IsWaitlist,
             })
             .ToArrayAsync(cancellationToken);
+        // One snapshot per session today (the occurrence key is "pickuppal:{gameId}"), but group
+        // instead of Single so a future many-to-one import shape degrades gracefully. The ordered
+        // First keeps the pick deterministic — the query returns rows in no guaranteed order.
+        var groupNamesBySession = (await dbContext.Set<PickupPalGameSnapshot>()
+            .Where(x => sessionIds.Contains(x.SessionId) && x.GroupName != string.Empty)
+            .Select(x => new { x.SessionId, x.GroupName })
+            .ToArrayAsync(cancellationToken))
+            .GroupBy(x => x.SessionId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderBy(x => x.GroupName, StringComparer.Ordinal).First().GroupName);
 
         var attendanceBySession = SessionAttendanceProjection.Build(
             localGoing
@@ -149,7 +160,8 @@ internal sealed class SessionRepository(SouthBaySoccerDbContext dbContext) : ISe
                 attendance.GoingKeys.Count,
                 attendance.WaitlistKeys.Count,
                 attendance.GoingKeys.Contains(currentPlayerKey),
-                attendance.WaitlistKeys.Contains(currentPlayerKey));
+                attendance.WaitlistKeys.Contains(currentPlayerKey),
+                groupNamesBySession.GetValueOrDefault(row.Session.Id));
         }).ToArray();
     }
 
