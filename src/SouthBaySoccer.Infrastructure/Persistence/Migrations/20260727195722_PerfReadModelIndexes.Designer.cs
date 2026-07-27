@@ -12,7 +12,7 @@ using SouthBaySoccer.Infrastructure.Persistence;
 namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(SouthBaySoccerDbContext))]
-    [Migration("20260727181833_PerfReadModelIndexes")]
+    [Migration("20260727195722_PerfReadModelIndexes")]
     partial class PerfReadModelIndexes
     {
         /// <inheritdoc />
