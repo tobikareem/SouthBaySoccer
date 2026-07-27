@@ -1,13 +1,25 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 
 namespace SouthBaySoccer.Functions.Pipeline;
 
 public sealed class ReflectionEndpointPolicyResolver : IEndpointPolicyResolver
 {
+    // Entry points are a fixed compile-time set, so successful resolutions are cached for the
+    // process lifetime. Failures are never cached: a misclassified endpoint keeps throwing and
+    // stays fail-closed on every request.
+    private readonly ConcurrentDictionary<string, EndpointAccessRequirement> resolvedEntryPoints =
+        new(StringComparer.Ordinal);
+
     public EndpointAccessRequirement Resolve(string entryPoint)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(entryPoint);
 
+        return resolvedEntryPoints.GetOrAdd(entryPoint, ResolveEntryPoint);
+    }
+
+    private static EndpointAccessRequirement ResolveEntryPoint(string entryPoint)
+    {
         var separatorIndex = entryPoint.LastIndexOf('.');
         if (separatorIndex <= 0 || separatorIndex == entryPoint.Length - 1)
         {

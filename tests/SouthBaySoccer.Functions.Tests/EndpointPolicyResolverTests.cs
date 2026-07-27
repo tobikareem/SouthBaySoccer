@@ -63,6 +63,28 @@ public sealed class EndpointPolicyResolverTests
             .WithMessage("*empty authorization policy*");
     }
 
+    [Fact]
+    public void Resolve_WhenCalledAgainForSameEntryPoint_ReturnsCachedRequirement()
+    {
+        var entryPoint = EntryPoint(nameof(SampleFunctions.PolicyEndpoint));
+
+        var first = _resolver.Resolve(entryPoint);
+        var second = _resolver.Resolve(entryPoint);
+
+        second.Should().BeSameAs(first);
+    }
+
+    [Fact]
+    public void Resolve_WhenClassificationFails_KeepsThrowingOnRepeatedCalls()
+    {
+        var entryPoint = EntryPoint(nameof(SampleFunctions.UnclassifiedEndpoint));
+
+        var act = () => _resolver.Resolve(entryPoint);
+
+        act.Should().Throw<EndpointClassificationException>();
+        act.Should().Throw<EndpointClassificationException>();
+    }
+
     private static string EntryPoint(string methodName) =>
         $"{typeof(SampleFunctions).FullName}.{methodName}";
 
