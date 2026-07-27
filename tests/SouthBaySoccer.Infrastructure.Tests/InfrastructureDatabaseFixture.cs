@@ -58,10 +58,14 @@ public sealed class InfrastructureDatabaseFixture : IAsyncLifetime
         await command.ExecuteNonQueryAsync();
     }
 
+    // Retry-on-failure matches production (AddInfrastructure). Without it the suite cannot see
+    // execution-strategy bugs — e.g. user-initiated transactions outside
+    // CreateExecutionStrategy().ExecuteAsync pass here but throw in production
+    // (.ai/lessons/2026-07-21-ef-retry-strategy-manual-transactions.md).
     public SouthBaySoccerDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<SouthBaySoccerDbContext>()
-            .UseSqlServer(ConnectionString)
+            .UseSqlServer(ConnectionString, sql => sql.EnableRetryOnFailure())
             .Options;
 
         return new SouthBaySoccerDbContext(options);
@@ -70,7 +74,7 @@ public sealed class InfrastructureDatabaseFixture : IAsyncLifetime
     public SouthBaySoccerDbContext CreateDbContext(params IInterceptor[] interceptors)
     {
         var optionsBuilder = new DbContextOptionsBuilder<SouthBaySoccerDbContext>()
-            .UseSqlServer(ConnectionString);
+            .UseSqlServer(ConnectionString, sql => sql.EnableRetryOnFailure());
 
         if (interceptors.Length > 0)
         {
