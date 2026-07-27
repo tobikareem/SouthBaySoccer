@@ -84,6 +84,29 @@ public sealed class CachedPickupPalGroupClientTests
     }
 
     [Fact]
+    public async Task GetAllGroupsAsync_WhenTheCallerCancels_PropagatesInsteadOfServingStale()
+    {
+        var inner = new Mock<IPickupPalGroupClient>();
+        inner.SetupSequence(x => x.GetAllGroupsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PickupPalGroupChat("120@g.us", "Bay Area Soccer", null, "SUBSCRIBED", 12, null)])
+            .ThrowsAsync(new OperationCanceledException());
+        var nowUtc = StartUtc;
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(() => nowUtc);
+        var client = new CachedPickupPalGroupClient(inner.Object, NewCache(), clock.Object);
+        await client.GetAllGroupsAsync();
+        nowUtc = StartUtc.AddMinutes(6);
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        var act = () => client.GetAllGroupsAsync(cancelled.Token);
+
+        // Caller cancellation is not a provider failure: returning a stale catalog as a normal
+        // result would hide a shutdown or an abandoned request. A provider timeout still falls back.
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
     public async Task GetLinkedGroupsAsync_IsNeverCached()
     {
         var inner = new Mock<IPickupPalGroupClient>();

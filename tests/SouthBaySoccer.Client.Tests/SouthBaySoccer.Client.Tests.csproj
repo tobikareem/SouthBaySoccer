@@ -61,6 +61,7 @@
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\ISecureTokenStore.cs" Link="Client\Services\ISecureTokenStore.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\PhoneNumberValidator.cs" Link="Client\Services\PhoneNumberValidator.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Clients\*.cs" Link="Client\Services\Clients\%(Filename)%(Extension)" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Clients\Caching\*.cs" Link="Client\Services\Clients\Caching\%(Filename)%(Extension)" />
     <Compile Include="..\..\SouthBaySoccer\SeedData\*.cs" Link="Client\SeedData\%(Filename)%(Extension)" />
     <Compile Include="..\..\SouthBaySoccer\Resources\Fonts\FontAwesomeGlyphs.cs" Link="Client\Resources\FontAwesomeGlyphs.cs" />
   </ItemGroup>

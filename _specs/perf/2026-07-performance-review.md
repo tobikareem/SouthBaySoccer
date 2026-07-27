@@ -649,8 +649,73 @@ than forcing one pattern:
   invalidation, and "GetById is never served from the list cache"; read-through hit, key isolation,
   and "a failed factory poisons nothing". Handler tests use a `PassThroughReadThroughCache` fake so
   memoization never hides the repository interactions they assert.
+- **Code review found three blockers; all fixed.**
+  1. *The `venues:active` cache fed a **write** decision.* `PrefetchAsync` seeded the import's
+     venue lookup from the cached list, and a miss there does not serve stale data — it INSERTS a
+     venue. On a second instance a ≤5-min-old list would miss a venue this instance just created
+     and duplicate the row, with no unique index on `Venue.Name` to stop it. Fixed by adding
+     `IVenueRepository.ListByNamesAsync` (live, name-scoped, never cached) and moving the import
+     onto it, which also drops the `Take(100)` cap the import inherited. Venue-name derivation is
+     now a single `ResolveVenueName` helper so the prefetch and the create-or-reuse decision cannot
+     disagree.
+  2. *`catch (Exception) when (cached is not null)` swallowed caller cancellation*, returning a
+     stale catalog as a normal result on host shutdown or an abandoned request. Now rethrows when
+     `cancellationToken.IsCancellationRequested`, matching `GameDayPickupPalRefreshService`; an
+     `HttpClient` timeout still falls through to stale because it leaves the caller's token
+     unsignalled. A test pins the distinction.
+  3. *Change-tracked EF entities in a process-wide cache.* Neither `ListActiveAsync` used
+     `AsNoTracking`, so the singleton cache held entities attached to a long-disposed `DbContext`
+     and handed the same mutable graph to every request for a whole TTL. Latent (no caller mutates
+     a list-sourced entity today) but one line each to remove permanently.
+  Also applied: **eviction is now drained by `AuditSoftDeleteSaveChangesInterceptor.SavedChangesAsync`
+  instead of `UnitOfWork`**, so every commit path is covered by construction — seven services call
+  `dbContext.SaveChangesAsync` directly, and any of them commits everything tracked in the shared
+  scoped context. Season TTL cut 15 → 5 min, because on a second instance the longer window makes a
+  newly created season invisible and *silently skips imports* rather than merely serving stale data.
+- Known and accepted, recorded rather than fixed: the leaderboard read-through has no stampede
+  protection (N concurrent misses at the TTL flip each cost ~6 sequential round trips); the players
+  directory is TTL-only, not invalidated on profile writes as §6 says; and caching the group catalog
+  means `ResolveGroupAsync` can 404 for a group created in the last 5 minutes. Each is worth a
+  follow-up but none is a correctness break in the current single-instance deployment.
 - Gate: solution build 0 errors / 0 new warnings; Application 191, Functions 121, Domain 1,
-  Client 512, Infrastructure non-DB 41 — all passing locally.
+  Client 519, Infrastructure non-DB 43 — all passing locally.
+
+### 2026-07-27 — Phase 5 partially implemented (client)
+
+**Done:**
+- **5.1 In-memory access-token copy** in the singleton `AuthenticationSessionRefresher`. Secure
+  storage stays the durable record; the memory copy removes two platform-keystore decrypts from
+  every authenticated request, which is a fixed cost every screen load multiplies. Populated on
+  read and directly on refresh, and cleared on every definitive rejection path alongside
+  `tokenStore.ClearAsync()`. The refresh semaphore and all rejection semantics are unchanged.
+  3 tests: warm path reads storage once, an expired token inside the refresh skew is not served,
+  and a refresh serves the new token without re-reading storage.
+- **5.2 (partial) `ClientResponseCache`** + `CachedSessionsClient` (`sessions:dashboard`, 30 s),
+  registered so the decorator owns the `ISessionsClient` registration while the
+  correlation → auth → exception handler chain is untouched. Sessions Home and Schedule both call
+  `GetDashboardAsync`, so the duplicate is gone and a tab switch inside 30 s costs no request. Any
+  waitlist mutation invalidates `sessions:` — deliberately regardless of the reported outcome,
+  because a timeout on a committed write would otherwise leave a stale feed. `GetSessionAsync` is
+  left uncached: the detail screen is exactly where someone checks live capacity. 4 cache tests
+  plus 2 updated registration assertions (the existing suite correctly caught the type change).
+
+**Not done — remaining Phase 5 work:**
+- Decorators for profile, groups, players directory, leaderboard, and the stats prompt.
+- Pull-to-refresh must call `IClientResponseCache.Invalidate` before reloading, and sign-out must
+  call `Clear()`. **Until that is wired, a decorated client's pull-to-refresh can serve cache
+  inside the TTL** — acceptable for the 30 s dashboard, but it must land before the longer-TTL
+  profile/groups caches (5 min) are added, and `Clear()` on sign-out is a correctness requirement
+  before any per-player response is cached.
+- `ScreenRequestCountTests` expectations still describe the pre-cache behaviour; they should be
+  re-pinned (first Appearing = N, second inside TTL = 0) in the same PR that finishes the decorators.
+- **5.3 gzip deliberately not applied.** The audit's finding assumed the managed handler default,
+  but MAUI uses the native Android/iOS handlers, which already negotiate gzip. Forcing
+  `ConfigurePrimaryHttpMessageHandler(new HttpClientHandler { AutomaticDecompression = … })` would
+  replace the platform handler to fix something that may not be broken. Needs a device capture of
+  the actual request headers before changing anything.
+- GET-only retry not added yet.
+- Gate: solution build 0 errors / 0 new warnings; Application 191, Functions 121, Domain 1,
+  Client 519, Infrastructure non-DB 41 — all passing locally.
 
 ## 10. Decisions needed
 

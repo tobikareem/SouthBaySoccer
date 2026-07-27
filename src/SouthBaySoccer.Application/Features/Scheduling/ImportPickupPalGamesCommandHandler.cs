@@ -397,7 +397,7 @@ public sealed class ImportPickupPalGamesCommandHandler(
         ImportLookups lookups,
         CancellationToken cancellationToken)
     {
-        var name = Truncate(string.IsNullOrWhiteSpace(location) ? "Pickup Pal venue" : location.Trim(), 160);
+        var name = ResolveVenueName(location);
         if (lookups.VenuesByName.TryGetValue(name, out var existing))
         {
             return existing;
@@ -427,8 +427,15 @@ public sealed class ImportPickupPalGamesCommandHandler(
     {
         var lookups = new ImportLookups();
 
-        // ListActiveAsync is ordered by name, so TryAdd keeps the same row FirstOrDefault picked.
-        foreach (var venue in await venueRepository.ListActiveAsync(cancellationToken))
+        // Deliberately the live, name-scoped read rather than the cached active list: a miss here
+        // does not serve stale data, it INSERTS a venue. A second instance reading a cached list
+        // would not see a venue this one just created and would duplicate the row. This also drops
+        // the active list's 100-row cap, which silently broke resolution past 100 venues.
+        var venueNames = games
+            .Select(game => ResolveVenueName(game.Location))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        foreach (var venue in await venueRepository.ListByNamesAsync(venueNames, cancellationToken))
         {
             lookups.VenuesByName.TryAdd(venue.Name, venue);
         }
@@ -564,6 +571,11 @@ public sealed class ImportPickupPalGamesCommandHandler(
         public Dictionary<string, PlayerProfile> ProfilesByUnambiguousDisplayName { get; } =
             new(StringComparer.OrdinalIgnoreCase);
     }
+
+    // Single definition of a game's venue name: the prefetch and the create-or-reuse decision must
+    // derive it identically or the prefetch would miss and duplicate venues.
+    private static string ResolveVenueName(string location) =>
+        Truncate(string.IsNullOrWhiteSpace(location) ? "Pickup Pal venue" : location.Trim(), 160);
 
     private static string BuildOccurrenceKey(string gameId) => $"pickuppal:{gameId}";
 

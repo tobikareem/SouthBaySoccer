@@ -582,6 +582,11 @@ public sealed class ImportPickupPalGamesHandlerTests
             _venueRepository
                 .Setup(x => x.ListActiveAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Array.Empty<Venue>());
+            // The import resolves venues by name against a live read, never the cached active list:
+            // a stale miss there would insert a duplicate venue rather than just serve stale data.
+            _venueRepository
+                .Setup(x => x.ListByNamesAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<Venue>());
             _venueRepository
                 .Setup(x => x.AddAsync(It.IsAny<Venue>(), It.IsAny<CancellationToken>()))
                 .Callback<Venue, CancellationToken>((venue, _) =>

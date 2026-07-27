@@ -10,6 +10,7 @@ using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Contracts.Stats;
 using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -29,7 +30,8 @@ public sealed class ApiSprint03ClientTests
             new PickupPalOptions());
         using var provider = services.BuildServiceProvider();
 
-        provider.GetRequiredService<ISessionsClient>().Should().BeOfType<ApiSessionsClient>();
+        // API mode resolves the caching decorator, which wraps the real Api client.
+        provider.GetRequiredService<ISessionsClient>().Should().BeOfType<CachedSessionsClient>();
         provider.GetRequiredService<IRosterClient>().Should().BeOfType<ApiRosterClient>();
         provider.GetRequiredService<IStatsClient>().Should().BeOfType<ApiStatsClient>();
         provider.GetRequiredService<ILeaderboardClient>().Should().BeOfType<ApiLeaderboardClient>();

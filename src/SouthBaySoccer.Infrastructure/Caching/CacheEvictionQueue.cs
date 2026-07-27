@@ -11,12 +11,14 @@ namespace SouthBaySoccer.Infrastructure.Caching;
 /// TTL. Draining after a successful commit closes that window; a request that never commits
 /// correctly evicts nothing. Scoped, so the pending set is per-request and needs no locking.
 /// </remarks>
-internal sealed class CacheEvictionQueue(IMemoryCache cache)
+public sealed class CacheEvictionQueue(IMemoryCache cache)
 {
     private readonly HashSet<string> pendingKeys = new(StringComparer.Ordinal);
 
+    /// <summary>Marks a cache key for eviction once the current work commits.</summary>
     public void Enqueue(string cacheKey) => pendingKeys.Add(cacheKey);
 
+    /// <summary>Evicts every key enqueued since the last flush.</summary>
     public void Flush()
     {
         foreach (var cacheKey in pendingKeys)

@@ -38,6 +38,14 @@ internal sealed class CachedPickupPalGroupClient(
             cache.Set(CatalogCacheKey, new CatalogEntry(groups, nowUtc), ServeStaleFor);
             return groups;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The caller (or host shutdown) cancelled: that is not a provider failure, and returning
+            // a catalog as if it succeeded would hide it. An HttpClient timeout also surfaces as a
+            // TaskCanceledException but leaves the caller's token unsignalled, so it still falls
+            // through to the stale-catalog branch below.
+            throw;
+        }
         catch (Exception) when (cached is not null)
         {
             // Serving a catalog that is minutes stale beats failing a sign-in because the provider

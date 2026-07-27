@@ -85,6 +85,25 @@ public sealed class CachedReferenceRepositoryTests
     }
 
     [Fact]
+    public async Task ListByNamesAsync_IsNeverCached()
+    {
+        var inner = new Mock<IVenueRepository>();
+        inner.Setup(x => x.ListByNamesAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        using var cache = NewCache();
+        var repository = new CachedVenueRepository(inner.Object, cache, new CacheEvictionQueue(cache));
+
+        await repository.ListByNamesAsync(["Marina Field"]);
+        await repository.ListByNamesAsync(["Marina Field"]);
+
+        // The import uses this to decide whether to CREATE a venue; a cached miss on another
+        // instance would insert a duplicate row, so it must always hit the database.
+        inner.Verify(
+            x => x.ListByNamesAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+    }
+
+    [Fact]
     public async Task GetByIdAsync_IsNeverServedFromTheListCache()
     {
         var venueId = Guid.NewGuid();

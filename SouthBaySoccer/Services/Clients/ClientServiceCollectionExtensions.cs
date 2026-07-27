@@ -5,6 +5,7 @@ using SouthBaySoccer.Services.Authentication;
 
 #if !RELEASE
 using SouthBaySoccer.SeedData;
+using SouthBaySoccer.Services.Clients.Caching;
 #endif
 
 namespace SouthBaySoccer.Services.Clients;
@@ -45,6 +46,9 @@ public static class ClientServiceCollectionExtensions
         // ApiSessionsClient formats display labels in device-local time from a TimeProvider; the
         // app registers TimeProvider.System in MauiProgram, and TryAdd keeps bare test hosts working.
         services.TryAddSingleton(TimeProvider.System);
+        // One cache for the app: read responses are shared across screens, and Clear() on sign-out
+        // makes sure one account never sees another's data.
+        services.TryAddSingleton<IClientResponseCache, ClientResponseCache>();
         services.AddTransient<CorrelationIdHandler>();
         services.AddTransient<AuthenticationHandler>();
         services.AddTransient<ApiExceptionHandler>();
@@ -73,11 +77,17 @@ public static class ClientServiceCollectionExtensions
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
-        services.AddHttpClient<ISessionsClient, ApiSessionsClient>(
+        // Registered by concrete type so the caching decorator owns the ISessionsClient
+        // registration; the handler pipeline below is unchanged and every real request still
+        // flows through correlation -> auth -> exception handling.
+        services.AddHttpClient<ApiSessionsClient>(
             client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
+        services.AddTransient<ISessionsClient>(provider => new CachedSessionsClient(
+            provider.GetRequiredService<ApiSessionsClient>(),
+            provider.GetRequiredService<IClientResponseCache>()));
 
         services.AddHttpClient<IRosterClient, ApiRosterClient>(
             client => ConfigureApiClient(client, pickupPalOptions))

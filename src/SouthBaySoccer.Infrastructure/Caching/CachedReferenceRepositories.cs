@@ -14,7 +14,9 @@ internal sealed class CachedSeasonRepository(
     CacheEvictionQueue evictionQueue) : ISeasonRepository
 {
     internal const string ActiveSeasonsCacheKey = "seasons:active";
-    private static readonly TimeSpan ActiveSeasonsTimeToLive = TimeSpan.FromMinutes(15);
+    // 5 rather than 15 minutes: on a second instance a longer window means a season an admin
+    // just created is invisible, which silently skips imports rather than merely serving stale data.
+    private static readonly TimeSpan ActiveSeasonsTimeToLive = TimeSpan.FromMinutes(5);
 
     public async Task<IReadOnlyList<Season>> ListActiveAsync(CancellationToken cancellationToken = default)
     {
@@ -75,6 +77,13 @@ internal sealed class CachedVenueRepository(
         cache.Set(ActiveVenuesCacheKey, venues, ActiveVenuesTimeToLive);
         return venues;
     }
+
+    // Never cached: callers use this to decide whether to CREATE a venue. A stale miss on another
+    // instance would insert a duplicate row, so this read must always hit the database.
+    public Task<IReadOnlyList<Venue>> ListByNamesAsync(
+        IReadOnlyCollection<string> names,
+        CancellationToken cancellationToken = default) =>
+        inner.ListByNamesAsync(names, cancellationToken);
 
     // Not cached: keyed by arbitrary id sets, and callers use it to resolve specific venues rather
     // than to browse, so a per-call cache would mostly miss while multiplying keys.
