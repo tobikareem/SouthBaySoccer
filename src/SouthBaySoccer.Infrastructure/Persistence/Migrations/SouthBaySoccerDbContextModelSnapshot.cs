@@ -172,6 +172,113 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Announcements.Announcement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AuthorPlayerProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("GroupChatId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("PushRequested")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("RecipientCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SentAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorPlayerProfileId", "SentAtUtc")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("GroupChatId", "SentAtUtc", "Id")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("Announcements", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Announcements_RecipientCountNotNegative", "[RecipientCount] >= 0");
+                        });
+
+                    b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", true);
+                });
+
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Announcements.GroupAnnouncementReadMarker", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("GroupChatId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastReadAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("PlayerProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GroupChatId", "LastReadAtUtc")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("PlayerProfileId", "GroupChatId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("PlayerProfileId", "GroupChatId"), new[] { "LastReadAtUtc" });
+
+                    b.ToTable("GroupAnnouncementReadMarkers", (string)null);
+
+                    b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", true);
+                });
+
             modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Compliance.WaiverAcceptance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2888,6 +2995,36 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Announcements.Announcement", b =>
+                {
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Identity.PlayerProfile", null)
+                        .WithMany()
+                        .HasForeignKey("AuthorPlayerProfileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Groups.GroupChat", null)
+                        .WithMany()
+                        .HasForeignKey("GroupChatId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Announcements.GroupAnnouncementReadMarker", b =>
+                {
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Groups.GroupChat", null)
+                        .WithMany()
+                        .HasForeignKey("GroupChatId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Identity.PlayerProfile", null)
+                        .WithMany()
+                        .HasForeignKey("PlayerProfileId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

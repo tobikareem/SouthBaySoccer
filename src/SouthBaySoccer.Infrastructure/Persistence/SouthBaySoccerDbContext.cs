@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using SouthBaySoccer.Domain.Entities.Announcements;
 using SouthBaySoccer.Domain.Entities.Compliance;
 using SouthBaySoccer.Domain.Entities.Groups;
 using SouthBaySoccer.Domain.Entities.Identity;
@@ -62,6 +63,8 @@ public class SouthBaySoccerDbContext : IdentityDbContext<ApplicationIdentityUser
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
     public DbSet<GroupChat> GroupChats => Set<GroupChat>();
     public DbSet<PlayerGroupLink> PlayerGroupLinks => Set<PlayerGroupLink>();
+    public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<GroupAnnouncementReadMarker> GroupAnnouncementReadMarkers => Set<GroupAnnouncementReadMarker>();
     public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = null!;
 
     /// <inheritdoc />
