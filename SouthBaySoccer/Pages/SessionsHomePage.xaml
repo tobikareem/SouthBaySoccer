@@ -61,21 +61,40 @@
                                     </DataTrigger>
                                 </controls:Badge.Triggers>
                             </controls:Badge>
+                            <!-- The badge overhangs the button's top-right corner, so the cell is
+                                 padded to keep it inside the row's bounds rather than clipped. -->
                             <Grid WidthRequest="{StaticResource TouchMin}"
-                                  HeightRequest="{StaticResource TouchMin}">
+                                  HeightRequest="{StaticResource TouchMin}"
+                                  Margin="0,4,4,0">
                                 <Button Text="{x:Static fonts:FontAwesomeGlyphs.Bell}"
                                         FontFamily="FontAwesomeSolid"
                                         Style="{StaticResource IconButton}"
                                         Command="{Binding OpenAnnouncementsCommand}"
                                         SemanticProperties.Description="{Binding NotificationsSemanticDescription}"
                                         SemanticProperties.Hint="Opens group announcements" />
-                                <Ellipse WidthRequest="8"
-                                         HeightRequest="8"
-                                         Fill="{StaticResource BrandGreenLight}"
-                                         HorizontalOptions="End"
-                                         VerticalOptions="Start"
-                                         InputTransparent="True"
-                                         IsVisible="{Binding HasUnreadAnnouncements}" />
+                                <!-- Danger red, not brand green: an unread badge has to read as an
+                                     alert against a green icon tile, and green-on-green does not.
+                                     The surface-coloured ring separates it from the glyph beneath. -->
+                                <Border InputTransparent="True"
+                                        IsVisible="{Binding HasUnreadAnnouncements}"
+                                        HorizontalOptions="End"
+                                        VerticalOptions="Start"
+                                        Margin="0,-6,-6,0"
+                                        Padding="5,1"
+                                        MinimumWidthRequest="20"
+                                        HeightRequest="20"
+                                        BackgroundColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                                        Stroke="{AppThemeBinding Light={StaticResource BrandWhite}, Dark={StaticResource BrandPineDark}}"
+                                        StrokeThickness="2"
+                                        StrokeShape="RoundRectangle 10">
+                                    <Label Text="{Binding UnreadAnnouncementBadge}"
+                                           TextColor="{StaticResource BrandWhite}"
+                                           FontSize="11"
+                                           FontAttributes="Bold"
+                                           LineBreakMode="NoWrap"
+                                           HorizontalTextAlignment="Center"
+                                           VerticalTextAlignment="Center" />
+                                </Border>
                             </Grid>
                         </HorizontalStackLayout>
                     </Grid>

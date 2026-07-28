@@ -37,7 +37,8 @@
                             Title="{Binding StateTitle}"
                             Message="{Binding StateMessage}"
                             Glyph="{x:Static fonts:FontAwesomeGlyphs.Bell}"
-                            RetryCommand="{Binding RefreshCommand}">
+                            RetryCommand="{Binding RefreshCommand}"
+                            ShowRetryWhenEmpty="True">
             <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing, Mode=TwoWay}">
                 <CollectionView ItemsSource="{Binding DayGroups}"
                                 IsGrouped="True"
@@ -59,6 +60,7 @@
                         <DataTemplate x:DataType="pageModels:AnnouncementItemViewModel">
                             <controls:AnnouncementCard Margin="{StaticResource LayoutPadding}"
                                                        AuthorName="{Binding AuthorName}"
+                                                       AuthorInitials="{Binding AuthorInitials}"
                                                        GroupName="{Binding GroupName}"
                                                        TimeLabel="{Binding TimeLabel}"
                                                        Body="{Binding Body}"

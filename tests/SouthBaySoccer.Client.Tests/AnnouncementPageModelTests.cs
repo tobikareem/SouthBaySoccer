@@ -2,6 +2,7 @@ using FluentAssertions;
 using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -56,7 +57,7 @@ public sealed class AnnouncementPageModelTests
     {
         var time = new FixedTimeProvider(new DateTimeOffset(2026, 7, 27, 20, 0, 0, TimeSpan.Zero));
         var client = new SeedAnnouncementsClient(time);
-        var model = new AnnouncementsPageModel(client, new StubNavigator(), time)
+        var model = new AnnouncementsPageModel(client, new StubNavigator(), new ClientResponseCache(time), time)
         {
             GroupId = PrimaryGroupId
         };

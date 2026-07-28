@@ -121,7 +121,7 @@ public sealed class AnnouncementClientAndBehaviorTests
             0,
             null,
             null));
-        var model = new AnnouncementsPageModel(client, new StubNavigator(), time) { GroupId = GroupId };
+        var model = new AnnouncementsPageModel(client, new StubNavigator(), new ClientResponseCache(time), time) { GroupId = GroupId };
 
         await model.AppearingCommand.ExecuteAsync(null);
 
@@ -255,13 +255,17 @@ public sealed class AnnouncementClientAndBehaviorTests
         model.HasLoadMoreError.Should().BeTrue();
     }
 
-    private static AnnouncementsPageModel CreateFeedModel(IAnnouncementsClient client) =>
-        new(client, new StubNavigator(), new FixedTimeProvider(
+    private static AnnouncementsPageModel CreateFeedModel(IAnnouncementsClient client)
+    {
+        var time = new FixedTimeProvider(
             new DateTimeOffset(2026, 7, 27, 20, 0, 0, TimeSpan.Zero),
-            TimeZoneInfo.Utc))
+            TimeZoneInfo.Utc);
+
+        return new AnnouncementsPageModel(client, new StubNavigator(), new ClientResponseCache(time), time)
         {
             GroupId = GroupId
         };
+    }
 
     private static AdminBroadcastPageModel CreateComposer(IAnnouncementsClient client) =>
         new(

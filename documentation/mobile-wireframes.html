@@ -111,8 +111,13 @@
   .checkrow input{width:18px;height:18px;accent-color:var(--g)}
   .team-chip{display:inline-flex;align-items:center;gap:5px;padding:6px 8px;border-radius:9px;background:var(--mist);color:var(--gd);font-size:11px;font-weight:700}
   .rank-value{font-size:18px;font-weight:700;color:var(--gd)}
-  .bell-wrap{position:relative}
-  .bell-dot{position:absolute;right:6px;top:5px;width:9px;height:9px;border-radius:50%;background:var(--danger);border:2px solid var(--surface)}
+  .bell-wrap{position:relative;overflow:visible}
+  /* Count, not a bare dot: "how many" is the first thing a player wants from the bell, and a
+     number answers it without opening the screen. Danger red reads as an alert against the green
+     icon tile; the surface-coloured ring lifts it off the glyph beneath. */
+  .bell-badge{position:absolute;right:-5px;top:-5px;min-width:19px;height:19px;padding:0 5px;border-radius:999px;
+    background:var(--danger);border:2px solid var(--surface);color:#fff;font-size:11px;font-weight:700;
+    line-height:15px;text-align:center;box-sizing:border-box;white-space:nowrap}
   .composer{width:100%;min-height:118px;resize:none;border:1px solid var(--line);border-radius:14px;padding:13px;font:15px/1.5 Inter,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:var(--surface)}
   .composer:focus{outline:none;border-color:var(--g);box-shadow:0 0 0 3px rgba(31,181,115,.15)}
 
@@ -209,7 +214,7 @@
       <div class="scroll">
         <div class="row" style="justify-content:space-between;margin:6px 0 2px">
           <div><div class="muted">Saturday crew</div><div class="h" style="margin:0">Good morning, Tobi</div></div>
-          <div class="row" style="gap:8px"><span class="pill ok"><i class="ti ti-circle-check"></i> Paid</span><span class="mini-action bell-wrap" aria-label="Notifications, 1 unread" onclick="show('notifications')"><i class="ti ti-bell"></i><i class="bell-dot"></i></span></div>
+          <div class="row" style="gap:8px"><span class="pill ok"><i class="ti ti-circle-check"></i> Paid</span><span class="mini-action bell-wrap" aria-label="Notifications, 1 unread" onclick="show('notifications')"><i class="ti ti-bell"></i><span class="bell-badge">1</span></span></div>
         </div>
         <div class="card hero-card interactive" onclick="show('session')" style="cursor:pointer">
           <div class="hero-kicker">Next match · in 2 days</div>
@@ -825,7 +830,7 @@
     s.querySelectorAll('.ann-new').forEach(function(d){ d.remove(); });
     var unreadTab=s.querySelector('.seg a:last-child'); if(unreadTab) unreadTab.textContent='Unread · 0';
     el.innerHTML="<i class='ti ti-checks'></i> All read";
-    document.querySelectorAll('.bell-dot').forEach(function(d){ d.style.display='none'; });
+    document.querySelectorAll('.bell-badge').forEach(function(d){ d.style.display='none'; });
     var active=s.querySelector('.seg a.active');
     if(active && active!==s.querySelector('.seg a')) annFilter(active,'unread');
   }

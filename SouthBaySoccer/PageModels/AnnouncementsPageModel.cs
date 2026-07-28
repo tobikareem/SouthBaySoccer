@@ -2,6 +2,7 @@ using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 using ViewState = SouthBaySoccer.Controls.ViewState;
 
 namespace SouthBaySoccer.PageModels;
@@ -9,6 +10,7 @@ namespace SouthBaySoccer.PageModels;
 public partial class AnnouncementsPageModel(
     IAnnouncementsClient announcementsClient,
     IAnnouncementsNavigator navigator,
+    IClientResponseCache responseCache,
     TimeProvider timeProvider) : ObservableObject
 {
     public const string ErrorTitle = "Couldn't load announcements";
@@ -68,7 +70,13 @@ public partial class AnnouncementsPageModel(
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task Refresh(CancellationToken cancellationToken) => LoadAsync(replace: true, cancellationToken);
+    private Task Refresh(CancellationToken cancellationToken)
+    {
+        // Without this the feed's first page is served from its own 60s cache, so pulling to
+        // refresh could return the identical list and look like nothing had happened.
+        responseCache.Invalidate("announcements:");
+        return LoadAsync(replace: true, cancellationToken);
+    }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task LoadMore(CancellationToken cancellationToken)
@@ -150,7 +158,14 @@ public partial class AnnouncementsPageModel(
     {
         if (replace)
         {
-            State = ViewState.Loading;
+            // Only blank the screen for a genuine first load. During pull-to-refresh the list must
+            // stay on screen — swapping it for a spinner while RefreshView is already showing its
+            // own makes the content flash and the gesture feel broken.
+            if (loadedItems.Count == 0)
+            {
+                State = ViewState.Loading;
+            }
+
             IsRefreshing = true;
         }
 
@@ -209,10 +224,30 @@ public partial class AnnouncementsPageModel(
 
     private AnnouncementItemViewModel Map(SouthBaySoccer.Contracts.Announcements.AnnouncementDto dto)
     {
-        var local = TimeZoneInfo.ConvertTime(dto.SentAtUtc.Kind == DateTimeKind.Utc
-            ? new DateTimeOffset(dto.SentAtUtc)
-            : new DateTimeOffset(DateTime.SpecifyKind(dto.SentAtUtc, DateTimeKind.Utc)), timeProvider.LocalTimeZone);
-        return new AnnouncementItemViewModel(dto) { TimeLabel = local.ToString("h:mm tt") };
+        var local = ToLocal(dto.SentAtUtc);
+        return new AnnouncementItemViewModel(dto) { TimeLabel = FormatTimeLabel(local) };
+    }
+
+    private DateTimeOffset ToLocal(DateTime sentAtUtc) =>
+        TimeZoneInfo.ConvertTime(
+            new DateTimeOffset(DateTime.SpecifyKind(sentAtUtc, DateTimeKind.Utc)),
+            timeProvider.LocalTimeZone);
+
+    /// <summary>
+    /// A bare clock time only reads correctly for today. Anything older needs its day back, or
+    /// every announcement in the "Earlier" group claims to have arrived this afternoon.
+    /// </summary>
+    private string FormatTimeLabel(DateTimeOffset local)
+    {
+        var today = timeProvider.GetLocalNow().Date;
+        var age = today - local.Date;
+
+        return age.Days switch
+        {
+            0 => local.ToString("h:mm tt"),
+            < 7 and > 0 => local.ToString("ddd h:mm tt"),
+            _ => local.ToString("MMM d"),
+        };
     }
 
     private void RebuildView()

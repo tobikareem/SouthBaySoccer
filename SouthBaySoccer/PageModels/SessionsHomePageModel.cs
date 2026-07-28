@@ -108,10 +108,27 @@ public partial class SessionsHomePageModel(
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(NotificationsSemanticDescription))]
     [NotifyPropertyChangedFor(nameof(HasUnreadAnnouncements))]
+    [NotifyPropertyChangedFor(nameof(UnreadAnnouncementBadge))]
     private int _unreadAnnouncementCount;
 
+    /// <summary>The count the API stops counting at; past it the badge reads "99+".</summary>
+    private const int UnreadBadgeCap = 99;
+
     public bool HasUnreadAnnouncements => UnreadAnnouncementCount > 0;
-    public string NotificationsSemanticDescription => $"Notifications, {UnreadAnnouncementCount} unread";
+
+    /// <summary>
+    /// Badge text for the notification bell. The API caps its count, so rendering the raw number
+    /// past the cap would understate reality — and a four-digit badge would not fit anyway.
+    /// </summary>
+    public string UnreadAnnouncementBadge =>
+        UnreadAnnouncementCount >= UnreadBadgeCap ? $"{UnreadBadgeCap}+" : UnreadAnnouncementCount.ToString();
+
+    public string NotificationsSemanticDescription => UnreadAnnouncementCount switch
+    {
+        0 => "Notifications, none unread",
+        1 => "Notifications, 1 unread",
+        _ => $"Notifications, {UnreadAnnouncementCount} unread",
+    };
 
     partial void OnCanManageSessionsChanged(bool value) => CreateSessionCommand.NotifyCanExecuteChanged();
 
@@ -122,8 +139,11 @@ public partial class SessionsHomePageModel(
     private Task Refresh(CancellationToken cancellationToken)
     {
         // Pulling to refresh is an explicit "I want current data" gesture, so it must not be
-        // answered from the cache the way returning to the tab is.
+        // answered from the cache the way returning to the tab is. That includes the notification
+        // bell: the badge is read through its own cache key, so invalidating only "sessions:" left
+        // the unread count up to its TTL stale on the one gesture that means "check again".
         responseCache.Invalidate("sessions:");
+        responseCache.Invalidate("announcements:");
         return LoadDashboardAsync(forceProfileRefresh: true, cancellationToken);
     }
 
