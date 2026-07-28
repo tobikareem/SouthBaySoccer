@@ -8,7 +8,7 @@
     x:DataType="controls:GroupChoiceRow">
     <Border Padding="{StaticResource SpaceMd}"
             MinimumHeightRequest="{StaticResource TouchMin}"
-            Stroke="{AppThemeBinding Light={StaticResource BorderLight}, Dark={StaticResource BorderDark}}"
+            Stroke="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}"
             StrokeShape="RoundRectangle 14"
             SemanticProperties.Description="{Binding SemanticDescription, Source={x:Reference Root}}">
         <Border.Triggers>

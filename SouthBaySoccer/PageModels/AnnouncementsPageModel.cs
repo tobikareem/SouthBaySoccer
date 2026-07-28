@@ -110,8 +110,21 @@ public partial class AnnouncementsPageModel(
     [RelayCommand]
     private void ShowUnread() => ShowUnreadOnly = true;
 
+    /// <summary>
+    /// Accepts a null label instead of trusting the caller: a XAML-supplied command argument is not
+    /// guaranteed to arrive typed or non-null, and dereferencing it here crashes the page rather
+    /// than logging a binding failure. A missing label means "no selection", so the filter holds.
+    /// </summary>
     [RelayCommand]
-    private void ApplyFilter(string filter) => ShowUnreadOnly = !filter.Equals("All", StringComparison.Ordinal);
+    private void ApplyFilter(string? filter)
+    {
+        if (filter is null)
+        {
+            return;
+        }
+
+        ShowUnreadOnly = !filter.Equals("All", StringComparison.Ordinal);
+    }
 
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanMarkAllRead))]
     private async Task MarkAllRead(CancellationToken cancellationToken)

@@ -64,7 +64,7 @@
                                 Placeholder="Share a game update with your group"
                                 SemanticProperties.Description="Broadcast message, maximum 500 characters" />
                         <Label Text="{Binding InlineError}"
-                               TextColor="{StaticResource StatusDangerLight}"
+                               TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
                                Style="{StaticResource TextCaption}"
                                SemanticProperties.Description="{Binding InlineError}">
                             <Label.Triggers>
