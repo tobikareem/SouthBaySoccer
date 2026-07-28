@@ -159,6 +159,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IAuthenticationCoordinator, AuthenticationCoordinator>();
         builder.Services.AddSingleton<IAppStartupService, AppStartupService>();
         builder.Services.AddSingleton<IExternalLauncher, ExternalLauncher>();
+        builder.Services.AddSingleton<IAnnouncementsNavigator, ShellAnnouncementsNavigator>();
 
         builder.Services.AddTransientWithShellRoute<SessionDetailPage, SessionDetailPageModel>("session");
         builder.Services.AddTransientWithShellRoute<SchedulePage, SchedulePageModel>("schedule");
@@ -175,6 +176,8 @@ public static class MauiProgram
         builder.Services.AddTransientWithShellRoute<AdminMatchPage, AdminMatchPageModel>("admin-match");
         builder.Services.AddTransientWithShellRoute<MatchStatsPage, MatchStatsPageModel>("matchstats");
         builder.Services.AddTransientWithShellRoute<RateTeammatesPage, RateTeammatesPageModel>("rate-teammates");
+        builder.Services.AddTransientWithShellRoute<AnnouncementsPage, AnnouncementsPageModel>("announcements");
+        builder.Services.AddTransientWithShellRoute<AdminBroadcastPage, AdminBroadcastPageModel>("admin-broadcast");
 
         builder.Services.AddTransientWithShellRoute<ProjectDetailPage, ProjectDetailPageModel>("project");
         builder.Services.AddTransientWithShellRoute<TaskDetailPage, TaskDetailPageModel>("task");

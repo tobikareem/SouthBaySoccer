@@ -103,6 +103,8 @@ public static class DependencyInjection
         services.AddScoped<IPickupPalGameRepository, PickupPalGameRepository>();
         services.AddScoped<IGroupChatRepository, GroupChatRepository>();
         services.AddScoped<IPlayerGroupLinkRepository, PlayerGroupLinkRepository>();
+        services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
+        services.AddScoped<IGroupAnnouncementReadMarkerRepository, GroupAnnouncementReadMarkerRepository>();
         services.AddSingleton<IConfiguredAdminPhoneNumberService, ConfiguredAdminPhoneNumberService>();
         services.AddScoped<IPickupPalUserSyncService, PickupPalUserSyncService>();
         services.AddScoped<IAuthenticationTokenIssuer, AuthenticationTokenIssuer>();

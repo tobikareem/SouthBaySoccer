@@ -32,6 +32,25 @@ public interface IPlayerGroupLinkRepository : IRepository<PlayerGroupLink>
     Task<IReadOnlyList<PlayerGroupReadModel>> ListPlayerGroupsAsync(
         Guid playerProfileId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Finds the link between a player and a group, or <see langword="null"/> when none exists.
+    /// The link's creation time is the floor for anything scoped to "since this player joined".
+    /// </summary>
+    Task<PlayerGroupLink?> FindLinkAsync(
+        Guid playerProfileId,
+        Guid groupChatId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Counts the players currently linked to a group, optionally excluding one profile.
+    /// This is the app-side audience — the people who can actually receive an in-app broadcast —
+    /// as opposed to the externally reported WhatsApp roster size.
+    /// </summary>
+    Task<int> CountMembersAsync(
+        Guid groupChatId,
+        Guid? excludingPlayerProfileId = null,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>Projection of a player's group link joined to the group-chat display fields.</summary>

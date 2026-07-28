@@ -131,6 +131,15 @@ public static class ClientServiceCollectionExtensions
             provider.GetRequiredService<ApiGroupsClient>(),
             provider.GetRequiredService<IClientResponseCache>()));
 
+        services.AddHttpClient<ApiAnnouncementsClient>(
+            client => ConfigureApiClient(client, pickupPalOptions))
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<AuthenticationHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+        services.AddTransient<IAnnouncementsClient>(provider => new CachedAnnouncementsClient(
+            provider.GetRequiredService<ApiAnnouncementsClient>(),
+            provider.GetRequiredService<IClientResponseCache>()));
+
         services.AddSingleton<IAuthenticationClient>(provider =>
             new AuthenticationClient(
                 provider.GetRequiredService<IHttpClientFactory>().CreateClient("SouthBaySoccer.Anonymous"),
@@ -183,6 +192,7 @@ public static class ClientServiceCollectionExtensions
         services.TryAddSingleton<IPlayersClient, SeedPlayersClient>();
         services.TryAddSingleton<IGameDayClient, SeedGameDayClient>();
         services.TryAddSingleton<IGroupsClient, SeedGroupsClient>();
+        services.TryAddSingleton<IAnnouncementsClient, SeedAnnouncementsClient>();
     }
 #endif
 

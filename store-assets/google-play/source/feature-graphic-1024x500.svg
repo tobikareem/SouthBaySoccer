@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="500" viewBox="0 0 1024 500" xmlns="http://www.w3.org/2000/svg">
+  <title>N9ja Bay Google Play feature graphic</title>
+  <defs>
+    <clipPath id="feature-pitch-clip">
+      <circle cx="812" cy="250" r="164"/>
+    </clipPath>
+    <linearGradient id="pine-depth" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#005C37"/>
+      <stop offset="1" stop-color="#008751"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="500" fill="#FFFFFF"/>
+  <path d="M0 0 H690 L604 500 H0 Z" fill="url(#pine-depth)"/>
+  <path d="M626 0 H688 L602 500 H540 Z" fill="#1FB573" opacity=".48"/>
+  <rect x="1000" width="24" height="500" fill="#008751"/>
+
+  <text x="72" y="212"
+        font-family="Inter, Segoe UI, Arial, sans-serif"
+        font-size="74" font-weight="700" fill="#FFFFFF">N9ja Bay</text>
+  <text x="76" y="274"
+        font-family="Inter, Segoe UI, Arial, sans-serif"
+        font-size="29" font-weight="500" letter-spacing=".4" fill="#E8F5EE">Pickup soccer, organized.</text>
+  <rect x="76" y="318" width="118" height="8" rx="4" fill="#1FB573"/>
+
+  <circle cx="812" cy="250" r="184" fill="#E8F5EE"/>
+  <circle cx="812" cy="250" r="164" fill="#008751"/>
+  <rect x="773" y="86" width="78" height="328" fill="#FFFFFF" clip-path="url(#feature-pitch-clip)"/>
+  <circle cx="812" cy="250" r="146" fill="none" stroke="#FFFFFF" stroke-width="11"/>
+  <line x1="812" y1="104" x2="812" y2="396" stroke="#008751" stroke-width="9"/>
+  <path d="M666 194 H720 V306 H666" fill="none" stroke="#FFFFFF" stroke-width="11"/>
+  <path d="M958 194 H904 V306 H958" fill="none" stroke="#FFFFFF" stroke-width="11"/>
+  <circle cx="812" cy="250" r="47" fill="#FFFFFF" stroke="#008751" stroke-width="9"/>
+  <circle cx="812" cy="250" r="27" fill="#FFFFFF" stroke="#008751" stroke-width="6"/>
+  <path d="M812 233 L824 242 L820 257 L804 257 L800 242 Z" fill="#008751"/>
+  <path d="M812 233 L812 223 M824 242 L834 239 M820 257 L827 267 M804 257 L797 267 M800 242 L790 239"
+        fill="none" stroke="#008751" stroke-width="5" stroke-linecap="round"/>
+</svg>
