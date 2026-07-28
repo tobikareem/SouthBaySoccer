@@ -304,8 +304,56 @@ Scenario: Product UI follows the authoritative wireframe
 | RSVP / Submit / WhatsApp buttons | `PrimaryButton` / `GhostButton` / `WhatsAppButton` |
 | Loading / empty / error / offline | `StateView` |
 | Group selection (sign-in) & Stats group filter | `LinkGroupPage` (single-select `CollectionView`) / `Picker` |
+| Admin broadcast composer | `BrandHeader` + `GroupChoiceRow` + styled `Editor` + `AnnouncementCard` preview + `ToggleRow` + `PushPreview` + docked `PrimaryButton` |
+| Push notification preview | `PushPreview` (dark surface, app name, group title, 2-line clamped body) |
+| Admin "Recently sent" read receipts | `BrandCard` + compact rows + `Badge` (`ok` / `warn` by read ratio) |
+| Player group announcements | `BrandHeader` + `SegmentedControl` (All / Unread) + `AnnouncementCard` feed + `StateView` empty state |
 
-## 11.1 Group-chat linking & group-scoped leaderboard
+## 11.1 Admin broadcasts and player notifications
+
+Group announcements use two connected client surfaces. Both are built from one shared
+`AnnouncementCard` template — the admin preview and the player feed row are the same control, so the
+composer literally shows what players will receive.
+
+- **Admin broadcast composer.** An admin-only page in four ordered blocks: *audience → message →
+  how it lands → send*.
+  - **Audience** is a single-select row of group cards (name + member count), not a dropdown, so the
+    chosen group and its size are visible without opening a picker. Selecting a group must update
+    the preview, push preview, recipient count on the CTA, and destination feed together.
+  - **Message** is a styled `Editor` with the character counter sitting on the label line
+    (`104 / 500`), programmatically associated with the editor.
+  - **How it lands** shows the `AnnouncementCard` preview, a `ToggleRow` switch for the push
+    notification, and — only while the toggle is on — a `PushPreview` rendering the OS-level
+    notification. Toggling push must show/hide that preview.
+  - **Send** is a docked `PrimaryButton` pinned to the bottom of the scroll (`sticky`-equivalent:
+    a bottom-anchored row over a fade), labelled with the exact recipient count
+    ("Broadcast to 24 members"), with the "cannot be edited after sending" caption beneath it.
+  - A **Recently sent** list gives admins the read receipts (`24/24`, `14/18` badges — `ok` at full
+    read, `warn` below). Read counts are admin-facing only.
+  - The composer states that delivery is in-app, not WhatsApp.
+- **Player group announcements.** The notification bell on Sessions opens a read-only, group-scoped
+  feed. It uses cards on a plain surface rather than chat bubbles: sender + group on the left, time
+  on the right, an unread dot for new items, the message body at readable size, and a divided footer
+  only when the announcement carries context (a `meta-chip` and a link such as `View session`).
+  - An **All / Unread** `SegmentedControl` filters the feed; the Unread tab carries the count.
+  - Announcements are grouped under quiet **Today / Earlier** day labels.
+  - **Mark all read** clears the unread cards, the bell dot, and the unread count together.
+  - When no announcement matches the filter, `StateView`'s empty state renders "You're all caught up."
+  - Players never see read counts — that data belongs to the admin surface.
+
+Broadcast submission validates a non-empty message at the Application/PageModel boundary and exposes
+an inline accessible error. While sending, the CTA is disabled and the operation uses an idempotency
+key. Success locks the audience, message, and push option; retryable failure or offline state preserves
+the draft and offers Retry through `StateView`. The visible label, character counter, and validation
+message are semantically associated with the editor.
+
+The feed reads as a calm announcement list, not member-to-member chat and not WhatsApp delivery.
+Use the standard `Editor`, `BrandCard`, badge, avatar, and button styles; the audience row, toggle
+row, push preview, and announcement card are shared controls, never page-local XAML. The audience
+row is a `radiogroup` and the push row a `switch` for accessibility, and the unread dot is paired
+with an accessible unread-count description on the bell.
+
+## 11.2 Group-chat linking & group-scoped leaderboard
 
 Players belong to WhatsApp group chats (mirrored from the read-only PickupPal API into our own
 database — see backend spec). Two client surfaces implement this:

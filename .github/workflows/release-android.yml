@@ -1,0 +1,320 @@
+# Google Play internal-testing delivery for the N9ja Bay MAUI client.
+#
+# Trigger: every push to release/android. workflow_dispatch allows manual runs, but the delivery
+# job is hard-gated to release/android so another branch cannot publish by mistake.
+#
+# Flow: portable test gate -> pin Java/.NET/Android workload -> restore the upload keystore into
+# runner temp -> validate it -> publish one signed AAB with a rerun-safe versionCode -> retain the
+# exact artifact -> upload it to Google Play's internal track -> remove signing material.
+#
+# Build number scheme: (run_number * 1000) + run_attempt + offset. Both a new run and "Re-run jobs"
+# receive a versionCode Google Play has not seen before (run 1 attempt 1 = 101001). The workflow
+# rejects run attempts at or above 1000 so adjacent runs cannot collide. Do not perform manual
+# uploads with version codes above this workflow's generated sequence.
+#
+# Required GitHub environment: google-play-internal
+# Restrict it to release/android and add a required reviewer if the repository plan supports it.
+#
+# Required environment secrets:
+#   ANDROID_UPLOAD_KEYSTORE_BASE64  base64 of ~/.android/n9jabay-upload.keystore
+#   ANDROID_UPLOAD_KEY_PASSWORD     password used when the upload keystore was created
+#   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+#       complete JSON key for a dedicated service account that has access only to N9ja Bay and the
+#       minimum Play Console permission required to release builds to testing tracks
+#
+# Required environment variable:
+#   ANDROID_UPLOAD_CERT_SHA256      SHA-256 fingerprint of the registered upload certificate;
+#                                   colons and letter case are ignored during comparison
+#
+# Google Play App Signing owns the production app-signing key. This workflow uses only the upload
+# key. The first Play release has already been uploaded manually, which is required before the
+# Android Publisher API can update package com.pickupsoccer.n9jabay.
+
+name: Release Android to Google Play Internal Testing
+
+on:
+  push:
+    branches:
+      - release/android
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-android-google-play-internal
+  cancel-in-progress: false
+
+env:
+  PROJECT: SouthBaySoccer/SouthBaySoccer.csproj
+  DOTNET_SDK_VERSION: '10.0.302'
+  ANDROID_WORKLOAD_SET_VERSION: '10.0.302'
+  JAVA_VERSION: '17'
+  TFM: net10.0-android
+  PACKAGE_NAME: com.pickupsoccer.n9jabay
+  UPLOAD_KEY_ALIAS: n9jabay-upload
+  BUILD_NUMBER_OFFSET: 100000
+
+jobs:
+  # Match the iOS release gate. Infrastructure.Tests remains excluded because it requires SQL
+  # Server LocalDB on Windows.
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup .NET ${{ env.DOTNET_SDK_VERSION }}
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Verify .NET SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_version="$(dotnet --version)"
+          if [ "$actual_version" != "$DOTNET_SDK_VERSION" ]; then
+            echo "::error::Expected .NET SDK $DOTNET_SDK_VERSION, but setup-dotnet selected $actual_version."
+            exit 1
+          fi
+
+      - name: Run test suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          for project in \
+            tests/SouthBaySoccer.Domain.Tests/SouthBaySoccer.Domain.Tests.csproj \
+            tests/SouthBaySoccer.Application.Tests/SouthBaySoccer.Application.Tests.csproj \
+            tests/SouthBaySoccer.Functions.Tests/SouthBaySoccer.Functions.Tests.csproj \
+            tests/SouthBaySoccer.Client.Tests/SouthBaySoccer.Client.Tests.csproj
+          do
+            dotnet test "$project" --configuration Release
+          done
+
+  build-and-upload:
+    needs: test
+    if: github.ref == 'refs/heads/release/android'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: google-play-internal
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Setup .NET ${{ env.DOTNET_SDK_VERSION }}
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Verify .NET SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_version="$(dotnet --version)"
+          if [ "$actual_version" != "$DOTNET_SDK_VERSION" ]; then
+            echo "::error::Expected .NET SDK $DOTNET_SDK_VERSION, but setup-dotnet selected $actual_version."
+            exit 1
+          fi
+
+      # A UseMaui project needs the MAUI Android workload, not only the bare android workload.
+      - name: Install MAUI Android workload (set ${{ env.ANDROID_WORKLOAD_SET_VERSION }})
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet workload install maui-android --version "$ANDROID_WORKLOAD_SET_VERSION"
+          dotnet workload --info
+
+      - name: Calculate version code
+        id: version
+        shell: pwsh
+        run: |
+          if (${{ github.run_attempt }} -ge 1000) {
+              throw "GitHub run attempt ${{ github.run_attempt }} is too large for the versionCode scheme."
+          }
+
+          $versionCode = (${{ github.run_number }} * 1000) + ${{ github.run_attempt }} + ${{ env.BUILD_NUMBER_OFFSET }}
+          if ($versionCode -gt 2100000000) {
+              throw "Generated Android versionCode $versionCode exceeds Google Play's maximum."
+          }
+
+          "version-code=$versionCode" >> $env:GITHUB_OUTPUT
+          Write-Host "Android versionCode: $versionCode"
+
+      # The keystore and its password exist only in runner temp. The password is written without a
+      # trailing newline because Android's signing task reads the complete file value.
+      - name: Restore and validate upload key
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          EXPECTED_CERT_SHA256: ${{ vars.ANDROID_UPLOAD_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          [ -n "$KEYSTORE_BASE64" ] || { echo "::error::ANDROID_UPLOAD_KEYSTORE_BASE64 is not configured"; exit 1; }
+          [ -n "$KEYSTORE_PASSWORD" ] || { echo "::error::ANDROID_UPLOAD_KEY_PASSWORD is not configured"; exit 1; }
+          [ -n "$EXPECTED_CERT_SHA256" ] || { echo "::error::ANDROID_UPLOAD_CERT_SHA256 is not configured"; exit 1; }
+
+          KEYSTORE_PATH="$RUNNER_TEMP/n9jabay-upload.keystore"
+          KEYSTORE_PASSWORD_PATH="$RUNNER_TEMP/n9jabay-upload-password"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          printf '%s' "$KEYSTORE_PASSWORD" > "$KEYSTORE_PASSWORD_PATH"
+          chmod 600 "$KEYSTORE_PATH" "$KEYSTORE_PASSWORD_PATH"
+
+          keytool -list \
+            -keystore "$KEYSTORE_PATH" \
+            -storepass:file "$KEYSTORE_PASSWORD_PATH" \
+            -alias "$UPLOAD_KEY_ALIAS" > /dev/null
+
+          normalize_fingerprint() {
+            printf '%s' "$1" | tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]'
+          }
+
+          actual_fingerprint="$(
+            keytool -list -v \
+              -keystore "$KEYSTORE_PATH" \
+              -storepass:file "$KEYSTORE_PASSWORD_PATH" \
+              -alias "$UPLOAD_KEY_ALIAS" |
+              sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' |
+              head -n 1
+          )"
+
+          if [ "$(normalize_fingerprint "$actual_fingerprint")" != "$(normalize_fingerprint "$EXPECTED_CERT_SHA256")" ]; then
+            echo "::error::The restored keystore does not match ANDROID_UPLOAD_CERT_SHA256."
+            exit 1
+          fi
+
+          {
+            echo "KEYSTORE_PATH=$KEYSTORE_PATH"
+            echo "KEYSTORE_PASSWORD_PATH=$KEYSTORE_PASSWORD_PATH"
+          } >> "$GITHUB_ENV"
+
+      # MSBuild imports environment variables as properties. Keeping the two password properties
+      # out of the command line prevents them from appearing in process listings or build output.
+      - name: Publish signed Android App Bundle
+        env:
+          AndroidSigningKeyPass: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          AndroidSigningStorePass: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          dotnet publish "$PROJECT" \
+            -f "$TFM" \
+            -c Release \
+            -p:AndroidPackageFormats=aab \
+            -p:AndroidKeyStore=true \
+            -p:AndroidSigningKeyStore="$KEYSTORE_PATH" \
+            -p:AndroidSigningKeyAlias="$UPLOAD_KEY_ALIAS" \
+            -p:ApplicationVersion="${{ steps.version.outputs.version-code }}"
+
+      - name: Validate Android package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest_path="SouthBaySoccer/obj/Release/$TFM/android/AndroidManifest.xml"
+          python - "$manifest_path" "$PACKAGE_NAME" "${{ steps.version.outputs.version-code }}" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          path, expected_package, expected_version = sys.argv[1:]
+          root = ET.parse(path).getroot()
+          android = "{http://schemas.android.com/apk/res/android}"
+          actual_package = root.attrib.get("package")
+          actual_version = root.attrib.get(f"{android}versionCode")
+
+          if actual_package != expected_package:
+              raise SystemExit(
+                  f"Package mismatch: expected {expected_package}, found {actual_package!r}."
+              )
+          if actual_version != expected_version:
+              raise SystemExit(
+                  f"versionCode mismatch: expected {expected_version}, found {actual_version!r}."
+              )
+
+          print(f"Validated package {actual_package} with versionCode {actual_version}.")
+          PY
+
+      - name: Locate and verify signed AAB
+        id: aab
+        shell: bash
+        env:
+          EXPECTED_CERT_SHA256: ${{ vars.ANDROID_UPLOAD_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          mapfile -d '' bundles < <(
+            find "SouthBaySoccer/bin/Release/$TFM/publish" \
+              -maxdepth 1 \
+              -type f \
+              -iname '*-signed.aab' \
+              -print0
+          )
+
+          if [ "${#bundles[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one signed AAB, found ${#bundles[@]}."
+            printf '%s\n' "${bundles[@]:-}"
+            exit 1
+          fi
+
+          # Android upload certificates are self-signed, so strict verification returns warning
+          # category 4 for the expected untrusted certificate chain. Tolerate only that category;
+          # unsigned entries, corruption, or any other strict-warning category remain fatal.
+          set +e
+          jarsigner -verify -strict "${bundles[0]}"
+          jarsigner_status=$?
+          set -e
+
+          if [ "$jarsigner_status" -ne 0 ] && [ "$jarsigner_status" -ne 4 ]; then
+            echo "::error::Strict AAB signature verification failed with exit code $jarsigner_status."
+            exit "$jarsigner_status"
+          fi
+
+          normalize_fingerprint() {
+            printf '%s' "$1" | tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]'
+          }
+
+          signed_fingerprint="$(
+            keytool -printcert -jarfile "${bundles[0]}" |
+              sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' |
+              head -n 1
+          )"
+
+          if [ "$(normalize_fingerprint "$signed_fingerprint")" != "$(normalize_fingerprint "$EXPECTED_CERT_SHA256")" ]; then
+            echo "::error::The signed AAB certificate does not match ANDROID_UPLOAD_CERT_SHA256."
+            exit 1
+          fi
+
+          echo "path=${bundles[0]}" >> "$GITHUB_OUTPUT"
+          echo "Found ${bundles[0]}"
+
+      # Retain the exact signed input before calling Google Play so a rejected upload remains
+      # available for diagnosis or manual delivery.
+      - name: Keep signed AAB as workflow artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: n9jabay-android-build-${{ steps.version.outputs.version-code }}
+          path: ${{ steps.aab.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload to Google Play internal testing
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ env.PACKAGE_NAME }}
+          releaseFiles: ${{ steps.aab.outputs.path }}
+          tracks: internal
+          status: completed
+          releaseName: N9ja Bay 1.0 (${{ steps.version.outputs.version-code }})
+
+      - name: Clean up Android signing material
+        if: always()
+        shell: bash
+        run: |
+          rm -f "${KEYSTORE_PATH:-}" "${KEYSTORE_PASSWORD_PATH:-}"

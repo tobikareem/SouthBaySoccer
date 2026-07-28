@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.AnnouncementsPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="Page"
+    x:DataType="pageModels:AnnouncementsPageModel"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}">
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding BindingContext, Source={x:Reference Page}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+    <Grid RowDefinitions="Auto,Auto,*">
+        <controls:BrandHeader Title="Announcements"
+                              Subtitle="{Binding GroupName}"
+                              ShowBack="True"
+                              BackCommand="{Binding BackCommand}" />
+        <Grid Grid.Row="1" Padding="{StaticResource LayoutPadding}" ColumnDefinitions="*,Auto">
+            <controls:SegmentedControl ItemsSource="{Binding FilterLabels}"
+                                       SelectionChangedCommand="{Binding ApplyFilterCommand}" />
+            <Button Grid.Column="1"
+                    Text="Mark all read"
+                    Command="{Binding MarkAllReadCommand}"
+                    Style="{StaticResource LinkButton}"
+                    SemanticProperties.Description="{Binding UnreadCount, StringFormat='Mark all read, {0} unread'}" />
+        </Grid>
+        <Grid Grid.Row="2">
+        <controls:StateView
+                            State="{Binding State}"
+                            Title="{Binding StateTitle}"
+                            Message="{Binding StateMessage}"
+                            Glyph="{x:Static fonts:FontAwesomeGlyphs.Bell}"
+                            RetryCommand="{Binding RefreshCommand}"
+                            ShowRetryWhenEmpty="True">
+            <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing, Mode=TwoWay}">
+                <CollectionView ItemsSource="{Binding DayGroups}"
+                                IsGrouped="True"
+                                ItemSizingStrategy="MeasureAllItems"
+                                ItemsUpdatingScrollMode="KeepScrollOffset"
+                                RemainingItemsThreshold="3"
+                                RemainingItemsThresholdReachedCommand="{Binding LoadMoreCommand}">
+                    <CollectionView.ItemsLayout>
+                        <LinearItemsLayout Orientation="Vertical" ItemSpacing="{StaticResource SpaceSm}" />
+                    </CollectionView.ItemsLayout>
+                    <CollectionView.GroupHeaderTemplate>
+                        <DataTemplate x:DataType="pageModels:AnnouncementDayGroup">
+                            <Label Text="{Binding Name}"
+                                   Margin="{StaticResource LayoutPadding}"
+                                   Style="{StaticResource TextLabel}" />
+                        </DataTemplate>
+                    </CollectionView.GroupHeaderTemplate>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="pageModels:AnnouncementItemViewModel">
+                            <controls:AnnouncementCard Margin="{StaticResource LayoutPadding}"
+                                                       AuthorName="{Binding AuthorName}"
+                                                       AuthorInitials="{Binding AuthorInitials}"
+                                                       GroupName="{Binding GroupName}"
+                                                       TimeLabel="{Binding TimeLabel}"
+                                                       Body="{Binding Body}"
+                                                       IsUnread="{Binding IsUnread}" />
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </RefreshView>
+        </controls:StateView>
+            <Border
+                    Style="{StaticResource NoticeSurface}"
+                    Margin="{StaticResource LayoutPadding}"
+                    VerticalOptions="End"
+                    ZIndex="2"
+                    IsVisible="{Binding HasLoadMoreError}">
+                <Grid ColumnDefinitions="*,Auto">
+                    <Label Text="{Binding LoadMoreError}" Style="{StaticResource TextCaption}" />
+                    <Button Grid.Column="1"
+                            Text="Retry"
+                            Command="{Binding RetryLoadMoreCommand}"
+                            Style="{StaticResource LinkButton}" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</ContentPage>
