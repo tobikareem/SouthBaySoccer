@@ -48,6 +48,9 @@
     <Compile Include="..\..\SouthBaySoccer\PageModels\ClaimSpotPageModel.cs" Link="Client\PageModels\ClaimSpotPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\TeamsViewPageModel.cs" Link="Client\PageModels\TeamsViewPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\AdminMatchPageModel.cs" Link="Client\PageModels\AdminMatchPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\AnnouncementViewModels.cs" Link="Client\PageModels\AnnouncementViewModels.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\AnnouncementsPageModel.cs" Link="Client\PageModels\AnnouncementsPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\AdminBroadcastPageModel.cs" Link="Client\PageModels\AdminBroadcastPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\Controls\ControlVariants.cs" Link="Client\Controls\ControlVariants.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationClient.cs" Link="Client\Services\AuthenticationClient.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationCoordinator.cs" Link="Client\Services\AuthenticationCoordinator.cs" />
@@ -75,6 +78,10 @@
     <None Include="..\..\SouthBaySoccer\Controls\BrandCard.xaml" Link="Client\Xaml\BrandCard.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Controls\PlayerRow.xaml" Link="Client\Xaml\PlayerRow.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Controls\StateView.xaml" Link="Client\Xaml\StateView.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Controls\AnnouncementCard.xaml" Link="Client\Xaml\AnnouncementCard.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Controls\GroupChoiceRow.xaml" Link="Client\Xaml\GroupChoiceRow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Controls\ToggleRow.xaml" Link="Client\Xaml\ToggleRow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Controls\PushPreview.xaml" Link="Client\Xaml\PushPreview.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\AppShell.xaml" Link="Client\Xaml\AppShell.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\WelcomeBackPage.xaml" Link="Client\Xaml\WelcomeBackPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\StatsPage.xaml" Link="Client\Xaml\StatsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
@@ -90,6 +97,8 @@
     <None Include="..\..\SouthBaySoccer\Pages\CaptainAssignmentPage.xaml" Link="Client\Xaml\CaptainAssignmentPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\TeamDraftPage.xaml" Link="Client\Xaml\TeamDraftPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\PostGameApprovalPage.xaml" Link="Client\Xaml\PostGameApprovalPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\AnnouncementsPage.xaml" Link="Client\Xaml\AnnouncementsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\AdminBroadcastPage.xaml" Link="Client\Xaml\AdminBroadcastPage.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

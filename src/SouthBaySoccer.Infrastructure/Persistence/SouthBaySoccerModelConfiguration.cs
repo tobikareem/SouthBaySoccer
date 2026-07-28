@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using SouthBaySoccer.Domain.Entities.Announcements;
 using SouthBaySoccer.Domain.Entities.Common;
 using SouthBaySoccer.Domain.Entities.Compliance;
 using SouthBaySoccer.Domain.Entities.Groups;
@@ -31,6 +33,52 @@ internal static class SouthBaySoccerModelConfiguration
         ConfigureStats(modelBuilder);
         ConfigureOperations(modelBuilder);
         ConfigureGroups(modelBuilder);
+        ConfigureAnnouncements(modelBuilder);
+    }
+
+    /// <summary>
+    /// Reads <c>datetime2</c> values back as <see cref="DateTimeKind.Utc"/>. Without this a value
+    /// written from <c>IClock.UtcNow</c> round-trips as <see cref="DateTimeKind.Unspecified"/> and
+    /// serializes without the trailing <c>Z</c>, so a client calling <c>ToLocalTime()</c> shifts it
+    /// by the local offset — the same announcement would show two different times before and after
+    /// a refresh.
+    /// </summary>
+    private static readonly ValueConverter<DateTime, DateTime> UtcDateTimeConverter =
+        new(value => value, value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
+
+    private static void ConfigureAnnouncements(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Announcement>(b =>
+        {
+            ConfigureBase(b, "Announcements", softDelete: true);
+            b.Property(x => x.Body).HasMaxLength(500).IsRequired();
+            b.Property(x => x.SentAtUtc).HasConversion(UtcDateTimeConverter).IsRequired();
+            b.HasOne<GroupChat>().WithMany().HasForeignKey(x => x.GroupChatId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<PlayerProfile>().WithMany().HasForeignKey(x => x.AuthorPlayerProfileId).OnDelete(DeleteBehavior.Restrict);
+            // Covers the player feed page and the unread counts. Id is in the key because it is the
+            // paging tie-break, so the newest-first page is served without a sort.
+            b.HasIndex(x => new { x.GroupChatId, x.SentAtUtc, x.Id }).HasFilter("[IsDeleted] = 0");
+            // Covers the admin "Recently sent" list.
+            b.HasIndex(x => new { x.AuthorPlayerProfileId, x.SentAtUtc }).HasFilter("[IsDeleted] = 0");
+            b.ToTable(t => t.HasCheckConstraint("CK_Announcements_RecipientCountNotNegative", "[RecipientCount] >= 0"));
+        });
+        modelBuilder.Entity<GroupAnnouncementReadMarker>(b =>
+        {
+            ConfigureBase(b, "GroupAnnouncementReadMarkers", softDelete: true);
+            b.Property(x => x.LastReadAtUtc).HasConversion(UtcDateTimeConverter).IsRequired();
+            b.HasOne<PlayerProfile>().WithMany().HasForeignKey(x => x.PlayerProfileId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<GroupChat>().WithMany().HasForeignKey(x => x.GroupChatId).OnDelete(DeleteBehavior.Restrict);
+            // One mark per player per group, enforced by the database rather than by app logic:
+            // a duplicate would silently split a player's read state in two.
+            // Includes the timestamp so resolving a player's watermark is an index-only seek —
+            // this runs once per group on every unread count.
+            b.HasIndex(x => new { x.PlayerProfileId, x.GroupChatId })
+                .IncludeProperties(x => x.LastReadAtUtc)
+                .IsUnique()
+                .HasFilter("[IsDeleted] = 0");
+            // Serves the admin read-receipt subquery, which counts marks per group by timestamp.
+            b.HasIndex(x => new { x.GroupChatId, x.LastReadAtUtc }).HasFilter("[IsDeleted] = 0");
+        });
     }
 
     private static void ConfigureGroups(ModelBuilder modelBuilder)

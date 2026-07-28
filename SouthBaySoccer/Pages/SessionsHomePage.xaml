@@ -61,18 +61,22 @@
                                     </DataTrigger>
                                 </controls:Badge.Triggers>
                             </controls:Badge>
-                            <Border Style="{StaticResource IconTileSurface}"
-                                    SemanticProperties.Description="Notifications">
-                                <Image HorizontalOptions="Center"
-                                       VerticalOptions="Center">
-                                    <Image.Source>
-                                        <FontImageSource Glyph="{x:Static fonts:FontAwesomeGlyphs.Bell}"
-                                                         FontFamily="FontAwesomeSolid"
-                                                         Size="{StaticResource IconMd}"
-                                                         Color="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}" />
-                                    </Image.Source>
-                                </Image>
-                            </Border>
+                            <Grid WidthRequest="{StaticResource TouchMin}"
+                                  HeightRequest="{StaticResource TouchMin}">
+                                <Button Text="{x:Static fonts:FontAwesomeGlyphs.Bell}"
+                                        FontFamily="FontAwesomeSolid"
+                                        Style="{StaticResource IconButton}"
+                                        Command="{Binding OpenAnnouncementsCommand}"
+                                        SemanticProperties.Description="{Binding NotificationsSemanticDescription}"
+                                        SemanticProperties.Hint="Opens group announcements" />
+                                <Ellipse WidthRequest="8"
+                                         HeightRequest="8"
+                                         Fill="{StaticResource BrandGreenLight}"
+                                         HorizontalOptions="End"
+                                         VerticalOptions="Start"
+                                         InputTransparent="True"
+                                         IsVisible="{Binding HasUnreadAnnouncements}" />
+                            </Grid>
                         </HorizontalStackLayout>
                     </Grid>
 
@@ -225,9 +229,14 @@
                     <!-- Admin: create-session entry, gated by the signed-in profile role -->
                     <controls:SectionHeader
                         Text="Admin"
-                        ActionText="Create session"
-                        ActionCommand="{Binding CreateSessionCommand}"
+                        ActionText="Broadcast"
+                        ActionCommand="{Binding OpenBroadcastCommand}"
                         IsVisible="{Binding CanManageSessions}" />
+                    <Button Text="Create session"
+                            Command="{Binding CreateSessionCommand}"
+                            Style="{StaticResource LinkButton}"
+                            HorizontalOptions="End"
+                            IsVisible="{Binding CanManageSessions}" />
 
                     <!-- Coming up section -->
                     <controls:SectionHeader

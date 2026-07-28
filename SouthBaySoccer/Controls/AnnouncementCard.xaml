@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="SouthBaySoccer.Controls.AnnouncementCard"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:SouthBaySoccer.Controls"
+    x:Name="Root"
+    x:DataType="controls:AnnouncementCard">
+    <Border Padding="{StaticResource SpaceMd}"
+            BackgroundColor="{AppThemeBinding Light={StaticResource BrandWhite}, Dark={StaticResource BrandPineDark}}"
+            Stroke="{AppThemeBinding Light={StaticResource BorderLight}, Dark={StaticResource BorderDark}}"
+            StrokeShape="RoundRectangle 17">
+        <Border.Triggers>
+            <DataTrigger TargetType="Border"
+                         Binding="{Binding IsUnread, Source={x:Reference Root}}"
+                         Value="True">
+                <Setter Property="Stroke" Value="{StaticResource BrandGreenSoftBorder}" />
+                <Setter Property="StrokeThickness" Value="2" />
+            </DataTrigger>
+        </Border.Triggers>
+        <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                <Ellipse WidthRequest="8" HeightRequest="8"
+                         Fill="{StaticResource BrandGreenLight}"
+                         IsVisible="{Binding IsUnread, Source={x:Reference Root}}" />
+                <VerticalStackLayout Grid.Column="1" Spacing="1">
+                    <Label Text="{Binding AuthorName, Source={x:Reference Root}}" Style="{StaticResource TextBodyStrong}" />
+                    <Label Text="{Binding GroupName, Source={x:Reference Root}}" Style="{StaticResource TextCaption}" />
+                </VerticalStackLayout>
+                <Label Grid.Column="2" Text="{Binding TimeLabel, Source={x:Reference Root}}" Style="{StaticResource TextCaption}" />
+            </Grid>
+            <Label Text="{Binding Body, Source={x:Reference Root}}" Style="{StaticResource TextBody}" />
+            <Grid ColumnDefinitions="*,Auto"
+                  IsVisible="{Binding HasContext, Source={x:Reference Root}}">
+                <Border Style="{StaticResource MetadataChip}">
+                    <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                        <Label Text="{Binding ContextChipGlyph, Source={x:Reference Root}}" />
+                        <Label Text="{Binding ContextChipText, Source={x:Reference Root}}" Style="{StaticResource TextCaption}" />
+                    </HorizontalStackLayout>
+                </Border>
+                <Button Grid.Column="1"
+                        Text="{Binding ContextText, Source={x:Reference Root}}"
+                        Command="{Binding ContextCommand, Source={x:Reference Root}}"
+                        Style="{StaticResource LinkButton}" />
+            </Grid>
+        </VerticalStackLayout>
+    </Border>
+</ContentView>

@@ -17,8 +17,8 @@
     margin:0;color:var(--ink);padding:36px 18px 56px;min-height:100vh;
     background:radial-gradient(circle at 12% 8%,rgba(31,181,115,.13),transparent 25rem),linear-gradient(135deg,#f8fbf9 0%,#edf4ef 100%);
   }
-  button,a,[onclick],input{touch-action:manipulation}
-  button:focus-visible,a:focus-visible,[onclick]:focus-visible,input:focus-visible{outline:3px solid rgba(31,181,115,.35);outline-offset:2px}
+  button,a,[onclick],input,textarea,select{touch-action:manipulation}
+  button:focus-visible,a:focus-visible,[onclick]:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid rgba(31,181,115,.35);outline-offset:2px}
   .board{max-width:1240px;margin:0 auto}
   .boardhead{display:flex;justify-content:space-between;align-items:end;gap:24px;margin-bottom:22px}
   .eyebrow{display:flex;align-items:center;gap:8px;color:var(--gd);font-size:12px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;margin-bottom:7px}
@@ -111,6 +111,50 @@
   .checkrow input{width:18px;height:18px;accent-color:var(--g)}
   .team-chip{display:inline-flex;align-items:center;gap:5px;padding:6px 8px;border-radius:9px;background:var(--mist);color:var(--gd);font-size:11px;font-weight:700}
   .rank-value{font-size:18px;font-weight:700;color:var(--gd)}
+  .bell-wrap{position:relative}
+  .bell-dot{position:absolute;right:6px;top:5px;width:9px;height:9px;border-radius:50%;background:var(--danger);border:2px solid var(--surface)}
+  .composer{width:100%;min-height:118px;resize:none;border:1px solid var(--line);border-radius:14px;padding:13px;font:15px/1.5 Inter,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:var(--surface)}
+  .composer:focus{outline:none;border-color:var(--g);box-shadow:0 0 0 3px rgba(31,181,115,.15)}
+
+  /* Admin broadcast composer */
+  .pick-row{display:flex;gap:9px;margin-top:9px}
+  .gchip{flex:1;text-align:left;border:1.5px solid var(--line);background:var(--surface);border-radius:14px;padding:11px 12px;cursor:pointer;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease}
+  .gchip b{display:block;font-size:13px;font-weight:700;color:var(--ink)}
+  .gchip span{font-size:11px;color:var(--sage)}
+  .gchip.on{border-color:var(--g);background:var(--mist);box-shadow:0 5px 14px rgba(0,135,81,.13)}
+  .gchip.on b{color:var(--gd)}
+  .field{margin-top:18px}
+  .field-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px}
+  .counter{font-size:11px;color:var(--sage);font-variant-numeric:tabular-nums}
+  .toggle-row{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:12px 13px;margin-top:10px;cursor:pointer}
+  .switch{width:46px;height:27px;border-radius:999px;background:#D9E2DC;position:relative;flex:0 0 auto;transition:background .18s ease}
+  .switch:after{content:"";position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(20,36,27,.28);transition:transform .18s ease}
+  .switch.on{background:var(--g)}
+  .switch.on:after{transform:translateX(19px)}
+  .push{background:#16211B;color:#fff;border-radius:17px;padding:12px 13px;margin-top:10px;box-shadow:0 10px 24px rgba(20,36,27,.18)}
+  .push-app{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.66}
+  .push-title{font-size:13.5px;font-weight:700;margin:6px 0 3px}
+  .push-copy{font-size:12px;line-height:1.42;opacity:.82;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .cta-dock{position:sticky;bottom:0;padding:14px 0 2px;margin-top:16px;background:linear-gradient(180deg,rgba(255,255,255,0),var(--surface) 26%)}
+  .sent-row{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .sent-row:last-child{border:none}
+  .sent-copy{font-size:13px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .sent-meta{font-size:11px;color:var(--sage);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* Player announcement feed */
+  .ann-day{color:var(--sage);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:16px 2px 8px}
+  .ann{background:var(--surface);border:1px solid var(--line);border-radius:17px;padding:14px;margin:10px 0;box-shadow:0 3px 14px rgba(20,36,27,.045)}
+  .ann.unread{border-color:#C8E5D6;box-shadow:0 8px 22px rgba(0,135,81,.1)}
+  .ann-top{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+  .ann-who{flex:1;min-width:0}
+  .ann-name{font-size:13px;font-weight:700;line-height:1.2}
+  .ann-sub{font-size:11px;color:var(--sage);margin-top:1px}
+  .ann-time{font-size:11px;color:var(--sage);white-space:nowrap}
+  .ann-new{width:9px;height:9px;border-radius:50%;background:var(--g);flex:0 0 auto}
+  .ann-copy{font-size:14.5px;line-height:1.52;white-space:pre-wrap}
+  .ann-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
+  .ann-empty{text-align:center;color:var(--sage);font-size:13px;padding:34px 18px}
+  .ann-empty i{display:block;font-size:34px;color:#C8DCD1;margin-bottom:9px}
   @media(max-width:720px){
     body{padding:22px 12px 40px}
     .boardhead{align-items:flex-start;flex-direction:column}
@@ -124,7 +168,7 @@
     <div>
       <div class="eyebrow">Product design benchmark</div>
       <h1>N9ja Bay mobile experience</h1>
-      <p class="sub">Clickable wireframes for sign-in, session RSVP, the upcoming-session schedule, game-day check-in, captain team selection, self-claiming a spot on a recent game, player stats, confirmation, ratings, and leaderboards. The design follows the reusable MAUI control system and the green-and-white Pickup Soccer brand.</p>
+      <p class="sub">Clickable wireframes for sign-in, session RSVP, the upcoming-session schedule, game-day check-in, captain team selection, admin broadcasts, player notifications, self-claiming a spot on a recent game, player stats, confirmation, ratings, and leaderboards. The design follows the reusable MAUI control system and the green-and-white Pickup Soccer brand.</p>
     </div>
     <div class="controls" aria-label="Wireframe view">
       <button class="ctl active" id="c-flow" aria-pressed="true" onclick="setView('flow')"><i class="ti ti-device-mobile"></i> Interactive</button>
@@ -165,7 +209,7 @@
       <div class="scroll">
         <div class="row" style="justify-content:space-between;margin:6px 0 2px">
           <div><div class="muted">Saturday crew</div><div class="h" style="margin:0">Good morning, Tobi</div></div>
-          <div class="row" style="gap:8px"><span class="pill ok"><i class="ti ti-circle-check"></i> Paid</span><span class="mini-action" aria-label="Notifications"><i class="ti ti-bell"></i></span></div>
+          <div class="row" style="gap:8px"><span class="pill ok"><i class="ti ti-circle-check"></i> Paid</span><span class="mini-action bell-wrap" aria-label="Notifications, 1 unread" onclick="show('notifications')"><i class="ti ti-bell"></i><i class="bell-dot"></i></span></div>
         </div>
         <div class="card hero-card interactive" onclick="show('session')" style="cursor:pointer">
           <div class="hero-kicker">Next match · in 2 days</div>
@@ -176,7 +220,7 @@
         <div class="card interactive" style="cursor:pointer;padding:12px 14px" onclick="show('matchstats')">
           <div class="row"><span class="mini-action" style="background:var(--g);color:#fff"><i class="ti ti-chart-bar"></i></span><div style="flex:1"><div style="font-size:14px;font-weight:700">Submit your latest stats</div><div class="muted">2 goals entered · captain confirmation pending</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div>
         </div>
-        <div class="section-row"><div class="label">Admin</div><span class="link" onclick="show('adminsession')"><i class="ti ti-plus"></i> Create session</span></div>
+        <div class="section-row"><div class="label">Admin</div><div class="row" style="gap:12px"><span class="link" onclick="show('adminbroadcast')"><i class="ti ti-speakerphone"></i> Broadcast</span><span class="link" onclick="show('adminsession')"><i class="ti ti-plus"></i> Session</span></div></div>
         <div class="section-row"><div class="label">Coming up</div><span class="link" onclick="show('schedule')">See schedule</span></div>
         <div class="card interactive" onclick="show('session')" style="cursor:pointer">
           <div class="row" style="justify-content:space-between"><div style="font-weight:700">Stanford Turf · 5v5</div><span class="pill full">Full</span></div>
@@ -184,6 +228,89 @@
           <div class="bar"><i style="width:100%"></i></div>
           <div class="row" style="justify-content:space-between;margin-top:9px"><span class="muted">20 / 20 · waitlist 3</span><span class="pill warn">Join waitlist <i class="ti ti-chevron-right"></i></span></div>
         </div>
+      </div>
+      <nav class="tab"><a class="active" onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a onclick="show('gameday')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
+    </section>
+
+    <!-- ADMIN BROADCAST — compose one group-wide notification -->
+    <section class="screen" data-s="adminbroadcast">
+      <div class="ghdr"><span class="flag"></span>
+        <div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Admin only</div><div style="font-size:17px;font-weight:500">Broadcast message</div></div></div>
+      </div>
+      <div class="scroll">
+        <div class="field" style="margin-top:6px">
+          <div class="label">Send to one group</div>
+          <div class="pick-row" role="radiogroup" aria-label="Broadcast audience">
+            <button class="gchip on" role="radio" aria-checked="true" data-group="Saturday crew" data-count="24" onclick="pickGroup(this)"><b>Saturday crew</b><span>24 members</span></button>
+            <button class="gchip" role="radio" aria-checked="false" data-group="Wednesday 5v5" data-count="18" onclick="pickGroup(this)"><b>Wednesday 5v5</b><span>18 members</span></button>
+          </div>
+          <p class="muted" style="margin:9px 2px 0;font-size:12px">Delivered in the app only — admins post, players read.</p>
+        </div>
+
+        <div class="field">
+          <div class="field-head"><label class="label" for="broadcastCopy">Message</label><span class="counter" id="broadcastHelp"><span class="broadcast-count">104</span> / 500</span></div>
+          <textarea class="composer" id="broadcastCopy" maxlength="500" aria-describedby="broadcastHelp broadcastError" oninput="updateBroadcastPreview(this)">Pitch change: Saturday's game is moving to Baylands Field. Kickoff stays at 9:00 AM. Please update your RSVP by Friday.</textarea>
+          <div id="broadcastError" role="alert" style="display:none;color:var(--danger);font-size:12px;margin-top:6px"><i class="ti ti-alert-circle"></i> Write a message before broadcasting.</div>
+        </div>
+
+        <div class="field">
+          <div class="label">How it lands</div>
+          <div class="card" style="padding:13px 14px;margin-top:9px">
+            <div class="ann-top" style="margin-bottom:8px"><span class="avatar" style="width:30px;height:30px;font-size:11px">AO</span><div class="ann-who"><div class="ann-name">Ayo · Admin</div><div class="ann-sub broadcast-group">Saturday crew</div></div><span class="ann-time">Now</span></div>
+            <div class="ann-copy broadcast-preview">Pitch change: Saturday's game is moving to Baylands Field. Kickoff stays at 9:00 AM. Please update your RSVP by Friday.</div>
+          </div>
+          <div class="toggle-row" role="switch" aria-checked="true" tabindex="0" onclick="togglePush(this)">
+            <span class="mini-action"><i class="ti ti-bell-ringing"></i></span>
+            <div style="flex:1"><div style="font-size:13px;font-weight:700">Push notification</div><div class="muted" style="font-size:11.5px">Alert phones now instead of on next open</div></div>
+            <span class="switch on push-switch"></span>
+          </div>
+          <div class="push push-preview">
+            <div class="push-app"><i class="ti ti-ball-football"></i> N9ja Bay · now</div>
+            <div class="push-title push-group">Saturday crew</div>
+            <div class="push-copy broadcast-preview">Pitch change: Saturday's game is moving to Baylands Field. Kickoff stays at 9:00 AM. Please update your RSVP by Friday.</div>
+          </div>
+        </div>
+
+        <div class="section-row" style="margin-top:22px"><div class="label">Recently sent</div><span class="muted" style="font-size:11px">read receipts</span></div>
+        <div class="card" style="padding:2px 14px;margin-top:8px">
+          <div class="sent-row"><div style="flex:1;min-width:0"><div class="sent-copy">Bring both a light and dark shirt this weekend.</div><div class="sent-meta">Saturday crew · Wed 7:12 PM</div></div><span class="pill ok"><i class="ti ti-checks"></i> 24/24</span></div>
+          <div class="sent-row"><div style="flex:1;min-width:0"><div class="sent-copy">Wednesday game moved to 7:30 PM kickoff.</div><div class="sent-meta">Wednesday 5v5 · Mon 6:04 PM</div></div><span class="pill warn"><i class="ti ti-checks"></i> 14/18</span></div>
+        </div>
+
+        <div class="cta-dock">
+          <button class="btn primary broadcast-btn" onclick="sendBroadcast(this)"><i class="ti ti-send"></i> Broadcast to 24 members</button>
+          <p class="muted" style="text-align:center;margin:9px 8px 0;font-size:11.5px">Broadcasts cannot be edited after sending.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLAYER NOTIFICATIONS — group-chat style announcement feed -->
+    <section class="screen" data-s="notifications">
+      <div class="ghdr"><span class="flag"></span>
+        <div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div style="flex:1"><div style="font-size:12px;opacity:.85"><span class="feed-group">Saturday crew</span> · admins only</div><div style="font-size:17px;font-weight:500">Announcements</div></div></div>
+      </div>
+      <div class="scroll">
+        <div class="section-row" style="margin-top:4px"><div class="seg" style="flex:1;margin:12px 0"><a class="active" onclick="annFilter(this,'all')">All</a><a onclick="annFilter(this,'unread')">Unread · 1</a></div></div>
+        <div class="row" style="justify-content:flex-end;margin:-4px 2px 2px"><span class="link mark-read" onclick="markAllRead(this)"><i class="ti ti-checks"></i> Mark all read</span></div>
+
+        <div class="ann-day">Today</div>
+        <div class="ann unread latest-broadcast" data-unread="1">
+          <div class="ann-top"><span class="avatar" style="width:34px;height:34px;font-size:12px">AO</span><div class="ann-who"><div class="ann-name">Ayo · Admin</div><div class="ann-sub feed-group">Saturday crew</div></div><span class="ann-time">Now</span><span class="ann-new"></span></div>
+          <div class="ann-copy latest-broadcast-copy">Pitch change: Saturday's game is moving to Baylands Field. Kickoff stays at 9:00 AM. Please update your RSVP by Friday.</div>
+          <div class="ann-foot"><span class="meta-chip"><i class="ti ti-map-pin"></i> Baylands Field</span><span class="link" onclick="show('session')">View session <i class="ti ti-chevron-right"></i></span></div>
+        </div>
+
+        <div class="ann-day">Earlier</div>
+        <div class="ann" data-unread="0">
+          <div class="ann-top"><span class="avatar" style="width:34px;height:34px;font-size:12px">AO</span><div class="ann-who"><div class="ann-name">Ayo · Admin</div><div class="ann-sub">Saturday crew</div></div><span class="ann-time">Wed 7:12 PM</span></div>
+          <div class="ann-copy">Bring both a light and dark shirt this weekend. Captains will balance teams at check-in.</div>
+        </div>
+        <div class="ann" data-unread="0">
+          <div class="ann-top"><span class="avatar" style="width:34px;height:34px;font-size:12px">AO</span><div class="ann-who"><div class="ann-name">Ayo · Admin</div><div class="ann-sub">Saturday crew</div></div><span class="ann-time">Mon 6:04 PM</span></div>
+          <div class="ann-copy">Dues for June are posted. Settle up before Saturday to keep your spot.</div>
+          <div class="ann-foot"><span class="meta-chip"><i class="ti ti-credit-card"></i> Dues</span><span class="link" onclick="showPlayer('TK')">Open profile <i class="ti ti-chevron-right"></i></span></div>
+        </div>
+        <div class="ann-empty" style="display:none"><i class="ti ti-bell-check"></i>You're all caught up.</div>
       </div>
       <nav class="tab"><a class="active" onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a onclick="show('gameday')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
     </section>
@@ -645,6 +772,63 @@
   function confirmRow(btn){ var s=document.createElement('i'); s.className='ti ti-circle-check'; s.style.cssText='color:var(--g);font-size:22px'; btn.replaceWith(s); }
   function pickMvp(el){ el.closest('.scroll').querySelectorAll('.mvp').forEach(function(m){ if(m!==el) m.classList.remove('on'); }); el.classList.toggle('on'); }
   function publishSession(btn){ btn.className='btn ghost'; btn.innerHTML="<i class='ti ti-circle-check'></i> Published to team feed"; }
+  function updateBroadcastPreview(el){
+    var s=el.closest('.screen');
+    s.querySelector('.broadcast-count').textContent=el.value.length;
+    s.querySelectorAll('.broadcast-preview').forEach(function(p){ p.textContent=el.value||'Your announcement preview appears here.'; });
+    s.querySelector('#broadcastError').style.display='none';
+    s.querySelector('.broadcast-btn').disabled=!el.value.trim();
+  }
+  function activeGroup(s){ return s.querySelector('.gchip.on')||s.querySelector('.gchip'); }
+  function pickGroup(el){
+    var s=el.closest('.screen');
+    s.querySelectorAll('.gchip').forEach(function(c){ c.classList.toggle('on',c===el); c.setAttribute('aria-checked',c===el); });
+    s.querySelector('.broadcast-group').textContent=el.dataset.group;
+    s.querySelector('.push-group').textContent=el.dataset.group;
+    s.querySelector('.broadcast-btn').innerHTML="<i class='ti ti-send'></i> Broadcast to "+el.dataset.count+" members";
+  }
+  function togglePush(row){
+    var on=!row.querySelector('.switch').classList.contains('on');
+    row.querySelector('.switch').classList.toggle('on',on);
+    row.setAttribute('aria-checked',on);
+    row.closest('.screen').querySelector('.push-preview').style.display=on?'block':'none';
+  }
+  function sendBroadcast(btn){
+    var s=btn.closest('.screen');
+    var editor=s.querySelector('#broadcastCopy');
+    var copy=editor.value.trim();
+    if(!copy){ s.querySelector('#broadcastError').style.display='block'; editor.focus(); return; }
+    var chip=activeGroup(s);
+    document.querySelectorAll('.latest-broadcast-copy').forEach(function(el){ el.textContent=copy; });
+    document.querySelectorAll('.feed-group').forEach(function(el){ el.textContent=chip.dataset.group; });
+    btn.className='btn ghost broadcast-btn';
+    btn.innerHTML="<i class='ti ti-circle-check'></i> Sent to "+chip.dataset.count+" members in "+chip.dataset.group;
+    btn.disabled=true;
+    editor.disabled=true;
+    s.querySelectorAll('.gchip').forEach(function(c){ c.disabled=true; });
+  }
+  function annFilter(el,mode){
+    var s=el.closest('.screen');
+    el.closest('.seg').querySelectorAll('a').forEach(function(a){ a.classList.toggle('active',a===el); });
+    var shown=0;
+    s.querySelectorAll('.ann').forEach(function(a){
+      var keep=mode==='all'||a.dataset.unread==='1';
+      a.style.display=keep?'block':'none';
+      if(keep) shown++;
+    });
+    s.querySelectorAll('.ann-day').forEach(function(d){ d.style.display=mode==='all'?'block':'none'; });
+    s.querySelector('.ann-empty').style.display=shown?'none':'block';
+  }
+  function markAllRead(el){
+    var s=el.closest('.screen');
+    s.querySelectorAll('.ann').forEach(function(a){ a.dataset.unread='0'; a.classList.remove('unread'); });
+    s.querySelectorAll('.ann-new').forEach(function(d){ d.remove(); });
+    var unreadTab=s.querySelector('.seg a:last-child'); if(unreadTab) unreadTab.textContent='Unread · 0';
+    el.innerHTML="<i class='ti ti-checks'></i> All read";
+    document.querySelectorAll('.bell-dot').forEach(function(d){ d.style.display='none'; });
+    var active=s.querySelector('.seg a.active');
+    if(active && active!==s.querySelector('.seg a')) annFilter(active,'unread');
+  }
   function checkIn(){ var b=activeScreen().querySelector('#checkBtn'); if(!b) return; b.className='btn ghost'; b.innerHTML="<i class='ti ti-circle-check'></i> Checked in at field"; var c=activeScreen().querySelector('#checkedCount'); if(c) c.textContent='12'; }
   function captainMode(el,count){ el.closest('.seg').querySelectorAll('a').forEach(function(a){ a.classList.toggle('active', a===el); }); activeScreen().dataset.capMax=count; activeScreen().querySelectorAll('.cap3').forEach(function(c){ c.style.display=count>=3?'inline-flex':'none'; }); activeScreen().querySelectorAll('.cap4').forEach(function(c){ c.style.display=count===4?'inline-flex':'none'; }); capCheck(null); }
   function capCheck(input){ var s=activeScreen(); var max=parseInt(s.dataset.capMax||'2',10); var boxes=[].slice.call(s.querySelectorAll('.captain-list input[type=checkbox]')); var checked=boxes.filter(function(b){ return b.checked; }); if(input && checked.length>max){ input.checked=false; checked=boxes.filter(function(b){ return b.checked; }); } boxes.forEach(function(b){ b.disabled=!b.checked && checked.length>=max; }); var c=s.querySelector('#capCount'); var m=s.querySelector('#capMax'); if(c) c.textContent=checked.length; if(m) m.textContent=max; }
@@ -658,7 +842,7 @@
   function matchLink(el){ var s=activeScreen(); var player=el.querySelector('[style*="font-weight:600"]').textContent; if(matchPending){ var btn=matchPending.querySelector('button'); if(btn){ var done=document.createElement('span'); done.style.cssText='display:inline-flex;align-items:center;gap:5px;color:var(--g);font-size:13px;font-weight:700'; done.innerHTML="<i class='ti ti-circle-check'></i> "+player; btn.replaceWith(done); } matchPending.querySelector('.muted').textContent='linked to '+player; } s.querySelector('.match-pick').style.display='none'; s.querySelector('.match-list').style.display='block'; matchPending=null; }
   function adminMatchBack(){ var s=activeScreen(); if(s.querySelector('.match-pick').style.display!=='none'){ s.querySelector('.match-pick').style.display='none'; s.querySelector('.match-list').style.display='block'; matchPending=null; } else { back(); } }
 
-  var order=['signin','home','session','schedule','adminsession','gameday','captains','draft','postgame','claim','claimpick','adminmatch','leaderboard','players','profile','matchstats','rate'];
+  var order=['signin','home','adminbroadcast','notifications','session','schedule','adminsession','gameday','captains','draft','postgame','claim','claimpick','adminmatch','leaderboard','players','profile','matchstats','rate'];
   function setView(v){
     var stage=document.getElementById('stage'); stage.dataset.view=v; hist=[];
     document.getElementById('c-flow').classList.toggle('active', v==='flow');

@@ -39,3 +39,4 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [azure-release-migrations](azure-release-migrations.md) - release/azure validates, migrates with a deployment credential, then deploys Functions; startup never migrates
 - [android-google-play-release](android-google-play-release.md) - release/android validates and signs N9ja Bay, then publishes its AAB to Google Play internal testing
 - [perf-baseline-and-telemetry](perf-baseline-and-telemetry.md) - Perf baseline/plan in _specs/perf/; prod SQL serverless auto-pause; App Insights requests-only telemetry
+- [group-broadcast-notifications](group-broadcast-notifications.md) - Admin broadcasts are group-scoped in-app announcements with a read-only player feed
