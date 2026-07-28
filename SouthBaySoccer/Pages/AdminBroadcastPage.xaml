@@ -32,7 +32,12 @@
                 <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceLg}">
                     <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
                         <Label Text="Send to one group" Style="{StaticResource TextLabel}" />
+                        <!-- HeightRequest is required, not cosmetic: a horizontally-scrolling
+                             CollectionView inside a ScrollView has no bounded height, so without it
+                             the picker expands to fill the page and pushes the composer, preview and
+                             send button off-screen. Sized for the two-line GroupChoiceRow. -->
                         <CollectionView ItemsSource="{Binding Groups}"
+                                        HeightRequest="88"
                                         SelectionMode="None"
                                         SemanticProperties.Description="Broadcast audience">
                             <CollectionView.ItemsLayout>
