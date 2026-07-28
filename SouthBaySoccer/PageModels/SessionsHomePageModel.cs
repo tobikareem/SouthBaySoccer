@@ -22,11 +22,14 @@ public partial class SessionsHomePageModel(
     IGroupsClient groupsClient,
     IDismissedStatsPromptStore dismissedPromptStore,
     IClientResponseCache responseCache,
-    TimeProvider timeProvider) : ObservableObject
+    TimeProvider timeProvider,
+    IAnnouncementsClient? announcementsClient = null,
+    IAnnouncementsNavigator? announcementsNavigator = null) : ObservableObject
 {
     private string? _cachedProfileDisplayName;
     private string? _cachedProfileRole;
     private string? _cachedGroupLabel;
+    private Guid _primaryGroupId;
 
     public const string ErrorTitle = "Couldn't load your sessions";
     public const string ErrorMessage = "Something went wrong loading your home screen. Please try again.";
@@ -102,6 +105,31 @@ public partial class SessionsHomePageModel(
     [ObservableProperty]
     private bool _canManageSessions;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NotificationsSemanticDescription))]
+    [NotifyPropertyChangedFor(nameof(HasUnreadAnnouncements))]
+    [NotifyPropertyChangedFor(nameof(UnreadAnnouncementBadge))]
+    private int _unreadAnnouncementCount;
+
+    /// <summary>The count the API stops counting at; past it the badge reads "99+".</summary>
+    private const int UnreadBadgeCap = 99;
+
+    public bool HasUnreadAnnouncements => UnreadAnnouncementCount > 0;
+
+    /// <summary>
+    /// Badge text for the notification bell. The API caps its count, so rendering the raw number
+    /// past the cap would understate reality — and a four-digit badge would not fit anyway.
+    /// </summary>
+    public string UnreadAnnouncementBadge =>
+        UnreadAnnouncementCount >= UnreadBadgeCap ? $"{UnreadBadgeCap}+" : UnreadAnnouncementCount.ToString();
+
+    public string NotificationsSemanticDescription => UnreadAnnouncementCount switch
+    {
+        0 => "Notifications, none unread",
+        1 => "Notifications, 1 unread",
+        _ => $"Notifications, {UnreadAnnouncementCount} unread",
+    };
+
     partial void OnCanManageSessionsChanged(bool value) => CreateSessionCommand.NotifyCanExecuteChanged();
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -111,8 +139,11 @@ public partial class SessionsHomePageModel(
     private Task Refresh(CancellationToken cancellationToken)
     {
         // Pulling to refresh is an explicit "I want current data" gesture, so it must not be
-        // answered from the cache the way returning to the tab is.
+        // answered from the cache the way returning to the tab is. That includes the notification
+        // bell: the badge is read through its own cache key, so invalidating only "sessions:" left
+        // the unread count up to its TTL stale on the one gesture that means "check again".
         responseCache.Invalidate("sessions:");
+        responseCache.Invalidate("announcements:");
         return LoadDashboardAsync(forceProfileRefresh: true, cancellationToken);
     }
 
@@ -131,6 +162,16 @@ public partial class SessionsHomePageModel(
 
     [RelayCommand]
     private Task ViewSchedule() => navigator.GoToScheduleAsync();
+
+    [RelayCommand]
+    private Task OpenAnnouncements() =>
+        announcementsNavigator is null || _primaryGroupId == Guid.Empty
+            ? Task.CompletedTask
+            : announcementsNavigator.GoToAnnouncementsAsync(_primaryGroupId);
+
+    [RelayCommand]
+    private Task OpenBroadcast() =>
+        announcementsNavigator?.GoToAdminBroadcastAsync() ?? Task.CompletedTask;
 
     [RelayCommand(CanExecute = nameof(CanCreateSession))]
     private Task CreateSession() =>
@@ -179,7 +220,11 @@ public partial class SessionsHomePageModel(
 
         try
         {
-            var dashboard = await sessionsClient.GetDashboardAsync(cancellationToken);
+            // The dashboard and badge are independent aggregate reads. Start them together so the
+            // announcement badge does not add another serial network latency to Sessions startup.
+            var dashboardTask = sessionsClient.GetDashboardAsync(cancellationToken);
+            var unreadTask = GetUnreadCountOrCurrentAsync(cancellationToken);
+            var dashboard = await dashboardTask;
             var profileContext = await BuildProfileContextOrDefaultAsync(
                 dashboard.Greeting,
                 forceProfileRefresh,
@@ -188,6 +233,7 @@ public partial class SessionsHomePageModel(
                 dashboard.GroupLabel,
                 forceProfileRefresh,
                 cancellationToken);
+            UnreadAnnouncementCount = await unreadTask;
 
             ApplyDashboard(dashboard, profileContext.Greeting, groupLabel, profileContext.CanManageSessions);
         }
@@ -301,6 +347,7 @@ public partial class SessionsHomePageModel(
             }
 
             _cachedGroupLabel = primary.GroupName;
+            _primaryGroupId = primary.Id;
             return _cachedGroupLabel;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -348,5 +395,25 @@ public partial class SessionsHomePageModel(
         StateTitle = title;
         StateMessage = message;
         State = state;
+    }
+
+    private async Task<int> GetUnreadCountOrCurrentAsync(CancellationToken cancellationToken)
+    {
+        if (announcementsClient is null)
+        {
+            return UnreadAnnouncementCount;
+        }
+
+        try
+        {
+            return (await announcementsClient.GetUnreadCountAsync(cancellationToken)).UnreadCount;
+        }
+        catch
+        {
+            // The bell is supplementary. A badge outage must never hide an otherwise valid
+            // Sessions dashboard, and containing cancellation here guarantees the independently
+            // started task is always observed even if the dashboard load fails first.
+            return UnreadAnnouncementCount;
+        }
     }
 }

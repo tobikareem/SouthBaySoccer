@@ -270,6 +270,22 @@
                     </VerticalStackLayout>
                 </controls:BrandCard>
 
+                <controls:AnnouncementCard AuthorName="Game Admin"
+                                           GroupName="Saturday crew"
+                                           TimeLabel="Now"
+                                           Body="Saturday pickup starts at 9:00 AM."
+                                           IsUnread="True" />
+                <controls:GroupChoiceRow GroupName="Saturday crew"
+                                         MemberCount="24"
+                                         IsSelected="True" />
+                <controls:ToggleRow Glyph="&#xf0f3;"
+                                    GlyphFontFamily="FontAwesomeSolid"
+                                    Title="Send a push notification"
+                                    Subtitle="Players still receive this in the app."
+                                    IsToggled="True" />
+                <controls:PushPreview Title="N9ja Bay · Saturday crew"
+                                      Body="Saturday pickup starts at 9:00 AM." />
+
                 <Button Text="Primary action" Style="{StaticResource PrimaryButton}" />
                 <Button Text="Secondary action" Style="{StaticResource GhostButton}" />
                 <Button Text="Sign in with phone" Style="{StaticResource PrimaryButton}" />

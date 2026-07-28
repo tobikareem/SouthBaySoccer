@@ -91,7 +91,7 @@ public class SessionScreensXamlTests
     public void SessionsHomePage_NotificationsControlExposesSemanticDescription()
     {
         ReadXaml(HomePage)
-            .Should().Contain("SemanticProperties.Description=\"Notifications\"");
+            .Should().Contain("SemanticProperties.Description=\"{Binding NotificationsSemanticDescription}\"");
     }
 
     [Fact]

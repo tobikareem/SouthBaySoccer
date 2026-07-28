@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="SouthBaySoccer.Controls.AnnouncementCard"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:SouthBaySoccer.Controls"
+    x:Name="Root"
+    x:DataType="controls:AnnouncementCard">
+    <Border Padding="{StaticResource SpaceMd}"
+            BackgroundColor="{AppThemeBinding Light={StaticResource BrandWhite}, Dark={StaticResource BrandPineDark}}"
+            Stroke="{AppThemeBinding Light={StaticResource BorderLight}, Dark={StaticResource BorderDark}}"
+            StrokeShape="RoundRectangle 17">
+        <Border.Triggers>
+            <DataTrigger TargetType="Border"
+                         Binding="{Binding IsUnread, Source={x:Reference Root}}"
+                         Value="True">
+                <Setter Property="Stroke" Value="{StaticResource BrandGreenSoftBorder}" />
+                <Setter Property="StrokeThickness" Value="2" />
+            </DataTrigger>
+        </Border.Triggers>
+        <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+            <!-- Avatar · name+group · time · unread dot — the wireframe's announcement row.
+                 The dot sits with the timestamp on the right, where the eye already lands to
+                 judge "is this new", rather than competing with the avatar on the left. -->
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto"
+                  ColumnSpacing="{StaticResource SpaceSm}"
+                  VerticalOptions="Center">
+                <controls:Avatar Initials="{Binding AuthorInitials, Source={x:Reference Root}}"
+                                 Size="{StaticResource AvatarMd}" />
+                <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                    <Label Text="{Binding AuthorName, Source={x:Reference Root}}"
+                           Style="{StaticResource TextBodyStrong}"
+                           LineBreakMode="TailTruncation"
+                           MaxLines="1" />
+                    <Label Text="{Binding GroupName, Source={x:Reference Root}}"
+                           Style="{StaticResource TextCaption}"
+                           LineBreakMode="TailTruncation"
+                           MaxLines="1" />
+                </VerticalStackLayout>
+                <Label Grid.Column="2"
+                       Text="{Binding TimeLabel, Source={x:Reference Root}}"
+                       Style="{StaticResource TextCaption}"
+                       LineBreakMode="NoWrap"
+                       VerticalOptions="Center" />
+                <Ellipse Grid.Column="3"
+                         WidthRequest="9" HeightRequest="9"
+                         Fill="{StaticResource BrandGreenLight}"
+                         VerticalOptions="Center"
+                         IsVisible="{Binding IsUnread, Source={x:Reference Root}}" />
+            </Grid>
+            <Label Text="{Binding Body, Source={x:Reference Root}}" Style="{StaticResource TextBody}" />
+            <Grid ColumnDefinitions="*,Auto"
+                  IsVisible="{Binding HasContext, Source={x:Reference Root}}">
+                <Border Style="{StaticResource MetadataChip}" HorizontalOptions="Start" VerticalOptions="Center">
+                    <HorizontalStackLayout Spacing="{StaticResource SpaceXs}" VerticalOptions="Center">
+                        <!-- Without the icon font the glyph codepoint renders as tofu. -->
+                        <Label Text="{Binding ContextChipGlyph, Source={x:Reference Root}}"
+                               FontFamily="FontAwesomeSolid"
+                               FontSize="12"
+                               VerticalTextAlignment="Center"
+                               TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}" />
+                        <Label Text="{Binding ContextChipText, Source={x:Reference Root}}"
+                               Style="{StaticResource TextCaption}"
+                               VerticalTextAlignment="Center" />
+                    </HorizontalStackLayout>
+                </Border>
+                <Button Grid.Column="1"
+                        Text="{Binding ContextText, Source={x:Reference Root}}"
+                        Command="{Binding ContextCommand, Source={x:Reference Root}}"
+                        Style="{StaticResource LinkButton}" />
+            </Grid>
+        </VerticalStackLayout>
+    </Border>
+</ContentView>
