@@ -30,33 +30,29 @@
                             RetryCommand="{Binding AppearingCommand}">
             <ScrollView>
                 <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceLg}">
+                    <!-- Fixed audience, not a picker: an admin broadcasts to their own group chat and
+                         nowhere else, so the group is stated rather than chosen. The server rejects a
+                         post to a group the caller is not linked to; this keeps the UI honest about
+                         the reach the admin actually has. -->
                     <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
-                        <Label Text="Send to one group" Style="{StaticResource TextLabel}" />
-                        <!-- HeightRequest is required, not cosmetic: a horizontally-scrolling
-                             CollectionView inside a ScrollView has no bounded height, so without it
-                             the picker expands to fill the page and pushes the composer, preview and
-                             send button off-screen. Sized for the two-line GroupChoiceRow. -->
-                        <CollectionView ItemsSource="{Binding Groups}"
-                                        HeightRequest="88"
-                                        SelectionMode="None"
-                                        SemanticProperties.Description="Broadcast audience">
-                            <CollectionView.ItemsLayout>
-                                <LinearItemsLayout Orientation="Horizontal" ItemSpacing="{StaticResource SpaceSm}" />
-                            </CollectionView.ItemsLayout>
-                            <CollectionView.ItemTemplate>
-                                <DataTemplate x:DataType="pageModels:GroupChoiceViewModel">
-                                    <controls:GroupChoiceRow GroupName="{Binding GroupName}"
-                                                             MemberCount="{Binding MemberCount}"
-                                                             IsSelected="{Binding IsSelected}">
-                                        <controls:GroupChoiceRow.GestureRecognizers>
-                                            <TapGestureRecognizer
-                                                Command="{Binding BindingContext.SelectGroupCommand, Source={x:Reference Page}, x:DataType=ContentPage}"
-                                                CommandParameter="{Binding .}" />
-                                        </controls:GroupChoiceRow.GestureRecognizers>
-                                    </controls:GroupChoiceRow>
-                                </DataTemplate>
-                            </CollectionView.ItemTemplate>
-                        </CollectionView>
+                        <Label Text="Sending to" Style="{StaticResource TextLabel}" />
+                        <Border Style="{StaticResource MetadataChip}"
+                                HorizontalOptions="Start"
+                                SemanticProperties.Description="{Binding BroadcastLabel}">
+                            <HorizontalStackLayout Spacing="{StaticResource SpaceSm}" VerticalOptions="Center">
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
+                                       FontFamily="FontAwesomeBrands"
+                                       Style="{StaticResource TextCaption}"
+                                       VerticalTextAlignment="Center" />
+                                <Label Text="{Binding GroupName}"
+                                       Style="{StaticResource TextBodyStrong}"
+                                       LineBreakMode="TailTruncation"
+                                       VerticalTextAlignment="Center" />
+                                <Label Text="{Binding AudienceLabel}"
+                                       Style="{StaticResource TextCaption}"
+                                       VerticalTextAlignment="Center" />
+                            </HorizontalStackLayout>
+                        </Border>
                     </VerticalStackLayout>
                     <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
                         <Grid ColumnDefinitions="*,Auto">
