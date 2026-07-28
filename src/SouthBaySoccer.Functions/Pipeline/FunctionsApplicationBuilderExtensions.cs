@@ -1,4 +1,5 @@
 using SouthBaySoccer.Application.Features.Authentication;
+using SouthBaySoccer.Application.Features.Announcements;
 using SouthBaySoccer.Application.Features.Groups;
 using SouthBaySoccer.Application.Features.Payments;
 using SouthBaySoccer.Application.Features.Players;
@@ -137,6 +138,15 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<GetAvailableGroupsQueryHandler>();
         builder.Services.AddScoped<GetMyGroupsQueryHandler>();
         builder.Services.AddScoped<LinkPlayerToGroupCommandHandler>();
+        builder.Services.AddScoped<IValidator<PostAnnouncementCommand>, PostAnnouncementCommandValidator>();
+        builder.Services.AddScoped<IValidator<GetGroupAnnouncementsQuery>, GetGroupAnnouncementsQueryValidator>();
+        builder.Services.AddScoped<IValidator<GetSentAnnouncementsQuery>, GetSentAnnouncementsQueryValidator>();
+        builder.Services.AddScoped<IValidator<MarkGroupAnnouncementsReadCommand>, MarkGroupAnnouncementsReadCommandValidator>();
+        builder.Services.AddScoped<GetGroupAnnouncementsQueryHandler>();
+        builder.Services.AddScoped<GetUnreadAnnouncementCountQueryHandler>();
+        builder.Services.AddScoped<GetSentAnnouncementsQueryHandler>();
+        builder.Services.AddScoped<PostAnnouncementCommandHandler>();
+        builder.Services.AddScoped<MarkGroupAnnouncementsReadCommandHandler>();
         builder.Services.AddScoped<FunctionCurrentUser>();
         builder.Services.AddScoped<ICurrentUser>(services => services.GetRequiredService<FunctionCurrentUser>());
         builder.Services.AddScoped<IFunctionCurrentUserAccessor>(services => services.GetRequiredService<FunctionCurrentUser>());

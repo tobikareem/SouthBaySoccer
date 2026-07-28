@@ -28,7 +28,7 @@ public sealed class ScreenRequestCountTests
     private static readonly TimeProvider Clock = new FixedTimeProvider();
 
     [Fact]
-    public async Task SessionsHomeAppearing_FirstLoad_IssuesFeedPendingStatsProfileAndGroupsRequests()
+    public async Task SessionsHomeAppearing_FirstLoad_IssuesProductionAggregateRequestsIncludingUnreadBadge()
     {
         var handler = CreateSessionsHomeHandler();
         var pageModel = CreateSessionsHomePageModel(handler);
@@ -41,6 +41,7 @@ public sealed class ScreenRequestCountTests
         handler.Requests.Should().Equal(
             (HttpMethod.Get, "/sessions"),
             (HttpMethod.Get, "/stats/submissions/pending"),
+            (HttpMethod.Get, "/players/me/announcements/unread-count"),
             (HttpMethod.Get, "/profiles/me"),
             (HttpMethod.Get, "/players/me/groups"));
     }
@@ -50,8 +51,9 @@ public sealed class ScreenRequestCountTests
     {
         // Pins the no-cache status quo: every Appearing re-downloads the sessions feed and the
         // pending-stats prompt. The profile greeting and group label do NOT refetch — the page
-        // model memoizes them in private fields until a pull-to-refresh — so a second Appearing
-        // adds 2 requests, not 4. Phase 5 moves this ad-hoc memoization into the client cache.
+        // model memoizes them in private fields until a pull-to-refresh. The uncached production
+        // shape also refreshes the unread badge; the cached integration below proves tab returns
+        // do not repeat it inside the TTL.
         var handler = CreateSessionsHomeHandler();
         var pageModel = CreateSessionsHomePageModel(handler);
 
@@ -61,12 +63,15 @@ public sealed class ScreenRequestCountTests
         handler.Requests.Should().Equal(
             (HttpMethod.Get, "/sessions"),
             (HttpMethod.Get, "/stats/submissions/pending"),
+            (HttpMethod.Get, "/players/me/announcements/unread-count"),
             (HttpMethod.Get, "/profiles/me"),
             (HttpMethod.Get, "/players/me/groups"),
             (HttpMethod.Get, "/sessions"),
-            (HttpMethod.Get, "/stats/submissions/pending"));
+            (HttpMethod.Get, "/stats/submissions/pending"),
+            (HttpMethod.Get, "/players/me/announcements/unread-count"));
         handler.Count("/sessions").Should().Be(2);
         handler.Count("/stats/submissions/pending").Should().Be(2);
+        handler.Count("/players/me/announcements/unread-count").Should().Be(2);
         handler.Count("/profiles/me").Should().Be(1);
         handler.Count("/players/me/groups").Should().Be(1);
     }
@@ -149,6 +154,7 @@ public sealed class ScreenRequestCountTests
         // guard, not a cache) and then the top-5 ranking scoped to their primary group.
         var handler = new CountingHttpMessageHandler();
         handler.RegisterJson("/players/me/groups", MyGroupsJson);
+        handler.RegisterJson("/players/me/announcements/unread-count", """{"unreadCount":3}""");
         handler.RegisterJson("/stats/leaderboards", LeaderboardJson);
         var pageModel = new LeaderboardPageModel(
             new ApiLeaderboardClient(CreateHttpClient(handler)),
@@ -216,7 +222,9 @@ public sealed class ScreenRequestCountTests
             new ApiGroupsClient(httpClient),
             new Mock<IDismissedStatsPromptStore>().Object,
             new ClientResponseCache(TimeProvider.System),
-            Clock);
+            Clock,
+            new ApiAnnouncementsClient(httpClient),
+            new Mock<IAnnouncementsNavigator>(MockBehavior.Strict).Object);
     }
 
     private static CountingHttpMessageHandler CreatePlayersHandler()
@@ -388,5 +396,7 @@ public sealed class ScreenRequestCountTests
             new CachedGroupsClient(new ApiGroupsClient(httpClient), cache),
             new Mock<IDismissedStatsPromptStore>().Object,
             cache,
-            Clock);
+            Clock,
+            new CachedAnnouncementsClient(new ApiAnnouncementsClient(httpClient), cache),
+            new Mock<IAnnouncementsNavigator>(MockBehavior.Strict).Object);
 }

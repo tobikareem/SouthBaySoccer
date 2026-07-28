@@ -64,4 +64,5 @@
         <GradientStop Color="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenLight}}"
                       Offset="1" />
     </LinearGradientBrush>
+    <Color x:Key="BrandGreenSoftBorder">#C8E5D6</Color>
 </ResourceDictionary>

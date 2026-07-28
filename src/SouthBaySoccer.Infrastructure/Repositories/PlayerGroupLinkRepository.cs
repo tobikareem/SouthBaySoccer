@@ -45,6 +45,26 @@ internal sealed class PlayerGroupLinkRepository(SouthBaySoccerDbContext dbContex
                 link.IsPrimary))
             .ToArrayAsync(cancellationToken);
 
+    public Task<PlayerGroupLink?> FindLinkAsync(
+        Guid playerProfileId,
+        Guid groupChatId,
+        CancellationToken cancellationToken = default) =>
+        dbContext.PlayerGroupLinks
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                x => x.PlayerProfileId == playerProfileId && x.GroupChatId == groupChatId,
+                cancellationToken);
+
+    public Task<int> CountMembersAsync(
+        Guid groupChatId,
+        Guid? excludingPlayerProfileId = null,
+        CancellationToken cancellationToken = default) =>
+        dbContext.PlayerGroupLinks
+            .AsNoTracking()
+            .Where(x => x.GroupChatId == groupChatId
+                && (excludingPlayerProfileId == null || x.PlayerProfileId != excludingPlayerProfileId.Value))
+            .CountAsync(cancellationToken);
+
     public async Task AddAsync(PlayerGroupLink entity, CancellationToken cancellationToken = default) =>
         await dbContext.PlayerGroupLinks.AddAsync(entity, cancellationToken);
 

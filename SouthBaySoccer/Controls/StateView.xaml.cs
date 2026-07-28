@@ -23,6 +23,19 @@ public partial class StateView
     public static readonly BindableProperty RetryCommandProperty =
         BindableProperty.Create(nameof(RetryCommand), typeof(ICommand), typeof(StateView), null,
             propertyChanged: static (bindable, _, _) => ((StateView)bindable).Refresh());
+
+    /// <summary>
+    /// Also offers the retry action on an empty result, not just on error and offline.
+    /// <para>
+    /// Opt-in because "empty" usually means "there is nothing here", and a retry button would be
+    /// noise. It is needed where empty is a state the server can leave on its own — an announcement
+    /// feed with nothing in it yet hides its own pull-to-refresh, so without this the player has no
+    /// way to check for new posts at all.
+    /// </para>
+    /// </summary>
+    public static readonly BindableProperty ShowRetryWhenEmptyProperty =
+        BindableProperty.Create(nameof(ShowRetryWhenEmpty), typeof(bool), typeof(StateView), false,
+            propertyChanged: static (bindable, _, _) => ((StateView)bindable).Refresh());
     public static readonly BindableProperty BodyProperty =
         BindableProperty.Create(
             nameof(Body),
@@ -43,6 +56,7 @@ public partial class StateView
     public string Glyph { get => (string)GetValue(GlyphProperty); set => SetValue(GlyphProperty, value); }
     public string GlyphFontFamily { get => (string)GetValue(GlyphFontFamilyProperty); set => SetValue(GlyphFontFamilyProperty, value); }
     public ICommand? RetryCommand { get => (ICommand?)GetValue(RetryCommandProperty); set => SetValue(RetryCommandProperty, value); }
+    public bool ShowRetryWhenEmpty { get => (bool)GetValue(ShowRetryWhenEmptyProperty); set => SetValue(ShowRetryWhenEmptyProperty, value); }
     public View? Body { get => (View?)GetValue(BodyProperty); set => SetValue(BodyProperty, value); }
 
     protected override void OnBindingContextChanged()
@@ -70,7 +84,9 @@ public partial class StateView
         StatePanel.IsVisible = !showsContent;
         LoadingIndicator.IsVisible = State == ViewState.Loading;
         LoadingIndicator.IsRunning = State == ViewState.Loading;
-        RetryButton.IsVisible = RetryCommand is not null && State is ViewState.Error or ViewState.Offline;
+        RetryButton.IsVisible = RetryCommand is not null
+            && (State is ViewState.Error or ViewState.Offline
+                || (ShowRetryWhenEmpty && State == ViewState.Empty));
         SemanticProperties.SetDescription(this, showsContent ? "Content" : $"{State}: {Title}. {Message}");
     }
 }
