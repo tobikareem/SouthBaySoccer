@@ -8,7 +8,7 @@
     x:DataType="controls:AnnouncementCard">
     <Border Padding="{StaticResource SpaceMd}"
             BackgroundColor="{AppThemeBinding Light={StaticResource BrandWhite}, Dark={StaticResource BrandPineDark}}"
-            Stroke="{AppThemeBinding Light={StaticResource BorderLight}, Dark={StaticResource BorderDark}}"
+            Stroke="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}"
             StrokeShape="RoundRectangle 17">
         <Border.Triggers>
             <DataTrigger TargetType="Border"
