@@ -10,14 +10,19 @@ namespace SouthBaySoccer.Controls;
 /// </summary>
 public partial class RosterListPopup : ContentView
 {
-    public RosterListPopup(string title, IReadOnlyList<GameDayRosterItem> members, ICommand checkInCommand)
+    public RosterListPopup(
+        string title,
+        IReadOnlyList<GameDayRosterItem> members,
+        ICommand checkInCommand,
+        ICommand linkCommand)
     {
         InitializeComponent();
         BindingContext = new RosterListContent(
             $"{title} · {members.Count}",
             members,
             "No one here yet.",
-            checkInCommand);
+            checkInCommand,
+            linkCommand);
     }
 }
 
@@ -25,9 +30,23 @@ public sealed record RosterListContent(
     string Title,
     IReadOnlyList<GameDayRosterItem> Members,
     string EmptyMessage,
-    ICommand CheckInCommand)
+    ICommand CheckInCommand,
+    ICommand LinkCommand)
 {
     public bool HasMembers => Members.Count > 0;
 
     public bool IsEmpty => Members.Count == 0;
+
+    /// <summary>
+    /// Names the unmatched imports so the reason the list is longer than the actionable roster is
+    /// stated rather than left for the reader to infer from greyed-out rows.
+    /// </summary>
+    public string UnlinkedSummary => Members.Count(member => member.IsUnlinked) switch
+    {
+        0 => string.Empty,
+        1 => "1 person here hasn't been linked to a profile yet.",
+        var count => $"{count} people here haven't been linked to a profile yet.",
+    };
+
+    public bool HasUnlinked => Members.Any(member => member.IsUnlinked);
 }

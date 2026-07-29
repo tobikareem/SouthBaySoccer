@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using SouthBaySoccer.Configuration;
+using SouthBaySoccer.PageModels;
 using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
 using Xunit;
@@ -56,6 +57,32 @@ public sealed class ClientRegistrationCompletenessTests
             .Should().NotBeNull("both data sources construct AuthenticationCoordinator at startup");
     }
 
+    /// <summary>
+    /// Resolves the page models reached by navigation rather than at startup. The startup graph
+    /// assertions above never touch these, so a dependency registered for only one data source stays
+    /// invisible until a user taps through to the page — which surfaces as a crash, not an error
+    /// state, because Shell route construction has no exception boundary.
+    /// </summary>
+    [Theory]
+    [InlineData(ClientDataSource.Api)]
+#if !RELEASE
+    [InlineData(ClientDataSource.Seed)]
+#endif
+    public void AddSouthBaySoccerClients_ForEitherDataSource_ResolvesNavigablePageModels(
+        ClientDataSource dataSource)
+    {
+        using var provider = BuildProvider(dataSource);
+
+        var act = () =>
+        {
+            _ = ActivatorUtilities.CreateInstance<AdminBroadcastPageModel>(provider);
+            _ = ActivatorUtilities.CreateInstance<AnnouncementsPageModel>(provider);
+            _ = ActivatorUtilities.CreateInstance<SchedulePageModel>(provider);
+        };
+
+        act.Should().NotThrow();
+    }
+
 #if RELEASE
     [Fact]
     public void AddSouthBaySoccerClients_SeedInRelease_IsRejected()
@@ -78,6 +105,8 @@ public sealed class ClientRegistrationCompletenessTests
         services.AddSingleton(pickupPalOptions);
         services.AddSingleton(Mock.Of<ISecureTokenStore>());
         services.AddSingleton(Mock.Of<IAuthenticationNavigator>());
+        services.AddSingleton(Mock.Of<IAnnouncementsNavigator>());
+        services.AddSingleton(Mock.Of<ISessionsNavigator>());
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IAuthenticationCoordinator, AuthenticationCoordinator>();
 

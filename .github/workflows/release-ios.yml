@@ -224,6 +224,20 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # Separate step, and deliberately non-fatal: the shipped binary is stripped, so without the
+      # symbol bundle a device crash report's app frames resolve to bare addresses and the managed
+      # method that faulted cannot be named — build 1311 was diagnosed down to "four unsymbolicated
+      # SouthBaySoccer frames" and stalled there. It stays a warning rather than an error because a
+      # symbol bundle is a diagnostic aid: a glob that stops matching must not fail a release that
+      # otherwise built and signed correctly.
+      - name: Keep .dSYM as a workflow artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: n9jabay-ios-dsym-${{ steps.buildnumber.outputs.build-number }}
+          path: SouthBaySoccer/bin/Release/${{ env.TFM }}/ios-arm64/**/*.dSYM
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Upload to TestFlight
         env:
           API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}

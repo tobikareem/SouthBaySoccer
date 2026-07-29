@@ -80,12 +80,22 @@ public sealed record GameDayPlayerDto(
     string DisplayName,
     bool IsGuest);
 
+/// <summary>
+/// One person on the Game Day roster. <see cref="PlayerProfileId"/> is null for a Pickup Pal
+/// participant that was never matched to a profile — they still count and still appear, but check-in
+/// and captain assignment stay unavailable until they are linked.
+/// </summary>
 public sealed record GameDayRosterEntryDto(
-    Guid PlayerProfileId,
+    Guid? PlayerProfileId,
     string DisplayName,
     bool IsGuest,
     bool IsWaitlist,
-    bool IsCheckedIn);
+    bool IsCheckedIn,
+    string? PickupPalParticipantId = null)
+{
+    /// <summary>Whether this row still needs matching to a real player profile.</summary>
+    public bool IsUnlinked => PlayerProfileId is null;
+}
 
 public sealed record CheckedInPlayerDto(
     PlayerSummaryDto Player,

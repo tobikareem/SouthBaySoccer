@@ -1460,6 +1460,51 @@ internal static class GameDayWorkflowQueries
             .ToArray();
     }
 
+    /// <summary>
+    /// The roster as displayed: everyone from <see cref="ListEligibleRosterAsync"/> plus the
+    /// imported participants that never linked to a profile.
+    /// <para>
+    /// Deliberately separate from the eligible roster rather than widening it. Eligibility drives
+    /// captain assignment and check-in, both keyed on a profile id, so an unlinked participant must
+    /// never leak into those; but a count shown next to a list has to describe the same population
+    /// as the list, which is what this query provides.
+    /// </para>
+    /// </summary>
+    internal static async Task<IReadOnlyList<GameDayRosterEntryModel>> ListDisplayRosterAsync(
+        IRsvpRepository rsvpRepository,
+        IPickupPalGameRepository pickupPalGameRepository,
+        Guid sessionId,
+        IReadOnlySet<Guid> checkedInPlayerProfileIds,
+        CancellationToken cancellationToken)
+    {
+        var eligible = await ListEligibleRosterAsync(
+            rsvpRepository, pickupPalGameRepository, sessionId, cancellationToken);
+        var imported = await pickupPalGameRepository.ListParticipantsAsync(sessionId, cancellationToken);
+
+        var linked = eligible
+            .Select(member => new GameDayRosterEntryModel(
+                member.PlayerProfileId,
+                member.DisplayName,
+                member.IsGuest,
+                member.WaitlistPosition is not null,
+                checkedInPlayerProfileIds.Contains(member.PlayerProfileId)));
+
+        // An unlinked participant has no profile, so it can be neither checked in nor deduped by
+        // profile id; the Pickup Pal participant id is its only stable identity.
+        var unlinked = imported
+            .Where(participant => participant.PlayerProfileId is null)
+            .OrderBy(participant => participant.DisplayOrder)
+            .Select(participant => new GameDayRosterEntryModel(
+                PlayerProfileId: null,
+                participant.DisplayName,
+                participant.IsGuest,
+                participant.IsWaitlist,
+                IsCheckedIn: false,
+                participant.PickupPalParticipantId));
+
+        return [.. linked, .. unlinked];
+    }
+
     internal static IReadOnlyList<CheckedInGameDayPlayerModel> ToRosterModels(
         IReadOnlyList<RosterMemberRecord> roster) =>
         roster.Select(x => new CheckedInGameDayPlayerModel(
