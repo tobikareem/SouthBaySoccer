@@ -186,8 +186,17 @@ White surface container.
 - Wireframe: session capacity.
 
 ### SectionHeader
-- `Text` (string, uppercase via style), `ActionText` (string?), `ActionCommand` (ICommand?).
-- Wireframe: "Coming up", "Going · 16", "Confirm teammates · captain".
+- `Text` (string, uppercase via style), `ActionText` (string?), `ActionCommand` (ICommand?),
+  `ActionGlyph` (string?), `SecondaryActionText` (string?), `SecondaryActionCommand` (ICommand?),
+  `SecondaryActionGlyph` (string?).
+- A section may carry **two** peer actions, laid out inline on the header row. The secondary action
+  is hidden unless its text is set, so single-action headers are unaffected.
+- Glyphs are optional and ride on each button's `ImageSource`, never prepended to `Text` — the icon
+  needs the icon font while the label needs the brand text font. Assign the `FontImageSource` in
+  code, not via a XAML binding: an empty `Glyph` still reserves image space and would put a stray
+  gap in front of the label on every glyph-less header.
+- Wireframe: "Coming up", "Going · 16", "Confirm teammates · captain",
+  "Admin · Broadcast / + Session" (two actions with glyphs).
 
 ### PlayerRow
 - `LeadingContent` (View?), `Initials`/`ImageSource`, `Name` (string), `Detail` (string?),
@@ -304,7 +313,8 @@ Scenario: Product UI follows the authoritative wireframe
 | RSVP / Submit / WhatsApp buttons | `PrimaryButton` / `GhostButton` / `WhatsAppButton` |
 | Loading / empty / error / offline | `StateView` |
 | Group selection (sign-in) & Stats group filter | `LinkGroupPage` (single-select `CollectionView`) / `Picker` |
-| Admin broadcast composer | `BrandHeader` + `GroupChoiceRow` + styled `Editor` + `AnnouncementCard` preview + `ToggleRow` + `PushPreview` + docked `PrimaryButton` |
+| Admin entry points on Sessions | `SectionHeader` with two actions ("Broadcast", "+ Session"), gated by `CanManageSessions` |
+| Admin broadcast composer | `BrandHeader` + fixed-audience `MetadataChip` + styled `Editor` + `AnnouncementCard` preview + `ToggleRow` + `PushPreview` + docked `PrimaryButton` |
 | Push notification preview | `PushPreview` (dark surface, app name, group title, 2-line clamped body) |
 | Admin "Recently sent" read receipts | `BrandCard` + compact rows + `Badge` (`ok` / `warn` by read ratio) |
 | Player group announcements | `BrandHeader` + `SegmentedControl` (All / Unread) + `AnnouncementCard` feed + `StateView` empty state |
@@ -317,9 +327,14 @@ composer literally shows what players will receive.
 
 - **Admin broadcast composer.** An admin-only page in four ordered blocks: *audience → message →
   how it lands → send*.
-  - **Audience** is a single-select row of group cards (name + member count), not a dropdown, so the
-    chosen group and its size are visible without opening a picker. Selecting a group must update
-    the preview, push preview, recipient count on the CTA, and destination feed together.
+  - **Audience** is stated, not chosen: a single read-only chip showing the admin's own group chat
+    and its member count. An admin broadcasts to the group they run and nowhere else, so there is
+    nothing to select between, and a picker implied a reach they do not have. Resolve it from the
+    player's primary group link, falling back to their only linked group when no primary is flagged.
+    The chip is presentation, not the security boundary — `PostAnnouncementCommandHandler` already
+    rejects a post to a group the caller is not linked to, and that check stays authoritative.
+    With no audience to change, the preview, push preview, and CTA recipient count are fixed for the
+    session; the empty state ("Link a group chat before you can broadcast") covers an unlinked admin.
   - **Message** is a styled `Editor` with the character counter sitting on the label line
     (`104 / 500`), programmatically associated with the editor.
   - **How it lands** shows the `AnnouncementCard` preview, a `ToggleRow` switch for the push

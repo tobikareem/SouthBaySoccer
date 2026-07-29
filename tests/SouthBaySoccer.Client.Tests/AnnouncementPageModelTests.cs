@@ -12,7 +12,7 @@ public sealed class AnnouncementPageModelTests
         Guid.Parse("50000000-0000-0000-0000-000000000001");
 
     [Fact]
-    public async Task SelectGroup_WhenAudienceChanges_UpdatesAllAudienceDependentTextTogether()
+    public async Task Appearing_WhenAdminIsInSeveralGroups_ResolvesThePrimaryAsTheOnlyAudience()
     {
         var time = new FixedTimeProvider(new DateTimeOffset(2026, 7, 27, 17, 0, 0, TimeSpan.Zero));
         var model = new AdminBroadcastPageModel(
@@ -20,15 +20,36 @@ public sealed class AnnouncementPageModelTests
             new SeedAnnouncementsClient(time),
             new StubNavigator(),
             time);
+
         await model.AppearingCommand.ExecuteAsync(null);
-        var second = model.Groups[1];
 
-        model.SelectGroupCommand.Execute(second);
+        // The seed links this player to three groups; only the primary may be broadcast to, and the
+        // page model exposes no way to reach the other two.
+        model.Group.Should().NotBeNull();
+        model.Group!.Group.IsPrimary.Should().BeTrue();
+        model.GroupName.Should().Be(model.Group.GroupName);
+        model.PreviewGroupName.Should().Be(model.Group.GroupName);
+        model.PushTitle.Should().Contain(model.Group.GroupName);
+        model.AudienceLabel.Should().Be($"{model.Group.MemberCount} members");
+        model.BroadcastLabel.Should().Be($"Broadcast to {model.Group.MemberCount} members");
+    }
 
-        model.SelectedGroup.Should().BeSameAs(second);
-        model.PreviewGroupName.Should().Be(second.GroupName);
-        model.PushTitle.Should().Contain(second.GroupName);
-        model.BroadcastLabel.Should().Be($"Broadcast to {second.MemberCount} members");
+    [Fact]
+    public async Task Send_WhenComposed_AddressesTheAdminsOwnGroupOnly()
+    {
+        var time = new FixedTimeProvider(new DateTimeOffset(2026, 7, 27, 17, 0, 0, TimeSpan.Zero));
+        var groups = new SeedGroupsClient();
+        var announcements = new SeedAnnouncementsClient(time);
+        var model = new AdminBroadcastPageModel(groups, announcements, new StubNavigator(), time);
+        await model.AppearingCommand.ExecuteAsync(null);
+        var primary = (await groups.GetMyGroupsAsync(CancellationToken.None))
+            .Groups.Single(group => group.IsPrimary);
+        model.Body = "Kickoff moved to 10.";
+
+        await model.SendCommand.ExecuteAsync(null);
+
+        model.IsSent.Should().BeTrue();
+        model.Group!.Id.Should().Be(primary.Id);
     }
 
     [Fact]

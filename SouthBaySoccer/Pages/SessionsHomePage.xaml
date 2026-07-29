@@ -245,17 +245,18 @@
                         </Grid>
                     </controls:BrandCard>
 
-                    <!-- Admin: create-session entry, gated by the signed-in profile role -->
+                    <!-- Admin entry points, gated by the signed-in profile role. Both actions share
+                         the header row: they are peers, and stacking "Create session" underneath left
+                         an orphaned button with no heading of its own. -->
                     <controls:SectionHeader
                         Text="Admin"
                         ActionText="Broadcast"
+                        ActionGlyph="{x:Static fonts:FontAwesomeGlyphs.Bullhorn}"
                         ActionCommand="{Binding OpenBroadcastCommand}"
+                        SecondaryActionText="Session"
+                        SecondaryActionGlyph="{x:Static fonts:FontAwesomeGlyphs.Plus}"
+                        SecondaryActionCommand="{Binding CreateSessionCommand}"
                         IsVisible="{Binding CanManageSessions}" />
-                    <Button Text="Create session"
-                            Command="{Binding CreateSessionCommand}"
-                            Style="{StaticResource LinkButton}"
-                            HorizontalOptions="End"
-                            IsVisible="{Binding CanManageSessions}" />
 
                     <!-- Coming up section -->
                     <controls:SectionHeader
