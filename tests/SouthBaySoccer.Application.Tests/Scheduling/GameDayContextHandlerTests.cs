@@ -354,6 +354,44 @@ public sealed class GameDayContextHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenImportedParticipantIsLinked_ShowsProfileNameAndLinkedStatus()
+    {
+        // The bug this covers: after an admin matched "tob8" to Tobi Kareem, the waitlist popup kept
+        // showing the WhatsApp handle with "Not linked to a profile" because the roster projected
+        // the imported display name instead of the linked profile.
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 23, 2, 40));
+        var linkedProfileId = Guid.NewGuid();
+        context.Clock.SetupGet(x => x.UtcNow).Returns(session.CheckInOpensAtUtc.AddMinutes(1));
+        context.ConfigureSession(session);
+        context.PickupPalGames
+            .Setup(x => x.ListParticipantsAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new PickupPalGameParticipant
+                {
+                    SessionId = session.Id,
+                    PlayerProfileId = linkedProfileId,
+                    PickupPalParticipantId = "pp-tob8",
+                    DisplayName = "tob8",
+                    IsWaitlist = true,
+                    DisplayOrder = 0,
+                },
+            ]);
+
+        var result = await context.CreateHandlerWithProfiles(new PlayerProfile
+        {
+            Id = linkedProfileId,
+            DisplayName = "Tobi Kareem",
+            PreferredPosition = "Midfielder",
+        }).HandleAsync();
+
+        var entry = result!.Roster.Should().ContainSingle().Subject;
+        entry.PlayerProfileId.Should().Be(linkedProfileId, "a linked participant is no longer unlinked");
+        entry.DisplayName.Should().Be("Tobi Kareem", "the profile name replaces the WhatsApp handle");
+        entry.IsWaitlist.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenLockedMatchReachesPostGame_EnablesCaptainApproval()
     {
         var context = new TestContext();
@@ -386,6 +424,12 @@ public sealed class GameDayContextHandlerTests
             Profiles
                 .Setup(x => x.FindByIdentityUserIdAsync(Profile.IdentityUserId!.Value, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Profile);
+            // The display roster names a linked imported participant after its profile, so the
+            // handler reads back whichever of these ids it finds linked on the session.
+            Profiles
+                .Setup(x => x.ListProfilesAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyCollection<Guid> ids, CancellationToken _) =>
+                    LinkedProfiles.Where(profile => ids.Contains(profile.Id)).ToArray());
             Venues
                 .Setup(x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((Guid id, CancellationToken _) => new Venue { Id = id, Name = "Marina Field" });
@@ -438,6 +482,9 @@ public sealed class GameDayContextHandlerTests
             IdentityUserId = Guid.NewGuid(),
             DisplayName = "Ada"
         };
+
+        /// <summary>Profiles the repository can resolve for linked imported participants.</summary>
+        public List<PlayerProfile> LinkedProfiles { get; } = [];
 
         public Mock<ICurrentUser> CurrentUser { get; } = new();
         public Mock<IClock> Clock { get; } = new();
@@ -494,6 +541,12 @@ public sealed class GameDayContextHandlerTests
             RsvpDeadlineUtc = startsAtUtc.AddHours(-1),
             Status = SessionStatus.Published
         };
+
+        public GetTodayGameDayContextQueryHandler CreateHandlerWithProfiles(params PlayerProfile[] profiles)
+        {
+            LinkedProfiles.AddRange(profiles);
+            return CreateHandler();
+        }
 
         public GetTodayGameDayContextQueryHandler CreateHandler() => new(
             CurrentUser.Object,

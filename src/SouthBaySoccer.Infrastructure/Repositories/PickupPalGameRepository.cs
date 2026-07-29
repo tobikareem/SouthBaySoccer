@@ -57,7 +57,11 @@ internal sealed class PickupPalGameRepository(SouthBaySoccerDbContext dbContext)
             incomingParticipantIds.Add(participant.PickupPalParticipantId);
             if (existingByParticipantId.TryGetValue(participant.PickupPalParticipantId, out var row))
             {
-                row.PlayerProfileId = participant.PlayerProfileId;
+                // An import never unlinks a row. A participant carrying no identity key resolves to
+                // null on every pass, so assigning it straight across wiped the link an admin made
+                // through Match (or a player made through claim) the next time anyone opened Sessions
+                // or Game Day. Import evidence (user id / phone hash) still wins when it resolves.
+                row.PlayerProfileId = participant.PlayerProfileId ?? row.PlayerProfileId;
                 row.DisplayName = participant.DisplayName;
                 row.IsGuest = participant.IsGuest;
                 row.IsWaitlist = participant.IsWaitlist;
@@ -95,4 +99,19 @@ internal sealed class PickupPalGameRepository(SouthBaySoccerDbContext dbContext)
 
     public void UpdateParticipant(PickupPalGameParticipant participant) =>
         dbContext.Set<PickupPalGameParticipant>().Update(participant);
+
+    public async Task<IReadOnlyList<PickupPalGameParticipant>> ListLinkedParticipantsByDisplayNamesAsync(
+        IReadOnlyCollection<string> displayNames,
+        CancellationToken cancellationToken = default)
+    {
+        if (displayNames.Count == 0)
+        {
+            return [];
+        }
+
+        var nameArray = displayNames as string[] ?? displayNames.ToArray();
+        return await dbContext.Set<PickupPalGameParticipant>()
+            .Where(x => x.PlayerProfileId != null && nameArray.Contains(x.DisplayName))
+            .ToArrayAsync(cancellationToken);
+    }
 }
