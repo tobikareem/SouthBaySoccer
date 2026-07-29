@@ -15,3 +15,4 @@ One line per lesson. Skim this at the start of a task; read the full entry when 
 - [android-jarsigner-strict-upload-key](2026-07-27-android-jarsigner-strict-upload-key.md) - Allow only jarsigner strict status 4 for a pinned self-signed Android upload certificate
 - [google-play-service-account-permissions](2026-07-27-google-play-service-account-permissions.md) - Google Cloud IAM does not grant Play Console publishing access; authorize the CI account in both systems
 - [maui-staticresource-keys-crash-at-launch](2026-07-28-maui-staticresource-keys-crash-at-launch.md) - Undefined StaticResource keys build clean and crash at page inflation; on the startup page that is a TestFlight launch crash
+- [sync-upsert-must-merge-human-links](2026-07-29-sync-upsert-must-merge-human-links.md) - The recurring Pickup Pal import must coalesce PlayerProfileId, never null it — it kept wiping admin Match links within a minute
