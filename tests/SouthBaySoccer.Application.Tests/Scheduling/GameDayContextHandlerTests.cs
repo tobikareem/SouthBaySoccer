@@ -305,6 +305,55 @@ public sealed class GameDayContextHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenImportedParticipantsAreUnlinked_KeepsThemOnTheDisplayRoster()
+    {
+        // The bug this covers: unlinked imports were dropped from the roster, so a 26-strong
+        // waitlist rendered as 11 and the tile disagreed with the list behind it.
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 23, 2, 40));
+        var waitlistId = Guid.NewGuid();
+        context.Clock.SetupGet(x => x.UtcNow).Returns(session.CheckInOpensAtUtc.AddMinutes(1));
+        context.ConfigureSession(session);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        context.Rsvps
+            .Setup(x => x.ListActiveWaitlistRosterAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new RosterMemberRecord(waitlistId, "Bola", "Forward", false, 1)]);
+        context.PickupPalGames
+            .Setup(x => x.ListParticipantsAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new PickupPalGameParticipant
+                {
+                    SessionId = session.Id,
+                    PlayerProfileId = null,
+                    PickupPalParticipantId = "pp-victor",
+                    DisplayName = "victor",
+                    IsWaitlist = true,
+                    DisplayOrder = 2,
+                },
+                new PickupPalGameParticipant
+                {
+                    SessionId = session.Id,
+                    PlayerProfileId = null,
+                    PickupPalParticipantId = "pp-tope",
+                    DisplayName = "tope",
+                    IsWaitlist = true,
+                    DisplayOrder = 3,
+                },
+            ]);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result!.Roster.Should().HaveCount(3, "the linked waitlister plus both unlinked imports");
+        result.Roster.Count(entry => entry.IsWaitlist).Should().Be(3);
+        var unlinked = result.Roster.Where(entry => entry.PlayerProfileId is null).ToArray();
+        unlinked.Select(entry => entry.DisplayName).Should().Equal("victor", "tope");
+        unlinked.Select(entry => entry.PickupPalParticipantId).Should().Equal("pp-victor", "pp-tope");
+        unlinked.Should().OnlyContain(entry => !entry.IsCheckedIn);
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenLockedMatchReachesPostGame_EnablesCaptainApproval()
     {
         var context = new TestContext();

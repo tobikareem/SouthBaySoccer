@@ -2,6 +2,7 @@ using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SouthBaySoccer.Contracts.Sessions;
+using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Clients;
 using SouthBaySoccer.Services.Clients.Caching;
 using ViewState = SouthBaySoccer.Controls.ViewState;
@@ -24,7 +25,8 @@ public partial class SessionsHomePageModel(
     IClientResponseCache responseCache,
     TimeProvider timeProvider,
     IAnnouncementsClient? announcementsClient = null,
-    IAnnouncementsNavigator? announcementsNavigator = null) : ObservableObject
+    IAnnouncementsNavigator? announcementsNavigator = null,
+    IUserDialogService? dialogService = null) : ObservableObject
 {
     private string? _cachedProfileDisplayName;
     private string? _cachedProfileRole;
@@ -163,15 +165,32 @@ public partial class SessionsHomePageModel(
     [RelayCommand]
     private Task ViewSchedule() => navigator.GoToScheduleAsync();
 
+    public const string ComingSoonTitle = "Coming soon";
+    public const string ComingSoonMessage =
+        "Announcements are still being built. We'll turn this on as soon as it's ready.";
+
+    /// <summary>
+    /// Both announcement entry points are held back: navigating to either page blocks the main
+    /// thread long enough for iOS to terminate the app (watchdog 0x8BADF00D — a layout hang, not an
+    /// exception, so there is nothing to catch). Nothing downstream is deleted — the page models,
+    /// clients, Shell routes, and DI registrations all stay live — only these two commands are
+    /// diverted, so restoring the feature means putting the two navigator calls back and nothing
+    /// else. The original calls are kept below in comments for exactly that reason.
+    /// </summary>
     [RelayCommand]
-    private Task OpenAnnouncements() =>
-        announcementsNavigator is null || _primaryGroupId == Guid.Empty
-            ? Task.CompletedTask
-            : announcementsNavigator.GoToAnnouncementsAsync(_primaryGroupId);
+    private Task OpenAnnouncements() => ShowComingSoonAsync();
+    // Restore with:
+    //     announcementsNavigator is null || _primaryGroupId == Guid.Empty
+    //         ? Task.CompletedTask
+    //         : announcementsNavigator.GoToAnnouncementsAsync(_primaryGroupId);
 
     [RelayCommand]
-    private Task OpenBroadcast() =>
-        announcementsNavigator?.GoToAdminBroadcastAsync() ?? Task.CompletedTask;
+    private Task OpenBroadcast() => ShowComingSoonAsync();
+    // Restore with:
+    //     announcementsNavigator?.GoToAdminBroadcastAsync() ?? Task.CompletedTask;
+
+    private Task ShowComingSoonAsync() =>
+        dialogService?.ShowAlertAsync(ComingSoonTitle, ComingSoonMessage, "Got it") ?? Task.CompletedTask;
 
     [RelayCommand(CanExecute = nameof(CanCreateSession))]
     private Task CreateSession() =>

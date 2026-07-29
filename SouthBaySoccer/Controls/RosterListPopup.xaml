@@ -18,6 +18,11 @@
                 Style="{StaticResource TextCaption}"
                 IsVisible="{Binding IsEmpty}" />
 
+            <Label
+                Text="{Binding UnlinkedSummary}"
+                Style="{StaticResource TextCaption}"
+                IsVisible="{Binding HasUnlinked}" />
+
             <ScrollView MaximumHeightRequest="420" IsVisible="{Binding HasMembers}">
                 <VerticalStackLayout
                     BindableLayout.ItemsSource="{Binding Members}"
@@ -38,6 +43,26 @@
                                     IsVisible="{Binding CanCheckIn}"
                                     VerticalOptions="Center"
                                     SemanticProperties.Description="{Binding DisplayName, StringFormat='Check in {0}'}" />
+                                <!-- Same column as Check in: the two are mutually exclusive, since an
+                                     unlinked row has no profile to check in against. -->
+                                <Button
+                                    Grid.Column="1"
+                                    Text="Match"
+                                    Command="{Binding BindingContext.LinkCommand, Source={x:Reference PopupRoot}}"
+                                    CommandParameter="{Binding .}"
+                                    Style="{StaticResource SecondaryButton}"
+                                    IsVisible="{Binding CanMatch}"
+                                    VerticalOptions="Center"
+                                    SemanticProperties.Description="{Binding LinkActionDescription}" />
+                                <Button
+                                    Grid.Column="1"
+                                    Text="Is this you?"
+                                    Command="{Binding BindingContext.LinkCommand, Source={x:Reference PopupRoot}}"
+                                    CommandParameter="{Binding .}"
+                                    Style="{StaticResource SecondaryButton}"
+                                    IsVisible="{Binding CanClaim}"
+                                    VerticalOptions="Center"
+                                    SemanticProperties.Description="{Binding LinkActionDescription}" />
                             </Grid>
                         </DataTemplate>
                     </BindableLayout.ItemTemplate>

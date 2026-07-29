@@ -10,12 +10,27 @@ namespace SouthBaySoccer.Application.Features.Scheduling;
 
 public sealed record GameDayPlayerModel(Guid PlayerProfileId, string DisplayName, bool IsGuest);
 
+/// <summary>
+/// One person on the Game Day roster as displayed. Imported Pickup Pal participants who were never
+/// matched to a profile are included: they occupy a real place on the roster, so leaving them out
+/// made the tile counts disagree with the session card (a 26-strong waitlist reading as 11).
+/// </summary>
+/// <param name="PlayerProfileId">
+/// Null for an imported participant with no profile behind them. Such a member is display-only —
+/// they cannot be checked in or made captain until someone links them, because every one of those
+/// actions is keyed on a profile id.
+/// </param>
+/// <param name="PickupPalParticipantId">
+/// Set only when <paramref name="PlayerProfileId"/> is null; identifies the unlinked participant so
+/// the client can hand it to the matching flow.
+/// </param>
 public sealed record GameDayRosterEntryModel(
-    Guid PlayerProfileId,
+    Guid? PlayerProfileId,
     string DisplayName,
     bool IsGuest,
     bool IsWaitlist,
-    bool IsCheckedIn);
+    bool IsCheckedIn,
+    string? PickupPalParticipantId = null);
 
 public sealed record GameDayContextModel(
     Guid SessionId,
@@ -225,18 +240,12 @@ public sealed class GetTodayGameDayContextQueryHandler(
 
         var canManageCheckIns = currentUser.HasPolicy(CanCheckInPlayersPolicy);
         var checkedInIds = attendance.CheckedInPlayerProfileIds.ToHashSet();
-        var roster = (await GameDayWorkflowQueries.ListEligibleRosterAsync(
-                rsvpRepository,
-                pickupPalGameRepository,
-                session.Id,
-                cancellationToken))
-            .Select(member => new GameDayRosterEntryModel(
-                member.PlayerProfileId,
-                member.DisplayName,
-                member.IsGuest,
-                member.WaitlistPosition is not null,
-                checkedInIds.Contains(member.PlayerProfileId)))
-            .ToArray();
+        var roster = await GameDayWorkflowQueries.ListDisplayRosterAsync(
+            rsvpRepository,
+            pickupPalGameRepository,
+            session.Id,
+            checkedInIds,
+            cancellationToken);
 
         // STAT-7/STAT-8 entry point: once the game has been played, anyone who was on the confirmed
         // roster can report their own tally and rate the side they played with - being drafted onto

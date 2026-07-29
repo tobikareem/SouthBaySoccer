@@ -477,7 +477,8 @@ public sealed class GameDayFunctions(
                     entry.DisplayName,
                     entry.IsGuest,
                     entry.IsWaitlist,
-                    entry.IsCheckedIn))
+                    entry.IsCheckedIn,
+                    entry.PickupPalParticipantId))
                 .ToArray(),
             context.CanManageCheckIns,
             context.CanSubmitOwnStats,
