@@ -21,7 +21,12 @@ public sealed class ClientRegistrationCompletenessTests
 {
     [Theory]
     [InlineData(ClientDataSource.Api)]
+#if !RELEASE
+    // Seed only exists in the configuration that ships it. Release compiles the seed clients out and
+    // AddSouthBaySoccerClients rejects the Seed data source outright, so asserting it resolves there
+    // would assert the opposite of the intended behaviour — see the Release-only case below.
     [InlineData(ClientDataSource.Seed)]
+#endif
     public void AddSouthBaySoccerClients_ForEitherDataSource_ResolvesTheStartupObjectGraph(
         ClientDataSource dataSource)
     {
@@ -36,7 +41,12 @@ public sealed class ClientRegistrationCompletenessTests
 
     [Theory]
     [InlineData(ClientDataSource.Api)]
+#if !RELEASE
+    // Seed only exists in the configuration that ships it. Release compiles the seed clients out and
+    // AddSouthBaySoccerClients rejects the Seed data source outright, so asserting it resolves there
+    // would assert the opposite of the intended behaviour — see the Release-only case below.
     [InlineData(ClientDataSource.Seed)]
+#endif
     public void AddSouthBaySoccerClients_ForEitherDataSource_ResolvesTheSessionRefresher(
         ClientDataSource dataSource)
     {
@@ -45,6 +55,19 @@ public sealed class ClientRegistrationCompletenessTests
         provider.GetService<IAuthenticationSessionRefresher>()
             .Should().NotBeNull("both data sources construct AuthenticationCoordinator at startup");
     }
+
+#if RELEASE
+    [Fact]
+    public void AddSouthBaySoccerClients_SeedInRelease_IsRejected()
+    {
+        // The other half of the contract: a Release build must refuse the Seed data source rather
+        // than half-wire it, since the seed clients are not compiled in.
+        var act = () => BuildProvider(ClientDataSource.Seed);
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Seed*Release*");
+    }
+#endif
 
     private static ServiceProvider BuildProvider(ClientDataSource dataSource)
     {
