@@ -655,8 +655,62 @@ public class GameDayPageModelTests
             p => p.ShowAsync(
                 expectedTitle,
                 It.Is<IReadOnlyList<GameDayRosterItem>>(list => list.Count == expected.Count),
+                It.IsAny<ICommand>(),
                 It.IsAny<ICommand>()),
             Times.Once);
+    }
+
+    [Fact]
+    public void RosterItem_WhenUnlinkedAndCallerManagesRoster_OffersMatchNotClaim()
+    {
+        var item = new GameDayRosterItem(
+            playerProfileId: null,
+            "victor",
+            isGuest: false,
+            isWaitlist: true,
+            isCheckedIn: false,
+            canCheckIn: false,
+            "Not linked to a profile",
+            pickupPalParticipantId: "pp-victor",
+            canManageRoster: true);
+
+        item.IsUnlinked.Should().BeTrue();
+        item.CanMatch.Should().BeTrue();
+        item.CanClaim.Should().BeFalse("an admin links other people, they do not claim them");
+    }
+
+    [Fact]
+    public void RosterItem_WhenUnlinkedAndCallerIsAPlayer_OffersClaimNotMatch()
+    {
+        var item = new GameDayRosterItem(
+            playerProfileId: null,
+            "victor",
+            isGuest: false,
+            isWaitlist: true,
+            isCheckedIn: false,
+            canCheckIn: false,
+            "Not linked to a profile",
+            pickupPalParticipantId: "pp-victor",
+            canManageRoster: false);
+
+        item.CanClaim.Should().BeTrue();
+        item.CanMatch.Should().BeFalse("only an admin or captain may link somebody else");
+    }
+
+    [Fact]
+    public async Task LinkRosterMember_WhenLinked_DoesNothing()
+    {
+        var navigator = Navigator();
+        var pageModel = new GameDayPageModel(
+            new SeedGameDayClient(new SeedGameDayState()),
+            navigator.Object);
+        var linked = new GameDayRosterItem(
+            Guid.NewGuid(), "Bola", false, true, false, false, "Waitlist");
+
+        await pageModel.LinkRosterMemberCommand.ExecuteAsync(linked);
+
+        navigator.Verify(x => x.OpenAdminMatchAsync(It.IsAny<Guid>()), Times.Never);
+        navigator.Verify(x => x.OpenClaimSpotAsync(), Times.Never);
     }
 
     [Fact]
@@ -675,7 +729,8 @@ public class GameDayPageModelTests
             p => p.ShowAsync(
                 It.IsAny<string>(),
                 It.IsAny<IReadOnlyList<GameDayRosterItem>>(),
-                pageModel.AdminCheckInCommand),
+                pageModel.AdminCheckInCommand,
+                pageModel.LinkRosterMemberCommand),
             Times.Once);
     }
 

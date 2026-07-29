@@ -14,7 +14,11 @@ namespace SouthBaySoccer.Services.GameDay;
 /// </summary>
 public sealed class PopupRosterListPresenter : IRosterListPresenter
 {
-    public Task ShowAsync(string title, IReadOnlyList<GameDayRosterItem> members, ICommand checkInCommand) =>
+    public Task ShowAsync(
+        string title,
+        IReadOnlyList<GameDayRosterItem> members,
+        ICommand checkInCommand,
+        ICommand linkCommand) =>
         MainThread.InvokeOnMainThreadAsync(async () =>
         {
             if (Shell.Current?.CurrentPage is not { } page)
@@ -22,6 +26,6 @@ public sealed class PopupRosterListPresenter : IRosterListPresenter
                 return;
             }
 
-            await page.ShowPopupAsync(new RosterListPopup(title, members, checkInCommand));
+            await page.ShowPopupAsync(new RosterListPopup(title, members, checkInCommand, linkCommand));
         });
 }
