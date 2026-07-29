@@ -1,5 +1,6 @@
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Common;
+using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 
@@ -53,11 +54,23 @@ public sealed class GetSessionRosterQueryHandler(
             .Where(participant => participant.PlayerProfileId is not { } linkedId || !localProfileIds.Contains(linkedId))
             .ToArray();
 
+        // Once a participant is linked, the profile is the identity: the roster shows the player's
+        // registered name, not the WhatsApp handle the import captured.
+        var linkedProfileIds = dedupedImported
+            .Where(participant => participant.PlayerProfileId is not null)
+            .Select(participant => participant.PlayerProfileId!.Value)
+            .Distinct()
+            .ToArray();
+        var linkedProfiles = linkedProfileIds.Length == 0
+            ? new Dictionary<Guid, PlayerProfile>()
+            : (await playerProfileRepository.ListProfilesAsync(linkedProfileIds, cancellationToken))
+                .ToDictionary(profile => profile.Id);
+
         var going = localGoing
             .Select(member => ToModel(member, currentProfileId))
             .Concat(dedupedImported
                 .Where(participant => !participant.IsWaitlist)
-                .Select(participant => ToImportedModel(participant, currentProfileId)))
+                .Select(participant => ToImportedModel(participant, currentProfileId, linkedProfiles)))
             .ToArray();
 
         // Waitlist numbering is display-only: the local waitlist keeps its true promotion order and
@@ -68,7 +81,7 @@ public sealed class GetSessionRosterQueryHandler(
             .Select(member => ToModel(member, currentProfileId))
             .Concat(dedupedImported
                 .Where(participant => participant.IsWaitlist)
-                .Select(participant => ToImportedModel(participant, currentProfileId)))
+                .Select(participant => ToImportedModel(participant, currentProfileId, linkedProfiles)))
             .Select(member => member with { WaitlistPosition = ++waitlistPosition })
             .ToArray();
 
@@ -97,13 +110,22 @@ public sealed class GetSessionRosterQueryHandler(
 
     // An imported participant surfaces its linked player profile when the import resolved one;
     // unlinked participants fall back to their stable row id so multiple imported guests don't
-    // collapse onto one shared key on the client.
-    private static RosterMemberModel ToImportedModel(PickupPalGameParticipant participant, Guid? currentProfileId) =>
-        new(
+    // collapse onto one shared key on the client. A linked row is named after its profile, falling
+    // back to the imported name when that profile has none.
+    private static RosterMemberModel ToImportedModel(
+        PickupPalGameParticipant participant,
+        Guid? currentProfileId,
+        IReadOnlyDictionary<Guid, PlayerProfile> linkedProfiles)
+    {
+        var profile = participant.PlayerProfileId is { } profileId
+            ? linkedProfiles.GetValueOrDefault(profileId)
+            : null;
+        return new RosterMemberModel(
             participant.PlayerProfileId ?? participant.Id,
-            participant.DisplayName,
-            string.Empty,
+            string.IsNullOrWhiteSpace(profile?.DisplayName) ? participant.DisplayName : profile.DisplayName,
+            profile?.PreferredPosition ?? string.Empty,
             participant.IsGuest,
             IsCurrentPlayer: participant.PlayerProfileId is { } linkedId && currentProfileId == linkedId,
             WaitlistPosition: null);
+    }
 }

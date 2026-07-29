@@ -184,6 +184,7 @@ public sealed class GetCaptainAssignmentQueryHandler(
     ISessionRepository sessionRepository,
     IRsvpRepository rsvpRepository,
     IPickupPalGameRepository pickupPalGameRepository,
+    IPlayerProfileRepository playerProfileRepository,
     IStatsRepository statsRepository)
 {
     public async Task<CaptainAssignmentModel> HandleAsync(
@@ -195,6 +196,7 @@ public sealed class GetCaptainAssignmentQueryHandler(
         var roster = await GameDayWorkflowQueries.ListEligibleRosterAsync(
             rsvpRepository,
             pickupPalGameRepository,
+            playerProfileRepository,
             sessionId,
             cancellationToken);
         var match = await statsRepository.FindPrimaryMatchBySessionAsync(sessionId, cancellationToken);
@@ -288,6 +290,7 @@ public sealed class AssignSessionCaptainsCommandHandler(
         var roster = await GameDayWorkflowQueries.ListEligibleRosterAsync(
             rsvpRepository,
             pickupPalGameRepository,
+            playerProfileRepository,
             command.SessionId,
             cancellationToken);
         var eligibleIds = roster.Select(x => x.PlayerProfileId).ToHashSet();
@@ -461,6 +464,7 @@ public sealed class LockSessionTeamsCommandHandler(
         var eligibleIds = (await GameDayWorkflowQueries.ListEligibleRosterAsync(
                 rsvpRepository,
                 pickupPalGameRepository,
+                playerProfileRepository,
                 session.Id,
                 cancellationToken))
             .Select(x => x.PlayerProfileId)
@@ -600,6 +604,7 @@ public sealed class GetTeamDraftQueryHandler(
         var roster = await GameDayWorkflowQueries.ListEligibleRosterAsync(
             rsvpRepository,
             pickupPalGameRepository,
+            playerProfileRepository,
             sessionId,
             cancellationToken);
         // An admin keeps editing after kick-off (and after results are recorded) until the match is
@@ -676,6 +681,7 @@ public sealed class SaveCaptainTeamPicksCommandHandler(
         var eligibleIds = (await GameDayWorkflowQueries.ListEligibleRosterAsync(
                 rsvpRepository,
                 pickupPalGameRepository,
+                playerProfileRepository,
                 command.SessionId,
                 cancellationToken))
             .Select(x => x.PlayerProfileId)
@@ -1430,6 +1436,7 @@ internal static class GameDayWorkflowQueries
     internal static async Task<IReadOnlyList<RosterMemberRecord>> ListEligibleRosterAsync(
         IRsvpRepository rsvpRepository,
         IPickupPalGameRepository pickupPalGameRepository,
+        IPlayerProfileRepository playerProfileRepository,
         Guid sessionId,
         CancellationToken cancellationToken)
     {
@@ -1443,14 +1450,33 @@ internal static class GameDayWorkflowQueries
         var localIds = going.Select(member => member.PlayerProfileId)
             .Concat(waitlist.Select(member => member.PlayerProfileId))
             .ToHashSet();
-        var importedMembers = imported
+        var importedLinked = imported
             .Where(participant => participant.PlayerProfileId is { } linkedId && !localIds.Contains(linkedId))
-            .Select(participant => new RosterMemberRecord(
-                participant.PlayerProfileId!.Value,
-                participant.DisplayName,
-                string.Empty,
-                participant.IsGuest,
-                participant.IsWaitlist ? participant.DisplayOrder + 1 : null));
+            .ToArray();
+
+        // Once a row is linked, the profile is the identity: show the player's registered name rather
+        // than the WhatsApp handle the import captured ("tob8"), which is what the roster showed even
+        // after a match. The imported name stays as the fallback for a profile with no name set.
+        var profilesById = importedLinked.Length == 0
+            ? new Dictionary<Guid, PlayerProfile>()
+            : (await playerProfileRepository.ListProfilesAsync(
+                    importedLinked.Select(participant => participant.PlayerProfileId!.Value).Distinct().ToArray(),
+                    cancellationToken))
+                .ToDictionary(profile => profile.Id);
+
+        var importedMembers = importedLinked
+            .Select(participant =>
+            {
+                var profile = profilesById.GetValueOrDefault(participant.PlayerProfileId!.Value);
+                return new RosterMemberRecord(
+                    participant.PlayerProfileId!.Value,
+                    string.IsNullOrWhiteSpace(profile?.DisplayName)
+                        ? participant.DisplayName
+                        : profile.DisplayName,
+                    profile?.PreferredPosition ?? string.Empty,
+                    participant.IsGuest,
+                    participant.IsWaitlist ? participant.DisplayOrder + 1 : null);
+            });
 
         return going
             .Concat(waitlist)
@@ -1473,12 +1499,13 @@ internal static class GameDayWorkflowQueries
     internal static async Task<IReadOnlyList<GameDayRosterEntryModel>> ListDisplayRosterAsync(
         IRsvpRepository rsvpRepository,
         IPickupPalGameRepository pickupPalGameRepository,
+        IPlayerProfileRepository playerProfileRepository,
         Guid sessionId,
         IReadOnlySet<Guid> checkedInPlayerProfileIds,
         CancellationToken cancellationToken)
     {
         var eligible = await ListEligibleRosterAsync(
-            rsvpRepository, pickupPalGameRepository, sessionId, cancellationToken);
+            rsvpRepository, pickupPalGameRepository, playerProfileRepository, sessionId, cancellationToken);
         var imported = await pickupPalGameRepository.ListParticipantsAsync(sessionId, cancellationToken);
 
         var linked = eligible

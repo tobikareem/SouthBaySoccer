@@ -243,6 +243,7 @@ public sealed class GetTodayGameDayContextQueryHandler(
         var roster = await GameDayWorkflowQueries.ListDisplayRosterAsync(
             rsvpRepository,
             pickupPalGameRepository,
+            playerProfileRepository,
             session.Id,
             checkedInIds,
             cancellationToken);

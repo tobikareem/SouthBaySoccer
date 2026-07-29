@@ -179,13 +179,15 @@ public sealed class ImportPickupPalGamesCommandHandler(
         var keys = BuildProfileCacheKeys(participant);
         if (keys.Count == 0)
         {
-            // Deliberate: a participant carrying no user id, phone hash, or WhatsApp JID hash is left
-            // unlinked rather than falling through to the unambiguous-display-name match below. The
-            // games API never exposes a raw phone (IPickupPalUserClient resolves by digits, which we
-            // do not have), so a name is the only signal left and a name alone is not evidence of
-            // identity. These people surface on the Game Day roster with a Match / "Is this you?"
-            // action instead, so a human decides. Do not "fix" this by reaching the name fallback.
-            return null;
+            // A participant carrying no user id, phone hash, or WhatsApp JID hash (a WhatsApp
+            // "addguest tob8") never reaches the unambiguous-display-name match below: the games API
+            // never exposes a raw phone, so a name is the only signal left and a name alone is not
+            // evidence of identity. The one exception is a confirmed alias — the same handle was
+            // already linked to exactly one profile through an earlier admin match, self-claim, or
+            // key-based import — because there a human (or a real key) already decided. Anyone else
+            // surfaces on the Game Day roster with a Match / "Is this you?" action instead. Do not
+            // "fix" this by reaching the name fallback.
+            return lookups.ProfilesByConfirmedAlias.GetValueOrDefault(CleanDisplayName(participant.DisplayName));
         }
 
         foreach (var key in keys)
@@ -526,7 +528,68 @@ public sealed class ImportPickupPalGamesCommandHandler(
             }
         }
 
+        await PrefetchConfirmedAliasesAsync(participants, lookups, cancellationToken);
+
         return lookups;
+    }
+
+    /// <summary>
+    /// Builds the confirmed-alias lookup for keyless participants: a handle ("tob8") that earlier
+    /// participant rows link to exactly one profile resolves to that profile, so a match or claim
+    /// made once carries forward to every later "addguest tob8". A handle linked to more than one
+    /// profile over time is ambiguous and resolves to nobody, as does the "Guest" placeholder that
+    /// empty display names clean to.
+    /// </summary>
+    private async Task PrefetchConfirmedAliasesAsync(
+        IReadOnlyList<PickupPalGameParticipantInfo> participants,
+        ImportLookups lookups,
+        CancellationToken cancellationToken)
+    {
+        var keylessNames = participants
+            .Where(participant => BuildProfileCacheKeys(participant).Count == 0)
+            .Select(participant => CleanDisplayName(participant.DisplayName))
+            .Where(name => !string.Equals(name, "Guest", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (keylessNames.Length == 0)
+        {
+            return;
+        }
+
+        var linkedRows = await gameRepository.ListLinkedParticipantsByDisplayNamesAsync(
+            keylessNames,
+            cancellationToken);
+        var aliasProfileIds = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        foreach (var requestedName in keylessNames)
+        {
+            var linkedIds = linkedRows
+                .Where(row => MatchesRequestedKey(row.DisplayName, requestedName))
+                .Select(row => row.PlayerProfileId!.Value)
+                .Distinct()
+                .Take(2)
+                .ToArray();
+            if (linkedIds.Length == 1)
+            {
+                aliasProfileIds[requestedName] = linkedIds[0];
+            }
+        }
+
+        if (aliasProfileIds.Count == 0)
+        {
+            return;
+        }
+
+        var profilesById = (await playerProfileRepository.ListProfilesAsync(
+                aliasProfileIds.Values.Distinct().ToArray(),
+                cancellationToken))
+            .ToDictionary(profile => profile.Id);
+        foreach (var (name, profileId) in aliasProfileIds)
+        {
+            if (profilesById.TryGetValue(profileId, out var profile))
+            {
+                lookups.ProfilesByConfirmedAlias[name] = profile;
+            }
+        }
     }
 
     /// <summary>
@@ -575,6 +638,13 @@ public sealed class ImportPickupPalGamesCommandHandler(
         public Dictionary<string, PlayerProfile> ProfilesByWhatsAppJidHash { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<string, PlayerProfile> ProfilesByUnambiguousDisplayName { get; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Keyless handles ("tob8") resolved through a previously confirmed link — an admin match,
+        /// a self-claim, or a key-based import — to exactly one profile.
+        /// </summary>
+        public Dictionary<string, PlayerProfile> ProfilesByConfirmedAlias { get; } =
             new(StringComparer.OrdinalIgnoreCase);
     }
 

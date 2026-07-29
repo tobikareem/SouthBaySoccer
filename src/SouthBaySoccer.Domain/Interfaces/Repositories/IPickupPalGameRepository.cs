@@ -47,4 +47,14 @@ public interface IPickupPalGameRepository
 
     /// <summary>Marks an existing participant row as modified (e.g. after linking it to a profile).</summary>
     void UpdateParticipant(PickupPalGameParticipant participant);
+
+    /// <summary>
+    /// Lists participant rows across all sessions that are linked to a profile and whose display
+    /// name is one of the given names. Every linked row records a confirmed identity — either an
+    /// import key match or a human match/claim — so the import reuses them as aliases: once "tob8"
+    /// has been linked to a player, later keyless imports of the same handle resolve to that player.
+    /// </summary>
+    Task<IReadOnlyList<PickupPalGameParticipant>> ListLinkedParticipantsByDisplayNamesAsync(
+        IReadOnlyCollection<string> displayNames,
+        CancellationToken cancellationToken = default);
 }
