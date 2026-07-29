@@ -78,6 +78,53 @@ public sealed class GetSessionRosterQueryHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenImportedParticipantIsLinked_UsesProfileDisplayName()
+    {
+        var linkedProfileId = Guid.NewGuid();
+        var handler = CreateHandler(
+            localGoing: [],
+            localWaitlist: [],
+            imported:
+            [
+                // Imported under a WhatsApp handle, later matched to a real profile by an admin.
+                Participant(Guid.NewGuid(), "tob8", isWaitlist: true, order: 0, playerProfileId: linkedProfileId),
+            ],
+            linkedProfiles:
+            [
+                new PlayerProfile
+                {
+                    Id = linkedProfileId,
+                    DisplayName = "Tobi Kareem",
+                    PreferredPosition = "Midfielder",
+                },
+            ]);
+
+        var roster = await handler.HandleAsync(SessionId);
+
+        var member = roster.Waitlist.Should().ContainSingle().Subject;
+        member.DisplayName.Should().Be("Tobi Kareem");
+        member.PreferredPosition.Should().Be("Midfielder");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenLinkedProfileHasNoDisplayName_KeepsImportedName()
+    {
+        var linkedProfileId = Guid.NewGuid();
+        var handler = CreateHandler(
+            localGoing: [],
+            localWaitlist: [],
+            imported:
+            [
+                Participant(Guid.NewGuid(), "tob8", isWaitlist: false, order: 0, playerProfileId: linkedProfileId),
+            ],
+            linkedProfiles: [new PlayerProfile { Id = linkedProfileId, DisplayName = " " }]);
+
+        var roster = await handler.HandleAsync(SessionId);
+
+        roster.Going.Should().ContainSingle().Which.DisplayName.Should().Be("tob8");
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenSessionUnknown_ThrowsNotFound()
     {
         var handler = CreateHandler([], [], [], sessionExists: false);
@@ -125,7 +172,8 @@ public sealed class GetSessionRosterQueryHandlerTests
         IReadOnlyList<RosterMemberRecord> localWaitlist,
         IReadOnlyList<PickupPalGameParticipant> imported,
         bool sessionExists = true,
-        bool authenticated = true)
+        bool authenticated = true,
+        IReadOnlyList<PlayerProfile>? linkedProfiles = null)
     {
         var sessionRepository = new Mock<ISessionRepository>();
         sessionRepository
@@ -149,6 +197,10 @@ public sealed class GetSessionRosterQueryHandlerTests
         profileRepository
             .Setup(x => x.FindByIdentityUserIdAsync(CurrentUserId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PlayerProfile { Id = CurrentProfileId, DisplayName = "Tobi Kareem" });
+        profileRepository
+            .Setup(x => x.ListProfilesAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyCollection<Guid> ids, CancellationToken _) =>
+                (linkedProfiles ?? []).Where(profile => ids.Contains(profile.Id)).ToArray());
 
         var currentUser = new Mock<ICurrentUser>();
         currentUser.SetupGet(x => x.UserId).Returns(authenticated ? CurrentUserId : null);
