@@ -26,6 +26,11 @@ public static class ClientServiceCollectionExtensions
         // regardless of mode, so registering it only for API mode breaks Seed startup.
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IClientResponseCache, ClientResponseCache>();
+        // Same reason, and the same bug: AuthenticationCoordinator takes the session refresher in
+        // every mode, so an API-only registration made Seed builds throw at startup before a single
+        // page loaded. Both of its dependencies resolve under either data source — ISecureTokenStore
+        // from MauiProgram, IAuthenticationClient from whichever branch runs below.
+        services.TryAddSingleton<IAuthenticationSessionRefresher, AuthenticationSessionRefresher>();
         ClientDataSourceValidator.Validate(options, IsSeedProviderAvailable);
 
         return options.DataSource switch
@@ -144,7 +149,6 @@ public static class ClientServiceCollectionExtensions
             new AuthenticationClient(
                 provider.GetRequiredService<IHttpClientFactory>().CreateClient("SouthBaySoccer.Anonymous"),
                 pickupPalOptions));
-        services.AddSingleton<IAuthenticationSessionRefresher, AuthenticationSessionRefresher>();
 
 #if RELEASE
         return services;

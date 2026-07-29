@@ -19,6 +19,12 @@
     <Color x:Key="BrandLineDark">#2A332E</Color>
     <Color x:Key="SurfaceLight">#FFFFFF</Color>
     <Color x:Key="SurfaceDark">#10160F</Color>
+    <!-- Raised-card pair for announcement surfaces and the badge ring that separates a badge from
+         the tile beneath it. BrandWhite is also the on-dark text colour in PushPreview, so it stays
+         true white rather than tracking SurfaceLight. BrandPineDark is a green-leaning dark that
+         reads as lifted above SurfaceDark without competing with BrandMistDark's stronger tint. -->
+    <Color x:Key="BrandWhite">#FFFFFF</Color>
+    <Color x:Key="BrandPineDark">#16261C</Color>
     <Color x:Key="SurfaceAltLight">#FBFCFB</Color>
     <Color x:Key="SurfaceAltDark">#171F18</Color>
     <Color x:Key="StatSurfaceLight">#F5FAF7</Color>

@@ -147,8 +147,11 @@ public sealed class AnnouncementClientAndBehaviorTests
         client.Keys[2].Should().NotBe(client.Keys[0]);
     }
 
+    // Replaces a group-switch case: the audience is now fixed to the admin's own group, so the push
+    // toggle is the remaining composition field a retry can change. GroupId is still part of the
+    // composition record, so it stays covered by the same reset path.
     [Fact]
-    public async Task Send_GroupChangeAfterFailure_MintsNewKey()
+    public async Task Send_PushToggleAfterFailure_MintsNewKey()
     {
         var client = new RecordingPostClient(failuresBeforeSuccess: 1);
         var model = CreateComposer(client);
@@ -156,7 +159,7 @@ public sealed class AnnouncementClientAndBehaviorTests
         model.Body = "Field moved.";
 
         await model.SendCommand.ExecuteAsync(null);
-        model.SelectGroupCommand.Execute(model.Groups[1]);
+        model.SendPush = !model.SendPush;
         await model.SendCommand.ExecuteAsync(null);
 
         client.Keys.Should().HaveCount(2);

@@ -179,6 +179,12 @@ public sealed class ImportPickupPalGamesCommandHandler(
         var keys = BuildProfileCacheKeys(participant);
         if (keys.Count == 0)
         {
+            // Deliberate: a participant carrying no user id, phone hash, or WhatsApp JID hash is left
+            // unlinked rather than falling through to the unambiguous-display-name match below. The
+            // games API never exposes a raw phone (IPickupPalUserClient resolves by digits, which we
+            // do not have), so a name is the only signal left and a name alone is not evidence of
+            // identity. These people surface on the Game Day roster with a Match / "Is this you?"
+            // action instead, so a human decides. Do not "fix" this by reaching the name fallback.
             return null;
         }
 

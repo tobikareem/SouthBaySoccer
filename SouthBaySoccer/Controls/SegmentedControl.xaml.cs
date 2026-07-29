@@ -38,6 +38,16 @@ public partial class SegmentedControl
     {
         var control = (SegmentedControl)bindable;
         control.UpdateSelection();
+
+        // UpdateSelection leaves SelectedItem null when there is nothing to select — the segments
+        // are rebuilt from scratch whenever ItemsSource is re-raised, so an index change can land
+        // in that window. Handing null to a typed RelayCommand<T> throws inside the command, which
+        // surfaces as a crash rather than a binding warning, so there is no selection to report.
+        if (control.SelectedItem is null)
+        {
+            return;
+        }
+
         control.SelectionChangedCommand?.Execute(control.SelectedItem);
     }
 

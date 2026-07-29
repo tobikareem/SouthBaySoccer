@@ -101,6 +101,17 @@
     <None Include="..\..\SouthBaySoccer\Pages\AdminBroadcastPage.xaml" Link="Client\Xaml\AdminBroadcastPage.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- Every XAML file in the app, mirrored wholesale so StaticResourceKeyTests can prove each
+       {StaticResource} reference resolves. A hand-maintained list would silently stop covering new
+       pages, which is exactly how an undefined key reached TestFlight — see
+       .ai/lessons/2026-07-28-maui-staticresource-keys-crash-at-launch.md. -->
+  <ItemGroup>
+    <None Include="..\..\SouthBaySoccer\**\*.xaml"
+          Exclude="..\..\SouthBaySoccer\bin\**\*.xaml;..\..\SouthBaySoccer\obj\**\*.xaml"
+          Link="Client\XamlAll\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <None Include="..\..\SouthBaySoccer\Services\Authentication\AuthenticationNavigator.cs" Link="Client\Source\AuthenticationNavigator.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\SouthBaySoccer.csproj" Link="Client\Source\SouthBaySoccer.csproj" CopyToOutputDirectory="PreserveNewest" />

@@ -28,8 +28,14 @@ public partial class AdminBroadcastPageModel(
     [ObservableProperty] private bool _isRefreshing;
     [ObservableProperty] private string _stateTitle = string.Empty;
     [ObservableProperty] private string _stateMessage = string.Empty;
-    [ObservableProperty] private IReadOnlyList<GroupChoiceViewModel> _groups = [];
-    [ObservableProperty] private GroupChoiceViewModel? _selectedGroup;
+    /// <summary>
+    /// The one group this admin broadcasts to — their primary group chat. An admin has no business
+    /// addressing a group they do not run, so the audience is resolved for them rather than picked:
+    /// there is nothing to choose between, and offering a list implied a reach they do not have.
+    /// The server is the actual boundary (it rejects a post to a group the caller is not linked to);
+    /// this just stops the UI from suggesting otherwise.
+    /// </summary>
+    [ObservableProperty] private GroupChoiceViewModel? _group;
     [ObservableProperty] private string _body = string.Empty;
     [ObservableProperty] private bool _sendPush = true;
     [ObservableProperty] private bool _isSending;
@@ -39,13 +45,15 @@ public partial class AdminBroadcastPageModel(
 
     public int CharacterCount => Body.Length;
     public string CharacterCountLabel => $"{CharacterCount} / {MaximumBodyLength}";
-    public string PreviewGroupName => SelectedGroup?.GroupName ?? string.Empty;
+    public string GroupName => Group?.GroupName ?? string.Empty;
+    public string AudienceLabel => Group is null ? string.Empty : $"{Group.MemberCount} members";
+    public string PreviewGroupName => Group?.GroupName ?? string.Empty;
     public string PreviewBody => string.IsNullOrEmpty(Body) ? "Your announcement preview appears here." : Body;
-    public string PushTitle => SelectedGroup is null ? "N9ja Bay" : $"N9ja Bay · {SelectedGroup.GroupName}";
-    public string BroadcastLabel => $"Broadcast to {SelectedGroup?.MemberCount ?? 0} members";
+    public string PushTitle => Group is null ? "N9ja Bay" : $"N9ja Bay · {Group.GroupName}";
+    public string BroadcastLabel => $"Broadcast to {Group?.MemberCount ?? 0} members";
     public bool IsComposerEnabled => !IsSent && !IsSending;
     public bool CanSend => IsComposerEnabled
-        && SelectedGroup is not null
+        && Group is not null
         && !string.IsNullOrWhiteSpace(Body)
         && Body.Length <= MaximumBodyLength;
 
@@ -61,14 +69,11 @@ public partial class AdminBroadcastPageModel(
         SendCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnSelectedGroupChanged(GroupChoiceViewModel? value)
+    partial void OnGroupChanged(GroupChoiceViewModel? value)
     {
         ResetIdempotencyWhenCompositionChanges();
-        foreach (var group in Groups)
-        {
-            group.IsSelected = ReferenceEquals(group, value);
-        }
-
+        OnPropertyChanged(nameof(GroupName));
+        OnPropertyChanged(nameof(AudienceLabel));
         OnPropertyChanged(nameof(PreviewGroupName));
         OnPropertyChanged(nameof(PushTitle));
         OnPropertyChanged(nameof(BroadcastLabel));
@@ -104,15 +109,15 @@ public partial class AdminBroadcastPageModel(
         try
         {
             var groupsResponse = await groupsClient.GetMyGroupsAsync(cancellationToken);
-            var groups = groupsResponse.Groups
-                .Select(group => new GroupChoiceViewModel(group))
-                .ToArray();
-            Groups = groups;
-            SelectedGroup = groups.FirstOrDefault(item => item.Group.IsPrimary) ?? groups.FirstOrDefault();
+            // Primary first, then any linked group: an admin linked to exactly one group has no
+            // primary flag set in some seeds, and falling back keeps them able to broadcast.
+            var group = groupsResponse.Groups.FirstOrDefault(item => item.IsPrimary)
+                ?? groupsResponse.Groups.FirstOrDefault();
+            Group = group is null ? null : new GroupChoiceViewModel(group);
             RecentlySent = (await announcementsClient.GetSentAsync(10, cancellationToken)).Announcements;
-            State = groups.Length == 0 ? ViewState.Empty : ViewState.Content;
-            StateTitle = groups.Length == 0 ? "No admin groups" : string.Empty;
-            StateMessage = groups.Length == 0 ? "You need an admin group before you can broadcast." : string.Empty;
+            State = Group is null ? ViewState.Empty : ViewState.Content;
+            StateTitle = Group is null ? "No group chat" : string.Empty;
+            StateMessage = Group is null ? "Link a group chat before you can broadcast." : string.Empty;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -132,19 +137,10 @@ public partial class AdminBroadcastPageModel(
         }
     }
 
-    [RelayCommand]
-    private void SelectGroup(GroupChoiceViewModel group)
-    {
-        if (IsComposerEnabled && Groups.Contains(group))
-        {
-            SelectedGroup = group;
-        }
-    }
-
     [RelayCommand(CanExecute = nameof(CanSend))]
     private async Task Send(CancellationToken cancellationToken)
     {
-        if (!CanSend || SelectedGroup is null)
+        if (!CanSend || Group is null)
         {
             InlineError = string.IsNullOrWhiteSpace(Body) ? "Enter a message before broadcasting." : InlineError;
             return;
@@ -156,7 +152,7 @@ public partial class AdminBroadcastPageModel(
         {
             attemptedComposition ??= CurrentComposition();
             var sent = await announcementsClient.PostAsync(
-                SelectedGroup.Id,
+                Group.Id,
                 new PostAnnouncementRequest(Body, SendPush),
                 idempotencyKey,
                 cancellationToken);
@@ -207,7 +203,7 @@ public partial class AdminBroadcastPageModel(
     }
 
     private BroadcastComposition CurrentComposition() =>
-        new(SelectedGroup?.Id ?? Guid.Empty, Body, SendPush);
+        new(Group?.Id ?? Guid.Empty, Body, SendPush);
 
     private void ResetIdempotencyWhenCompositionChanges()
     {
