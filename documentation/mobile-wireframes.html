@@ -122,12 +122,11 @@
   .composer:focus{outline:none;border-color:var(--g);box-shadow:0 0 0 3px rgba(31,181,115,.15)}
 
   /* Admin broadcast composer */
-  .pick-row{display:flex;gap:9px;margin-top:9px}
-  .gchip{flex:1;text-align:left;border:1.5px solid var(--line);background:var(--surface);border-radius:14px;padding:11px 12px;cursor:pointer;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease}
-  .gchip b{display:block;font-size:13px;font-weight:700;color:var(--ink)}
-  .gchip span{font-size:11px;color:var(--sage)}
-  .gchip.on{border-color:var(--g);background:var(--mist);box-shadow:0 5px 14px rgba(0,135,81,.13)}
-  .gchip.on b{color:var(--gd)}
+  /* Fixed audience — a statement of reach, not a control. Read-only, so no hover/press affordance. */
+  .audience{display:inline-flex;align-items:center;gap:8px;margin-top:9px;background:var(--mist);border-radius:14px;padding:9px 13px}
+  .audience i{font-size:14px;color:var(--gd)}
+  .audience b{font-size:13px;font-weight:700;color:var(--ink)}
+  .audience span{font-size:11px;color:var(--sage)}
   .field{margin-top:18px}
   .field-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px}
   .counter{font-size:11px;color:var(--sage);font-variant-numeric:tabular-nums}
@@ -244,11 +243,11 @@
       </div>
       <div class="scroll">
         <div class="field" style="margin-top:6px">
-          <div class="label">Send to one group</div>
-          <div class="pick-row" role="radiogroup" aria-label="Broadcast audience">
-            <button class="gchip on" role="radio" aria-checked="true" data-group="Saturday crew" data-count="24" onclick="pickGroup(this)"><b>Saturday crew</b><span>24 members</span></button>
-            <button class="gchip" role="radio" aria-checked="false" data-group="Wednesday 5v5" data-count="18" onclick="pickGroup(this)"><b>Wednesday 5v5</b><span>18 members</span></button>
-          </div>
+          <div class="label">Sending to</div>
+          <!-- Stated, not chosen: an admin broadcasts to their own group chat and nowhere else, so
+               there is nothing to pick between. The server rejects a post to a group the caller is
+               not linked to; this keeps the screen honest about the reach the admin actually has. -->
+          <div class="audience" aria-label="Broadcast audience" data-group="Saturday crew" data-count="24"><i class="ti ti-brand-whatsapp"></i><b>Saturday crew</b><span>24 members</span></div>
           <p class="muted" style="margin:9px 2px 0;font-size:12px">Delivered in the app only — admins post, players read.</p>
         </div>
 
@@ -784,14 +783,9 @@
     s.querySelector('#broadcastError').style.display='none';
     s.querySelector('.broadcast-btn').disabled=!el.value.trim();
   }
-  function activeGroup(s){ return s.querySelector('.gchip.on')||s.querySelector('.gchip'); }
-  function pickGroup(el){
-    var s=el.closest('.screen');
-    s.querySelectorAll('.gchip').forEach(function(c){ c.classList.toggle('on',c===el); c.setAttribute('aria-checked',c===el); });
-    s.querySelector('.broadcast-group').textContent=el.dataset.group;
-    s.querySelector('.push-group').textContent=el.dataset.group;
-    s.querySelector('.broadcast-btn').innerHTML="<i class='ti ti-send'></i> Broadcast to "+el.dataset.count+" members";
-  }
+  function activeGroup(s){ return s.querySelector('.audience'); }
+  // pickGroup removed with the audience picker: the group is resolved from the admin's own link, so
+  // the preview group name and the member count in the send button are fixed for the session.
   function togglePush(row){
     var on=!row.querySelector('.switch').classList.contains('on');
     row.querySelector('.switch').classList.toggle('on',on);
@@ -810,7 +804,6 @@
     btn.innerHTML="<i class='ti ti-circle-check'></i> Sent to "+chip.dataset.count+" members in "+chip.dataset.group;
     btn.disabled=true;
     editor.disabled=true;
-    s.querySelectorAll('.gchip').forEach(function(c){ c.disabled=true; });
   }
   function annFilter(el,mode){
     var s=el.closest('.screen');
