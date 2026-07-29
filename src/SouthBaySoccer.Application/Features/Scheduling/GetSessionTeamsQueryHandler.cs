@@ -45,6 +45,7 @@ public sealed class GetSessionTeamsQueryHandler(
         var roster = await GameDayWorkflowQueries.ListEligibleRosterAsync(
             rsvpRepository,
             pickupPalGameRepository,
+            playerProfileRepository,
             sessionId,
             cancellationToken);
         if (!roster.Any(member => member.PlayerProfileId == actor.Id)

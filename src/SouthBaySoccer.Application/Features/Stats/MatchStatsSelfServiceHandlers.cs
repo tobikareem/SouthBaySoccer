@@ -139,6 +139,7 @@ public sealed class GetRateableTeammatesQueryHandler(
         var roster = await GameDayWorkflowQueries.ListEligibleRosterAsync(
             rsvpRepository,
             pickupPalGameRepository,
+            playerProfileRepository,
             match.SessionId,
             cancellationToken);
         if (!roster.Any(member => member.PlayerProfileId == actor.Id))
@@ -367,6 +368,7 @@ public sealed class GetPendingStatSubmissionQueryHandler(
             var roster = await GameDayWorkflowQueries.ListEligibleRosterAsync(
                 rsvpRepository,
                 pickupPalGameRepository,
+                playerProfileRepository,
                 session.Id,
                 cancellationToken);
 

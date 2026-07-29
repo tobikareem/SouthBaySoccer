@@ -239,6 +239,76 @@ public sealed class ImportPickupPalGamesHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenKeylessHandleWasPreviouslyMatched_ReusesTheConfirmedLink()
+    {
+        // "addguest tob8" imports with no identity keys. Once an admin has matched (or the player
+        // has claimed) "tob8" on any game, later imports of the same handle reuse that link instead
+        // of arriving unlinked again — and never overwrite the profile's registered name.
+        var tobi = new PlayerProfile
+        {
+            Id = Guid.NewGuid(),
+            DisplayName = "Tobi Kareem",
+            NormalizedDisplayName = "TOBI KAREEM",
+        };
+        var context = new TestContext();
+        context.KnownProfiles.Add(tobi);
+        context.LinkedParticipantHistory.Add(new PickupPalGameParticipant
+        {
+            Id = Guid.NewGuid(),
+            SessionId = Guid.NewGuid(),
+            PickupPalParticipantId = "pp-old",
+            PlayerProfileId = tobi.Id,
+            DisplayName = "tob8",
+        });
+        var game = SampleGame() with
+        {
+            Participants = [new PickupPalGameParticipantInfo("p-1", "tob8", true, true, GameStartUtc.AddDays(-1))],
+        };
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([game]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedProfiles.Should().BeEmpty("the confirmed alias resolves to the existing profile");
+        context.ReplacedParticipants.Should().ContainSingle()
+            .Which.PlayerProfileId.Should().Be(tobi.Id);
+        tobi.DisplayName.Should().Be("Tobi Kareem", "an alias link must not rename the profile after its handle");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenKeylessHandleWasLinkedToTwoProfiles_StaysUnlinked()
+    {
+        // Two different people were each matched from the handle "victor" at some point; the alias
+        // is ambiguous, so a human has to decide again.
+        var context = new TestContext();
+        foreach (var profileId in (Guid[])[Guid.NewGuid(), Guid.NewGuid()])
+        {
+            context.LinkedParticipantHistory.Add(new PickupPalGameParticipant
+            {
+                Id = Guid.NewGuid(),
+                SessionId = Guid.NewGuid(),
+                PickupPalParticipantId = $"pp-{profileId:N}",
+                PlayerProfileId = profileId,
+                DisplayName = "victor",
+            });
+        }
+
+        var game = SampleGame() with
+        {
+            Participants = [new PickupPalGameParticipantInfo("p-1", "victor", true, true, GameStartUtc.AddDays(-1))],
+        };
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([game]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.ReplacedParticipants.Should().ContainSingle()
+            .Which.PlayerProfileId.Should().BeNull();
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenProfileMatchesByPhoneHash_BackfillsKeysWithoutCreating()
     {
         var existing = new PlayerProfile
@@ -664,7 +734,27 @@ public sealed class ImportPickupPalGamesHandlerTests
                     It.IsAny<CancellationToken>()))
                 .Returns((IReadOnlyCollection<string> names, CancellationToken token) =>
                     ResolveManyAsync(names, name => PlayerProfileRepository.Object.FindSingleByNormalizedDisplayNameAsync(name, token)));
+            GameRepository
+                .Setup(x => x.ListLinkedParticipantsByDisplayNamesAsync(
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyCollection<string> names, CancellationToken _) =>
+                    LinkedParticipantHistory
+                        .Where(row => names.Contains(row.DisplayName, StringComparer.OrdinalIgnoreCase))
+                        .ToArray());
+            PlayerProfileRepository
+                .Setup(x => x.ListProfilesAsync(
+                    It.IsAny<IReadOnlyCollection<Guid>>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyCollection<Guid> ids, CancellationToken _) =>
+                    KnownProfiles.Where(profile => ids.Contains(profile.Id)).ToArray());
         }
+
+        /// <summary>Previously linked participant rows the confirmed-alias lookup can find.</summary>
+        public List<PickupPalGameParticipant> LinkedParticipantHistory { get; } = [];
+
+        /// <summary>Profiles resolvable by id (for the confirmed-alias lookup).</summary>
+        public List<PlayerProfile> KnownProfiles { get; } = [];
 
         private static async Task<IReadOnlyList<TResult>> ResolveManyAsync<TKey, TResult>(
             IReadOnlyCollection<TKey> keys,
