@@ -102,8 +102,8 @@
                             Grid.Row="0"
                             Grid.Column="0"
                             Value="{Binding MatchesText}"
-                            Label="Matches"
-                            SemanticProperties.Description="{Binding Profile.CareerStats.Matches, StringFormat='Matches: {0}'}" />
+                            Label="Kick off"
+                            SemanticProperties.Description="{Binding Profile.CareerStats.Matches, StringFormat='Kick off: {0}'}" />
                         <c:StatTile
                             Grid.Row="0"
                             Grid.Column="1"

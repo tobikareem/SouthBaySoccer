@@ -324,7 +324,10 @@ public partial class GameDayPageModel(
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanAdminCheckInPlayer))]
     private async Task AdminCheckIn(GameDayRosterItem? player, CancellationToken cancellationToken)
     {
-        if (player is null || !CanAdminCheckInPlayer(player))
+        // An unlinked participant has no profile to check in against; CanCheckIn is already false
+        // for them, so this pattern-match is the guard that lets the rest of the method stay
+        // non-nullable rather than a second condition to keep in sync.
+        if (player is null || !CanAdminCheckInPlayer(player) || player.PlayerProfileId is not { } profileId)
         {
             return;
         }
@@ -332,17 +335,17 @@ public partial class GameDayPageModel(
         IsBusy = true;
         try
         {
-            var key = adminCheckInIdempotencyKeys.TryGetValue(player.PlayerProfileId, out var existingKey)
+            var key = adminCheckInIdempotencyKeys.TryGetValue(profileId, out var existingKey)
                 ? existingKey
-                : adminCheckInIdempotencyKeys[player.PlayerProfileId] = Guid.NewGuid();
+                : adminCheckInIdempotencyKeys[profileId] = Guid.NewGuid();
             var result = await gameDayClient.AdminCheckInAsync(
                 sessionId,
-                player.PlayerProfileId,
+                profileId,
                 key,
                 cancellationToken);
             if (!result.IsSuccess)
             {
-                adminCheckInIdempotencyKeys.Remove(player.PlayerProfileId);
+                adminCheckInIdempotencyKeys.Remove(profileId);
                 ApplyNonContent(ViewState.Error, ErrorTitle, result.ErrorMessage ?? ErrorMessage);
                 return;
             }
@@ -351,7 +354,7 @@ public partial class GameDayPageModel(
             // open popup share this instance, so both reflect the check-in immediately and the admin
             // can keep checking people in from the popup. A repeat tap is a no-op (CanCheckIn is now
             // false, and the server treats a duplicate check-in as idempotent).
-            adminCheckInIdempotencyKeys.Remove(player.PlayerProfileId);
+            adminCheckInIdempotencyKeys.Remove(profileId);
             player.IsCheckedIn = true;
             player.CanCheckIn = false;
             player.StatusLabel = "Checked in";
@@ -442,7 +445,26 @@ public partial class GameDayPageModel(
             _ => ("Going", GoingRoster),
         };
 
-        return rosterListPresenter.ShowAsync(title, members, AdminCheckInCommand);
+        return rosterListPresenter.ShowAsync(title, members, AdminCheckInCommand, LinkRosterMemberCommand);
+    }
+
+    /// <summary>
+    /// Routes an unlinked roster row to whichever matching flow the caller is allowed to use: an
+    /// admin or captain picks the real player from the directory, while everyone else can only
+    /// identify themselves. Both destinations already exist; this is the entry point from the
+    /// roster, where an unlinked name is actually noticed.
+    /// </summary>
+    [RelayCommand]
+    private Task LinkRosterMember(GameDayRosterItem? member)
+    {
+        if (member is null || !member.IsUnlinked)
+        {
+            return Task.CompletedTask;
+        }
+
+        return member.CanMatch
+            ? navigator.OpenAdminMatchAsync(sessionId)
+            : navigator.OpenClaimSpotAsync();
     }
 
     private bool CanCheckInNow() => CanCheckIn && !IsBusy;
@@ -525,8 +547,14 @@ public partial class GameDayPageModel(
                 entry.IsGuest,
                 entry.IsWaitlist,
                 entry.IsCheckedIn,
-                context.CanManageCheckIns && !entry.IsCheckedIn,
-                entry.IsCheckedIn ? "Checked in" : entry.IsWaitlist ? "Waitlist" : "Going"))
+                // An unlinked participant has no profile to check in against, so the check-in action
+                // is withheld until they are matched.
+                context.CanManageCheckIns && !entry.IsCheckedIn && !entry.IsUnlinked,
+                entry.IsUnlinked
+                    ? "Not linked to a profile"
+                    : entry.IsCheckedIn ? "Checked in" : entry.IsWaitlist ? "Waitlist" : "Going",
+                entry.PickupPalParticipantId,
+                context.CanManageCheckIns))
             .ToArray();
         // All three tile counts are derived from the roster so each count always matches the popup
         // list shown when it is tapped. (Going includes checked-in going players; Checked in is the
@@ -605,15 +633,36 @@ public sealed record GameDayGameOption(
 /// only when relevant.
 /// </summary>
 public partial class GameDayRosterItem(
-    Guid playerProfileId,
+    Guid? playerProfileId,
     string displayName,
     bool isGuest,
     bool isWaitlist,
     bool isCheckedIn,
     bool canCheckIn,
-    string statusLabel) : ObservableObject
+    string statusLabel,
+    string? pickupPalParticipantId = null,
+    bool canManageRoster = false) : ObservableObject
 {
-    public Guid PlayerProfileId { get; } = playerProfileId;
+    public Guid? PlayerProfileId { get; } = playerProfileId;
+
+    /// <summary>The Pickup Pal identity of an unlinked participant; null once they have a profile.</summary>
+    public string? PickupPalParticipantId { get; } = pickupPalParticipantId;
+
+    /// <summary>
+    /// An imported name with no profile behind it. They count toward the roster and appear in the
+    /// list, but every profile-keyed action stays unavailable until someone links them.
+    /// </summary>
+    public bool IsUnlinked => PlayerProfileId is null;
+
+    /// <summary>An admin or captain can link anyone on the roster to a real player.</summary>
+    public bool CanMatch => IsUnlinked && canManageRoster;
+
+    /// <summary>Everyone else can only claim themselves, never link somebody else.</summary>
+    public bool CanClaim => IsUnlinked && !canManageRoster;
+
+    public string LinkActionDescription => CanMatch
+        ? $"Match {DisplayName} to a player profile"
+        : $"Claim {DisplayName} as yourself";
     public string DisplayName { get; } = displayName;
     public bool IsGuest { get; } = isGuest;
     public bool IsWaitlist { get; } = isWaitlist;

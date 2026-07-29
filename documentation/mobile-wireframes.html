@@ -122,6 +122,29 @@
   .composer:focus{outline:none;border-color:var(--g);box-shadow:0 0 0 3px rgba(31,181,115,.15)}
 
   /* Admin broadcast composer */
+  /* Game Day roster sheet — opened by tapping a Going / Waitlist / Checked-in count. It lists the
+     WHOLE roster, including imported players who never linked to a profile, because the count and
+     the list must describe the same population. Unlinked rows carry the action that fixes them. */
+  .stat.tappable{cursor:pointer;transition:background .16s ease}
+  .stat.tappable:hover{background:var(--mist)}
+  .sheet{position:absolute;inset:0;background:rgba(20,36,27,.42);display:none;align-items:flex-end;z-index:40}
+  .sheet.on{display:flex}
+  .sheet-card{background:var(--surface);width:100%;max-height:78%;border-radius:18px 18px 0 0;padding:14px 16px 18px;display:flex;flex-direction:column}
+  .sheet-grip{width:38px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 10px}
+  .sheet-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
+  .sheet-title{font-size:16px;font-weight:700;color:var(--ink)}
+  .sheet-sub{font-size:12px;color:var(--sage)}
+  .sheet-list{overflow-y:auto;margin-top:8px}
+  .rosterrow{display:flex;align-items:center;gap:10px;min-height:50px;padding:8px 0;border-bottom:1px solid var(--line)}
+  .rosterrow:last-child{border-bottom:none}
+  .rosterrow .avatar.unlinked{background:#EFF2F0;color:var(--sage)}
+  .tag-unlinked{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.02em;color:#8A6D1F;background:#FAEEDA;border-radius:6px;padding:1px 6px;margin-left:6px}
+  .btn-link-sm{width:auto;min-height:34px;padding:6px 11px;font-size:12.5px;white-space:nowrap}
+  /* Wireframe-only: flips the row action so both audiences can be reviewed on one screen. */
+  .rolepick{display:flex;gap:6px;margin:10px 0 2px}
+  .rolepick button{flex:1;border:1.5px solid var(--line);background:var(--surface);border-radius:10px;padding:6px 8px;font-size:12px;cursor:pointer;color:var(--sage)}
+  .rolepick button.on{border-color:var(--g);background:var(--mist);color:var(--gd);font-weight:700}
+
   /* Fixed audience — a statement of reach, not a control. Read-only, so no hover/press affordance. */
   .audience{display:inline-flex;align-items:center;gap:8px;margin-top:9px;background:var(--mist);border-radius:14px;padding:9px 13px}
   .audience i{font-size:14px;color:var(--gd)}
@@ -443,7 +466,10 @@
           <button class="btn" id="checkBtn" onclick="checkIn()" style="background:#fff;color:var(--gd);position:relative;z-index:1"><i class="ti ti-map-pin-check"></i> Check in at field</button>
         </div>
         <div class="statgrid" style="grid-template-columns:1fr 1fr 1fr;margin:12px 0">
-          <div class="stat"><b>16</b><span>Going</span></div><div class="stat"><b id="checkedCount">11</b><span>Checked in</span></div><div class="stat"><b>0</b><span>Late</span></div>
+          <!-- Tapping a count opens the roster sheet for that group. Waitlist replaces "Late" here:
+               a waitlist of 26 against 22 going is the number an admin acts on, and it is the count
+               that has to agree with the list behind it. -->
+          <div class="stat tappable" onclick="openRoster('Going')"><b>22</b><span>Going</span></div><div class="stat tappable" onclick="openRoster('Waitlist')"><b>26</b><span>Waitlist</span></div><div class="stat tappable" onclick="openRoster('Checked in')"><b id="checkedCount">11</b><span>Checked in</span></div>
         </div>
         <div class="notice"><i class="ti ti-info-circle"></i><div>RSVP is attendance intent. Game Day check-in records who is actually at the field.</div></div>
         <div class="label" style="margin-top:14px">Game-day actions</div>
@@ -670,6 +696,23 @@
       </div>
     </section>
 
+    <!-- GAME DAY ROSTER SHEET — every person in the tapped group, linked or not. -->
+    <div class="sheet" id="rosterSheet" onclick="if(event.target===this)closeRoster()">
+      <div class="sheet-card">
+        <div class="sheet-grip"></div>
+        <div class="sheet-head">
+          <div class="sheet-title"><span id="rosterKind">Waitlist</span> · <span id="rosterCount">26</span></div>
+          <span class="link" onclick="closeRoster()">Close</span>
+        </div>
+        <div class="sheet-sub" id="rosterSub">4 of these never linked to a profile</div>
+        <div class="rolepick">
+          <button id="roleAdmin" class="on" onclick="setRosterRole('admin')">Viewing as admin / captain</button>
+          <button id="rolePlayer" onclick="setRosterRole('player')">Viewing as player</button>
+        </div>
+        <div class="sheet-list" id="rosterList"></div>
+      </div>
+    </div>
+
   </div>
 </div></div>
 </template>
@@ -786,6 +829,66 @@
   function activeGroup(s){ return s.querySelector('.audience'); }
   // pickGroup removed with the audience picker: the group is resolved from the admin's own link, so
   // the preview group name and the member count in the send button are fixed for the session.
+  // --- Game Day roster sheet -------------------------------------------------------------------
+  // Unlinked entries are imported Pickup Pal names with no profile behind them. They still occupy a
+  // place on the roster, so they are listed and counted; what differs is the action offered on them.
+  var ROSTER={
+    'Going':[
+      {n:'Tobi Kareem',i:'TK',linked:true,sub:'Going · midfielder'},
+      {n:'Kola T.',i:'KT',linked:true,sub:'Going · forward'},
+      {n:'Sade M.',i:'SM',linked:true,sub:'Checked in · goalkeeper'},
+      {n:'chidu',i:'C',linked:false,sub:'Imported from Pickup Pal'}
+    ],
+    'Waitlist':[
+      {n:'Jide D.',i:'JD',linked:true,sub:'Waitlist · #1'},
+      {n:'victor',i:'V',linked:false,sub:'Imported from Pickup Pal'},
+      {n:'tope',i:'T',linked:false,sub:'Imported from Pickup Pal'},
+      {n:'Ada V.',i:'AV',linked:true,sub:'Waitlist · #4'},
+      {n:'ola',i:'O',linked:false,sub:'Imported from Pickup Pal'}
+    ],
+    'Checked in':[
+      {n:'Sade M.',i:'SM',linked:true,sub:'Checked in 9:02 AM'},
+      {n:'Tobi Kareem',i:'TK',linked:true,sub:'Checked in 9:05 AM'}
+    ]
+  };
+  var rosterRole='admin', rosterKind='Waitlist';
+  function openRoster(kind){
+    rosterKind=kind;
+    document.getElementById('rosterSheet').classList.add('on');
+    renderRoster();
+  }
+  function closeRoster(){ document.getElementById('rosterSheet').classList.remove('on'); }
+  function setRosterRole(role){
+    rosterRole=role;
+    document.getElementById('roleAdmin').classList.toggle('on',role==='admin');
+    document.getElementById('rolePlayer').classList.toggle('on',role==='player');
+    renderRoster();
+  }
+  function renderRoster(){
+    var rows=ROSTER[rosterKind]||[];
+    var unlinked=rows.filter(function(r){return !r.linked;}).length;
+    document.getElementById('rosterKind').textContent=rosterKind;
+    document.getElementById('rosterCount').textContent=rows.length;
+    document.getElementById('rosterSub').textContent=unlinked
+      ? unlinked+' of these never linked to a profile'
+      : 'Everyone here is linked to a profile';
+    document.getElementById('rosterList').innerHTML=rows.map(function(r){
+      // Admin/captain links anyone; a player can only claim themselves, so the self action is the
+      // one that routes into "Which one is you?" rather than the player directory.
+      var action=r.linked ? ''
+        : (rosterRole==='admin'
+            ? '<button class="btn ghost btn-link-sm" onclick="rosterMatch()"><i class="ti ti-link"></i> Match</button>'
+            : '<button class="btn ghost btn-link-sm" onclick="rosterClaim()"><i class="ti ti-user-check"></i> Is this you?</button>');
+      return '<div class="rosterrow">'
+        +'<span class="avatar'+(r.linked?'':' unlinked')+'" style="width:34px;height:34px;font-size:12px">'+r.i+'</span>'
+        +'<div style="flex:1"><div style="font-weight:600">'+r.n
+        +(r.linked?'':'<span class="tag-unlinked">UNLINKED</span>')+'</div>'
+        +'<div class="muted">'+r.sub+'</div></div>'+action+'</div>';
+    }).join('');
+  }
+  function rosterMatch(){ closeRoster(); show('adminmatch'); }
+  function rosterClaim(){ closeRoster(); show('claimpick'); }
+
   function togglePush(row){
     var on=!row.querySelector('.switch').classList.contains('on');
     row.querySelector('.switch').classList.toggle('on',on);
