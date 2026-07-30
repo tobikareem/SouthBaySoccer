@@ -49,6 +49,16 @@ public interface IPickupPalGameRepository
     void UpdateParticipant(PickupPalGameParticipant participant);
 
     /// <summary>
+    /// Re-points every participant row linked to one profile onto another, across all sessions.
+    /// Used when a duplicate import-owned profile merges into the player's real profile, so their
+    /// whole roster history follows the merge. Returns the number of rows moved.
+    /// </summary>
+    Task<int> ReassignParticipantLinksAsync(
+        Guid sourcePlayerProfileId,
+        Guid targetPlayerProfileId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Lists participant rows across all sessions that are linked to a profile and whose display
     /// name is one of the given names. Every linked row records a confirmed identity — either an
     /// import key match or a human match/claim — so the import reuses them as aliases: once "tob8"

@@ -1017,6 +1017,44 @@ public class GameDayPageModelTests
     }
 
     [Fact]
+    public async Task CaptainAssignment_GrantRejectedByServer_ShowsTheReason()
+    {
+        // A rejected grant used to fail silently — tap, nothing happens, no reason shown.
+        var players = new[]
+        {
+            new CheckedInPlayerDto(new PlayerSummaryDto(Guid.NewGuid(), "Ada", "A", "Midfielder", false), "going"),
+            new CheckedInPlayerDto(new PlayerSummaryDto(Guid.NewGuid(), "Vic", "V", "Forward", false), "going"),
+        };
+        var dto = new CaptainAssignmentDto(
+            Guid.NewGuid(), Guid.NewGuid(), 2, new[] { 2, 3, 4 },
+            [], players, CanLockTeams: false, IsLocked: false, CanUnlockTeams: false);
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetCaptainAssignmentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(dto);
+        client
+            .Setup(c => c.AssignCaptainsAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Failure(
+                "conflict", "Team count cannot change after results or stats have been recorded."));
+        var dialogs = new Mock<IUserDialogService>();
+        var pageModel = new CaptainAssignmentPageModel(client.Object, Navigator().Object, dialogs.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        foreach (var item in pageModel.Players)
+        {
+            pageModel.ToggleCaptainCommand.Execute(item);
+        }
+
+        await pageModel.GrantCommand.ExecuteAsync(null);
+
+        dialogs.Verify(
+            d => d.ShowAlertAsync(
+                CaptainAssignmentPageModel.GrantFailedTitle,
+                "Team count cannot change after results or stats have been recorded.",
+                "OK"),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task CaptainAssignment_UnlockTeams_CallsClientWhenAvailable()
     {
         var checkedIn = new[]
