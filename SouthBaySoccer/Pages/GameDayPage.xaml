@@ -270,6 +270,39 @@
                                 <Label Text="{Binding LastGame.ResultSummary}" Style="{StaticResource TextCaption}" IsVisible="{Binding HasLastGameResult}" />
                             </VerticalStackLayout>
                         </c:BrandCard>
+                        <!-- Team sheets: tap a captain's card to see the full team with goal tallies. -->
+                        <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding HasLastGameTeams}">
+                            <c:SectionHeader Text="Teams" />
+                            <Label Text="Tap a team to see its players and who scored." Style="{StaticResource TextCaption}" />
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding LastGameTeams}" Spacing="{StaticResource SpaceSm}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="gameDay:LastGameTeamDto">
+                                        <Border Style="{StaticResource CardSurface}">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding BindingContext.ShowLastGameTeamCommand, Source={x:Reference GameDay}}" CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                                                <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                                                    <Label Text="{Binding Name}" Style="{StaticResource TextBodyStrong}" />
+                                                    <Label Text="{Binding CaptainName, StringFormat='Captain: {0}'}" Style="{StaticResource TextCaption}" />
+                                                </VerticalStackLayout>
+                                                <Label
+                                                    Grid.Column="1"
+                                                    VerticalOptions="Center"
+                                                    Text="{Binding ResultLabel}"
+                                                    Style="{StaticResource TextBodyStrong}"
+                                                    SemanticProperties.Description="{Binding Name, StringFormat='{0} result'}" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                        <!-- Unfinished business on that game, for admins and captains only. -->
+                        <c:SectionHeader Text="Finish up this game" IsVisible="{Binding HasLastGameActions}" />
+                        <c:PlayerRow Initials="LT" Name="Lock the teams" Detail="Teams were never locked - assign captains and lock" TapCommand="{Binding OpenLastGameCaptainsCommand}" IsVisible="{Binding LastGameCanLockTeams}" />
+                        <c:PlayerRow Initials="MP" Name="Match players" Detail="Link imported names to profiles" TapCommand="{Binding OpenLastGameMatchPlayersCommand}" IsVisible="{Binding LastGameCanMatchPlayers}" />
+                        <c:PlayerRow Initials="CR" Name="Confirm result and goals" Detail="Approve the team win/loss and each goal" TapCommand="{Binding OpenLastGameApprovalCommand}" IsVisible="{Binding LastGameCanApprovePostGame}" />
                     </VerticalStackLayout>
                 </VerticalStackLayout>
             </VerticalStackLayout>

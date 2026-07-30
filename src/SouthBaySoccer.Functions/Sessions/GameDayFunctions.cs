@@ -80,7 +80,25 @@ public sealed class GameDayFunctions(
                 summary.GoingCount,
                 summary.CheckedInCount,
                 summary.TeamCount,
-                summary.ResultSummary),
+                summary.ResultSummary,
+                summary.WaitlistCount,
+                (summary.Teams ?? [])
+                    .Select(team => new LastGameTeamDto(
+                        team.TeamId,
+                        team.Name,
+                        team.CaptainName,
+                        team.ResultLabel,
+                        team.Members
+                            .Select(member => new LastGameTeamMemberDto(
+                                member.PlayerProfileId,
+                                member.DisplayName,
+                                member.IsCaptain,
+                                member.Goals))
+                            .ToArray()))
+                    .ToArray(),
+                summary.CanLockTeams,
+                summary.CanMatchPlayers,
+                summary.CanApprovePostGame),
             cancellationToken);
         return response;
     }

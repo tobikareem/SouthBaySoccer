@@ -71,9 +71,25 @@ public sealed record GameDayGameOptionDto(
     string StatusLabel,
     bool IsSelected);
 
+/// <summary>One player on a last-game team sheet, with their approved goal tally.</summary>
+public sealed record LastGameTeamMemberDto(
+    Guid PlayerProfileId,
+    string DisplayName,
+    bool IsCaptain,
+    int Goals);
+
+/// <summary>One team on the last game; tapping its captain opens the member list with scorers.</summary>
+public sealed record LastGameTeamDto(
+    Guid TeamId,
+    string Name,
+    string CaptainName,
+    string ResultLabel,
+    IReadOnlyList<LastGameTeamMemberDto> Members);
+
 /// <summary>
-/// The player's most recent past game, shown on Game Day when no relevant game runs today.
-/// Counts only — no roster names.
+/// The player's most recent past game, shown on Game Day when no relevant game runs today:
+/// counts, team sheets with captains and approved goal tallies, and the follow-up actions the
+/// viewer may still take on it.
 /// </summary>
 public sealed record LastGameSummaryDto(
     Guid SessionId,
@@ -85,7 +101,12 @@ public sealed record LastGameSummaryDto(
     int GoingCount,
     int CheckedInCount,
     int TeamCount,
-    string? ResultSummary);
+    string? ResultSummary,
+    int WaitlistCount = 0,
+    IReadOnlyList<LastGameTeamDto>? Teams = null,
+    bool CanLockTeams = false,
+    bool CanMatchPlayers = false,
+    bool CanApprovePostGame = false);
 
 public sealed record RecentGameDto(
     Guid SessionId,
