@@ -527,9 +527,23 @@
         <div class="card">
           <div style="font-weight:700;font-size:17px">Bay Area - Wednesday pickup</div>
           <div class="meta-row" style="margin:8px 0"><span class="meta-chip"><i class="ti ti-message-circle"></i> Bay Area Soccer</span><span class="meta-chip"><i class="ti ti-map-pin"></i> Marina Field</span><span class="meta-chip"><i class="ti ti-calendar"></i> Wed Jul 22, 7:30 PM</span></div>
-          <div style="font-weight:700">14 going · 12 checked in · 2 teams</div>
+          <div style="font-weight:700">22 going · 26 waitlist · 11 checked in · 2 teams</div>
           <div class="muted" style="margin-top:4px">Team Vic 2W · Team Ade 1W 1D</div>
         </div>
+        <!-- Team sheets: tapping a card opens the roster sheet listing that team's players with
+             captaincy and approved goal tallies ("Captain · 2 goals", "1 goal"). Read-only. -->
+        <div class="label">Teams</div>
+        <div class="muted" style="font-size:12px;margin-bottom:6px">Tap a team to see its players and who scored.</div>
+        <div class="card interactive" onclick="openRoster('Going')" style="cursor:pointer;padding:12px 14px"><div class="row"><div style="flex:1"><div style="font-weight:700">Team Vic</div><div class="muted">Captain: Victor</div></div><b>2W</b></div></div>
+        <div class="card interactive" onclick="openRoster('Going')" style="cursor:pointer;padding:12px 14px"><div class="row"><div style="flex:1"><div style="font-weight:700">Team Ade</div><div class="muted">Captain: Ade</div></div><b>1W 1D</b></div></div>
+        <!-- Follow-up actions, admins/captains only, gated server-side by role and window:
+             lock teams that were never locked (admin, 3-day edit window), match imported names
+             (admin, unlinked rows present), confirm the result and goals (captain/admin, unsettled
+             locked match in the post-game window). -->
+        <div class="label">Finish up this game</div>
+        <div class="card interactive" onclick="show('captains')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-lock"></i></span><div style="flex:1"><div style="font-weight:700">Lock the teams</div><div class="muted">Teams were never locked - assign captains and lock</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
+        <div class="card interactive" onclick="show('adminmatch')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-users-plus"></i></span><div style="flex:1"><div style="font-weight:700">Match players</div><div class="muted">Link imported names to profiles</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
+        <div class="card interactive" onclick="show('postgame')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-shield-check"></i></span><div style="flex:1"><div style="font-weight:700">Confirm result and goals</div><div class="muted">Approve the team win/loss and each goal</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
       </div>
       <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a class="active" onclick="show('gameday-empty')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
     </section>

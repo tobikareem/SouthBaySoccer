@@ -240,6 +240,12 @@ public partial class GameDayPageModel(
     [NotifyPropertyChangedFor(nameof(HasLastGameGroup))]
     [NotifyPropertyChangedFor(nameof(HasLastGameResult))]
     [NotifyPropertyChangedFor(nameof(LastGameCountsLabel))]
+    [NotifyPropertyChangedFor(nameof(LastGameTeams))]
+    [NotifyPropertyChangedFor(nameof(HasLastGameTeams))]
+    [NotifyPropertyChangedFor(nameof(LastGameCanLockTeams))]
+    [NotifyPropertyChangedFor(nameof(LastGameCanMatchPlayers))]
+    [NotifyPropertyChangedFor(nameof(LastGameCanApprovePostGame))]
+    [NotifyPropertyChangedFor(nameof(HasLastGameActions))]
     private LastGameSummaryDto? _lastGame;
 
     public bool HasLastGame => LastGame is not null;
@@ -248,12 +254,47 @@ public partial class GameDayPageModel(
 
     public bool HasLastGameResult => !string.IsNullOrWhiteSpace(LastGame?.ResultSummary);
 
-    /// <summary>"14 going · 12 checked in · 2 teams" (teams only when the game was drafted).</summary>
-    public string LastGameCountsLabel => LastGame is not { } game
-        ? string.Empty
-        : game.TeamCount > 0
-            ? $"{game.GoingCount} going · {game.CheckedInCount} checked in · {game.TeamCount} teams"
-            : $"{game.GoingCount} going · {game.CheckedInCount} checked in";
+    /// <summary>"22 going · 26 waitlist · 11 checked in · 2 teams" (waitlist/teams only when present).</summary>
+    public string LastGameCountsLabel
+    {
+        get
+        {
+            if (LastGame is not { } game)
+            {
+                return string.Empty;
+            }
+
+            var parts = new List<string>(4) { $"{game.GoingCount} going" };
+            if (game.WaitlistCount > 0)
+            {
+                parts.Add($"{game.WaitlistCount} waitlist");
+            }
+
+            parts.Add($"{game.CheckedInCount} checked in");
+            if (game.TeamCount > 0)
+            {
+                parts.Add($"{game.TeamCount} teams");
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>The last game's team sheets; tapping one opens its member list with goal tallies.</summary>
+    public IReadOnlyList<LastGameTeamDto> LastGameTeams => LastGame?.Teams ?? [];
+
+    public bool HasLastGameTeams => LastGameTeams.Count > 0;
+
+    // Follow-up actions on the last game, gated server-side by role and window: lock teams that were
+    // never locked, match imported names, and confirm the result and goals.
+    public bool LastGameCanLockTeams => LastGame?.CanLockTeams == true;
+
+    public bool LastGameCanMatchPlayers => LastGame?.CanMatchPlayers == true;
+
+    public bool LastGameCanApprovePostGame => LastGame?.CanApprovePostGame == true;
+
+    public bool HasLastGameActions =>
+        LastGameCanLockTeams || LastGameCanMatchPlayers || LastGameCanApprovePostGame;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AdminCheckInCommand))]
@@ -648,6 +689,64 @@ public partial class GameDayPageModel(
         selectedSessionId = null;
         return LoadAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Tapping a last-game team (or its captain) opens the member list in the same popup the count
+    /// tiles use, with each row showing captaincy and the approved goal tally.
+    /// </summary>
+    [RelayCommand]
+    private Task ShowLastGameTeam(LastGameTeamDto? team)
+    {
+        if (team is null || rosterListPresenter is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var members = team.Members
+            .Select(member => new GameDayRosterItem(
+                member.PlayerProfileId,
+                member.DisplayName,
+                isGuest: false,
+                isWaitlist: false,
+                isCheckedIn: false,
+                canCheckIn: false,
+                DescribeTeamMember(member)))
+            .ToArray();
+        return rosterListPresenter.ShowAsync(team.Name, members, AdminCheckInCommand, LinkRosterMemberCommand);
+    }
+
+    private static string DescribeTeamMember(LastGameTeamMemberDto member)
+    {
+        var goals = member.Goals switch
+        {
+            0 => null,
+            1 => "1 goal",
+            _ => $"{member.Goals} goals",
+        };
+        return member.IsCaptain
+            ? goals is null ? "Captain" : $"Captain · {goals}"
+            : goals ?? string.Empty;
+    }
+
+    // Follow-up actions on the last game: each reuses the existing screen for that job, keyed by
+    // the last game's session. Lock teams goes through captain assignment, where locking lives.
+    [RelayCommand]
+    private Task OpenLastGameCaptains() =>
+        LastGame is { } game && LastGameCanLockTeams
+            ? navigator.OpenCaptainAssignmentAsync(game.SessionId)
+            : Task.CompletedTask;
+
+    [RelayCommand]
+    private Task OpenLastGameMatchPlayers() =>
+        LastGame is { } game && LastGameCanMatchPlayers
+            ? navigator.OpenAdminMatchAsync(game.SessionId)
+            : Task.CompletedTask;
+
+    [RelayCommand]
+    private Task OpenLastGameApproval() =>
+        LastGame is { } game && LastGameCanApprovePostGame
+            ? navigator.OpenPostGameApprovalAsync(game.SessionId)
+            : Task.CompletedTask;
 
     // Segmented-control entry point for the same switch. The control re-raises the selection when
     // ApplyContext syncs the index, so a pick that matches the current scope is a no-op.

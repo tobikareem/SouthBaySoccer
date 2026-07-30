@@ -637,6 +637,143 @@ public class GameDayPageModelTests
     }
 
     [Fact]
+    public async Task LastGame_TeamTap_ShowsMembersWithGoalTalliesInThePopup()
+    {
+        var captainId = Guid.NewGuid();
+        var scorerId = Guid.NewGuid();
+        var team = new LastGameTeamDto(
+            Guid.NewGuid(),
+            "Team Vic",
+            "Victor",
+            "2W",
+            [
+                new LastGameTeamMemberDto(captainId, "Victor", IsCaptain: true, Goals: 2),
+                new LastGameTeamMemberDto(scorerId, "Ada", IsCaptain: false, Goals: 1),
+                new LastGameTeamMemberDto(Guid.NewGuid(), "Tunde", IsCaptain: false, Goals: 0),
+            ]);
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GameDayContextDto?)null);
+        client
+            .Setup(c => c.GetLastGameSummaryAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(LastGameWith(teams: [team]));
+        var presenter = new Mock<IRosterListPresenter>();
+        IReadOnlyList<GameDayRosterItem>? shown = null;
+        presenter
+            .Setup(p => p.ShowAsync(
+                "Team Vic",
+                It.IsAny<IReadOnlyList<GameDayRosterItem>>(),
+                It.IsAny<System.Windows.Input.ICommand>(),
+                It.IsAny<System.Windows.Input.ICommand>()))
+            .Callback<string, IReadOnlyList<GameDayRosterItem>, System.Windows.Input.ICommand, System.Windows.Input.ICommand>(
+                (_, members, _, _) => shown = members)
+            .Returns(Task.CompletedTask);
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object, presenter.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        await pageModel.ShowLastGameTeamCommand.ExecuteAsync(team);
+
+        pageModel.HasLastGameTeams.Should().BeTrue();
+        shown.Should().NotBeNull();
+        shown![0].DisplayName.Should().Be("Victor");
+        shown[0].StatusLabel.Should().Be("Captain · 2 goals");
+        shown[1].StatusLabel.Should().Be("1 goal");
+        shown[2].StatusLabel.Should().BeEmpty();
+        shown.Should().OnlyContain(item => !item.CanCheckIn, "the recap popup is read-only");
+    }
+
+    [Fact]
+    public async Task LastGame_FollowUpActions_NavigateToTheRightScreensForTheLastSession()
+    {
+        var sessionId = Guid.NewGuid();
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GameDayContextDto?)null);
+        client
+            .Setup(c => c.GetLastGameSummaryAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(LastGameWith(sessionId: sessionId, canLock: true, canMatch: true, canApprove: true));
+        var navigator = Navigator();
+        navigator.Setup(n => n.OpenAdminMatchAsync(sessionId)).Returns(Task.CompletedTask);
+        navigator.Setup(n => n.OpenPostGameApprovalAsync(sessionId)).Returns(Task.CompletedTask);
+        var pageModel = new GameDayPageModel(client.Object, navigator.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.HasLastGameActions.Should().BeTrue();
+        await pageModel.OpenLastGameCaptainsCommand.ExecuteAsync(null);
+        await pageModel.OpenLastGameMatchPlayersCommand.ExecuteAsync(null);
+        await pageModel.OpenLastGameApprovalCommand.ExecuteAsync(null);
+
+        navigator.Verify(n => n.OpenCaptainAssignmentAsync(sessionId), Times.Once);
+        navigator.Verify(n => n.OpenAdminMatchAsync(sessionId), Times.Once);
+        navigator.Verify(n => n.OpenPostGameApprovalAsync(sessionId), Times.Once);
+    }
+
+    [Fact]
+    public async Task LastGame_RegularPlayer_SeesNoFollowUpActionsAndCannotNavigate()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GameDayContextDto?)null);
+        client
+            .Setup(c => c.GetLastGameSummaryAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(LastGameWith());
+        var navigator = Navigator();
+        var pageModel = new GameDayPageModel(client.Object, navigator.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.HasLastGameActions.Should().BeFalse();
+        await pageModel.OpenLastGameCaptainsCommand.ExecuteAsync(null);
+        await pageModel.OpenLastGameApprovalCommand.ExecuteAsync(null);
+
+        navigator.Verify(n => n.OpenCaptainAssignmentAsync(It.IsAny<Guid>()), Times.Never);
+        navigator.Verify(n => n.OpenPostGameApprovalAsync(It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LastGameCountsLabel_IncludesWaitlistWhenPresent()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GameDayContextDto?)null);
+        client
+            .Setup(c => c.GetLastGameSummaryAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(LastGameWith(waitlistCount: 26));
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.LastGameCountsLabel.Should().Be("22 going · 26 waitlist · 11 checked in · 2 teams");
+    }
+
+    private static LastGameSummaryDto LastGameWith(
+        Guid? sessionId = null,
+        int waitlistCount = 0,
+        IReadOnlyList<LastGameTeamDto>? teams = null,
+        bool canLock = false,
+        bool canMatch = false,
+        bool canApprove = false) =>
+        new(
+            sessionId ?? Guid.NewGuid(),
+            "Bay Area - Wednesday pickup",
+            "Bay Area Soccer",
+            "Marina Field",
+            "Wed Jul 22, 7:30 PM",
+            new DateTime(2026, 7, 23, 2, 30, 0, DateTimeKind.Utc),
+            GoingCount: 22,
+            CheckedInCount: 11,
+            TeamCount: 2,
+            ResultSummary: null,
+            WaitlistCount: waitlistCount,
+            Teams: teams,
+            CanLockTeams: canLock,
+            CanMatchPlayers: canMatch,
+            CanApprovePostGame: canApprove);
+
+    [Fact]
     public async Task Appearing_WhenNoGameAndNoHistory_ShowsEmptyState()
     {
         var client = new Mock<IGameDayClient>();
