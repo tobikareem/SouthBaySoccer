@@ -3,6 +3,7 @@ using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Rsvps;
 using SouthBaySoccer.Domain.Entities.Scheduling;
+using SouthBaySoccer.Domain.Entities.Stats;
 using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 
@@ -58,7 +59,15 @@ public sealed record GameDayContextModel(
     bool CanManageCheckIns,
     bool CanSubmitOwnStats,
     IReadOnlyList<GameDayOptionModel> TodaysGames,
-    bool CanViewTeams = false);
+    bool CanViewTeams = false,
+    string Title = "",
+    string? GroupName = null,
+    bool IsSpectator = false,
+    bool CanJoin = false,
+    string? JoinBlockedReason = null,
+    int Capacity = 0,
+    bool CanShowAllGames = false,
+    bool IsShowingAllGames = false);
 
 /// <summary>
 /// One of today's games the player can act on, used to build the Game Day picker when more than one
@@ -141,6 +150,154 @@ public sealed class GetRecentGamesQueryHandler(
     }
 }
 
+/// <summary>
+/// A short player-facing summary of the player's most recent game, shown on Game Day when there is
+/// no relevant game today. Counts only — never roster names.
+/// </summary>
+public sealed record LastGameSummaryModel(
+    Guid SessionId,
+    string Title,
+    string? GroupName,
+    string Venue,
+    DateTime StartsAtUtc,
+    int GoingCount,
+    int CheckedInCount,
+    int TeamCount,
+    string? ResultSummary);
+
+/// <summary>
+/// Finds the player's most recent past game inside a 30-day window: preferably one they held a spot
+/// on (Going/Waitlisted/Checked in), else the latest game run by a WhatsApp group they belong to.
+/// Null when neither exists — other groups' games are never surfaced.
+/// </summary>
+public sealed class GetLastGameSummaryQueryHandler(
+    ICurrentUser currentUser,
+    IClock clock,
+    IPlayerProfileRepository playerProfileRepository,
+    ISessionRepository sessionRepository,
+    IVenueRepository venueRepository,
+    IRsvpRepository rsvpRepository,
+    IPlayerGroupLinkRepository playerGroupLinkRepository,
+    IStatsRepository statsRepository)
+{
+    /// <summary>How far back to look for the player's most recent game.</summary>
+    public static readonly TimeSpan LookbackWindow = TimeSpan.FromDays(30);
+
+    /// <summary>
+    /// Upper bound on past sessions examined. The page is global (newest first) and the relevance
+    /// filter runs in memory, so the cap must comfortably exceed 30 days of sessions across every
+    /// imported group or the effective window silently shrinks; ~5 groups at 3 games/week fit. If
+    /// group volume outgrows this, push the attendance/group filter into SQL instead of raising it
+    /// again (noted in the GDAY-2 design).
+    /// </summary>
+    private const int MaxPastSessions = 60;
+
+    public async Task<LastGameSummaryModel?> HandleAsync(CancellationToken cancellationToken = default)
+    {
+        var identityUserId = currentUser.UserId ?? throw new ApplicationUnauthenticatedException();
+        var profile = await playerProfileRepository.FindByIdentityUserIdAsync(identityUserId, cancellationToken)
+            ?? throw new ApplicationNotFoundException("Player profile was not found.");
+
+        // Window ends at today's venue-local midnight so today's own (not-yet-relevant) games never
+        // masquerade as "the last game".
+        var localToday = SessionAdminTimeZone.ToLocal(clock.UtcNow).Date;
+        var todayStartsAtUtc = SessionAdminTimeZone.ToUtc(localToday, TimeSpan.Zero);
+        var sessions = await sessionRepository.ListPastGameDayCandidatesAsync(
+            todayStartsAtUtc.Subtract(LookbackWindow),
+            todayStartsAtUtc,
+            MaxPastSessions,
+            cancellationToken);
+        if (sessions.Count == 0)
+        {
+            return null;
+        }
+
+        var attendanceBySessionId = await rsvpRepository.GetGameDayAttendanceBatchAsync(
+            sessions.Select(session => session.Id).ToArray(),
+            profile.Id,
+            cancellationToken);
+
+        // Sessions arrive newest-first, so the first hit in each tier is the most recent one.
+        var session = sessions.FirstOrDefault(candidate =>
+            attendanceBySessionId[candidate.Id].IsCurrentPlayerGoing
+            || attendanceBySessionId[candidate.Id].IsCurrentPlayerWaitlisted
+            || attendanceBySessionId[candidate.Id].IsCurrentPlayerCheckedIn);
+        var groupNamesBySessionId = await sessionRepository.GetGroupNamesBySessionAsync(
+            sessions.Select(candidate => candidate.Id).ToArray(),
+            cancellationToken);
+        if (session is null)
+        {
+            var groups = await playerGroupLinkRepository.ListPlayerGroupsAsync(profile.Id, cancellationToken);
+            var groupNames = groups
+                .Select(group => group.GroupName.Trim())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            session = sessions.FirstOrDefault(candidate =>
+                groupNamesBySessionId.TryGetValue(candidate.Id, out var groupName)
+                && groupNames.Contains(groupName.Trim()));
+        }
+
+        if (session is null)
+        {
+            return null;
+        }
+
+        var venue = await venueRepository.GetByIdAsync(session.VenueId, cancellationToken);
+        var attendance = attendanceBySessionId[session.Id];
+        var match = await statsRepository.FindPrimaryMatchBySessionAsync(session.Id, cancellationToken);
+        var teams = match is null
+            ? []
+            : await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken);
+        var resultSummary = match?.Status is MatchStatus.Published or MatchStatus.Locked
+            ? await BuildResultSummaryAsync(match.Id, teams, cancellationToken)
+            : null;
+
+        return new LastGameSummaryModel(
+            session.Id,
+            session.Title,
+            groupNamesBySessionId.GetValueOrDefault(session.Id),
+            venue?.Name ?? "Unknown venue",
+            session.StartsAtUtc,
+            attendance.GoingCount,
+            attendance.CheckedInCount,
+            teams.Count,
+            resultSummary);
+    }
+
+    // "Team Vic 2W · Team Ade 1W 1D" — wins always shown so the summary reads as a result even at
+    // 0, draws/losses only when they occurred.
+    private async Task<string?> BuildResultSummaryAsync(
+        Guid matchId,
+        IReadOnlyList<MatchTeam> teams,
+        CancellationToken cancellationToken)
+    {
+        var results = await statsRepository.ListMatchResultsAsync(matchId, cancellationToken);
+        if (results.Count == 0)
+        {
+            return null;
+        }
+
+        var teamNamesById = teams.ToDictionary(team => team.Id, team => team.Name);
+        var parts = results
+            .OrderBy(result => teamNamesById.GetValueOrDefault(result.MatchTeamId, string.Empty), StringComparer.OrdinalIgnoreCase)
+            .Select(result =>
+            {
+                var tally = $"{result.Wins}W";
+                if (result.Draws > 0)
+                {
+                    tally += $" {result.Draws}D";
+                }
+
+                if (result.Losses > 0)
+                {
+                    tally += $" {result.Losses}L";
+                }
+
+                return $"{teamNamesById.GetValueOrDefault(result.MatchTeamId, "Team")} {tally}";
+            });
+        return string.Join(" · ", parts);
+    }
+}
+
 public sealed class GetTodayGameDayContextQueryHandler(
     ICurrentUser currentUser,
     IClock clock,
@@ -149,6 +306,7 @@ public sealed class GetTodayGameDayContextQueryHandler(
     IVenueRepository venueRepository,
     IRsvpRepository rsvpRepository,
     IPickupPalGameRepository pickupPalGameRepository,
+    IPlayerGroupLinkRepository playerGroupLinkRepository,
     IStatsRepository statsRepository,
     IPlayerSessionEligibilityService eligibilityService)
 {
@@ -156,6 +314,7 @@ public sealed class GetTodayGameDayContextQueryHandler(
 
     public async Task<GameDayContextModel?> HandleAsync(
         Guid? requestedSessionId = null,
+        bool showAllGames = false,
         CancellationToken cancellationToken = default)
     {
         var identityUserId = currentUser.UserId ?? throw new ApplicationUnauthenticatedException();
@@ -179,12 +338,37 @@ public sealed class GetTodayGameDayContextQueryHandler(
             profile.Id,
             cancellationToken);
 
-        var confirmedCandidates = candidates
-            .Where(candidate => attendanceBySessionId[candidate.Id].IsCurrentPlayerGoing)
+        // A player's day is only the games they hold a spot on (Going or Waitlisted). With none,
+        // the fallback is games run by a WhatsApp group they belong to — as a spectator — and every
+        // other game stays hidden. Game admins can opt into the full list; the old always-show-all
+        // fallback made everyone's Game Day as busy as an admin's.
+        var isGameAdmin = GameDayWorkflowAuthorization.IsGameAdmin(currentUser);
+        var isShowingAll = showAllGames && isGameAdmin;
+        var attendingCandidates = candidates
+            .Where(candidate => attendanceBySessionId[candidate.Id].IsCurrentPlayerGoing
+                || attendanceBySessionId[candidate.Id].IsCurrentPlayerWaitlisted)
             .ToArray();
-        // The player picks between the games they're Going to; if they're Going to none (e.g. an
-        // admin running the day), the pool falls back to every game so they can still operate one.
-        IReadOnlyList<Session> pool = confirmedCandidates.Length > 0 ? confirmedCandidates : candidates;
+        var groupNamesBySessionId = await sessionRepository.GetGroupNamesBySessionAsync(
+            candidates.Select(candidate => candidate.Id).ToArray(),
+            cancellationToken);
+        IReadOnlyList<Session> pool;
+        if (isShowingAll)
+        {
+            pool = candidates;
+        }
+        else if (attendingCandidates.Length > 0)
+        {
+            pool = attendingCandidates;
+        }
+        else
+        {
+            pool = await ListGroupPoolAsync(profile.Id, candidates, groupNamesBySessionId, cancellationToken);
+            if (pool.Count == 0)
+            {
+                return null;
+            }
+        }
+
         // Honour an explicit pick from the picker, but only within the pool the player may view;
         // an unknown or out-of-pool id falls back to the automatic selection.
         var session = (requestedSessionId is { } requestedId
@@ -192,6 +376,12 @@ public sealed class GetTodayGameDayContextQueryHandler(
                 : null)
             ?? SelectSession(pool, clock.UtcNow)!;
         var attendance = attendanceBySessionId[session.Id];
+        // Spectator: viewing a group's game without holding a spot on it. Everything on the page is
+        // read-only except one Join action; an admin who explicitly widened to all games is running
+        // the day, not spectating.
+        var isSpectator = !isShowingAll
+            && !attendance.IsCurrentPlayerGoing
+            && !attendance.IsCurrentPlayerWaitlisted;
         // Both Going and Waitlist players may check in at the field - a waitlisted player who shows
         // up often fills a no-show's spot, so the waitlist no longer blocks self check-in.
         var eligibility = attendance.IsCurrentPlayerGoing || attendance.IsCurrentPlayerWaitlisted
@@ -201,7 +391,11 @@ public sealed class GetTodayGameDayContextQueryHandler(
 
         var nowUtc = clock.UtcNow;
         var isWithinWindow = nowUtc >= session.CheckInOpensAtUtc && nowUtc <= session.CheckInClosesAtUtc;
-        var status = ResolveStatus(attendance, eligibility, isWithinWindow, nowUtc, session);
+        // A spectator never sees the check-in machinery, so the eligibility reason would only
+        // confuse; the client renders the spectator banner and Join action off IsSpectator instead.
+        var status = isSpectator
+            ? new GameDayStatusProjection("Blocked", "Spectator", false, "Join this game", null)
+            : ResolveStatus(attendance, eligibility, isWithinWindow, nowUtc, session);
         var canLateCheckIn = currentUser.HasPolicy(CanCheckInPlayersPolicy)
             && nowUtc > session.CheckInClosesAtUtc;
         var match = await statsRepository.FindPrimaryMatchBySessionAsync(session.Id, cancellationToken);
@@ -210,7 +404,6 @@ public sealed class GetTodayGameDayContextQueryHandler(
             : await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken);
         // Game admins set teams up ahead of time, so their window opens at publish; captains still
         // wait for check-in. Both close when post-game opens.
-        var isGameAdmin = GameDayWorkflowAuthorization.IsGameAdmin(currentUser);
         var isDraftWindow = GameDayWorkflowQueries.IsTeamSetupOpen(session, nowUtc, isGameAdmin);
         var canAssignCaptains = isGameAdmin
             && isDraftWindow
@@ -266,6 +459,26 @@ public sealed class GetTodayGameDayContextQueryHandler(
             && teams.Count > 0
             && roster.Any(member => member.PlayerProfileId == profile.Id);
 
+        // Spectators are strictly read-only: every profile-keyed action is withheld even where the
+        // flags above would technically allow it (e.g. an admin browsing a group game without the
+        // all-games toggle). Join is the one action offered, and only while RSVP is open — the
+        // waiver/payment gates still run when the RSVP is actually submitted.
+        var canJoin = false;
+        string? joinBlockedReason = null;
+        if (isSpectator)
+        {
+            canAssignCaptains = false;
+            canDraftTeam = false;
+            canApprovePostGame = false;
+            canLateCheckIn = false;
+            latePlayers = [];
+            canManageCheckIns = false;
+            canSubmitOwnStats = false;
+            canViewTeams = false;
+            canJoin = session.Status == SessionStatus.Published && nowUtc < session.RsvpDeadlineUtc;
+            joinBlockedReason = canJoin ? null : "RSVP is closed for this game.";
+        }
+
         // The picker lists every game in the pool (ordered by kick-off). Venues load in one batched
         // query rather than one per game; attendance is already fetched for every candidate.
         var poolVenuesById = (await venueRepository.ListByIdsAsync(
@@ -311,7 +524,46 @@ public sealed class GetTodayGameDayContextQueryHandler(
             canManageCheckIns,
             canSubmitOwnStats,
             todaysGames,
-            canViewTeams);
+            canViewTeams,
+            session.Title,
+            groupNamesBySessionId.GetValueOrDefault(session.Id),
+            isSpectator,
+            canJoin,
+            joinBlockedReason,
+            session.Capacity,
+            CanShowAllGames: isGameAdmin,
+            IsShowingAllGames: isShowingAll);
+    }
+
+    /// <summary>
+    /// The spectator pool: today's games run by a WhatsApp group the player belongs to, matched by
+    /// group name (trimmed, case-insensitive) because group ids are deliberately never stored.
+    /// Sessions created by hand carry no group and are never in this pool.
+    /// </summary>
+    private async Task<IReadOnlyList<Session>> ListGroupPoolAsync(
+        Guid playerProfileId,
+        IReadOnlyList<Session> candidates,
+        IReadOnlyDictionary<Guid, string> groupNamesBySessionId,
+        CancellationToken cancellationToken)
+    {
+        if (groupNamesBySessionId.Count == 0)
+        {
+            return [];
+        }
+
+        var groups = await playerGroupLinkRepository.ListPlayerGroupsAsync(playerProfileId, cancellationToken);
+        if (groups.Count == 0)
+        {
+            return [];
+        }
+
+        var groupNames = groups
+            .Select(group => group.GroupName.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return candidates
+            .Where(candidate => groupNamesBySessionId.TryGetValue(candidate.Id, out var groupName)
+                && groupNames.Contains(groupName.Trim()))
+            .ToArray();
     }
 
     private static string DescribeAttendance(GameDayAttendanceRecord attendance) =>

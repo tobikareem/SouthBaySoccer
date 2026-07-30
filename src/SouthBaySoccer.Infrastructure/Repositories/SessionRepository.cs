@@ -111,17 +111,7 @@ internal sealed class SessionRepository(SouthBaySoccerDbContext dbContext) : ISe
                 x.IsWaitlist,
             })
             .ToArrayAsync(cancellationToken);
-        // One snapshot per session today (the occurrence key is "pickuppal:{gameId}"), but group
-        // instead of Single so a future many-to-one import shape degrades gracefully. The ordered
-        // First keeps the pick deterministic — the query returns rows in no guaranteed order.
-        var groupNamesBySession = (await dbContext.Set<PickupPalGameSnapshot>()
-            .Where(x => sessionIds.Contains(x.SessionId) && x.GroupName != string.Empty)
-            .Select(x => new { x.SessionId, x.GroupName })
-            .ToArrayAsync(cancellationToken))
-            .GroupBy(x => x.SessionId)
-            .ToDictionary(
-                group => group.Key,
-                group => group.OrderBy(x => x.GroupName, StringComparer.Ordinal).First().GroupName);
+        var groupNamesBySession = await GetGroupNamesBySessionAsync(sessionIds, cancellationToken);
 
         var attendanceBySession = SessionAttendanceProjection.Build(
             localGoing
@@ -187,6 +177,46 @@ internal sealed class SessionRepository(SouthBaySoccerDbContext dbContext) : ISe
             .ThenBy(x => x.Id)
             .Take(10)
             .ToArrayAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Session>> ListPastGameDayCandidatesAsync(
+        DateTime fromUtc,
+        DateTime toUtc,
+        int take,
+        CancellationToken cancellationToken = default) =>
+        // Newest first: the caller wants "the most recent game", and the day-scoped query above
+        // orders ascending with a small cap, which over a multi-week window would truncate to the
+        // oldest sessions instead.
+        await dbContext.Sessions
+            .Where(x => x.Status == SessionStatus.Published
+                && x.StartsAtUtc >= fromUtc
+                && x.StartsAtUtc < toUtc)
+            .OrderByDescending(x => x.StartsAtUtc)
+            .ThenBy(x => x.Id)
+            .Take(take)
+            .ToArrayAsync(cancellationToken);
+
+    public async Task<IReadOnlyDictionary<Guid, string>> GetGroupNamesBySessionAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (sessionIds.Count == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        var idArray = sessionIds as Guid[] ?? sessionIds.ToArray();
+        // One snapshot per session today (the occurrence key is "pickuppal:{gameId}"), but group
+        // instead of Single so a future many-to-one import shape degrades gracefully. The ordered
+        // First keeps the pick deterministic — the query returns rows in no guaranteed order.
+        return (await dbContext.Set<PickupPalGameSnapshot>()
+            .Where(x => idArray.Contains(x.SessionId) && x.GroupName != string.Empty)
+            .Select(x => new { x.SessionId, x.GroupName })
+            .ToArrayAsync(cancellationToken))
+            .GroupBy(x => x.SessionId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderBy(x => x.GroupName, StringComparer.Ordinal).First().GroupName);
+    }
 
     public Task<RecurrenceRule?> FindRecurrenceRuleAsync(Guid recurrenceRuleId, CancellationToken cancellationToken = default) =>
         dbContext.RecurrenceRules.SingleOrDefaultAsync(x => x.Id == recurrenceRuleId, cancellationToken);

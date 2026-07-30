@@ -50,7 +50,14 @@ public sealed record GameDayContextDto(
     bool CanManageCheckIns = false,
     bool CanSubmitOwnStats = false,
     IReadOnlyList<GameDayGameOptionDto>? TodaysGames = null,
-    bool CanViewTeams = false);
+    bool CanViewTeams = false,
+    string? GroupName = null,
+    bool IsSpectator = false,
+    bool CanJoin = false,
+    string? JoinBlockedReason = null,
+    int Capacity = 0,
+    bool CanShowAllGames = false,
+    bool IsShowingAllGames = false);
 
 /// <summary>
 /// One of today's games the player can act on. The Game Day screen shows a picker built from these
@@ -63,6 +70,22 @@ public sealed record GameDayGameOptionDto(
     DateTime StartsAtUtc,
     string StatusLabel,
     bool IsSelected);
+
+/// <summary>
+/// The player's most recent past game, shown on Game Day when no relevant game runs today.
+/// Counts only — no roster names.
+/// </summary>
+public sealed record LastGameSummaryDto(
+    Guid SessionId,
+    string Title,
+    string? GroupName,
+    string Venue,
+    string DateLabel,
+    DateTime StartsAtUtc,
+    int GoingCount,
+    int CheckedInCount,
+    int TeamCount,
+    string? ResultSummary);
 
 public sealed record RecentGameDto(
     Guid SessionId,
