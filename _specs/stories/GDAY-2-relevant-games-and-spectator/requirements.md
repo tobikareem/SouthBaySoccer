@@ -75,8 +75,25 @@ Scenario: No game today shows the last game
   When I open Game Day
   Then "No game today" is the headline with a plain-language explanation
   And my most recent game (within 30 days, mine or my group's) shows title, group, venue, date,
-    going/checked-in counts, and the team result once published
+    going/waitlist/checked-in counts, and the team result once published
   And with no such game at all, only the empty-state explanation shows
+
+Scenario: The last game's teams are browsable down to the scorers
+  Given my last game was drafted into teams
+  When I view the last-game summary
+  Then each team card shows the team name, its captain, and its settled result
+  And tapping a team opens its member list with each player's approved goal tally
+  And pending or rejected goal submissions are not counted
+
+Scenario: Admins and captains can finish up the last game
+  Given I am a game admin or a captain on the last game
+  When I view the last-game summary
+  Then I see "Lock the teams" when the teams were never locked (admin, within the 3-day edit window)
+  And "Match players" when unlinked imported names remain (admin)
+  And "Confirm result and goals" when the locked match still awaits confirmation (captain or admin,
+    within the post-game window)
+  And each action opens the existing screen for that job, scoped to the last game's session
+  And a regular player sees none of these actions
 ```
 
 ## Non-goals

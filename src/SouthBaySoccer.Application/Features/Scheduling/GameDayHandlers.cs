@@ -150,9 +150,26 @@ public sealed class GetRecentGamesQueryHandler(
     }
 }
 
+/// <summary>One player on a last-game team sheet, with their approved goal tally.</summary>
+public sealed record LastGameTeamMemberModel(
+    Guid PlayerProfileId,
+    string DisplayName,
+    bool IsCaptain,
+    int Goals);
+
+/// <summary>One team on the last game, named by its captain, with its settled result when published.</summary>
+public sealed record LastGameTeamModel(
+    Guid TeamId,
+    string Name,
+    string CaptainName,
+    string ResultLabel,
+    IReadOnlyList<LastGameTeamMemberModel> Members);
+
 /// <summary>
-/// A short player-facing summary of the player's most recent game, shown on Game Day when there is
-/// no relevant game today. Counts only — never roster names.
+/// A player-facing summary of the player's most recent game, shown on Game Day when there is no
+/// relevant game today: counts, the team sheets (captains + members + approved goal tallies), and
+/// the follow-up actions the viewer may still take on it (lock teams, match players, confirm the
+/// result and stats).
 /// </summary>
 public sealed record LastGameSummaryModel(
     Guid SessionId,
@@ -163,7 +180,12 @@ public sealed record LastGameSummaryModel(
     int GoingCount,
     int CheckedInCount,
     int TeamCount,
-    string? ResultSummary);
+    string? ResultSummary,
+    int WaitlistCount = 0,
+    IReadOnlyList<LastGameTeamModel>? Teams = null,
+    bool CanLockTeams = false,
+    bool CanMatchPlayers = false,
+    bool CanApprovePostGame = false);
 
 /// <summary>
 /// Finds the player's most recent past game inside a 30-day window: preferably one they held a spot
@@ -177,6 +199,7 @@ public sealed class GetLastGameSummaryQueryHandler(
     ISessionRepository sessionRepository,
     IVenueRepository venueRepository,
     IRsvpRepository rsvpRepository,
+    IPickupPalGameRepository pickupPalGameRepository,
     IPlayerGroupLinkRepository playerGroupLinkRepository,
     IStatsRepository statsRepository)
 {
@@ -247,9 +270,44 @@ public sealed class GetLastGameSummaryQueryHandler(
         var teams = match is null
             ? []
             : await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken);
-        var resultSummary = match?.Status is MatchStatus.Published or MatchStatus.Locked
-            ? await BuildResultSummaryAsync(match.Id, teams, cancellationToken)
-            : null;
+        var results = match is null
+            ? []
+            : await statsRepository.ListMatchResultsAsync(match.Id, cancellationToken);
+        var isSettled = match?.Status is MatchStatus.Published or MatchStatus.Locked;
+        var resultSummary = isSettled ? BuildResultSummary(results, teams) : null;
+
+        // The display roster gives counts consistent with the Game Day tiles (waitlist included)
+        // and the names the team sheets and goal tallies resolve against.
+        var checkedInIds = attendance.CheckedInPlayerProfileIds.ToHashSet();
+        var roster = await GameDayWorkflowQueries.ListDisplayRosterAsync(
+            rsvpRepository,
+            pickupPalGameRepository,
+            playerProfileRepository,
+            session.Id,
+            checkedInIds,
+            cancellationToken);
+        var teamModels = match is null || teams.Count == 0
+            ? []
+            : await BuildTeamModelsAsync(match, teams, results, roster, isSettled, cancellationToken);
+
+        // Follow-up actions: the game may still need its teams locked, imported names matched, or
+        // its result/goals confirmed — surfacing them here saves the admin a trip through Recent
+        // games. Windows and roles mirror the live Game Day rules exactly.
+        var nowUtc = clock.UtcNow;
+        var isGameAdmin = GameDayWorkflowAuthorization.IsGameAdmin(currentUser);
+        var isCaptain = teams.Any(team => team.CaptainPlayerProfileId == profile.Id);
+        var canLockTeams = isGameAdmin
+            && GameDayWorkflowQueries.IsAdminTeamEditOpen(session, nowUtc)
+            && (match is null || match.Status == MatchStatus.Draft);
+        var canMatchPlayers = isGameAdmin
+            && roster.Any(member => member.PlayerProfileId is null);
+        var canApprovePostGame = match is not null
+            && GameDayWorkflowQueries.IsPostGameOpen(session, nowUtc)
+            && match.Status is not MatchStatus.Draft
+                and not MatchStatus.NeedsReview
+                and not MatchStatus.Published
+                and not MatchStatus.Locked
+            && (isGameAdmin || isCaptain);
 
         return new LastGameSummaryModel(
             session.Id,
@@ -257,20 +315,79 @@ public sealed class GetLastGameSummaryQueryHandler(
             groupNamesBySessionId.GetValueOrDefault(session.Id),
             venue?.Name ?? "Unknown venue",
             session.StartsAtUtc,
-            attendance.GoingCount,
-            attendance.CheckedInCount,
+            roster.Count(member => !member.IsWaitlist),
+            roster.Count(member => member.IsCheckedIn),
             teams.Count,
-            resultSummary);
+            resultSummary,
+            roster.Count(member => member.IsWaitlist),
+            teamModels,
+            canLockTeams,
+            canMatchPlayers,
+            canApprovePostGame);
+    }
+
+    /// <summary>
+    /// Team sheets with approved goal tallies. Only approved Goal events count — pending or rejected
+    /// submissions belong to the confirmation flow, not a summary presented as fact.
+    /// </summary>
+    private async Task<IReadOnlyList<LastGameTeamModel>> BuildTeamModelsAsync(
+        Match match,
+        IReadOnlyList<MatchTeam> teams,
+        IReadOnlyList<MatchResult> results,
+        IReadOnlyList<GameDayRosterEntryModel> roster,
+        bool isSettled,
+        CancellationToken cancellationToken)
+    {
+        var assignments = await statsRepository.ListAssignmentsAsync(match.Id, cancellationToken);
+        var events = await statsRepository.ListMatchEventsAsync(match.Id, cancellationToken);
+        var goalsByPlayerId = events
+            .Where(matchEvent => matchEvent.EventType == MatchEventType.Goal
+                && matchEvent.ReviewStatus == MatchEventReviewStatus.Approved
+                && matchEvent.PlayerProfileId is not null)
+            .GroupBy(matchEvent => matchEvent.PlayerProfileId!.Value)
+            .ToDictionary(group => group.Key, group => group.Count());
+        var namesByPlayerId = roster
+            .Where(member => member.PlayerProfileId is not null)
+            .GroupBy(member => member.PlayerProfileId!.Value)
+            .ToDictionary(group => group.Key, group => group.First().DisplayName);
+        var resultsByTeamId = results.ToDictionary(result => result.MatchTeamId);
+
+        return teams
+            .OrderBy(team => team.TeamNumber)
+            .Select(team =>
+            {
+                var members = assignments
+                    .Where(assignment => assignment.MatchTeamId == team.Id)
+                    .Select(assignment => new LastGameTeamMemberModel(
+                        assignment.PlayerProfileId,
+                        namesByPlayerId.GetValueOrDefault(assignment.PlayerProfileId, "Unknown player"),
+                        assignment.PlayerProfileId == team.CaptainPlayerProfileId,
+                        goalsByPlayerId.GetValueOrDefault(assignment.PlayerProfileId)))
+                    // Captain first, then scorers, then alphabetical — the order a recap is read in.
+                    .OrderByDescending(member => member.IsCaptain)
+                    .ThenByDescending(member => member.Goals)
+                    .ThenBy(member => member.DisplayName, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                return new LastGameTeamModel(
+                    team.Id,
+                    team.Name,
+                    namesByPlayerId.GetValueOrDefault(
+                        team.CaptainPlayerProfileId ?? Guid.Empty,
+                        "No captain"),
+                    isSettled && resultsByTeamId.TryGetValue(team.Id, out var result)
+                        ? BuildTallyLabel(result)
+                        : string.Empty,
+                    members);
+            })
+            .ToArray();
     }
 
     // "Team Vic 2W · Team Ade 1W 1D" — wins always shown so the summary reads as a result even at
     // 0, draws/losses only when they occurred.
-    private async Task<string?> BuildResultSummaryAsync(
-        Guid matchId,
-        IReadOnlyList<MatchTeam> teams,
-        CancellationToken cancellationToken)
+    private static string? BuildResultSummary(
+        IReadOnlyList<MatchResult> results,
+        IReadOnlyList<MatchTeam> teams)
     {
-        var results = await statsRepository.ListMatchResultsAsync(matchId, cancellationToken);
         if (results.Count == 0)
         {
             return null;
@@ -279,22 +396,24 @@ public sealed class GetLastGameSummaryQueryHandler(
         var teamNamesById = teams.ToDictionary(team => team.Id, team => team.Name);
         var parts = results
             .OrderBy(result => teamNamesById.GetValueOrDefault(result.MatchTeamId, string.Empty), StringComparer.OrdinalIgnoreCase)
-            .Select(result =>
-            {
-                var tally = $"{result.Wins}W";
-                if (result.Draws > 0)
-                {
-                    tally += $" {result.Draws}D";
-                }
-
-                if (result.Losses > 0)
-                {
-                    tally += $" {result.Losses}L";
-                }
-
-                return $"{teamNamesById.GetValueOrDefault(result.MatchTeamId, "Team")} {tally}";
-            });
+            .Select(result => $"{teamNamesById.GetValueOrDefault(result.MatchTeamId, "Team")} {BuildTallyLabel(result)}");
         return string.Join(" · ", parts);
+    }
+
+    private static string BuildTallyLabel(MatchResult result)
+    {
+        var tally = $"{result.Wins}W";
+        if (result.Draws > 0)
+        {
+            tally += $" {result.Draws}D";
+        }
+
+        if (result.Losses > 0)
+        {
+            tally += $" {result.Losses}L";
+        }
+
+        return tally;
     }
 }
 

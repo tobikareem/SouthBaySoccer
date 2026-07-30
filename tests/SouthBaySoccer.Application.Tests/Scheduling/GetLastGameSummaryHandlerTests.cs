@@ -21,8 +21,10 @@ public sealed class GetLastGameSummaryHandlerTests
         var older = context.SessionAt(Utc(2026, 7, 15, 3, 0), "Older game");
         var newest = context.SessionAt(Utc(2026, 7, 21, 3, 0), "Latest game");
         context.ConfigureSessions(newest, older);
-        context.Attend(newest, going: true);
+        // Attend reseeds the shared roster on each call; attend the asserted (newest) session last
+        // so its checked-in ids match the roster the handler reads.
         context.Attend(older, going: true);
+        context.Attend(newest, going: true);
 
         var summary = await context.CreateHandler().HandleAsync();
 
@@ -117,6 +119,163 @@ public sealed class GetLastGameSummaryHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_BuildsTeamSheetsWithCaptainsAndApprovedGoals()
+    {
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 21, 3, 0), "Drafted game");
+        context.ConfigureSessions(session);
+        context.Attend(session, going: true);
+        var captain = context.GoingRoster[0];
+        var scorer = context.GoingRoster[1];
+        var quiet = context.GoingRoster[2];
+        var match = new Match { Id = Guid.NewGuid(), SessionId = session.Id, Status = MatchStatus.InProgress };
+        var team = new MatchTeam
+        {
+            Id = Guid.NewGuid(),
+            MatchId = match.Id,
+            TeamNumber = 1,
+            Name = "Team Vic",
+            CaptainPlayerProfileId = captain.PlayerProfileId,
+        };
+        context.Stats
+            .Setup(x => x.FindPrimaryMatchBySessionAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(match);
+        context.Stats
+            .Setup(x => x.ListMatchTeamsAsync(match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([team]);
+        context.Stats
+            .Setup(x => x.ListAssignmentsAsync(match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { captain, scorer, quiet }
+                .Select(member => new TeamAssignment
+                {
+                    MatchId = match.Id,
+                    MatchTeamId = team.Id,
+                    PlayerProfileId = member.PlayerProfileId,
+                })
+                .ToArray());
+        context.Stats
+            .Setup(x => x.ListMatchEventsAsync(match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                GoalEvent(match.Id, team.Id, scorer.PlayerProfileId, MatchEventReviewStatus.Approved),
+                GoalEvent(match.Id, team.Id, scorer.PlayerProfileId, MatchEventReviewStatus.Approved),
+                // Pending goals are not fact yet and stay off the summary.
+                GoalEvent(match.Id, team.Id, quiet.PlayerProfileId, MatchEventReviewStatus.Pending),
+            ]);
+
+        var summary = await context.CreateHandler().HandleAsync();
+
+        var sheet = summary!.Teams.Should().ContainSingle().Subject;
+        sheet.Name.Should().Be("Team Vic");
+        sheet.CaptainName.Should().Be(captain.DisplayName);
+        sheet.Members.Should().HaveCount(3);
+        sheet.Members[0].IsCaptain.Should().BeTrue("captain leads the sheet");
+        sheet.Members[1].DisplayName.Should().Be(scorer.DisplayName);
+        sheet.Members[1].Goals.Should().Be(2, "only approved goals count");
+        sheet.Members.Single(member => member.PlayerProfileId == quiet.PlayerProfileId).Goals.Should().Be(0);
+        sheet.ResultLabel.Should().BeEmpty("the match is not settled yet");
+    }
+
+    [Fact]
+    public async Task HandleAsync_CountsComeFromTheDisplayRosterIncludingWaitlist()
+    {
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 21, 3, 0), "Busy game");
+        context.ConfigureSessions(session);
+        context.Attend(session, going: true);
+        context.WaitlistRoster.AddRange(Enumerable.Range(0, 5)
+            .Select(index => new RosterMemberRecord(Guid.NewGuid(), $"Waiter {index}", string.Empty, false, index + 1)));
+
+        var summary = await context.CreateHandler().HandleAsync();
+
+        summary!.GoingCount.Should().Be(14);
+        summary.WaitlistCount.Should().Be(5);
+        summary.CheckedInCount.Should().Be(12);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAdminAndTeamsNeverLocked_OffersLockAndMatchActions()
+    {
+        var context = new TestContext();
+        // Yesterday's game sits inside the 3-day admin edit window.
+        var session = context.SessionAt(Utc(2026, 7, 22, 3, 0), "Unfinished game");
+        context.ConfigureSessions(session);
+        context.Attend(session, going: true);
+        context.CurrentUser.Setup(x => x.HasPolicy("CanManageSessions")).Returns(true);
+        context.ImportedParticipants.Add(new PickupPalGameParticipant
+        {
+            SessionId = session.Id,
+            PickupPalParticipantId = "pp-tob8",
+            DisplayName = "tob8",
+            IsWaitlist = true,
+        });
+
+        var summary = await context.CreateHandler().HandleAsync();
+
+        summary!.CanLockTeams.Should().BeTrue("no match exists yet, so teams were never locked");
+        summary.CanMatchPlayers.Should().BeTrue("an unlinked imported name is still on the roster");
+        summary.CanApprovePostGame.Should().BeFalse("there is no locked match to approve");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenCaptainOfLockedMatch_OffersResultAndGoalConfirmation()
+    {
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 21, 3, 0), "Awaiting confirmation");
+        context.ConfigureSessions(session);
+        context.Attend(session, going: true);
+        var match = new Match { Id = Guid.NewGuid(), SessionId = session.Id, Status = MatchStatus.InProgress };
+        context.Stats
+            .Setup(x => x.FindPrimaryMatchBySessionAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(match);
+        context.Stats
+            .Setup(x => x.ListMatchTeamsAsync(match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new MatchTeam
+            {
+                Id = Guid.NewGuid(),
+                MatchId = match.Id,
+                TeamNumber = 1,
+                Name = "Team Ada",
+                CaptainPlayerProfileId = context.Profile.Id,
+            }]);
+
+        var summary = await context.CreateHandler().HandleAsync();
+
+        summary!.CanApprovePostGame.Should().BeTrue("the viewer captains a team on an unsettled match");
+        summary.CanLockTeams.Should().BeFalse("locking is a game-admin action");
+        summary.CanMatchPlayers.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenRegularPlayer_OffersNoFollowUpActions()
+    {
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 21, 3, 0), "Someone else's job");
+        context.ConfigureSessions(session);
+        context.Attend(session, going: true);
+
+        var summary = await context.CreateHandler().HandleAsync();
+
+        summary!.CanLockTeams.Should().BeFalse();
+        summary.CanMatchPlayers.Should().BeFalse();
+        summary.CanApprovePostGame.Should().BeFalse();
+    }
+
+    private static MatchEvent GoalEvent(
+        Guid matchId,
+        Guid teamId,
+        Guid playerProfileId,
+        MatchEventReviewStatus reviewStatus) => new()
+        {
+            Id = Guid.NewGuid(),
+            MatchId = matchId,
+            MatchTeamId = teamId,
+            PlayerProfileId = playerProfileId,
+            EventType = MatchEventType.Goal,
+            ReviewStatus = reviewStatus,
+        };
+
+    [Fact]
     public async Task HandleAsync_QueriesOnlyThePastThirtyDayWindow()
     {
         var context = new TestContext();
@@ -170,7 +329,33 @@ public sealed class GetLastGameSummaryHandlerTests
                         id => AttendanceBySession.GetValueOrDefault(
                             id,
                             new GameDayAttendanceRecord(0, 0, 0, false, false, false, []))));
+            // The display roster behind the counts and team-sheet names.
+            Rsvps
+                .Setup(x => x.ListGoingRosterAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((Guid _, CancellationToken _) => GoingRoster);
+            Rsvps
+                .Setup(x => x.ListActiveWaitlistRosterAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((Guid _, CancellationToken _) => WaitlistRoster);
+            PickupPalGames
+                .Setup(x => x.ListParticipantsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((Guid _, CancellationToken _) => ImportedParticipants);
+            Profiles
+                .Setup(x => x.ListProfilesAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<PlayerProfile>());
+            Stats
+                .Setup(x => x.ListAssignmentsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<TeamAssignment>());
+            Stats
+                .Setup(x => x.ListMatchEventsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<MatchEvent>());
+            Stats
+                .Setup(x => x.ListMatchResultsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<MatchResult>());
         }
+
+        public List<RosterMemberRecord> GoingRoster { get; } = [];
+        public List<RosterMemberRecord> WaitlistRoster { get; } = [];
+        public List<PickupPalGameParticipant> ImportedParticipants { get; } = [];
 
         public PlayerProfile Profile { get; } = new()
         {
@@ -189,6 +374,7 @@ public sealed class GetLastGameSummaryHandlerTests
         public Mock<ISessionRepository> Sessions { get; } = new();
         public Mock<IVenueRepository> Venues { get; } = new();
         public Mock<IRsvpRepository> Rsvps { get; } = new();
+        public Mock<IPickupPalGameRepository> PickupPalGames { get; } = new();
         public Mock<IPlayerGroupLinkRepository> PlayerGroups { get; } = new();
         public Mock<IStatsRepository> Stats { get; } = new();
 
@@ -201,8 +387,16 @@ public sealed class GetLastGameSummaryHandlerTests
                     It.IsAny<CancellationToken>()))
                 .ReturnsAsync(newestFirst);
 
-        public void Attend(Session session, bool going) =>
-            AttendanceBySession[session.Id] = new GameDayAttendanceRecord(14, 12, 0, going, !going, false, []);
+        // Counts come from the display roster (like the Game Day tiles), so attending seeds both the
+        // attendance record and a 14-strong going roster with the first 12 checked in.
+        public void Attend(Session session, bool going)
+        {
+            GoingRoster.Clear();
+            GoingRoster.AddRange(Enumerable.Range(0, 14)
+                .Select(index => new RosterMemberRecord(Guid.NewGuid(), $"Player {index:D2}", string.Empty, false, null)));
+            var checkedInIds = GoingRoster.Take(12).Select(member => member.PlayerProfileId).ToArray();
+            AttendanceBySession[session.Id] = new GameDayAttendanceRecord(14, 12, 0, going, !going, false, checkedInIds);
+        }
 
         public Session SessionAt(DateTime startsAtUtc, string title) => new()
         {
@@ -227,6 +421,7 @@ public sealed class GetLastGameSummaryHandlerTests
             Sessions.Object,
             Venues.Object,
             Rsvps.Object,
+            PickupPalGames.Object,
             PlayerGroups.Object,
             Stats.Object);
     }
