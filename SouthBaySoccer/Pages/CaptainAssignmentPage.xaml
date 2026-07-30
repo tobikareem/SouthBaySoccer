@@ -73,7 +73,10 @@
                             <Label Grid.Column="1" Text="{Binding GrantStatusText}" Style="{StaticResource TextCaption}" />
                         </Grid>
                     </Border>
-                    <Button Text="Lock teams" Command="{Binding LockTeamsCommand}" IsVisible="{Binding CanLockTeams}" Style="{StaticResource GhostButton}" />
+                    <!-- Always present until locked (hiding it left admins hunting for where to lock);
+                         the command stays disabled until every team has a granted captain. -->
+                    <Button Text="Lock teams" Command="{Binding LockTeamsCommand}" IsVisible="{Binding ShowLockTeams}" Style="{StaticResource GhostButton}" />
+                    <Label Text="Locking becomes available once captains are granted to every team. Locked teams open the post-game confirmation." Style="{StaticResource TextCaption}" HorizontalTextAlignment="Center" Opacity="0.7" IsVisible="{Binding ShowLockHint}" />
                     <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding IsLocked}">
                         <Label Text="Teams are locked. Captain picks can no longer change." Style="{StaticResource TextCaption}" />
                     </Border>
