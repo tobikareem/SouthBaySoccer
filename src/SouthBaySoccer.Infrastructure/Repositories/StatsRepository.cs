@@ -282,6 +282,17 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
     {
         var affected = 0;
 
+        // Captaincy must follow the merge with the assignments: leaving MatchTeam pointing at the
+        // retired source profile orphans the team — the captain checkbox can no longer preselect,
+        // and CanLockTeams fails its captain-has-assignment check, hiding the Lock button entirely.
+        foreach (var team in await dbContext.MatchTeams
+            .Where(x => x.CaptainPlayerProfileId == sourcePlayerProfileId)
+            .ToArrayAsync(cancellationToken))
+        {
+            team.CaptainPlayerProfileId = targetPlayerProfileId;
+            affected++;
+        }
+
         affected += await ReassignUniqueRowsAsync(
             await dbContext.TeamAssignments.Where(x => x.PlayerProfileId == sourcePlayerProfileId).ToArrayAsync(cancellationToken),
             row => dbContext.TeamAssignments.Any(x => x.MatchId == row.MatchId && x.PlayerProfileId == targetPlayerProfileId),
