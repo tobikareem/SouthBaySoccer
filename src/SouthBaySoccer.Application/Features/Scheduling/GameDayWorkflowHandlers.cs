@@ -884,15 +884,23 @@ public sealed class ReopenPostGameResultsCommandHandler(
 }
 
 /// <summary>
-/// Attaches an unlinked imported Pickup Pal participant (guests, or players whose phone/name never
-/// matched at import) to a real player profile, so they appear on the roster and can submit stats
-/// and be rated. Guarded to game admins; the participant must not already be linked.
+/// Attaches an imported Pickup Pal participant to a real player profile, so they appear on the
+/// roster and can submit stats and be rated. Guarded to game admins.
+/// <para>
+/// Matching moves EVERYTHING about the player. When the participant was previously linked to an
+/// import-owned duplicate profile (no sign-in behind it), that duplicate is merged into the chosen
+/// profile: stats, team assignments, captaincies, ratings, and every participant row across
+/// sessions re-point, and the duplicate is retired. Without this, a matched captain's team kept
+/// pointing at the old profile — preselection missed them and teams could never lock. A previous
+/// profile with a real sign-in is never merged automatically; the row is re-pointed only.
+/// </para>
 /// </summary>
 public sealed class LinkParticipantToProfileCommandHandler(
     ICurrentUser currentUser,
     IClock clock,
     IPlayerProfileRepository playerProfileRepository,
     IPickupPalGameRepository pickupPalGameRepository,
+    IStatsRepository statsRepository,
     IAuditLogRepository auditLogRepository,
     IUnitOfWork unitOfWork)
 {
@@ -923,6 +931,39 @@ public sealed class LinkParticipantToProfileCommandHandler(
             throw new ApplicationConflictException("That player is already linked to another entry on this game.");
         }
 
+        // Merge an import-owned previous profile into the match target so the player's whole
+        // history follows. A claimed profile (real sign-in) is left intact — an admin re-linking a
+        // mis-matched row must not silently strip another account's data.
+        PlayerProfile? duplicate = null;
+        if (participant.PlayerProfileId is { } previousId)
+        {
+            var previous = await playerProfileRepository.FindProfileAsync(previousId, cancellationToken);
+            if (previous is not null && previous.IdentityUserId is null)
+            {
+                duplicate = previous;
+            }
+        }
+
+        var action = "PickupPalParticipant.Link";
+        if (duplicate is not null)
+        {
+            await statsRepository.ReassignProfileStatsAsync(duplicate.Id, profile.Id, cancellationToken);
+            await pickupPalGameRepository.ReassignParticipantLinksAsync(duplicate.Id, profile.Id, cancellationToken);
+            duplicate.IsDeleted = true;
+            playerProfileRepository.Update(duplicate);
+            await playerProfileRepository.AddProfileMergeAsync(new ProfileMerge
+            {
+                Id = Guid.NewGuid(),
+                SourcePlayerProfileId = duplicate.Id,
+                TargetPlayerProfileId = profile.Id,
+                Status = ProfileMergeStatus.Completed,
+                MergedAtUtc = clock.UtcNow,
+                MergedByActorType = AuditActorType.PlayerProfile,
+                MergedByActorId = actor.Id.ToString("D"),
+            }, cancellationToken);
+            action = "PickupPalParticipant.LinkMerge";
+        }
+
         participant.PlayerProfileId = profile.Id;
         pickupPalGameRepository.UpdateParticipant(participant);
         await auditLogRepository.AddAsync(new AuditLogEntry
@@ -930,7 +971,7 @@ public sealed class LinkParticipantToProfileCommandHandler(
             Id = Guid.NewGuid(),
             ActorType = AuditActorType.PlayerProfile,
             ActorPlayerProfileId = actor.Id,
-            Action = "PickupPalParticipant.Link",
+            Action = action,
             EntityName = nameof(PickupPalGameParticipant),
             EntityId = participant.Id,
             DetailsJson = JsonSerializer.Serialize(new
@@ -938,6 +979,7 @@ public sealed class LinkParticipantToProfileCommandHandler(
                 sessionId = participant.SessionId,
                 participantId = participant.Id,
                 playerProfileId = profile.Id,
+                mergedFromProfileId = duplicate?.Id,
             }),
             OccurredAtUtc = clock.UtcNow,
         }, cancellationToken);
