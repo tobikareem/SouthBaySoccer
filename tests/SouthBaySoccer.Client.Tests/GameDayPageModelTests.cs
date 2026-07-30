@@ -976,6 +976,47 @@ public class GameDayPageModelTests
     }
 
     [Fact]
+    public async Task CaptainAssignment_LockButton_StaysVisibleWithHintUntilLockable()
+    {
+        // The Lock button used to hide entirely until lockable, leaving admins hunting for it.
+        var checkedIn = new[]
+        {
+            new CheckedInPlayerDto(new PlayerSummaryDto(Guid.NewGuid(), "Ada", "A", "Midfielder", false), "going"),
+        };
+        var dto = new CaptainAssignmentDto(
+            Guid.NewGuid(), Guid.NewGuid(), 2, new[] { 2, 3, 4 },
+            [], checkedIn, CanLockTeams: false, IsLocked: false, CanUnlockTeams: false);
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetCaptainAssignmentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(dto);
+        var pageModel = new CaptainAssignmentPageModel(client.Object, Navigator().Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.ShowLockTeams.Should().BeTrue("the button is visible but disabled");
+        pageModel.ShowLockHint.Should().BeTrue("the hint explains what unlocks it");
+        pageModel.LockTeamsCommand.CanExecute(null).Should().BeFalse();
+
+        // Once lockable the hint drops and the command enables; once locked both disappear.
+        var lockable = dto with { CanLockTeams = true };
+        client
+            .Setup(c => c.GetCaptainAssignmentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(lockable);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        pageModel.ShowLockTeams.Should().BeTrue();
+        pageModel.ShowLockHint.Should().BeFalse();
+        pageModel.LockTeamsCommand.CanExecute(null).Should().BeTrue();
+
+        var locked = dto with { IsLocked = true };
+        client
+            .Setup(c => c.GetCaptainAssignmentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(locked);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        pageModel.ShowLockTeams.Should().BeFalse();
+        pageModel.ShowLockHint.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task CaptainAssignment_UnlockTeams_CallsClientWhenAvailable()
     {
         var checkedIn = new[]

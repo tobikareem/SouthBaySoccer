@@ -217,6 +217,46 @@ public sealed class StatsRepositoryQueryTests
         rows.Single(row => row.PlayerProfileId == bola.Id).Goals.Should().Be(0);
     }
 
+    [Fact]
+    public async Task ReassignProfileStatsAsync_WhenSourceProfileCaptainsATeam_RepointsTheCaptaincy()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+        var season = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2026, 1, 1), EndsAtUtc = Utc(2026, 12, 31) };
+        var venue = new Venue { Id = Guid.NewGuid(), Name = $"Venue {Guid.NewGuid():N}", Locality = "Torrance" };
+        var duplicate = CreatePlayer("Desire Duplicate", "Forward");
+        var claimed = CreatePlayer("Desire Asinya", "Forward");
+        var session = CreateSession(season.Id, venue.Id, teamCount: 2, startsAtUtc: Utc(2026, 7, 7));
+        var match = new SoccerMatch { Id = Guid.NewGuid(), SessionId = session.Id, MatchNumber = 1, Status = MatchStatus.Draft };
+        var team = new MatchTeam
+        {
+            Id = Guid.NewGuid(),
+            MatchId = match.Id,
+            TeamNumber = 1,
+            Name = "Team Desire",
+            CaptainPlayerProfileId = duplicate.Id,
+        };
+        await db.Seasons.AddAsync(season);
+        await db.Venues.AddAsync(venue);
+        await db.PlayerProfiles.AddRangeAsync(duplicate, claimed);
+        await db.Sessions.AddAsync(session);
+        await db.Matches.AddAsync(match);
+        await db.MatchTeams.AddAsync(team);
+        await db.TeamAssignments.AddAsync(new TeamAssignment { Id = Guid.NewGuid(), MatchId = match.Id, MatchTeamId = team.Id, PlayerProfileId = duplicate.Id });
+        await db.SaveChangesAsync();
+
+        await repository.ReassignProfileStatsAsync(duplicate.Id, claimed.Id);
+        await db.SaveChangesAsync();
+
+        // The merge bug: assignments moved but the captaincy stayed on the retired profile, which
+        // broke captain preselection and hid the Lock button.
+        var storedTeam = await db.MatchTeams.SingleAsync(x => x.Id == team.Id);
+        storedTeam.CaptainPlayerProfileId.Should().Be(claimed.Id);
+        (await db.TeamAssignments.SingleAsync(x => x.MatchTeamId == team.Id)).PlayerProfileId.Should().Be(claimed.Id);
+    }
+
     private ServiceProvider CreateServiceProvider()
     {
         var clock = new Mock<IClock>();
