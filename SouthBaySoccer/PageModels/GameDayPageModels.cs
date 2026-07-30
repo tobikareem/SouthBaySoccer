@@ -1068,8 +1068,12 @@ public partial class GameDayRosterItem(
 
 public partial class CaptainAssignmentPageModel(
     IGameDayClient gameDayClient,
-    IGameDayNavigator navigator) : ObservableObject
+    IGameDayNavigator navigator,
+    IUserDialogService? dialogService = null) : ObservableObject
 {
+    public const string GrantFailedTitle = "Couldn't grant captains";
+    public const string LockFailedTitle = "Couldn't lock teams";
+
     private Guid sessionId;
     // The captains already granted for this session (from the last load), used to disable the Grant
     // button once the current selection matches - and re-enable it the moment the admin changes the
@@ -1222,6 +1226,17 @@ public partial class CaptainAssignmentPageModel(
         if (result.IsSuccess)
         {
             await LoadAsync(cancellationToken);
+            return;
+        }
+
+        // A rejected grant used to fail silently — the admin tapped, nothing changed, no reason
+        // given (e.g. "Team count cannot change after results or stats have been recorded.").
+        if (dialogService is not null)
+        {
+            await dialogService.ShowAlertAsync(
+                GrantFailedTitle,
+                result.ErrorMessage ?? "Something went wrong. Please try again.",
+                "OK");
         }
     }
 
@@ -1240,6 +1255,15 @@ public partial class CaptainAssignmentPageModel(
         if (result.IsSuccess)
         {
             await LoadAsync(cancellationToken);
+            return;
+        }
+
+        if (dialogService is not null)
+        {
+            await dialogService.ShowAlertAsync(
+                LockFailedTitle,
+                result.ErrorMessage ?? "Something went wrong. Please try again.",
+                "OK");
         }
     }
 

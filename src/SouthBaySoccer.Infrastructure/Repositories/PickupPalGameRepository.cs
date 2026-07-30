@@ -100,6 +100,22 @@ internal sealed class PickupPalGameRepository(SouthBaySoccerDbContext dbContext)
     public void UpdateParticipant(PickupPalGameParticipant participant) =>
         dbContext.Set<PickupPalGameParticipant>().Update(participant);
 
+    public async Task<int> ReassignParticipantLinksAsync(
+        Guid sourcePlayerProfileId,
+        Guid targetPlayerProfileId,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await dbContext.Set<PickupPalGameParticipant>()
+            .Where(x => x.PlayerProfileId == sourcePlayerProfileId)
+            .ToArrayAsync(cancellationToken);
+        foreach (var row in rows)
+        {
+            row.PlayerProfileId = targetPlayerProfileId;
+        }
+
+        return rows.Length;
+    }
+
     public async Task<IReadOnlyList<PickupPalGameParticipant>> ListLinkedParticipantsByDisplayNamesAsync(
         IReadOnlyCollection<string> displayNames,
         CancellationToken cancellationToken = default)

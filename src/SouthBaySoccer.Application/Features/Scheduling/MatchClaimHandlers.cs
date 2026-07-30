@@ -241,8 +241,10 @@ public sealed class ClaimParticipantCommandHandler(
         if (duplicate is not null)
         {
             // Merge the unclaimed duplicate into the caller: re-points this participant and every
-            // other reference (stats, assignments, check-ins, ratings) then retires the duplicate.
+            // other reference (stats, assignments, captaincies, ratings, participant rows on other
+            // sessions) then retires the duplicate.
             await statsRepository.ReassignProfileStatsAsync(duplicate.Id, actor.Id, cancellationToken);
+            await pickupPalGameRepository.ReassignParticipantLinksAsync(duplicate.Id, actor.Id, cancellationToken);
             duplicate.IsDeleted = true;
             playerProfileRepository.Update(duplicate);
             await playerProfileRepository.AddProfileMergeAsync(new ProfileMerge
