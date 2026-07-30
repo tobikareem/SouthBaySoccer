@@ -93,12 +93,15 @@ public sealed class GameDayFunctions(
                                 member.PlayerProfileId,
                                 member.DisplayName,
                                 member.IsCaptain,
-                                member.Goals))
+                                member.Goals,
+                                member.Assists))
                             .ToArray()))
                     .ToArray(),
                 summary.CanLockTeams,
                 summary.CanMatchPlayers,
-                summary.CanApprovePostGame),
+                summary.CanApprovePostGame,
+                summary.MatchId,
+                summary.CanRateTeammates),
             cancellationToken);
         return response;
     }

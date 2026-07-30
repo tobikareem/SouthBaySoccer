@@ -27,7 +27,8 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
                         names.GetValueOrDefault(id, "Player"),
                         id == team.CaptainId,
                         // Deterministic seed tallies: the captain and first pick carry the goals.
-                        id == team.CaptainId ? 2 : index == 1 ? 1 : 0))
+                        id == team.CaptainId ? 2 : index == 1 ? 1 : 0,
+                        id == team.CaptainId ? 1 : 0))
                     .ToArray();
                 return new LastGameTeamDto(team.TeamId, team.Name, team.CaptainName, "1W", members);
             })
@@ -47,7 +48,9 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
             Teams: teams,
             CanLockTeams: true,
             CanMatchPlayers: true,
-            CanApprovePostGame: true));
+            CanApprovePostGame: true,
+            MatchId: SeedFixtures.FeaturedMatchId,
+            CanRateTeammates: true));
     }
 
     public Task<IReadOnlyList<RecentGameDto>> GetRecentGamesAsync(CancellationToken cancellationToken)

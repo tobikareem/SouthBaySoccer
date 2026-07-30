@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using SouthBaySoccer.Application.Abstractions.Time;
+using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Domain.Entities.Groups;
 using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Scheduling;
@@ -255,6 +256,81 @@ public sealed class StatsRepositoryQueryTests
         var storedTeam = await db.MatchTeams.SingleAsync(x => x.Id == team.Id);
         storedTeam.CaptainPlayerProfileId.Should().Be(claimed.Id);
         (await db.TeamAssignments.SingleAsync(x => x.MatchTeamId == team.Id)).PlayerProfileId.Should().Be(claimed.Id);
+    }
+
+    [Fact]
+    public async Task ReassignProfileStatsAsync_WhenClaimedProfileIsAssignedElsewhere_KeepsCaptainOnTheirTeam()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+        var season = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2026, 1, 1), EndsAtUtc = Utc(2026, 12, 31) };
+        var venue = new Venue { Id = Guid.NewGuid(), Name = $"Venue {Guid.NewGuid():N}", Locality = "Torrance" };
+        var duplicate = CreatePlayer("Desire Duplicate", "Forward");
+        var claimed = CreatePlayer("Desire Asinya", "Forward");
+        var session = CreateSession(season.Id, venue.Id, teamCount: 2, startsAtUtc: Utc(2026, 7, 7));
+        var match = new SoccerMatch { Id = Guid.NewGuid(), SessionId = session.Id, MatchNumber = 1, Status = MatchStatus.Draft };
+        var captainTeam = new MatchTeam
+        {
+            Id = Guid.NewGuid(),
+            MatchId = match.Id,
+            TeamNumber = 1,
+            Name = "Team Desire",
+            CaptainPlayerProfileId = duplicate.Id,
+        };
+        var otherTeam = new MatchTeam { Id = Guid.NewGuid(), MatchId = match.Id, TeamNumber = 2, Name = "Team Other" };
+        await db.Seasons.AddAsync(season);
+        await db.Venues.AddAsync(venue);
+        await db.PlayerProfiles.AddRangeAsync(duplicate, claimed);
+        await db.Sessions.AddAsync(session);
+        await db.Matches.AddAsync(match);
+        await db.MatchTeams.AddRangeAsync(captainTeam, otherTeam);
+        await db.TeamAssignments.AddRangeAsync(
+            new TeamAssignment { Id = Guid.NewGuid(), MatchId = match.Id, MatchTeamId = captainTeam.Id, PlayerProfileId = duplicate.Id },
+            new TeamAssignment { Id = Guid.NewGuid(), MatchId = match.Id, MatchTeamId = otherTeam.Id, PlayerProfileId = claimed.Id });
+        await db.SaveChangesAsync();
+
+        await repository.ReassignProfileStatsAsync(duplicate.Id, claimed.Id);
+        await db.SaveChangesAsync();
+
+        var storedCaptainTeam = await db.MatchTeams.SingleAsync(x => x.Id == captainTeam.Id);
+        var activeAssignment = await db.TeamAssignments.SingleAsync(x => x.MatchId == match.Id && x.PlayerProfileId == claimed.Id);
+        storedCaptainTeam.CaptainPlayerProfileId.Should().Be(claimed.Id);
+        activeAssignment.MatchTeamId.Should().Be(captainTeam.Id);
+    }
+
+    [Fact]
+    public async Task ReassignProfileStatsAsync_WhenProfilesCaptainDifferentTeams_RejectsTheMerge()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+        var season = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2026, 1, 1), EndsAtUtc = Utc(2026, 12, 31) };
+        var venue = new Venue { Id = Guid.NewGuid(), Name = $"Venue {Guid.NewGuid():N}", Locality = "Torrance" };
+        var duplicate = CreatePlayer("Duplicate Captain", "Forward");
+        var claimed = CreatePlayer("Claimed Captain", "Forward");
+        var session = CreateSession(season.Id, venue.Id, teamCount: 2, startsAtUtc: Utc(2026, 7, 7));
+        var match = new SoccerMatch { Id = Guid.NewGuid(), SessionId = session.Id, MatchNumber = 1, Status = MatchStatus.Draft };
+        var sourceTeam = new MatchTeam { Id = Guid.NewGuid(), MatchId = match.Id, TeamNumber = 1, Name = "Source Team", CaptainPlayerProfileId = duplicate.Id };
+        var targetTeam = new MatchTeam { Id = Guid.NewGuid(), MatchId = match.Id, TeamNumber = 2, Name = "Target Team", CaptainPlayerProfileId = claimed.Id };
+        await db.Seasons.AddAsync(season);
+        await db.Venues.AddAsync(venue);
+        await db.PlayerProfiles.AddRangeAsync(duplicate, claimed);
+        await db.Sessions.AddAsync(session);
+        await db.Matches.AddAsync(match);
+        await db.MatchTeams.AddRangeAsync(sourceTeam, targetTeam);
+        await db.TeamAssignments.AddRangeAsync(
+            new TeamAssignment { Id = Guid.NewGuid(), MatchId = match.Id, MatchTeamId = sourceTeam.Id, PlayerProfileId = duplicate.Id },
+            new TeamAssignment { Id = Guid.NewGuid(), MatchId = match.Id, MatchTeamId = targetTeam.Id, PlayerProfileId = claimed.Id });
+        await db.SaveChangesAsync();
+
+        var act = () => repository.ReassignProfileStatsAsync(duplicate.Id, claimed.Id);
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("*captain different teams*");
+        db.ChangeTracker.HasChanges().Should().BeFalse();
     }
 
     private ServiceProvider CreateServiceProvider()
