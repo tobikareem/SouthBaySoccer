@@ -30,6 +30,7 @@ public sealed class GameDayEndpointMetadataTests
     }
 
     [Theory]
+    [InlineData(nameof(GameDayFunctions.GetLastGameSummary), AuthenticationPolicies.AuthenticatedPlayer, "get", "game-day/last-game")]
     [InlineData(nameof(GameDayFunctions.GetRecentGames), AuthenticationPolicies.CanManageSessions, "get", "game-day/recent")]
     [InlineData(nameof(GameDayFunctions.GetCaptainAssignment), AuthenticationPolicies.CanManageSessions, "get", "game-day/sessions/{sessionId:guid}/captains")]
     [InlineData(nameof(GameDayFunctions.AssignCaptains), AuthenticationPolicies.CanManageSessions, "put", "game-day/sessions/{sessionId:guid}/captains")]

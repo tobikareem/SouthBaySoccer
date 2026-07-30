@@ -49,7 +49,7 @@ public class GameDayPageModelTests
         };
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
 
@@ -61,8 +61,8 @@ public class GameDayPageModelTests
         await pageModel.SelectGameCommand.ExecuteAsync(otherGameId);
 
         // Switching loads the chosen game explicitly (first load used the server's auto-pick, null).
-        client.Verify(service => service.GetTodayContextAsync(otherGameId, It.IsAny<CancellationToken>()), Times.Once);
-        client.Verify(service => service.GetTodayContextAsync(null, It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(service => service.GetTodayContextAsync(otherGameId, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(service => service.GetTodayContextAsync(null, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class GameDayPageModelTests
         var context = new SeedGameDayState().GetContext() with { CanSubmitOwnStats = false };
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         var navigator = Navigator();
         var pageModel = new GameDayPageModel(client.Object, navigator.Object);
@@ -130,7 +130,7 @@ public class GameDayPageModelTests
         };
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         var pageModel = new GameDayPageModel(
             client.Object,
@@ -159,7 +159,7 @@ public class GameDayPageModelTests
         };
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         var navigator = Navigator();
         var pageModel = new GameDayPageModel(
@@ -204,7 +204,7 @@ public class GameDayPageModelTests
         var context = new SeedGameDayState().GetContext();
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         client
             .Setup(service => service.CheckInAsync(
@@ -252,7 +252,7 @@ public class GameDayPageModelTests
         };
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
         var pageModel = new GameDayPageModel(
             client.Object,
@@ -467,8 +467,8 @@ public class GameDayPageModelTests
             roster: [],
             todaysGames: [.. options.Select(o => o with { IsSelected = o.SessionId == gameB })]);
         var client = new Mock<IGameDayClient>();
-        client.Setup(c => c.GetTodayContextAsync(null, It.IsAny<CancellationToken>())).ReturnsAsync(contextA);
-        client.Setup(c => c.GetTodayContextAsync(gameB, It.IsAny<CancellationToken>())).ReturnsAsync(contextB);
+        client.Setup(c => c.GetTodayContextAsync(null, It.IsAny<bool>(), It.IsAny<CancellationToken>())).ReturnsAsync(contextA);
+        client.Setup(c => c.GetTodayContextAsync(gameB, It.IsAny<bool>(), It.IsAny<CancellationToken>())).ReturnsAsync(contextB);
         var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
         await pageModel.AppearingCommand.ExecuteAsync(null);
         pageModel.GoingCount.Should().Be(2);
@@ -480,7 +480,296 @@ public class GameDayPageModelTests
         pageModel.WaitlistCount.Should().Be(0);
         pageModel.CheckedInCount.Should().Be(0);
         pageModel.Roster.Should().BeEmpty();
-        client.Verify(c => c.GetTodayContextAsync(gameB, It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(c => c.GetTodayContextAsync(gameB, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Appearing_WhenSpectatorContext_ShowsReadOnlyViewWithBannerAndJoin()
+    {
+        var context = SpectatorContext();
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(context);
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsSpectator.Should().BeTrue();
+        pageModel.IsParticipant.Should().BeFalse();
+        pageModel.SpectatorBannerText.Should().Contain("Bay Area Soccer");
+        pageModel.HeaderContextLabel.Should().Be("Bay Area Soccer · Marina Field");
+        pageModel.CanJoin.Should().BeTrue();
+        pageModel.Capacity.Should().Be(20);
+        pageModel.HasGameDayActions.Should().BeFalse();
+        pageModel.CanCheckIn.Should().BeFalse();
+        pageModel.CanManageCheckIns.Should().BeFalse();
+        pageModel.Roster.Should().OnlyContain(item => !item.CanCheckIn, "spectator popups are read-only");
+    }
+
+    [Fact]
+    public async Task Appearing_WhenSpectatorPayloadStillCarriesActionFlags_HardensThemOff()
+    {
+        // Defense in depth: even if a stale server left action flags on, spectator zeroes them.
+        var context = SpectatorContext() with
+        {
+            IsSelfCheckInAvailable = true,
+            CanAssignCaptains = true,
+            CanDraftTeam = true,
+            CanApprovePostGame = true,
+            CanSubmitOwnStats = true,
+            CanLateCheckIn = true,
+            CanManageCheckIns = true,
+            CanViewTeams = true,
+        };
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(context);
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.CanCheckIn.Should().BeFalse();
+        pageModel.CanAssignCaptains.Should().BeFalse();
+        pageModel.CanDraftTeam.Should().BeFalse();
+        pageModel.CanApprovePostGame.Should().BeFalse();
+        pageModel.CanSubmitOwnStats.Should().BeFalse();
+        pageModel.CanLateCheckIn.Should().BeFalse();
+        pageModel.CanManageCheckIns.Should().BeFalse();
+        pageModel.CanViewTeams.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Join_WhenRsvpSucceeds_ReloadsAndBecomesParticipant()
+    {
+        var spectator = SpectatorContext();
+        var participant = new SeedGameDayState().GetContext();
+        var client = new Mock<IGameDayClient>();
+        var loads = 0;
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => ++loads == 1 ? spectator : participant);
+        var roster = new Mock<IRosterClient>();
+        roster
+            .Setup(r => r.SetRsvpIntentAsync(spectator.SessionId, true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Success);
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object, rosterClient: roster.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        await pageModel.JoinCommand.ExecuteAsync(null);
+
+        roster.Verify(r => r.SetRsvpIntentAsync(spectator.SessionId, true, It.IsAny<CancellationToken>()), Times.Once);
+        pageModel.IsSpectator.Should().BeFalse("the reloaded context is the participant view");
+        pageModel.State.Should().Be(ViewState.Content);
+    }
+
+    [Fact]
+    public async Task Join_WhenRsvpFails_ShowsDialogAndStaysOnContent()
+    {
+        var spectator = SpectatorContext();
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(spectator);
+        var roster = new Mock<IRosterClient>();
+        roster
+            .Setup(r => r.SetRsvpIntentAsync(It.IsAny<Guid>(), true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Failure("waiver_required", "Waiver required."));
+        var dialogs = new Mock<IUserDialogService>();
+        var pageModel = new GameDayPageModel(
+            client.Object, Navigator().Object, dialogService: dialogs.Object, rosterClient: roster.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        await pageModel.JoinCommand.ExecuteAsync(null);
+
+        dialogs.Verify(
+            d => d.ShowAlertAsync(GameDayPageModel.JoinFailedTitle, "Waiver required.", "OK"),
+            Times.Once);
+        pageModel.State.Should().Be(ViewState.Content, "a failed CTA never blanks the page");
+        pageModel.IsSpectator.Should().BeTrue();
+        client.Verify(
+            c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.Once,
+            "no reload after a failed join");
+    }
+
+    [Fact]
+    public async Task ToggleAllGames_WhenAdmin_ReloadsWithAllFlagAndClearsPinnedSession()
+    {
+        var context = new SeedGameDayState().GetContext(); // CanShowAllGames: true in seed
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(context);
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        await pageModel.ToggleAllGamesCommand.ExecuteAsync(null);
+
+        client.Verify(c => c.GetTodayContextAsync(null, true, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Appearing_WhenNoGameButLastGameExists_ShowsNoGameSummary()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GameDayContextDto?)null);
+        client
+            .Setup(c => c.GetLastGameSummaryAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LastGameSummaryDto(
+                Guid.NewGuid(), "Bay Area - Wednesday pickup", "Bay Area Soccer", "Marina Field",
+                "Wed Jul 22, 7:30 PM", new DateTime(2026, 7, 23, 2, 30, 0, DateTimeKind.Utc),
+                14, 12, 2, "Team Vic 2W · Team Ade 1W 1D"));
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsNoGame.Should().BeTrue();
+        pageModel.IsParticipant.Should().BeFalse();
+        pageModel.HasLastGame.Should().BeTrue();
+        pageModel.Title.Should().Be(GameDayPageModel.NoGameTitle);
+        pageModel.LastGameCountsLabel.Should().Be("14 going · 12 checked in · 2 teams");
+    }
+
+    [Fact]
+    public async Task Appearing_WhenNoGameAndNoHistory_ShowsEmptyState()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GameDayContextDto?)null);
+        client
+            .Setup(c => c.GetLastGameSummaryAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LastGameSummaryDto?)null);
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Empty);
+        pageModel.StateTitle.Should().Be(GameDayPageModel.NoGameTitle);
+        pageModel.StateMessage.Should().Be(GameDayPageModel.NoGameMessage);
+        pageModel.IsNoGame.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Appearing_WhenLastGameLookupFails_DegradesToEmptyState()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GameDayContextDto?)null);
+        client
+            .Setup(c => c.GetLastGameSummaryAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("boom"));
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Empty, "the summary is garnish; its failure never errors the page");
+    }
+
+    [Fact]
+    public async Task StatusBadgeVariant_MapsStateToVariant()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SpectatorContext() with { Status = GameDayStatus.Blocked });
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        // The server maps spectators onto Blocked; the badge must stay neutral, not amber.
+        pageModel.StatusBadgeVariant.Should().Be(SouthBaySoccer.Controls.BadgeVariant.Neutral);
+
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SeedGameDayState().GetContext());
+        await pageModel.RetryCommand.ExecuteAsync(null);
+        pageModel.StatusBadgeVariant.Should().Be(SouthBaySoccer.Controls.BadgeVariant.Success, "participant Open maps to Success");
+    }
+
+    [Fact]
+    public async Task Appearing_WhenAdminHasNoRelevantGame_StillOffersTheAllGamesSwitch()
+    {
+        // A 204 today-context carries no flags, so admin-ness comes from the cached profile role;
+        // without this the switch is unreachable exactly when an admin needs it.
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GameDayContextDto?)null);
+        client
+            .Setup(c => c.GetLastGameSummaryAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LastGameSummaryDto?)null);
+        var profile = new Mock<IProfileClient>();
+        profile
+            .Setup(p => p.GetCurrentProfileAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SouthBaySoccer.Contracts.Profiles.PlayerProfileDto(
+                Guid.NewGuid(), "Ada", "Player", "AD",
+                new SouthBaySoccer.Contracts.Profiles.CareerStatsDto(0, 0, 0, 0, 0, 0), [], null, Role: "GameAdmin"));
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object, profileClient: profile.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content, "the switch needs rendered content, not the empty overlay");
+        pageModel.IsNoGame.Should().BeTrue();
+        pageModel.CanShowAllGames.Should().BeTrue();
+
+        await pageModel.ToggleAllGamesCommand.ExecuteAsync(null);
+
+        client.Verify(c => c.GetTodayContextAsync(null, true, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Appearing_WhenNonAdminHasNoGameAndNoHistory_KeepsBareEmptyState()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GameDayContextDto?)null);
+        client
+            .Setup(c => c.GetLastGameSummaryAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LastGameSummaryDto?)null);
+        var profile = new Mock<IProfileClient>();
+        profile
+            .Setup(p => p.GetCurrentProfileAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SouthBaySoccer.Contracts.Profiles.PlayerProfileDto(
+                Guid.NewGuid(), "Ada", "Player", "AD",
+                new SouthBaySoccer.Contracts.Profiles.CareerStatsDto(0, 0, 0, 0, 0, 0), [], null, Role: "Player"));
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object, profileClient: profile.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Empty);
+        pageModel.CanShowAllGames.Should().BeFalse();
+    }
+
+    private static GameDayContextDto SpectatorContext()
+    {
+        var baseContext = new SeedGameDayState().GetContext();
+        return baseContext with
+        {
+            Title = "Bay Area - Wednesday pickup",
+            GroupName = "Bay Area Soccer",
+            IsSpectator = true,
+            CanJoin = true,
+            Capacity = 20,
+            StatusLabel = "Spectator",
+            IsSelfCheckInAvailable = false,
+            CanAssignCaptains = false,
+            CanDraftTeam = false,
+            CanApprovePostGame = false,
+            CanSubmitOwnStats = false,
+            CanLateCheckIn = false,
+            CanManageCheckIns = false,
+            CanViewTeams = false,
+            IsCurrentPlayerGoing = false,
+        };
     }
 
     private static GameDayContextDto MakeContext(
@@ -521,7 +810,7 @@ public class GameDayPageModelTests
     {
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(SingleGameContext(canAssignCaptains: false, canDraftTeam: false, canViewTeams: true));
         var navigator = Navigator();
         var pageModel = new GameDayPageModel(client.Object, navigator.Object);
@@ -540,7 +829,7 @@ public class GameDayPageModelTests
     {
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(SingleGameContext(canAssignCaptains: true, canDraftTeam: true, canViewTeams: true));
         var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
         await pageModel.AppearingCommand.ExecuteAsync(null);
@@ -582,7 +871,7 @@ public class GameDayPageModelTests
     {
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(SingleGameContext(canAssignCaptains: true, canDraftTeam: false));
         var navigator = Navigator();
         var dialog = new Mock<IUserDialogService>();
@@ -603,7 +892,7 @@ public class GameDayPageModelTests
     {
         var client = new Mock<IGameDayClient>();
         client
-            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(SingleGameContext(canAssignCaptains: true, canDraftTeam: true));
         var navigator = Navigator();
         var pageModel = new GameDayPageModel(client.Object, navigator.Object);
@@ -864,6 +1153,35 @@ public class GameDayPageModelTests
         draft.Should().Contain("SelectTeamCommand");
         postgame.Should().Contain("CounterStepper").And.Contain("Publish approved match");
         (gameDay + captains + draft + postgame).Should().Contain("FontAwesomeGlyphs");
+    }
+
+    [Fact]
+    public void GameDayXaml_RendersThreeModesWithSpectatorJoinAndNoGameSummary()
+    {
+        var gameDay = LoadXaml("GameDayPage.xaml").ToString();
+
+        // Shared header is descriptive (group · venue, session title, state-driven badge).
+        gameDay.Should().Contain("HeaderContextLabel");
+        gameDay.Should().Contain("{Binding Title}");
+        gameDay.Should().NotContain("Variant=\"Success\"", "the badge variant is computed on the page model");
+        gameDay.Should().Contain("StatusBadgeVariant");
+        // Spectator mode: banner + read-only counts + a single Join CTA with capacity context.
+        gameDay.Should().Contain("SpectatorBannerText");
+        gameDay.Should().Contain("JoinCommand");
+        gameDay.Should().Contain("CapacityBar");
+        gameDay.Should().Contain("JoinBlockedReason");
+        // Participant machinery is scoped to the participant container.
+        gameDay.Should().Contain("IsParticipant");
+        // Admin scope switch.
+        gameDay.Should().Contain("SegmentedControl");
+        gameDay.Should().Contain("SelectGameScopeCommand");
+        // No-game mode with the last-game summary card.
+        gameDay.Should().Contain("IsNoGame");
+        gameDay.Should().Contain("LastGameCountsLabel");
+        gameDay.Should().Contain("HasLastGameResult");
+        // The hero button uses the catalog style, not page-local colors.
+        gameDay.Should().Contain("HeroInverseButton");
+        gameDay.Should().NotContain("BackgroundColor=\"White\"", "page-local colors violate the control catalog");
     }
 
     private static Mock<IGameDayNavigator> Navigator()

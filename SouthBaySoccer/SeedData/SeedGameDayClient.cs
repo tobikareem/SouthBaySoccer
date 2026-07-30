@@ -6,11 +6,27 @@ namespace SouthBaySoccer.SeedData;
 
 public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
 {
-    public Task<GameDayContextDto?> GetTodayContextAsync(Guid? sessionId, CancellationToken cancellationToken)
+    public Task<GameDayContextDto?> GetTodayContextAsync(Guid? sessionId, bool allGames, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        // Seed mode runs a single game a day, so the requested session is ignored.
+        // Seed mode runs a single game a day, so the requested session and all-games flag are ignored.
         return Task.FromResult<GameDayContextDto?>(state.GetContext());
+    }
+
+    public Task<LastGameSummaryDto?> GetLastGameSummaryAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<LastGameSummaryDto?>(new LastGameSummaryDto(
+            SeedFixtures.MarinaSessionId,
+            "Marina Field - Wednesday pickup",
+            "Bay Area Soccer",
+            "Marina Field",
+            "Wed Jul 22, 7:30 PM",
+            new DateTime(2026, 7, 23, 2, 30, 0, DateTimeKind.Utc),
+            GoingCount: 14,
+            CheckedInCount: 12,
+            TeamCount: 2,
+            ResultSummary: "Team Vic 2W · Team Ade 1W 1D"));
     }
 
     public Task<IReadOnlyList<RecentGameDto>> GetRecentGamesAsync(CancellationToken cancellationToken)

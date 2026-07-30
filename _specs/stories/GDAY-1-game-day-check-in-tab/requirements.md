@@ -4,6 +4,11 @@
 **Milestone:** M11 client first, then M7 backend  
 **Visual source:** the `gameday` screen in [`../../../documentation/mobile-wireframes.html`](../../../documentation/mobile-wireframes.html).
 
+> **Superseded in part by [GDAY-2](../GDAY-2-relevant-games-and-spectator/requirements.md):** which
+> of today's games the page shows (relevance filtering, the admin "All games today" toggle, the
+> spectator view for group-chat games, and the no-game/last-game state) is specified there. The
+> check-in mechanics in this story are unchanged.
+
 ## User story
 
 *As a* player with a confirmed spot, *I want* a game-day tab where I can check in at the field between

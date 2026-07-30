@@ -138,6 +138,9 @@ Keyed styles (and a few implicit) built only from tokens:
   - `IconButton` — square/pill icon action, minimum `TouchMin`, neutral/green visual states.
   - `IconToggleButton` — reusable off/on states for like/MVP actions; state is bound, not decided in
     code-behind.
+  - `HeroInverseButton` — white bg + `BrandGreen` text; the primary action inside a green hero card
+    (Game Day check-in), where a green button would vanish. Use this, never inline
+    `BackgroundColor="White"` on a page.
 - **Entry/Editor**: `BrandEntry` — `SurfaceAlt` bg, `BrandLine` border, `RadiusMd`, focus ring `BrandGreen`.
 - **Frame/Border**: `CardSurface` (white, 1px `BrandLine`, `RadiusLg`), `TintSurface` (`BrandMist`).
 - **Wireframe surfaces**: `HeroCardSurface` (Pine→Flag Green), `StatTileSurface`
@@ -169,6 +172,11 @@ White surface container.
 - `Text` (string), `Variant` (enum `Neutral|Success|Warning|Danger`=Neutral), `Glyph` (string?).
 - Maps Variant → token pair (e.g. Success → `BrandMist`/`BrandGreenDark`; Warning → warn bg/text). `RadiusPill`.
 - Wireframe: "Going", "Full", "guest", "Paid".
+- Game Day header mapping (via DataTriggers, never a hardcoded variant):
+  `Open`/`CheckedIn` → Success, `Closed` → Neutral, `Blocked` → Warning, spectator → Neutral
+  ("Spectator"). Spectator mode also renders the `NoticeSurface` explanation banner
+  ("You're a member of {group} — you're not on this game's list…") above read-only StatTiles and a
+  single Join CTA (`BrandCard IsTinted` + `CapacityBar` + `PrimaryButton`).
 
 ### Avatar
 - `Initials` (string), `ImageSource` (ImageSource?), `Size` (double=`AvatarMd`), `Variant` (enum `Mist|OnGreen`=Mist).

@@ -75,7 +75,7 @@ public sealed class SeedGameDayState
             return new GameDayContextDto(
                 SeedFixtures.MarinaSessionId,
                 SeedFixtures.FeaturedMatchId,
-                "Game Day",
+                "Marina Field - Wednesday pickup",
                 "Marina Field",
                 "Today",
                 "7:40 PM",
@@ -97,7 +97,10 @@ public sealed class SeedGameDayState
                 true,
                 Roster: RosterEntries(),
                 CanManageCheckIns: true,
-                CanSubmitOwnStats: true);
+                CanSubmitOwnStats: true,
+                GroupName: "Bay Area Soccer",
+                Capacity: 20,
+                CanShowAllGames: true);
         }
     }
 
