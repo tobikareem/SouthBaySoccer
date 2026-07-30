@@ -647,8 +647,8 @@ public class GameDayPageModelTests
             "Victor",
             "2W",
             [
-                new LastGameTeamMemberDto(captainId, "Victor", IsCaptain: true, Goals: 2),
-                new LastGameTeamMemberDto(scorerId, "Ada", IsCaptain: false, Goals: 1),
+                new LastGameTeamMemberDto(captainId, "Victor", IsCaptain: true, Goals: 2, Assists: 1),
+                new LastGameTeamMemberDto(scorerId, "Ada", IsCaptain: false, Goals: 1, Assists: 2),
                 new LastGameTeamMemberDto(Guid.NewGuid(), "Tunde", IsCaptain: false, Goals: 0),
             ]);
         var client = new Mock<IGameDayClient>();
@@ -677,8 +677,8 @@ public class GameDayPageModelTests
         pageModel.HasLastGameTeams.Should().BeTrue();
         shown.Should().NotBeNull();
         shown![0].DisplayName.Should().Be("Victor");
-        shown[0].StatusLabel.Should().Be("Captain · 2 goals");
-        shown[1].StatusLabel.Should().Be("1 goal");
+        shown[0].StatusLabel.Should().Be("Captain · ⚽⚽ · 🦶");
+        shown[1].StatusLabel.Should().Be("⚽ · 🦶🦶");
         shown[2].StatusLabel.Should().BeEmpty();
         shown.Should().OnlyContain(item => !item.CanCheckIn, "the recap popup is read-only");
     }
@@ -733,6 +733,28 @@ public class GameDayPageModelTests
     }
 
     [Fact]
+    public async Task LastGame_RegularPlayer_CanOpenExistingRateTeammatesPage()
+    {
+        var matchId = Guid.NewGuid();
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GameDayContextDto?)null);
+        client
+            .Setup(c => c.GetLastGameSummaryAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(LastGameWith(matchId: matchId, canRate: true));
+        var navigator = Navigator();
+        var pageModel = new GameDayPageModel(client.Object, navigator.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.HasLastGameActions.Should().BeTrue();
+        pageModel.LastGameCanRateTeammates.Should().BeTrue();
+        await pageModel.OpenLastGameRatingsCommand.ExecuteAsync(null);
+
+        navigator.Verify(n => n.OpenRateTeammatesAsync(matchId), Times.Once);
+    }
+
+    [Fact]
     public async Task LastGameCountsLabel_IncludesWaitlistWhenPresent()
     {
         var client = new Mock<IGameDayClient>();
@@ -755,7 +777,9 @@ public class GameDayPageModelTests
         IReadOnlyList<LastGameTeamDto>? teams = null,
         bool canLock = false,
         bool canMatch = false,
-        bool canApprove = false) =>
+        bool canApprove = false,
+        Guid? matchId = null,
+        bool canRate = false) =>
         new(
             sessionId ?? Guid.NewGuid(),
             "Bay Area - Wednesday pickup",
@@ -771,7 +795,9 @@ public class GameDayPageModelTests
             Teams: teams,
             CanLockTeams: canLock,
             CanMatchPlayers: canMatch,
-            CanApprovePostGame: canApprove);
+            CanApprovePostGame: canApprove,
+            MatchId: matchId ?? Guid.Empty,
+            CanRateTeammates: canRate);
 
     [Fact]
     public async Task Appearing_WhenNoGameAndNoHistory_ShowsEmptyState()

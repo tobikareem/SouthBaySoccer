@@ -270,10 +270,10 @@
                                 <Label Text="{Binding LastGame.ResultSummary}" Style="{StaticResource TextCaption}" IsVisible="{Binding HasLastGameResult}" />
                             </VerticalStackLayout>
                         </c:BrandCard>
-                        <!-- Team sheets: tap a captain's card to see the full team with goal tallies. -->
+                        <!-- Team sheets: tap a captain's card to see approved goal/assist icon tallies. -->
                         <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding HasLastGameTeams}">
                             <c:SectionHeader Text="Teams" />
-                            <Label Text="Tap a team to see its players and who scored." Style="{StaticResource TextCaption}" />
+                            <Label Text="Tap a team to see its players, goals, and assists." Style="{StaticResource TextCaption}" />
                             <VerticalStackLayout BindableLayout.ItemsSource="{Binding LastGameTeams}" Spacing="{StaticResource SpaceSm}">
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate x:DataType="gameDay:LastGameTeamDto">
@@ -298,8 +298,9 @@
                                 </BindableLayout.ItemTemplate>
                             </VerticalStackLayout>
                         </VerticalStackLayout>
-                        <!-- Unfinished business on that game, for admins and captains only. -->
+                        <!-- Rating is open to eligible players; the remaining actions are role-gated. -->
                         <c:SectionHeader Text="Finish up this game" IsVisible="{Binding HasLastGameActions}" />
+                        <c:PlayerRow Initials="RT" Name="Rate teammates" Detail="Rate, like, and pick one MVP" TapCommand="{Binding OpenLastGameRatingsCommand}" IsVisible="{Binding LastGameCanRateTeammates}" SemanticProperties.Hint="Opens teammate ratings for the last game" />
                         <c:PlayerRow Initials="LT" Name="Lock the teams" Detail="Teams were never locked - assign captains and lock" TapCommand="{Binding OpenLastGameCaptainsCommand}" IsVisible="{Binding LastGameCanLockTeams}" />
                         <c:PlayerRow Initials="MP" Name="Match players" Detail="Link imported names to profiles" TapCommand="{Binding OpenLastGameMatchPlayersCommand}" IsVisible="{Binding LastGameCanMatchPlayers}" />
                         <c:PlayerRow Initials="CR" Name="Confirm result and goals" Detail="Approve the team win/loss and each goal" TapCommand="{Binding OpenLastGameApprovalCommand}" IsVisible="{Binding LastGameCanApprovePostGame}" />

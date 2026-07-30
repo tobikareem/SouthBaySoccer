@@ -2,6 +2,7 @@ using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Rsvps;
+using SouthBaySoccer.Application.Features.Stats;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Entities.Stats;
 using SouthBaySoccer.Domain.Enumerations;
@@ -150,12 +151,13 @@ public sealed class GetRecentGamesQueryHandler(
     }
 }
 
-/// <summary>One player on a last-game team sheet, with their approved goal tally.</summary>
+/// <summary>One player on a last-game team sheet, with approved goal and assist tallies.</summary>
 public sealed record LastGameTeamMemberModel(
     Guid PlayerProfileId,
     string DisplayName,
     bool IsCaptain,
-    int Goals);
+    int Goals,
+    int Assists);
 
 /// <summary>One team on the last game, named by its captain, with its settled result when published.</summary>
 public sealed record LastGameTeamModel(
@@ -185,7 +187,9 @@ public sealed record LastGameSummaryModel(
     IReadOnlyList<LastGameTeamModel>? Teams = null,
     bool CanLockTeams = false,
     bool CanMatchPlayers = false,
-    bool CanApprovePostGame = false);
+    bool CanApprovePostGame = false,
+    Guid MatchId = default,
+    bool CanRateTeammates = false);
 
 /// <summary>
 /// Finds the player's most recent past game inside a 30-day window: preferably one they held a spot
@@ -319,6 +323,9 @@ public sealed class GetLastGameSummaryQueryHandler(
             && (match.Status == MatchStatus.Draft
                 ? isGameAdmin && teamsLockable
                 : isGameAdmin || isCaptain);
+        var canRateTeammates = match is not null
+            && PeerFeedbackWindow.IsOpen(session, nowUtc)
+            && roster.Any(member => member.PlayerProfileId == profile.Id);
 
         return new LastGameSummaryModel(
             session.Id,
@@ -334,7 +341,9 @@ public sealed class GetLastGameSummaryQueryHandler(
             teamModels,
             canLockTeams,
             canMatchPlayers,
-            canApprovePostGame);
+            canApprovePostGame,
+            match?.Id ?? Guid.Empty,
+            canRateTeammates);
     }
 
     /// <summary>
@@ -357,6 +366,12 @@ public sealed class GetLastGameSummaryQueryHandler(
                 && matchEvent.PlayerProfileId is not null)
             .GroupBy(matchEvent => matchEvent.PlayerProfileId!.Value)
             .ToDictionary(group => group.Key, group => group.Count());
+        var assistsByPlayerId = events
+            .Where(matchEvent => matchEvent.EventType == MatchEventType.Goal
+                && matchEvent.ReviewStatus == MatchEventReviewStatus.Approved
+                && matchEvent.AssistPlayerProfileId is not null)
+            .GroupBy(matchEvent => matchEvent.AssistPlayerProfileId!.Value)
+            .ToDictionary(group => group.Key, group => group.Count());
         var namesByPlayerId = roster
             .Where(member => member.PlayerProfileId is not null)
             .GroupBy(member => member.PlayerProfileId!.Value)
@@ -373,7 +388,8 @@ public sealed class GetLastGameSummaryQueryHandler(
                         assignment.PlayerProfileId,
                         namesByPlayerId.GetValueOrDefault(assignment.PlayerProfileId, "Unknown player"),
                         assignment.PlayerProfileId == team.CaptainPlayerProfileId,
-                        goalsByPlayerId.GetValueOrDefault(assignment.PlayerProfileId)))
+                        goalsByPlayerId.GetValueOrDefault(assignment.PlayerProfileId),
+                        assistsByPlayerId.GetValueOrDefault(assignment.PlayerProfileId)))
                     // Captain first, then scorers, then alphabetical — the order a recap is read in.
                     .OrderByDescending(member => member.IsCaptain)
                     .ThenByDescending(member => member.Goals)
