@@ -286,9 +286,12 @@ public sealed class GetLastGameSummaryQueryHandler(
             session.Id,
             checkedInIds,
             cancellationToken);
+        var assignments = match is null
+            ? []
+            : await statsRepository.ListAssignmentsAsync(match.Id, cancellationToken);
         var teamModels = match is null || teams.Count == 0
             ? []
-            : await BuildTeamModelsAsync(match, teams, results, roster, isSettled, cancellationToken);
+            : await BuildTeamModelsAsync(match, teams, assignments, results, roster, isSettled, cancellationToken);
 
         // Follow-up actions: the game may still need its teams locked, imported names matched, or
         // its result/goals confirmed — surfacing them here saves the admin a trip through Recent
@@ -301,13 +304,21 @@ public sealed class GetLastGameSummaryQueryHandler(
             && (match is null || match.Status == MatchStatus.Draft);
         var canMatchPlayers = isGameAdmin
             && roster.Any(member => member.PlayerProfileId is null);
+        // Mirrors the post-game screen's own gate: captains and admins confirm once teams are
+        // locked, and an admin can also start from a Draft game whose teams are lockable — the
+        // screen auto-locks on the first recorded result.
+        var teamsLockable = teams.Count is >= 2 and <= 4
+            && teams.All(team => team.CaptainPlayerProfileId is { } captainId
+                && assignments.Any(assignment => assignment.MatchTeamId == team.Id
+                    && assignment.PlayerProfileId == captainId));
         var canApprovePostGame = match is not null
             && GameDayWorkflowQueries.IsPostGameOpen(session, nowUtc)
-            && match.Status is not MatchStatus.Draft
-                and not MatchStatus.NeedsReview
+            && match.Status is not MatchStatus.NeedsReview
                 and not MatchStatus.Published
                 and not MatchStatus.Locked
-            && (isGameAdmin || isCaptain);
+            && (match.Status == MatchStatus.Draft
+                ? isGameAdmin && teamsLockable
+                : isGameAdmin || isCaptain);
 
         return new LastGameSummaryModel(
             session.Id,
@@ -333,12 +344,12 @@ public sealed class GetLastGameSummaryQueryHandler(
     private async Task<IReadOnlyList<LastGameTeamModel>> BuildTeamModelsAsync(
         Match match,
         IReadOnlyList<MatchTeam> teams,
+        IReadOnlyList<TeamAssignment> assignments,
         IReadOnlyList<MatchResult> results,
         IReadOnlyList<GameDayRosterEntryModel> roster,
         bool isSettled,
         CancellationToken cancellationToken)
     {
-        var assignments = await statsRepository.ListAssignmentsAsync(match.Id, cancellationToken);
         var events = await statsRepository.ListMatchEventsAsync(match.Id, cancellationToken);
         var goalsByPlayerId = events
             .Where(matchEvent => matchEvent.EventType == MatchEventType.Goal

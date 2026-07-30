@@ -1099,6 +1099,7 @@ public partial class CaptainAssignmentPageModel(
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LockTeamsCommand))]
+    [NotifyPropertyChangedFor(nameof(ShowLockHint))]
     private bool _canLockTeams;
 
     [ObservableProperty]
@@ -1107,7 +1108,18 @@ public partial class CaptainAssignmentPageModel(
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(GrantCommand))]
+    [NotifyPropertyChangedFor(nameof(ShowLockTeams))]
+    [NotifyPropertyChangedFor(nameof(ShowLockHint))]
     private bool _isLocked;
+
+    /// <summary>
+    /// The Lock button stays visible (disabled until lockable) instead of hiding: an admin looking
+    /// for where to lock must always find it on this screen.
+    /// </summary>
+    public bool ShowLockTeams => !IsLocked;
+
+    /// <summary>Explains a visible-but-disabled Lock button.</summary>
+    public bool ShowLockHint => !IsLocked && !CanLockTeams;
 
     public ObservableCollection<CaptainPlayerItem> Players { get; } = [];
 
