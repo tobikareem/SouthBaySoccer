@@ -531,16 +531,19 @@
           <div class="muted" style="margin-top:4px">Team Vic 2W · Team Ade 1W 1D</div>
         </div>
         <!-- Team sheets: tapping a card opens the roster sheet listing that team's players with
-             captaincy and approved goal tallies ("Captain · 2 goals", "1 goal"). Read-only. -->
+             captaincy and approved tallies. Each goal is ⚽ and each assist is 🦶
+             ("Captain · ⚽⚽ · 🦶", "⚽"). Read-only. -->
         <div class="label">Teams</div>
-        <div class="muted" style="font-size:12px;margin-bottom:6px">Tap a team to see its players and who scored.</div>
+        <div class="muted" style="font-size:12px;margin-bottom:6px">Tap a team to see its players, goals, and assists.</div>
         <div class="card interactive" onclick="openRoster('Going')" style="cursor:pointer;padding:12px 14px"><div class="row"><div style="flex:1"><div style="font-weight:700">Team Vic</div><div class="muted">Captain: Victor</div></div><b>2W</b></div></div>
         <div class="card interactive" onclick="openRoster('Going')" style="cursor:pointer;padding:12px 14px"><div class="row"><div style="flex:1"><div style="font-weight:700">Team Ade</div><div class="muted">Captain: Ade</div></div><b>1W 1D</b></div></div>
-        <!-- Follow-up actions, admins/captains only, gated server-side by role and window:
+        <!-- Follow-up actions gated server-side by participation, role, and window. Eligible
+             players can rate teammates; admin/captain actions remain role-scoped:
              lock teams that were never locked (admin, 3-day edit window), match imported names
              (admin, unlinked rows present), confirm the result and goals (captain/admin, unsettled
              locked match in the post-game window). -->
         <div class="label">Finish up this game</div>
+        <div class="card interactive" onclick="show('rate')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-star"></i></span><div style="flex:1"><div style="font-weight:700">Rate teammates</div><div class="muted">Rate, like, and pick one MVP</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
         <div class="card interactive" onclick="show('captains')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-lock"></i></span><div style="flex:1"><div style="font-weight:700">Lock the teams</div><div class="muted">Teams were never locked - assign captains and lock</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
         <div class="card interactive" onclick="show('adminmatch')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-users-plus"></i></span><div style="flex:1"><div style="font-weight:700">Match players</div><div class="muted">Link imported names to profiles</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
         <div class="card interactive" onclick="show('postgame')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-shield-check"></i></span><div style="flex:1"><div style="font-weight:700">Confirm result and goals</div><div class="muted">Approve the team win/loss and each goal</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>

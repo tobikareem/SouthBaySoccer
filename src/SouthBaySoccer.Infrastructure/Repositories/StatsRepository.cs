@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Entities.Stats;
 using SouthBaySoccer.Domain.Enumerations;
@@ -285,18 +286,64 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
         // Captaincy must follow the merge with the assignments: leaving MatchTeam pointing at the
         // retired source profile orphans the team — the captain checkbox can no longer preselect,
         // and CanLockTeams fails its captain-has-assignment check, hiding the Lock button entirely.
-        foreach (var team in await dbContext.MatchTeams
+        var sourceCaptainTeams = await dbContext.MatchTeams
             .Where(x => x.CaptainPlayerProfileId == sourcePlayerProfileId)
-            .ToArrayAsync(cancellationToken))
+            .ToArrayAsync(cancellationToken);
+        var captainMatchIds = sourceCaptainTeams.Select(x => x.MatchId).Distinct().ToArray();
+        var targetCaptainTeams = await dbContext.MatchTeams
+            .Where(x => captainMatchIds.Contains(x.MatchId)
+                && x.CaptainPlayerProfileId == targetPlayerProfileId)
+            .ToArrayAsync(cancellationToken);
+        if (sourceCaptainTeams.GroupBy(x => x.MatchId).Any(group => group.Count() > 1)
+            || targetCaptainTeams.Any(targetTeam => sourceCaptainTeams.Any(
+                sourceTeam => sourceTeam.MatchId == targetTeam.MatchId
+                    && sourceTeam.Id != targetTeam.Id)))
+        {
+            throw new ApplicationConflictException(
+                "These profiles captain different teams in the same match. Resolve the captain assignments before matching the players.");
+        }
+
+        var sourceCaptainTeamIds = sourceCaptainTeams.Select(x => x.Id).ToHashSet();
+        foreach (var team in sourceCaptainTeams)
         {
             team.CaptainPlayerProfileId = targetPlayerProfileId;
             affected++;
         }
 
-        affected += await ReassignUniqueRowsAsync(
-            await dbContext.TeamAssignments.Where(x => x.PlayerProfileId == sourcePlayerProfileId).ToArrayAsync(cancellationToken),
-            row => dbContext.TeamAssignments.Any(x => x.MatchId == row.MatchId && x.PlayerProfileId == targetPlayerProfileId),
-            row => row.PlayerProfileId = targetPlayerProfileId);
+        var sourceAssignments = await dbContext.TeamAssignments
+            .Where(x => x.PlayerProfileId == sourcePlayerProfileId)
+            .ToArrayAsync(cancellationToken);
+        var assignmentMatchIds = sourceAssignments.Select(x => x.MatchId).Distinct().ToArray();
+        var targetAssignmentsByMatchId = (await dbContext.TeamAssignments
+                .Where(x => assignmentMatchIds.Contains(x.MatchId)
+                    && x.PlayerProfileId == targetPlayerProfileId)
+                .ToArrayAsync(cancellationToken))
+            .ToDictionary(x => x.MatchId);
+        foreach (var sourceAssignment in sourceAssignments)
+        {
+            if (!targetAssignmentsByMatchId.TryGetValue(sourceAssignment.MatchId, out var targetAssignment))
+            {
+                sourceAssignment.PlayerProfileId = targetPlayerProfileId;
+                affected++;
+                continue;
+            }
+
+            if (sourceCaptainTeamIds.Contains(sourceAssignment.MatchTeamId)
+                && targetAssignment.MatchTeamId != sourceAssignment.MatchTeamId)
+            {
+                // A merged captain must remain assigned to the team they captain. If the canonical
+                // profile was already drafted elsewhere, move its existing assignment onto the
+                // captain's team and retire the duplicate row. Keeping the canonical row avoids a
+                // transient duplicate-key violation when EF persists both changes in one unit.
+                targetAssignment.MatchTeamId = sourceAssignment.MatchTeamId;
+                sourceAssignment.IsDeleted = true;
+                affected += 2;
+                continue;
+            }
+
+            sourceAssignment.IsDeleted = true;
+            affected++;
+        }
 
         affected += await ReassignUniqueRowsAsync(
             await dbContext.PlayerMatchStats.Where(x => x.PlayerProfileId == sourcePlayerProfileId).ToArrayAsync(cancellationToken),

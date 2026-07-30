@@ -159,6 +159,7 @@ public sealed class GetLastGameSummaryHandlerTests
             [
                 GoalEvent(match.Id, team.Id, scorer.PlayerProfileId, MatchEventReviewStatus.Approved),
                 GoalEvent(match.Id, team.Id, scorer.PlayerProfileId, MatchEventReviewStatus.Approved),
+                AssistEvent(match.Id, team.Id, scorer.PlayerProfileId, MatchEventReviewStatus.Approved),
                 // Pending goals are not fact yet and stay off the summary.
                 GoalEvent(match.Id, team.Id, quiet.PlayerProfileId, MatchEventReviewStatus.Pending),
             ]);
@@ -172,6 +173,7 @@ public sealed class GetLastGameSummaryHandlerTests
         sheet.Members[0].IsCaptain.Should().BeTrue("captain leads the sheet");
         sheet.Members[1].DisplayName.Should().Be(scorer.DisplayName);
         sheet.Members[1].Goals.Should().Be(2, "only approved goals count");
+        sheet.Members[1].Assists.Should().Be(1, "only approved assists count");
         sheet.Members.Single(member => member.PlayerProfileId == quiet.PlayerProfileId).Goals.Should().Be(0);
         sheet.ResultLabel.Should().BeEmpty("the match is not settled yet");
     }
@@ -324,18 +326,34 @@ public sealed class GetLastGameSummaryHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_WhenRegularPlayer_OffersNoFollowUpActions()
+    public async Task HandleAsync_WhenRegularPlayerAttended_OffersTeammateRatings()
     {
         var context = new TestContext();
-        var session = context.SessionAt(Utc(2026, 7, 21, 3, 0), "Someone else's job");
+        var session = context.SessionAt(Utc(2026, 7, 21, 3, 0), "Player follow-up");
         context.ConfigureSessions(session);
         context.Attend(session, going: true);
+        context.GoingRoster[0] = context.GoingRoster[0] with { PlayerProfileId = context.Profile.Id };
+        var match = new Match { Id = Guid.NewGuid(), SessionId = session.Id, Status = MatchStatus.InProgress };
+        context.Stats
+            .Setup(x => x.FindPrimaryMatchBySessionAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(match);
+        context.Stats
+            .Setup(x => x.ListMatchTeamsAsync(match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        context.Stats
+            .Setup(x => x.ListMatchResultsAsync(match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        context.Stats
+            .Setup(x => x.ListAssignmentsAsync(match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
 
         var summary = await context.CreateHandler().HandleAsync();
 
         summary!.CanLockTeams.Should().BeFalse();
         summary.CanMatchPlayers.Should().BeFalse();
         summary.CanApprovePostGame.Should().BeFalse();
+        summary.MatchId.Should().Be(match.Id);
+        summary.CanRateTeammates.Should().BeTrue();
     }
 
     private static MatchEvent GoalEvent(
@@ -348,6 +366,20 @@ public sealed class GetLastGameSummaryHandlerTests
             MatchId = matchId,
             MatchTeamId = teamId,
             PlayerProfileId = playerProfileId,
+            EventType = MatchEventType.Goal,
+            ReviewStatus = reviewStatus,
+        };
+
+    private static MatchEvent AssistEvent(
+        Guid matchId,
+        Guid teamId,
+        Guid assistPlayerProfileId,
+        MatchEventReviewStatus reviewStatus) => new()
+        {
+            Id = Guid.NewGuid(),
+            MatchId = matchId,
+            MatchTeamId = teamId,
+            AssistPlayerProfileId = assistPlayerProfileId,
             EventType = MatchEventType.Goal,
             ReviewStatus = reviewStatus,
         };

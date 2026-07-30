@@ -211,6 +211,9 @@ White surface container.
   `TrailingText` (string?), `TrailingContent` (View?), `TapCommand` (ICommand?).
 - Avatar + name + subtitle + trailing; tappable. A11y: row description.
 - Wireframe: going/waitlist lists, confirm-teammates rows, leaderboard rows.
+- The Game Day last-game team popup uses `Detail` for compact approved tallies: repeat `⚽` once per
+  goal and `🦶` once per assist; prefix `Captain · ` for the captain. The last-game "Finish up this
+  game" section includes the existing Rate teammates route for eligible participating players.
 
 ### SegmentedControl
 - `ItemsSource` (IEnumerable), `DisplayMember` (string?), `SelectedIndex` (int, two-way), `SelectedItem` (object, two-way), `SelectionChangedCommand` (ICommand?).
