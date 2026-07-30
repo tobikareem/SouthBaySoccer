@@ -131,6 +131,212 @@ public sealed class GameDayContextHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenPlayerGoingToOneOfSeveralGames_HidesTheOthers()
+    {
+        var context = new TestContext();
+        var mine = context.SessionAt(Utc(2026, 7, 23, 2, 40));
+        var otherGroups = context.SessionAt(Utc(2026, 7, 23, 3, 0));
+        context.Sessions
+            .Setup(x => x.ListGameDayCandidatesAsync(
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([mine, otherGroups]);
+        context.Rsvps
+            .Setup(x => x.GetGameDayAttendanceAsync(mine.Id, context.Profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GameDayAttendanceRecord(12, 0, 0, true, false, false, []));
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result!.SessionId.Should().Be(mine.Id);
+        result.TodaysGames.Should().ContainSingle("games the player has no spot on and no group tie to are hidden")
+            .Which.SessionId.Should().Be(mine.Id);
+        result.IsSpectator.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenPlayerOnlyWaitlisted_TreatsGameAsTheirs()
+    {
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 23, 2, 40));
+        context.Sessions
+            .Setup(x => x.ListGameDayCandidatesAsync(
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session]);
+        context.Rsvps
+            .Setup(x => x.GetGameDayAttendanceAsync(session.Id, context.Profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GameDayAttendanceRecord(20, 0, 0, false, true, false, []));
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.Should().NotBeNull("a waitlisted player holds a spot on the day");
+        result!.IsSpectator.Should().BeFalse();
+        context.PlayerGroups.Verify(
+            x => x.ListPlayerGroupsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never,
+            "an attending pool never needs the group lookup");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenNoRsvpButGroupGameToday_ReturnsReadOnlySpectatorContext()
+    {
+        var context = new TestContext();
+        // Kick-off 05:00 keeps the RSVP deadline (04:00) ahead of the 02:35 test clock, so Join is open.
+        var session = context.SessionAt(Utc(2026, 7, 23, 5, 0));
+        context.CurrentUser.Setup(x => x.HasPolicy("CanCheckInPlayers")).Returns(true);
+        context.Sessions
+            .Setup(x => x.ListGameDayCandidatesAsync(
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session]);
+        // Trim + case differences between the snapshot name and the player's group must still match.
+        context.GroupNamesBySession[session.Id] = " Bay Area Soccer ";
+        context.PlayerGroupNames.Add("bay area soccer");
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.Should().NotBeNull();
+        result!.IsSpectator.Should().BeTrue();
+        result.GroupName.Should().Be(" Bay Area Soccer ");
+        result.StatusLabel.Should().Be("Spectator");
+        result.IsSelfCheckInAvailable.Should().BeFalse();
+        result.CanJoin.Should().BeTrue("RSVP is still open");
+        result.JoinBlockedReason.Should().BeNull();
+        result.Capacity.Should().Be(session.Capacity);
+        // Read-only: every profile-keyed action is withheld, even the check-in policy the caller holds.
+        result.CanManageCheckIns.Should().BeFalse();
+        result.CanLateCheckIn.Should().BeFalse();
+        result.CanAssignCaptains.Should().BeFalse();
+        result.CanDraftTeam.Should().BeFalse();
+        result.CanApprovePostGame.Should().BeFalse();
+        result.CanSubmitOwnStats.Should().BeFalse();
+        result.CanViewTeams.Should().BeFalse();
+        result.LateCheckInPlayers.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenSpectatorAndRsvpDeadlinePassed_BlocksJoinWithReason()
+    {
+        var context = new TestContext();
+        // Deadline is StartsAt - 1h = 01:40; the 02:35 test clock is past it.
+        var session = context.SessionAt(Utc(2026, 7, 23, 2, 40));
+        context.Sessions
+            .Setup(x => x.ListGameDayCandidatesAsync(
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session]);
+        context.GroupNamesBySession[session.Id] = "Bay Area Soccer";
+        context.PlayerGroupNames.Add("Bay Area Soccer");
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result!.IsSpectator.Should().BeTrue();
+        result.CanJoin.Should().BeFalse();
+        result.JoinBlockedReason.Should().Be("RSVP is closed for this game.");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenNoRsvpAndNoGroupMatch_ReturnsNull()
+    {
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 23, 2, 40));
+        context.Sessions
+            .Setup(x => x.ListGameDayCandidatesAsync(
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session]);
+        context.GroupNamesBySession[session.Id] = "Torrance Tuesday";
+        context.PlayerGroupNames.Add("Bay Area Soccer");
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.Should().BeNull("another group's game is completely hidden");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenManualSessionHasNoGroup_StaysHiddenFromNonAttendees()
+    {
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 23, 2, 40));
+        context.Sessions
+            .Setup(x => x.ListGameDayCandidatesAsync(
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session]);
+        context.PlayerGroupNames.Add("Bay Area Soccer");
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.Should().BeNull("a hand-created session carries no group and was not RSVP'd to");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenNonAdminRequestsAllGames_IgnoresTheFlag()
+    {
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 23, 2, 40));
+        context.Sessions
+            .Setup(x => x.ListGameDayCandidatesAsync(
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session]);
+
+        var result = await context.CreateHandler().HandleAsync(null, showAllGames: true);
+
+        result.Should().BeNull("only game admins may widen to every game");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAdminRequestsAllGames_ReturnsEveryGameWithFullControls()
+    {
+        var context = new TestContext();
+        var mine = context.SessionAt(Utc(2026, 7, 23, 2, 40));
+        var other = context.SessionAt(Utc(2026, 7, 23, 3, 0));
+        context.CurrentUser.Setup(x => x.HasPolicy("CanManageSessions")).Returns(true);
+        context.CurrentUser.Setup(x => x.HasPolicy("CanCheckInPlayers")).Returns(true);
+        context.Sessions
+            .Setup(x => x.ListGameDayCandidatesAsync(
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([mine, other]);
+
+        var result = await context.CreateHandler().HandleAsync(other.Id, showAllGames: true);
+
+        result!.SessionId.Should().Be(other.Id);
+        result.TodaysGames.Should().HaveCount(2);
+        result.IsShowingAllGames.Should().BeTrue();
+        result.CanShowAllGames.Should().BeTrue();
+        result.IsSpectator.Should().BeFalse("an admin who widened the pool is running the day, not spectating");
+        result.CanManageCheckIns.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAdminHasNoRelevantGameAndNoToggle_ReturnsNull()
+    {
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 23, 2, 40));
+        context.CurrentUser.Setup(x => x.HasPolicy("CanManageSessions")).Returns(true);
+        context.Sessions
+            .Setup(x => x.ListGameDayCandidatesAsync(
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([session]);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.Should().BeNull("the old show-everything fallback is gone; admins use the toggle");
+        result = await context.CreateHandler().HandleAsync(null, showAllGames: true);
+        result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenParticipant_CarriesTitleGroupAndCapacityForTheHeader()
+    {
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 23, 2, 40));
+        context.ConfigureSession(session);
+        context.GroupNamesBySession[session.Id] = "Bay Area Soccer";
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result!.Title.Should().Be("Wednesday Pickup");
+        result.GroupName.Should().Be("Bay Area Soccer");
+        result.Capacity.Should().Be(20);
+        result.CanJoin.Should().BeFalse("the player already holds a spot");
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenAdminIsInsideDraftWindow_EnablesCaptainAssignment()
     {
         var context = new TestContext();
@@ -474,6 +680,24 @@ public sealed class GameDayContextHandlerTests
             Stats
                 .Setup(x => x.ListAssignmentsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Array.Empty<TeamAssignment>());
+            Sessions
+                .Setup(x => x.GetGroupNamesBySessionAsync(
+                    It.IsAny<IReadOnlyCollection<Guid>>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyCollection<Guid> ids, CancellationToken _) =>
+                    (IReadOnlyDictionary<Guid, string>)GroupNamesBySession
+                        .Where(pair => ids.Contains(pair.Key))
+                        .ToDictionary(pair => pair.Key, pair => pair.Value));
+            PlayerGroups
+                .Setup(x => x.ListPlayerGroupsAsync(Profile.Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(() => PlayerGroupNames
+                    .Select((name, index) => new PlayerGroupReadModel(
+                        Guid.NewGuid(),
+                        $"group-{index}@g.us",
+                        name,
+                        20,
+                        index == 0))
+                    .ToArray());
         }
 
         public PlayerProfile Profile { get; } = new()
@@ -486,6 +710,12 @@ public sealed class GameDayContextHandlerTests
         /// <summary>Profiles the repository can resolve for linked imported participants.</summary>
         public List<PlayerProfile> LinkedProfiles { get; } = [];
 
+        /// <summary>Snapshot group name per session, for the relevance filter.</summary>
+        public Dictionary<Guid, string> GroupNamesBySession { get; } = [];
+
+        /// <summary>WhatsApp groups the current player belongs to.</summary>
+        public List<string> PlayerGroupNames { get; } = [];
+
         public Mock<ICurrentUser> CurrentUser { get; } = new();
         public Mock<IClock> Clock { get; } = new();
         public Mock<IPlayerProfileRepository> Profiles { get; } = new();
@@ -493,6 +723,7 @@ public sealed class GameDayContextHandlerTests
         public Mock<IVenueRepository> Venues { get; } = new();
         public Mock<IRsvpRepository> Rsvps { get; } = new();
         public Mock<IPickupPalGameRepository> PickupPalGames { get; } = new();
+        public Mock<IPlayerGroupLinkRepository> PlayerGroups { get; } = new();
         public Mock<IStatsRepository> Stats { get; } = new();
         public Mock<IPlayerSessionEligibilityService> Eligibility { get; } = new();
 
@@ -556,6 +787,7 @@ public sealed class GameDayContextHandlerTests
             Venues.Object,
             Rsvps.Object,
             PickupPalGames.Object,
+            PlayerGroups.Object,
             Stats.Object,
             Eligibility.Object);
     }

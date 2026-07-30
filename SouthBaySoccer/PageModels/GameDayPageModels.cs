@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using SouthBaySoccer.Contracts.GameDay;
 using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Clients;
+using BadgeVariant = SouthBaySoccer.Controls.BadgeVariant;
 using ViewState = SouthBaySoccer.Controls.ViewState;
 
 namespace SouthBaySoccer.PageModels;
@@ -37,18 +38,26 @@ public partial class GameDayPageModel(
     IGameDayClient gameDayClient,
     IGameDayNavigator navigator,
     IRosterListPresenter? rosterListPresenter = null,
-    IUserDialogService? dialogService = null) : ObservableObject
+    IUserDialogService? dialogService = null,
+    IRosterClient? rosterClient = null,
+    IProfileClient? profileClient = null) : ObservableObject
 {
     private static readonly TimeZoneInfo VenueTimeZone = FindVenueTimeZone();
     public const string NoticeText = "RSVP is attendance intent. Game Day check-in records who is actually at the field.";
     public const string ErrorTitle = "Couldn't load Game Day";
     public const string ErrorMessage = "Something went wrong loading the active game-day flow.";
+    public const string NoGameTitle = "No game today";
+    public const string NoGameMessage =
+        "You have no game today. Games you RSVP to — or that run in your WhatsApp group — appear here on match day.";
+    public const string JoinFailedTitle = "Couldn't join";
 
     private Guid sessionId;
     private Guid matchId;
     // The game the player is currently viewing. Null on first load so the server auto-picks; pinned
     // after each load so reloads (and the picker) stay on the chosen game rather than jumping.
     private Guid? selectedSessionId;
+    // Game-admin widening: when true the server returns every game today, not just relevant ones.
+    private bool showAllGames;
     private Guid? selfCheckInIdempotencyKey;
     private readonly Dictionary<Guid, Guid> lateCheckInIdempotencyKeys = [];
     private readonly Dictionary<Guid, Guid> adminCheckInIdempotencyKeys = [];
@@ -66,6 +75,7 @@ public partial class GameDayPageModel(
     [NotifyCanExecuteChangedFor(nameof(CheckInCommand))]
     [NotifyCanExecuteChangedFor(nameof(LateCheckInCommand))]
     [NotifyCanExecuteChangedFor(nameof(AdminCheckInCommand))]
+    [NotifyCanExecuteChangedFor(nameof(JoinCommand))]
     private bool _isBusy;
 
     [ObservableProperty]
@@ -73,6 +83,7 @@ public partial class GameDayPageModel(
     private bool _canCheckIn;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HeaderContextLabel))]
     private string _venue = string.Empty;
 
     [ObservableProperty]
@@ -136,6 +147,113 @@ public partial class GameDayPageModel(
     private IReadOnlyList<GameDayGameOption> _todaysGames = [];
 
     public bool HasMultipleGames => TodaysGames.Count > 1;
+
+    /// <summary>The session's title (e.g. "Bay Area Soccer - Wednesday pickup"), for the header.</summary>
+    [ObservableProperty]
+    private string _title = "Game Day";
+
+    /// <summary>The WhatsApp group the game runs in; null for a hand-created session.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HeaderContextLabel))]
+    [NotifyPropertyChangedFor(nameof(SpectatorBannerText))]
+    private string? _groupName;
+
+    /// <summary>"Bay Area Soccer · Marina Field" — which group and field this page is about.</summary>
+    public string HeaderContextLabel => string.IsNullOrWhiteSpace(GroupName)
+        ? Venue
+        : $"{GroupName} · {Venue}";
+
+    /// <summary>
+    /// Viewing a group's game without holding a spot on it: counts and rosters are visible,
+    /// every action except Join is withheld.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsParticipant))]
+    [NotifyPropertyChangedFor(nameof(SpectatorBannerText))]
+    [NotifyPropertyChangedFor(nameof(HasJoinBlockedReason))]
+    [NotifyPropertyChangedFor(nameof(StatusBadgeVariant))]
+    private bool _isSpectator;
+
+    public bool IsParticipant => !IsSpectator && !IsNoGame;
+
+    public string SpectatorBannerText => string.IsNullOrWhiteSpace(GroupName)
+        ? "You're not on this game's list. You can see who's playing, or join below."
+        : $"You're a member of {GroupName} — you're not on this game's list. You can see who's playing, or join below.";
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(JoinCommand))]
+    private bool _canJoin;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasJoinBlockedReason))]
+    private string? _joinBlockedReason;
+
+    public bool HasJoinBlockedReason => IsSpectator && !string.IsNullOrWhiteSpace(JoinBlockedReason);
+
+    /// <summary>Session capacity, for the Join card's "14 of 20 going" context.</summary>
+    [ObservableProperty]
+    private int _capacity;
+
+    /// <summary>Game admins may widen the page to every game running today.</summary>
+    [ObservableProperty]
+    private bool _canShowAllGames;
+
+    [ObservableProperty]
+    private bool _isShowingAllGames;
+
+    public const string MyGamesLabel = "My games";
+    public const string AllGamesLabel = "All games today";
+
+    /// <summary>The admin scope switch's two options.</summary>
+    public IReadOnlyList<string> GameScopeOptions { get; } = [MyGamesLabel, AllGamesLabel];
+
+    /// <summary>Which scope option is highlighted; kept in sync with <see cref="IsShowingAllGames"/>.</summary>
+    [ObservableProperty]
+    private int _selectedGameScopeIndex;
+
+    /// <summary>Raw status backing the header badge.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusBadgeVariant))]
+    private GameDayStatus _status = GameDayStatus.Closed;
+
+    /// <summary>
+    /// The header badge's variant, computed here rather than via XAML triggers: two triggers on the
+    /// same property resolve by activation order, which made the spectator badge amber or neutral
+    /// depending on which property happened to change last.
+    /// </summary>
+    public BadgeVariant StatusBadgeVariant => IsSpectator
+        ? BadgeVariant.Neutral
+        : Status switch
+        {
+            GameDayStatus.Open or GameDayStatus.CheckedIn => BadgeVariant.Success,
+            GameDayStatus.Blocked => BadgeVariant.Warning,
+            _ => BadgeVariant.Neutral,
+        };
+
+    /// <summary>No relevant game today; the page shows the last-game summary instead.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsParticipant))]
+    private bool _isNoGame;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLastGame))]
+    [NotifyPropertyChangedFor(nameof(HasLastGameGroup))]
+    [NotifyPropertyChangedFor(nameof(HasLastGameResult))]
+    [NotifyPropertyChangedFor(nameof(LastGameCountsLabel))]
+    private LastGameSummaryDto? _lastGame;
+
+    public bool HasLastGame => LastGame is not null;
+
+    public bool HasLastGameGroup => !string.IsNullOrWhiteSpace(LastGame?.GroupName);
+
+    public bool HasLastGameResult => !string.IsNullOrWhiteSpace(LastGame?.ResultSummary);
+
+    /// <summary>"14 going · 12 checked in · 2 teams" (teams only when the game was drafted).</summary>
+    public string LastGameCountsLabel => LastGame is not { } game
+        ? string.Empty
+        : game.TeamCount > 0
+            ? $"{game.GoingCount} going · {game.CheckedInCount} checked in · {game.TeamCount} teams"
+            : $"{game.GoingCount} going · {game.CheckedInCount} checked in";
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AdminCheckInCommand))]
@@ -467,6 +585,81 @@ public partial class GameDayPageModel(
             : navigator.OpenClaimSpotAsync();
     }
 
+    /// <summary>
+    /// The spectator's one action: RSVP to the group game being viewed. The server decides whether
+    /// that lands as Going or Waitlisted, so a full reload — not an optimistic flip — shows the
+    /// page in its new participant shape.
+    /// </summary>
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanJoinNow))]
+    private async Task Join(CancellationToken cancellationToken)
+    {
+        if (rosterClient is null || !CanJoin || IsBusy)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var result = await rosterClient.SetRsvpIntentAsync(sessionId, isGoing: true, cancellationToken);
+            if (!result.IsSuccess)
+            {
+                // A failed CTA is a dialog, not a page-wide error state — the game is still viewable.
+                if (dialogService is not null)
+                {
+                    await dialogService.ShowAlertAsync(
+                        JoinFailedTitle,
+                        result.ErrorMessage ?? "Something went wrong. Please try again.",
+                        "OK");
+                }
+
+                return;
+            }
+
+            await LoadAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is null)
+        {
+            ApplyNonContent(ViewState.Offline, "You're offline", "Reconnect to join this game.");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanJoinNow() => CanJoin && !IsBusy && rosterClient is not null;
+
+    // Game-admin switch between "my games" and every game running today. Clearing the pinned
+    // session lets the server re-pick inside the new pool instead of chasing an out-of-pool id.
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task ToggleAllGames(CancellationToken cancellationToken)
+    {
+        if (!CanShowAllGames)
+        {
+            return Task.CompletedTask;
+        }
+
+        showAllGames = !showAllGames;
+        selectedSessionId = null;
+        return LoadAsync(cancellationToken);
+    }
+
+    // Segmented-control entry point for the same switch. The control re-raises the selection when
+    // ApplyContext syncs the index, so a pick that matches the current scope is a no-op.
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task SelectGameScope(string? option, CancellationToken cancellationToken)
+    {
+        var wantsAll = string.Equals(option, AllGamesLabel, StringComparison.Ordinal);
+        return wantsAll == showAllGames
+            ? Task.CompletedTask
+            : ToggleAllGames(cancellationToken);
+    }
+
     private bool CanCheckInNow() => CanCheckIn && !IsBusy;
 
     private bool CanOpenCaptainAssignment() => CanAssignCaptains;
@@ -490,10 +683,10 @@ public partial class GameDayPageModel(
         State = ViewState.Loading;
         try
         {
-            var context = await gameDayClient.GetTodayContextAsync(selectedSessionId, cancellationToken);
+            var context = await gameDayClient.GetTodayContextAsync(selectedSessionId, showAllGames, cancellationToken);
             if (context is null)
             {
-                ApplyNonContent(ViewState.Empty, "No session today", "Your next eligible session will appear here on match day.");
+                await ApplyNoGameAsync(cancellationToken);
                 return;
             }
 
@@ -509,12 +702,94 @@ public partial class GameDayPageModel(
         }
     }
 
+    // No relevant game today. When the player has any recent game — or is a game admin who needs
+    // the "All games today" switch — show it as content (a "here's where things stand" page); only
+    // a non-admin with no history at all gets the bare empty state. A failed summary read degrades
+    // to the bare state rather than erroring the whole page.
+    private async Task ApplyNoGameAsync(CancellationToken cancellationToken)
+    {
+        LastGameSummaryDto? lastGame = null;
+        try
+        {
+            lastGame = await gameDayClient.GetLastGameSummaryAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // Deliberate: the summary is garnish on the empty state.
+        }
+
+        // A 204 today-context carries no flags, so admin-ness comes from the (cached) profile role;
+        // without it the scope switch would be unreachable exactly when an admin needs it — a match
+        // day where they RSVP'd nothing. The server still enforces the widening itself.
+        var canShowAllGames = showAllGames || await ResolveIsAdminAsync(cancellationToken);
+
+        if (lastGame is null && !canShowAllGames)
+        {
+            ApplyNonContent(ViewState.Empty, NoGameTitle, NoGameMessage);
+            return;
+        }
+
+        IsNoGame = true;
+        IsSpectator = false;
+        LastGame = lastGame;
+        Title = NoGameTitle;
+        GroupName = null;
+        CanJoin = false;
+        JoinBlockedReason = null;
+        CanShowAllGames = canShowAllGames;
+        IsShowingAllGames = showAllGames;
+        SelectedGameScopeIndex = showAllGames ? 1 : 0;
+        StateTitle = string.Empty;
+        StateMessage = string.Empty;
+        State = ViewState.Content;
+    }
+
+    private async Task<bool> ResolveIsAdminAsync(CancellationToken cancellationToken)
+    {
+        if (profileClient is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var profile = await profileClient.GetCurrentProfileAsync(cancellationToken);
+            return PlayerRoles.IsAdministrative(profile?.Role);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // The switch is a convenience; a failed profile read never breaks the page.
+            return false;
+        }
+    }
+
     private void ApplyContext(GameDayContextDto context)
     {
         sessionId = context.SessionId;
         // Pin to the loaded game so a later reload (check-in, refresh) stays on it instead of
         // re-running the server's auto-pick and possibly jumping to a different game.
         selectedSessionId = context.SessionId;
+        IsNoGame = false;
+        LastGame = null;
+        Title = string.IsNullOrWhiteSpace(context.Title) ? "Game Day" : context.Title;
+        GroupName = context.GroupName;
+        IsSpectator = context.IsSpectator;
+        CanJoin = context.CanJoin;
+        JoinBlockedReason = context.JoinBlockedReason;
+        Capacity = context.Capacity;
+        CanShowAllGames = context.CanShowAllGames;
+        IsShowingAllGames = context.IsShowingAllGames;
+        showAllGames = context.IsShowingAllGames;
+        SelectedGameScopeIndex = context.IsShowingAllGames ? 1 : 0;
+        Status = context.Status;
         TodaysGames = (context.TodaysGames ?? [])
             .Select(game => new GameDayGameOption(
                 game.SessionId,
@@ -531,15 +806,18 @@ public partial class GameDayPageModel(
         PrimaryActionText = context.PrimaryActionText;
         BlockReason = context.BlockReason;
         LateCount = context.LateCount;
-        CanCheckIn = context.IsSelfCheckInAvailable;
-        CanAssignCaptains = context.CanAssignCaptains;
-        CanDraftTeam = context.CanDraftTeam;
-        CanViewTeams = context.CanViewTeams;
-        CanApprovePostGame = context.CanApprovePostGame;
-        CanSubmitOwnStats = context.CanSubmitOwnStats;
-        CanLateCheckIn = context.CanLateCheckIn;
-        LateCheckInPlayers = context.LateCheckInPlayers ?? [];
-        CanManageCheckIns = context.CanManageCheckIns;
+        // Defense in depth: the server already zeroes every action flag for a spectator, but the
+        // client re-applies the rule so a stale or hand-crafted payload can't surface an action.
+        var isParticipantContext = !context.IsSpectator;
+        CanCheckIn = isParticipantContext && context.IsSelfCheckInAvailable;
+        CanAssignCaptains = isParticipantContext && context.CanAssignCaptains;
+        CanDraftTeam = isParticipantContext && context.CanDraftTeam;
+        CanViewTeams = isParticipantContext && context.CanViewTeams;
+        CanApprovePostGame = isParticipantContext && context.CanApprovePostGame;
+        CanSubmitOwnStats = isParticipantContext && context.CanSubmitOwnStats;
+        CanLateCheckIn = isParticipantContext && context.CanLateCheckIn;
+        LateCheckInPlayers = isParticipantContext ? context.LateCheckInPlayers ?? [] : [];
+        CanManageCheckIns = isParticipantContext && context.CanManageCheckIns;
         Roster = (context.Roster ?? [])
             .Select(entry => new GameDayRosterItem(
                 entry.PlayerProfileId,
@@ -548,13 +826,14 @@ public partial class GameDayPageModel(
                 entry.IsWaitlist,
                 entry.IsCheckedIn,
                 // An unlinked participant has no profile to check in against, so the check-in action
-                // is withheld until they are matched.
-                context.CanManageCheckIns && !entry.IsCheckedIn && !entry.IsUnlinked,
+                // is withheld until they are matched. CanManageCheckIns is the spectator-hardened
+                // local value, so spectator popups are always read-only rows.
+                CanManageCheckIns && !entry.IsCheckedIn && !entry.IsUnlinked,
                 entry.IsUnlinked
                     ? "Not linked to a profile"
                     : entry.IsCheckedIn ? "Checked in" : entry.IsWaitlist ? "Waitlist" : "Going",
                 entry.PickupPalParticipantId,
-                context.CanManageCheckIns))
+                CanManageCheckIns))
             .ToArray();
         // All three tile counts are derived from the roster so each count always matches the popup
         // list shown when it is tapped. (Going includes checked-in going players; Checked in is the
@@ -610,8 +889,17 @@ public partial class GameDayPageModel(
         }
     }
 
+    // Non-content states carry no executable actions: everything a mode container gates is reset so
+    // a stale flag can't leak an action (e.g. a still-executable Join) into an Error/Offline page.
     private void ApplyNonContent(ViewState state, string title, string message)
     {
+        IsNoGame = false;
+        IsSpectator = false;
+        LastGame = null;
+        CanJoin = false;
+        JoinBlockedReason = null;
+        GroupName = null;
+        Title = "Game Day";
         State = state;
         StateTitle = title;
         StateMessage = message;

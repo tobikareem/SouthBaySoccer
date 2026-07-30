@@ -379,12 +379,7 @@ public partial class SessionsHomePageModel(
         }
     }
 
-    private static bool IsAdministrativeRole(string? role) =>
-        role is not null &&
-        (role.Equals("Owner", StringComparison.OrdinalIgnoreCase) ||
-         role.Equals("Admin", StringComparison.OrdinalIgnoreCase) ||
-         role.Equals("GameAdmin", StringComparison.OrdinalIgnoreCase) ||
-         role.Equals("Game Admin", StringComparison.OrdinalIgnoreCase));
+    private static bool IsAdministrativeRole(string? role) => PlayerRoles.IsAdministrative(role);
 
     private sealed record ProfileHomeContext(string Greeting, bool CanManageSessions);
     private string BuildGreeting(string displayName)

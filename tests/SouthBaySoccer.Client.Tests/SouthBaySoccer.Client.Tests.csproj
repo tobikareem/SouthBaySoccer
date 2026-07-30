@@ -61,6 +61,7 @@
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IAuthenticationNavigator.cs" Link="Client\Services\IAuthenticationNavigator.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IExternalLauncher.cs" Link="Client\Services\IExternalLauncher.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\IUserDialogService.cs" Link="Client\Services\IUserDialogService.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\PlayerRoles.cs" Link="Client\Services\PlayerRoles.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\ISecureTokenStore.cs" Link="Client\Services\ISecureTokenStore.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\PhoneNumberValidator.cs" Link="Client\Services\PhoneNumberValidator.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Clients\*.cs" Link="Client\Services\Clients\%(Filename)%(Extension)" />

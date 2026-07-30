@@ -12,6 +12,7 @@ namespace SouthBaySoccer.Functions.Sessions;
 public sealed class GameDayFunctions(
     GameDayPickupPalRefreshService pickupPalRefreshService,
     GetTodayGameDayContextQueryHandler contextHandler,
+    GetLastGameSummaryQueryHandler lastGameSummaryHandler,
     GetRecentGamesQueryHandler recentGamesHandler,
     GetCaptainAssignmentQueryHandler getCaptainAssignmentHandler,
     AssignSessionCaptainsCommandHandler assignCaptainsHandler,
@@ -39,7 +40,10 @@ public sealed class GameDayFunctions(
         CancellationToken cancellationToken)
     {
         await pickupPalRefreshService.RefreshIfStaleAsync(cancellationToken);
-        var context = await contextHandler.HandleAsync(GetOptionalSessionId(request), cancellationToken);
+        var context = await contextHandler.HandleAsync(
+            GetOptionalSessionId(request),
+            GetBooleanQuery(request, "all"),
+            cancellationToken);
         if (context is null)
         {
             return request.CreateResponse(HttpStatusCode.NoContent);
@@ -47,6 +51,37 @@ public sealed class GameDayFunctions(
 
         var response = request.CreateResponse(HttpStatusCode.OK);
         await response.WriteAsJsonAsync(ToResponse(context), cancellationToken);
+        return response;
+    }
+
+    [Function(nameof(GetLastGameSummary))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> GetLastGameSummary(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "game-day/last-game")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        // No Pickup Pal refresh: this reads settled past data, and the today endpoint on the same
+        // screen load already refreshed.
+        var summary = await lastGameSummaryHandler.HandleAsync(cancellationToken);
+        if (summary is null)
+        {
+            return request.CreateResponse(HttpStatusCode.NoContent);
+        }
+
+        var response = request.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(
+            new LastGameSummaryDto(
+                summary.SessionId,
+                summary.Title,
+                summary.GroupName,
+                summary.Venue,
+                ToLocal(summary.StartsAtUtc).ToString("ddd MMM d, h:mm tt", CultureInfo.InvariantCulture),
+                summary.StartsAtUtc,
+                summary.GoingCount,
+                summary.CheckedInCount,
+                summary.TeamCount,
+                summary.ResultSummary),
+            cancellationToken);
         return response;
     }
 
@@ -441,7 +476,7 @@ public sealed class GameDayFunctions(
         return new GameDayContextDto(
             context.SessionId,
             context.MatchId,
-            "Game Day",
+            string.IsNullOrWhiteSpace(context.Title) ? "Game Day" : context.Title,
             context.Venue,
             localStart.ToString("ddd MMM d", CultureInfo.InvariantCulture),
             localStart.ToString("h:mm tt", CultureInfo.InvariantCulture),
@@ -491,7 +526,14 @@ public sealed class GameDayFunctions(
                     game.StatusLabel,
                     game.IsSelected))
                 .ToArray(),
-            context.CanViewTeams);
+            context.CanViewTeams,
+            context.GroupName,
+            context.IsSpectator,
+            context.CanJoin,
+            context.JoinBlockedReason,
+            context.Capacity,
+            context.CanShowAllGames,
+            context.IsShowingAllGames);
     }
 
     private static CaptainAssignmentDto ToResponse(CaptainAssignmentModel model) =>
@@ -601,6 +643,30 @@ public sealed class GameDayFunctions(
         }
 
         return null;
+    }
+
+    // Optional ?<name>=true flag; absent or unparseable means false. Used for the game-admin
+    // "all games today" widening, which the handler only honours for game admins.
+    private static bool GetBooleanQuery(HttpRequestData request, string name)
+    {
+        var query = request.Url.Query;
+        if (string.IsNullOrEmpty(query))
+        {
+            return false;
+        }
+
+        foreach (var pair in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = pair.Split('=', 2);
+            if (parts.Length == 2
+                && string.Equals(parts[0], name, StringComparison.OrdinalIgnoreCase)
+                && bool.TryParse(Uri.UnescapeDataString(parts[1]), out var value))
+            {
+                return value;
+            }
+        }
+
+        return false;
     }
 
     private static string GetIdempotencyKey(HttpRequestData request)
