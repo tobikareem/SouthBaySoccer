@@ -16,6 +16,22 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
     public Task<LastGameSummaryDto?> GetLastGameSummaryAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var draft = state.GetTeamDraft(SeedFixtures.MarinaSessionId);
+        var teams = draft.Teams
+            .Select(team =>
+            {
+                var names = draft.CheckedInPlayers.ToDictionary(p => p.Player.Id, p => p.Player.DisplayName);
+                var members = team.PlayerIds
+                    .Select((id, index) => new LastGameTeamMemberDto(
+                        id,
+                        names.GetValueOrDefault(id, "Player"),
+                        id == team.CaptainId,
+                        // Deterministic seed tallies: the captain and first pick carry the goals.
+                        id == team.CaptainId ? 2 : index == 1 ? 1 : 0))
+                    .ToArray();
+                return new LastGameTeamDto(team.TeamId, team.Name, team.CaptainName, "1W", members);
+            })
+            .ToArray();
         return Task.FromResult<LastGameSummaryDto?>(new LastGameSummaryDto(
             SeedFixtures.MarinaSessionId,
             "Marina Field - Wednesday pickup",
@@ -25,8 +41,13 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
             new DateTime(2026, 7, 23, 2, 30, 0, DateTimeKind.Utc),
             GoingCount: 14,
             CheckedInCount: 12,
-            TeamCount: 2,
-            ResultSummary: "Team Vic 2W · Team Ade 1W 1D"));
+            TeamCount: teams.Length,
+            ResultSummary: "Team Vic 2W · Team Ade 1W 1D",
+            WaitlistCount: 5,
+            Teams: teams,
+            CanLockTeams: true,
+            CanMatchPlayers: true,
+            CanApprovePostGame: true));
     }
 
     public Task<IReadOnlyList<RecentGameDto>> GetRecentGamesAsync(CancellationToken cancellationToken)
