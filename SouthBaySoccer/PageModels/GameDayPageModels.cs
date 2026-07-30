@@ -247,6 +247,7 @@ public partial class GameDayPageModel(
     [NotifyPropertyChangedFor(nameof(LastGameCanApprovePostGame))]
     [NotifyPropertyChangedFor(nameof(LastGameCanRateTeammates))]
     [NotifyPropertyChangedFor(nameof(HasLastGameActions))]
+    [NotifyCanExecuteChangedFor(nameof(OpenLastGameRatingsCommand))]
     private LastGameSummaryDto? _lastGame;
 
     public bool HasLastGame => LastGame is not null;
@@ -778,11 +779,13 @@ public partial class GameDayPageModel(
             ? navigator.OpenPostGameApprovalAsync(game.SessionId)
             : Task.CompletedTask;
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanOpenLastGameRatings))]
     private Task OpenLastGameRatings() =>
-        LastGame is { } game && LastGameCanRateTeammates
+        LastGame is { } game && CanOpenLastGameRatings()
             ? navigator.OpenRateTeammatesAsync(game.MatchId)
             : Task.CompletedTask;
+
+    private bool CanOpenLastGameRatings() => LastGameCanRateTeammates;
 
     // Segmented-control entry point for the same switch. The control re-raises the selection when
     // ApplyContext syncs the index, so a pick that matches the current scope is a no-op.

@@ -725,11 +725,14 @@ public class GameDayPageModelTests
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
         pageModel.HasLastGameActions.Should().BeFalse();
+        pageModel.OpenLastGameRatingsCommand.CanExecute(null).Should().BeFalse();
         await pageModel.OpenLastGameCaptainsCommand.ExecuteAsync(null);
         await pageModel.OpenLastGameApprovalCommand.ExecuteAsync(null);
+        await pageModel.OpenLastGameRatingsCommand.ExecuteAsync(null);
 
         navigator.Verify(n => n.OpenCaptainAssignmentAsync(It.IsAny<Guid>()), Times.Never);
         navigator.Verify(n => n.OpenPostGameApprovalAsync(It.IsAny<Guid>()), Times.Never);
+        navigator.Verify(n => n.OpenRateTeammatesAsync(It.IsAny<Guid>()), Times.Never);
     }
 
     [Fact]
@@ -745,10 +748,14 @@ public class GameDayPageModelTests
             .ReturnsAsync(LastGameWith(matchId: matchId, canRate: true));
         var navigator = Navigator();
         var pageModel = new GameDayPageModel(client.Object, navigator.Object);
+        var canExecuteChanged = false;
+        pageModel.OpenLastGameRatingsCommand.CanExecuteChanged += (_, _) => canExecuteChanged = true;
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
         pageModel.HasLastGameActions.Should().BeTrue();
         pageModel.LastGameCanRateTeammates.Should().BeTrue();
+        canExecuteChanged.Should().BeTrue("the already-bound rating row must be notified when LastGame loads");
+        pageModel.OpenLastGameRatingsCommand.CanExecute(null).Should().BeTrue();
         await pageModel.OpenLastGameRatingsCommand.ExecuteAsync(null);
 
         navigator.Verify(n => n.OpenRateTeammatesAsync(matchId), Times.Once);

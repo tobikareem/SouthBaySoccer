@@ -377,25 +377,17 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
             }
         }
 
-        affected += await ReassignUniqueRowsAsync(
-            await dbContext.PlayerRatingVotes.Where(x => x.VoterPlayerProfileId == sourcePlayerProfileId).ToArrayAsync(cancellationToken),
-            row => dbContext.PlayerRatingVotes.Any(x => x.MatchId == row.MatchId && x.VoterPlayerProfileId == targetPlayerProfileId && x.RatedPlayerProfileId == row.RatedPlayerProfileId),
-            row => row.VoterPlayerProfileId = targetPlayerProfileId);
-
-        affected += await ReassignUniqueRowsAsync(
-            await dbContext.PlayerRatingVotes.Where(x => x.RatedPlayerProfileId == sourcePlayerProfileId).ToArrayAsync(cancellationToken),
-            row => dbContext.PlayerRatingVotes.Any(x => x.MatchId == row.MatchId && x.VoterPlayerProfileId == row.VoterPlayerProfileId && x.RatedPlayerProfileId == targetPlayerProfileId),
-            row => row.RatedPlayerProfileId = targetPlayerProfileId);
-
-        affected += await ReassignUniqueRowsAsync(
-            await dbContext.PlayerLikes.Where(x => x.GiverPlayerProfileId == sourcePlayerProfileId).ToArrayAsync(cancellationToken),
-            row => dbContext.PlayerLikes.Any(x => x.MatchId == row.MatchId && x.GiverPlayerProfileId == targetPlayerProfileId && x.ReceiverPlayerProfileId == row.ReceiverPlayerProfileId),
-            row => row.GiverPlayerProfileId = targetPlayerProfileId);
-
-        affected += await ReassignUniqueRowsAsync(
-            await dbContext.PlayerLikes.Where(x => x.ReceiverPlayerProfileId == sourcePlayerProfileId).ToArrayAsync(cancellationToken),
-            row => dbContext.PlayerLikes.Any(x => x.MatchId == row.MatchId && x.GiverPlayerProfileId == row.GiverPlayerProfileId && x.ReceiverPlayerProfileId == targetPlayerProfileId),
-            row => row.ReceiverPlayerProfileId = targetPlayerProfileId);
+        // Reconcile both sides of peer feedback as one final identity. Independent FK passes can
+        // turn source↔target feedback into prohibited self-feedback or miss collisions that exist
+        // only after both columns are rewritten.
+        affected += await ReconcileRatingVotesAsync(
+            sourcePlayerProfileId,
+            targetPlayerProfileId,
+            cancellationToken);
+        affected += await ReconcileLikesAsync(
+            sourcePlayerProfileId,
+            targetPlayerProfileId,
+            cancellationToken);
 
         foreach (var award in await dbContext.MatchAwards.Where(x => x.PlayerProfileId == sourcePlayerProfileId || x.AwardedByPlayerProfileId == sourcePlayerProfileId).ToArrayAsync(cancellationToken))
         {
@@ -733,6 +725,122 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
         }
 
         await Task.CompletedTask;
+        return affected;
+    }
+
+    private async Task<int> ReconcileRatingVotesAsync(
+        Guid sourcePlayerProfileId,
+        Guid targetPlayerProfileId,
+        CancellationToken cancellationToken)
+    {
+        var rows = await dbContext.PlayerRatingVotes
+            .Where(x => x.VoterPlayerProfileId == sourcePlayerProfileId
+                || x.RatedPlayerProfileId == sourcePlayerProfileId
+                || x.VoterPlayerProfileId == targetPlayerProfileId
+                || x.RatedPlayerProfileId == targetPlayerProfileId)
+            .ToArrayAsync(cancellationToken);
+        var affected = 0;
+        foreach (var group in rows.GroupBy(row => (
+            row.MatchId,
+            VoterId: row.VoterPlayerProfileId == sourcePlayerProfileId
+                ? targetPlayerProfileId
+                : row.VoterPlayerProfileId,
+            RatedId: row.RatedPlayerProfileId == sourcePlayerProfileId
+                ? targetPlayerProfileId
+                : row.RatedPlayerProfileId)))
+        {
+            if (group.Key.VoterId == group.Key.RatedId)
+            {
+                foreach (var row in group)
+                {
+                    row.IsDeleted = true;
+                    affected++;
+                }
+
+                continue;
+            }
+
+            var survivor = group.FirstOrDefault(row =>
+                    row.VoterPlayerProfileId != sourcePlayerProfileId
+                    && row.RatedPlayerProfileId != sourcePlayerProfileId)
+                ?? group.OrderBy(row => row.Id).First();
+            foreach (var duplicate in group.Where(row => row.Id != survivor.Id))
+            {
+                duplicate.IsDeleted = true;
+                affected++;
+            }
+
+            if (survivor.VoterPlayerProfileId == sourcePlayerProfileId)
+            {
+                survivor.VoterPlayerProfileId = targetPlayerProfileId;
+                affected++;
+            }
+
+            if (survivor.RatedPlayerProfileId == sourcePlayerProfileId)
+            {
+                survivor.RatedPlayerProfileId = targetPlayerProfileId;
+                affected++;
+            }
+        }
+
+        return affected;
+    }
+
+    private async Task<int> ReconcileLikesAsync(
+        Guid sourcePlayerProfileId,
+        Guid targetPlayerProfileId,
+        CancellationToken cancellationToken)
+    {
+        var rows = await dbContext.PlayerLikes
+            .Where(x => x.GiverPlayerProfileId == sourcePlayerProfileId
+                || x.ReceiverPlayerProfileId == sourcePlayerProfileId
+                || x.GiverPlayerProfileId == targetPlayerProfileId
+                || x.ReceiverPlayerProfileId == targetPlayerProfileId)
+            .ToArrayAsync(cancellationToken);
+        var affected = 0;
+        foreach (var group in rows.GroupBy(row => (
+            row.MatchId,
+            GiverId: row.GiverPlayerProfileId == sourcePlayerProfileId
+                ? targetPlayerProfileId
+                : row.GiverPlayerProfileId,
+            ReceiverId: row.ReceiverPlayerProfileId == sourcePlayerProfileId
+                ? targetPlayerProfileId
+                : row.ReceiverPlayerProfileId)))
+        {
+            if (group.Key.GiverId == group.Key.ReceiverId)
+            {
+                foreach (var row in group)
+                {
+                    row.IsDeleted = true;
+                    affected++;
+                }
+
+                continue;
+            }
+
+            var survivor = group.FirstOrDefault(row =>
+                    row.GiverPlayerProfileId != sourcePlayerProfileId
+                    && row.ReceiverPlayerProfileId != sourcePlayerProfileId)
+                ?? group.OrderBy(row => row.Id).First();
+            foreach (var duplicate in group.Where(row => row.Id != survivor.Id))
+            {
+                duplicate.IsDeleted = true;
+                affected++;
+            }
+
+            if (survivor.GiverPlayerProfileId == sourcePlayerProfileId)
+            {
+                survivor.GiverPlayerProfileId = targetPlayerProfileId;
+                affected++;
+            }
+
+            if (survivor.ReceiverPlayerProfileId == sourcePlayerProfileId)
+            {
+                survivor.ReceiverPlayerProfileId = targetPlayerProfileId;
+                affected++;
+            }
+        }
+
         return affected;
     }
 }
