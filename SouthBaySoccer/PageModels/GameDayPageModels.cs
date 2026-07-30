@@ -245,6 +245,7 @@ public partial class GameDayPageModel(
     [NotifyPropertyChangedFor(nameof(LastGameCanLockTeams))]
     [NotifyPropertyChangedFor(nameof(LastGameCanMatchPlayers))]
     [NotifyPropertyChangedFor(nameof(LastGameCanApprovePostGame))]
+    [NotifyPropertyChangedFor(nameof(LastGameCanRateTeammates))]
     [NotifyPropertyChangedFor(nameof(HasLastGameActions))]
     private LastGameSummaryDto? _lastGame;
 
@@ -293,8 +294,15 @@ public partial class GameDayPageModel(
 
     public bool LastGameCanApprovePostGame => LastGame?.CanApprovePostGame == true;
 
+    public bool LastGameCanRateTeammates =>
+        LastGame is { CanRateTeammates: true, MatchId: var candidateMatchId }
+        && candidateMatchId != Guid.Empty;
+
     public bool HasLastGameActions =>
-        LastGameCanLockTeams || LastGameCanMatchPlayers || LastGameCanApprovePostGame;
+        LastGameCanLockTeams
+        || LastGameCanMatchPlayers
+        || LastGameCanApprovePostGame
+        || LastGameCanRateTeammates;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AdminCheckInCommand))]
@@ -692,7 +700,7 @@ public partial class GameDayPageModel(
 
     /// <summary>
     /// Tapping a last-game team (or its captain) opens the member list in the same popup the count
-    /// tiles use, with each row showing captaincy and the approved goal tally.
+    /// tiles use, with each row showing captaincy and approved goal and assist tallies.
     /// </summary>
     [RelayCommand]
     private Task ShowLastGameTeam(LastGameTeamDto? team)
@@ -710,22 +718,44 @@ public partial class GameDayPageModel(
                 isWaitlist: false,
                 isCheckedIn: false,
                 canCheckIn: false,
-                DescribeTeamMember(member)))
+                DescribeTeamMember(member),
+                semanticStatusLabel: DescribeTeamMemberForAccessibility(member)))
             .ToArray();
         return rosterListPresenter.ShowAsync(team.Name, members, AdminCheckInCommand, LinkRosterMemberCommand);
     }
 
     private static string DescribeTeamMember(LastGameTeamMemberDto member)
     {
-        var goals = member.Goals switch
+        var tallies = new List<string>(2);
+        if (member.Goals > 0)
         {
-            0 => null,
-            1 => "1 goal",
-            _ => $"{member.Goals} goals",
-        };
-        return member.IsCaptain
-            ? goals is null ? "Captain" : $"Captain · {goals}"
-            : goals ?? string.Empty;
+            tallies.Add(string.Concat(Enumerable.Repeat("⚽", member.Goals)));
+        }
+
+        if (member.Assists > 0)
+        {
+            tallies.Add(string.Concat(Enumerable.Repeat("🦶", member.Assists)));
+        }
+
+        if (member.IsCaptain)
+        {
+            tallies.Insert(0, "Captain");
+        }
+
+        return string.Join(" · ", tallies);
+    }
+
+    private static string DescribeTeamMemberForAccessibility(LastGameTeamMemberDto member)
+    {
+        var tallies = new List<string>(3);
+        if (member.IsCaptain)
+        {
+            tallies.Add("captain");
+        }
+
+        tallies.Add($"{member.Goals} {(member.Goals == 1 ? "goal" : "goals")}");
+        tallies.Add($"{member.Assists} {(member.Assists == 1 ? "assist" : "assists")}");
+        return string.Join(", ", tallies);
     }
 
     // Follow-up actions on the last game: each reuses the existing screen for that job, keyed by
@@ -746,6 +776,12 @@ public partial class GameDayPageModel(
     private Task OpenLastGameApproval() =>
         LastGame is { } game && LastGameCanApprovePostGame
             ? navigator.OpenPostGameApprovalAsync(game.SessionId)
+            : Task.CompletedTask;
+
+    [RelayCommand]
+    private Task OpenLastGameRatings() =>
+        LastGame is { } game && LastGameCanRateTeammates
+            ? navigator.OpenRateTeammatesAsync(game.MatchId)
             : Task.CompletedTask;
 
     // Segmented-control entry point for the same switch. The control re-raises the selection when
@@ -1028,7 +1064,8 @@ public partial class GameDayRosterItem(
     bool canCheckIn,
     string statusLabel,
     string? pickupPalParticipantId = null,
-    bool canManageRoster = false) : ObservableObject
+    bool canManageRoster = false,
+    string? semanticStatusLabel = null) : ObservableObject
 {
     public Guid? PlayerProfileId { get; } = playerProfileId;
 
@@ -1051,6 +1088,10 @@ public partial class GameDayRosterItem(
         ? $"Match {DisplayName} to a player profile"
         : $"Claim {DisplayName} as yourself";
     public string DisplayName { get; } = displayName;
+    public string SemanticDescription =>
+        string.IsNullOrWhiteSpace(semanticStatusLabel ?? StatusLabel)
+            ? DisplayName
+            : $"{DisplayName}, {semanticStatusLabel ?? StatusLabel}";
     public bool IsGuest { get; } = isGuest;
     public bool IsWaitlist { get; } = isWaitlist;
 
@@ -1063,6 +1104,7 @@ public partial class GameDayRosterItem(
     private bool _canCheckIn = canCheckIn;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SemanticDescription))]
     private string _statusLabel = statusLabel;
 }
 

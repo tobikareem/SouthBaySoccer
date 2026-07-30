@@ -29,10 +29,14 @@
                     Spacing="{StaticResource SpaceXs}">
                     <BindableLayout.ItemTemplate>
                         <DataTemplate x:DataType="pageModels:GameDayRosterItem">
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}" Padding="{StaticResource RowPadding}">
+                            <Grid
+                                ColumnDefinitions="*,Auto"
+                                ColumnSpacing="{StaticResource SpaceSm}"
+                                Padding="{StaticResource RowPadding}"
+                                SemanticProperties.Description="{Binding SemanticDescription}">
                                 <VerticalStackLayout Grid.Column="0" VerticalOptions="Center" Spacing="{StaticResource SpaceXs}">
-                                    <Label Text="{Binding DisplayName}" Style="{StaticResource TextBodyStrong}" />
-                                    <Label Text="{Binding StatusLabel}" Style="{StaticResource TextCaption}" />
+                                    <Label Text="{Binding DisplayName}" Style="{StaticResource TextBodyStrong}" AutomationProperties.IsInAccessibleTree="False" />
+                                    <Label Text="{Binding StatusLabel}" Style="{StaticResource TextCaption}" AutomationProperties.IsInAccessibleTree="False" />
                                 </VerticalStackLayout>
                                 <Button
                                     Grid.Column="1"
