@@ -110,10 +110,90 @@ public sealed class ClaimParticipantHandlerTests
         await handler.HandleAsync(new ClaimParticipantCommand(SessionId, participant.Id));
 
         stats.Verify(x => x.ReassignProfileStatsAsync(duplicate.Id, actor.Id, It.IsAny<CancellationToken>()), Times.Once);
+        repo.Verify(
+            x => x.ReassignParticipantLinksAsync(duplicate.Id, actor.Id, It.IsAny<CancellationToken>()),
+            Times.Once,
+            "every roster row of the duplicate must follow the merge");
         profileRepo.Verify(x => x.AddProfileMergeAsync(
             It.Is<ProfileMerge>(m => m.SourcePlayerProfileId == duplicate.Id && m.TargetPlayerProfileId == actor.Id),
             It.IsAny<CancellationToken>()), Times.Once);
         duplicate.IsDeleted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Link_WhenPreviousProfileIsImportOwned_MergesEverythingIntoMatchedProfile()
+    {
+        // The Desire Asinya case: the import created a duplicate ("Desire") that captained a team;
+        // the admin then matched the row to the player's real profile. Matching must move
+        // everything — stats, captaincy, other roster rows — and retire the duplicate, or the team
+        // keeps pointing at a ghost and can never lock.
+        var duplicate = UnclaimedProfile("Desire");
+        var target = ClaimedProfile("Desire Asinya");
+        var participant = Participant("Desire", playerProfileId: duplicate.Id);
+        var repo = GameRepo(participant);
+        var profileRepo = ProfileRepo(Profile("Admin"), duplicate, target);
+        var stats = new Mock<IStatsRepository>();
+        var handler = new LinkParticipantToProfileCommandHandler(
+            GameAdmin().Object, Clock().Object, profileRepo.Object, repo.Object,
+            stats.Object, Mock.Of<IAuditLogRepository>(), Mock.Of<IUnitOfWork>());
+
+        await handler.HandleAsync(new LinkParticipantToProfileCommand(participant.Id, target.Id));
+
+        participant.PlayerProfileId.Should().Be(target.Id);
+        stats.Verify(x => x.ReassignProfileStatsAsync(duplicate.Id, target.Id, It.IsAny<CancellationToken>()), Times.Once);
+        repo.Verify(x => x.ReassignParticipantLinksAsync(duplicate.Id, target.Id, It.IsAny<CancellationToken>()), Times.Once);
+        profileRepo.Verify(x => x.AddProfileMergeAsync(
+            It.Is<ProfileMerge>(m => m.SourcePlayerProfileId == duplicate.Id && m.TargetPlayerProfileId == target.Id),
+            It.IsAny<CancellationToken>()), Times.Once);
+        duplicate.IsDeleted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Link_WhenPreviousProfileHasSignIn_RelinksWithoutMerging()
+    {
+        // Re-linking a mis-matched row away from a real account must never strip that account.
+        var previous = ClaimedProfile("Real Player");
+        var target = ClaimedProfile("Correct Player");
+        var participant = Participant("someone", playerProfileId: previous.Id);
+        var repo = GameRepo(participant);
+        var stats = new Mock<IStatsRepository>();
+        var handler = new LinkParticipantToProfileCommandHandler(
+            GameAdmin().Object, Clock().Object, ProfileRepo(Profile("Admin"), previous, target).Object,
+            repo.Object, stats.Object, Mock.Of<IAuditLogRepository>(), Mock.Of<IUnitOfWork>());
+
+        await handler.HandleAsync(new LinkParticipantToProfileCommand(participant.Id, target.Id));
+
+        participant.PlayerProfileId.Should().Be(target.Id);
+        stats.Verify(
+            x => x.ReassignProfileStatsAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        previous.IsDeleted.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Link_WhenParticipantWasNeverLinked_LinksWithoutMerging()
+    {
+        var target = ClaimedProfile("Tobi Kareem");
+        var participant = Participant("tob8", playerProfileId: null);
+        var repo = GameRepo(participant);
+        var stats = new Mock<IStatsRepository>();
+        var handler = new LinkParticipantToProfileCommandHandler(
+            GameAdmin().Object, Clock().Object, ProfileRepo(Profile("Admin"), target).Object,
+            repo.Object, stats.Object, Mock.Of<IAuditLogRepository>(), Mock.Of<IUnitOfWork>());
+
+        await handler.HandleAsync(new LinkParticipantToProfileCommand(participant.Id, target.Id));
+
+        participant.PlayerProfileId.Should().Be(target.Id);
+        stats.Verify(
+            x => x.ReassignProfileStatsAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    private static Mock<ICurrentUser> GameAdmin()
+    {
+        var u = CurrentUser();
+        u.Setup(x => x.HasPolicy("CanManageSessions")).Returns(true);
+        return u;
     }
 
     [Fact]
@@ -192,6 +272,7 @@ public sealed class ClaimParticipantHandlerTests
         foreach (var profile in linked)
         {
             r.Setup(x => x.FindProfileAsync(profile.Id, It.IsAny<CancellationToken>())).ReturnsAsync(profile);
+            r.Setup(x => x.GetByIdAsync(profile.Id, It.IsAny<CancellationToken>())).ReturnsAsync(profile);
         }
 
         return r;
