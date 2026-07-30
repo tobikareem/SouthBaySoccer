@@ -247,6 +247,83 @@ public sealed class GetLastGameSummaryHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenAdminOnDraftMatchWithLockableTeams_OffersResultConfirmation()
+    {
+        // The post-game screen can finalize a played-but-never-locked game for an admin (the first
+        // recorded result auto-locks), so the Game Day row mirrors that exactly.
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 21, 3, 0), "Never locked");
+        context.ConfigureSessions(session);
+        context.Attend(session, going: true);
+        context.CurrentUser.Setup(x => x.HasPolicy("CanManageSessions")).Returns(true);
+        var captainA = context.GoingRoster[0];
+        var captainB = context.GoingRoster[1];
+        var match = new Match { Id = Guid.NewGuid(), SessionId = session.Id, Status = MatchStatus.Draft };
+        var teams = new[] { captainA, captainB }
+            .Select((captain, index) => new MatchTeam
+            {
+                Id = Guid.NewGuid(),
+                MatchId = match.Id,
+                TeamNumber = index + 1,
+                Name = $"Team {index + 1}",
+                CaptainPlayerProfileId = captain.PlayerProfileId,
+            })
+            .ToArray();
+        context.Stats
+            .Setup(x => x.FindPrimaryMatchBySessionAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(match);
+        context.Stats
+            .Setup(x => x.ListMatchTeamsAsync(match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(teams);
+        context.Stats
+            .Setup(x => x.ListAssignmentsAsync(match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(teams
+                .Select(team => new TeamAssignment
+                {
+                    MatchId = match.Id,
+                    MatchTeamId = team.Id,
+                    PlayerProfileId = team.CaptainPlayerProfileId!.Value,
+                })
+                .ToArray());
+
+        var summary = await context.CreateHandler().HandleAsync();
+
+        summary!.CanApprovePostGame.Should().BeTrue("an admin can confirm a lockable draft game");
+        summary.CanLockTeams.Should().BeTrue("two days ago is still inside the 3-day admin edit window");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenDraftTeamCaptainIsOrphaned_WithholdsResultConfirmation()
+    {
+        // A merge that failed to re-point the captaincy leaves a team whose captain has no
+        // assignment; the auto-lock path would reject it, so the row must not be offered.
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 21, 3, 0), "Orphaned captain");
+        context.ConfigureSessions(session);
+        context.Attend(session, going: true);
+        context.CurrentUser.Setup(x => x.HasPolicy("CanManageSessions")).Returns(true);
+        var match = new Match { Id = Guid.NewGuid(), SessionId = session.Id, Status = MatchStatus.Draft };
+        var team = new MatchTeam
+        {
+            Id = Guid.NewGuid(),
+            MatchId = match.Id,
+            TeamNumber = 1,
+            Name = "Team 1",
+            CaptainPlayerProfileId = Guid.NewGuid(),
+        };
+        context.Stats
+            .Setup(x => x.FindPrimaryMatchBySessionAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(match);
+        context.Stats
+            .Setup(x => x.ListMatchTeamsAsync(match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([team]);
+
+        var summary = await context.CreateHandler().HandleAsync();
+
+        summary!.CanApprovePostGame.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenRegularPlayer_OffersNoFollowUpActions()
     {
         var context = new TestContext();

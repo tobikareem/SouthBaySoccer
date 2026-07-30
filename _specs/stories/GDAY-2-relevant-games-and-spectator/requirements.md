@@ -91,7 +91,8 @@ Scenario: Admins and captains can finish up the last game
   Then I see "Lock the teams" when the teams were never locked (admin, within the 3-day edit window)
   And "Match players" when unlinked imported names remain (admin)
   And "Confirm result and goals" when the locked match still awaits confirmation (captain or admin,
-    within the post-game window)
+    within the post-game window) — or, for an admin, when a draft match's teams are lockable, since
+    recording the first result auto-locks them
   And each action opens the existing screen for that job, scoped to the last game's session
   And a regular player sees none of these actions
 ```
