@@ -105,6 +105,13 @@
     <!-- Outline/secondary action button (green border + text on a surface). Used for row-level
          actions such as Game Day admin check-in, late check-in, and the draft team switcher. -->
     <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource GhostButton}" />
+    <!-- White-on-hero action button: the primary action inside a green hero card (Game Day
+         check-in), where a green button would vanish into its own background. -->
+    <Style x:Key="HeroInverseButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+        <Setter Property="BackgroundColor" Value="White" />
+        <Setter Property="TextColor" Value="{StaticResource BrandGreenLight}" />
+        <Setter Property="BorderWidth" Value="0" />
+    </Style>
     <Style x:Key="WhatsAppButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
         <Setter Property="BackgroundColor" Value="{StaticResource WhatsApp}" />
     </Style>

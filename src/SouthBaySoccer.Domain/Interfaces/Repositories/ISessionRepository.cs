@@ -69,6 +69,24 @@ public interface ISessionRepository : IRepository<Session>
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Lists published sessions that started within a past UTC window, newest first, capped at
+    /// <paramref name="take"/>. Used to find a player's most recent game.
+    /// </summary>
+    Task<IReadOnlyList<Session>> ListPastGameDayCandidatesAsync(
+        DateTime fromUtc,
+        DateTime toUtc,
+        int take,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Maps sessions to the WhatsApp group name recorded on their Pickup Pal snapshot. Sessions
+    /// without a snapshot (created by hand) are absent from the result.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, string>> GetGroupNamesBySessionAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Finds a recurrence rule by id.
     /// </summary>
     Task<RecurrenceRule?> FindRecurrenceRuleAsync(Guid recurrenceRuleId, CancellationToken cancellationToken = default);

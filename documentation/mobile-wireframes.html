@@ -455,10 +455,17 @@
       </div>
     </section>
 
-    <!-- GAME DAY - timed check-in, admin/captain entry points -->
+    <!-- GAME DAY (participant) - timed check-in, admin/captain entry points. Only games the player
+         holds a spot on (Going/Waitlist) appear; with none, group-chat games render read-only as
+         the gameday-spectator screen, and with nothing relevant at all the gameday-empty screen
+         shows the last game. The header names the group and field ("Bay Area Soccer · Marina
+         Field") plus the session's own title, and the status pill follows the state (Open=green,
+         Closed=neutral, Blocked=amber, Spectator=neutral) instead of always reading green. -->
     <section class="screen" data-s="gameday">
       <div class="scroll">
-        <div class="row" style="justify-content:space-between;margin:6px 0 2px"><div><div class="muted">Today - Marina Field</div><div class="h" style="margin:0">Game Day</div></div><span class="pill ok"><i class="ti ti-clock-check"></i> Open</span></div>
+        <div class="row" style="justify-content:space-between;margin:6px 0 2px"><div><div class="muted">Today - Bay Area Soccer · Marina Field</div><div class="h" style="margin:0">Bay Area - Wednesday pickup</div></div><span class="pill ok"><i class="ti ti-clock-check"></i> Open</span></div>
+        <!-- Game admins only: scope switch between their games and everything running today. -->
+        <div class="row" style="gap:6px;margin:8px 0"><span class="pill ok" style="flex:1;justify-content:center">My games</span><span class="pill" style="flex:1;justify-content:center">All games today</span></div>
         <div class="card hero-card">
           <div class="hero-kicker">Check-in window</div>
           <div class="hero-title">7:30 PM - 7:45 PM</div>
@@ -481,6 +488,50 @@
         <div class="card interactive" onclick="show('claim')" style="cursor:pointer;padding:12px 14px"><div class="row"><span class="mini-action"><i class="ti ti-user-question"></i></span><div style="flex:1"><div style="font-weight:700">Claim your spot</div><div class="muted">Find yourself on a recent game roster</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
       </div>
       <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a class="active" onclick="show('gameday')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
+    </section>
+
+    <!-- GAME DAY (spectator) - a group-chat game the player has no spot on: read-only counts and
+         rosters plus one Join CTA. Every admin/captain/check-in affordance is absent, and a banner
+         says exactly why the page looks this way. -->
+    <section class="screen" data-s="gameday-spectator">
+      <div class="scroll">
+        <div class="row" style="justify-content:space-between;margin:6px 0 2px"><div><div class="muted">Today - Bay Area Soccer · Marina Field</div><div class="h" style="margin:0">Bay Area - Wednesday pickup</div></div><span class="pill"><i class="ti ti-eye"></i> Spectator</span></div>
+        <div class="notice"><i class="ti ti-info-circle"></i><div>You're a member of Bay Area Soccer — you're not on this game's list. You can see who's playing, or join below.</div></div>
+        <div class="statgrid" style="grid-template-columns:1fr 1fr 1fr;margin:12px 0">
+          <div class="stat tappable" onclick="openRoster('Going')"><b>22</b><span>Going</span></div><div class="stat tappable" onclick="openRoster('Waitlist')"><b>26</b><span>Waitlist</span></div><div class="stat tappable" onclick="openRoster('Checked in')"><b>11</b><span>Checked in</span></div>
+        </div>
+        <div class="muted" style="text-align:center;font-size:12px">Tap a count above to see who's going, the waitlist, or who's checked in.</div>
+        <div class="card" style="margin-top:12px">
+          <div style="font-weight:700">Want to play?</div>
+          <div class="muted" style="margin:4px 0 8px">Kick-off 7:40 PM at Marina Field</div>
+          <!-- CapacityBar: 22 of 20 spots -> the button still shows; a full game lands on the waitlist. -->
+          <div style="height:8px;border-radius:4px;background:var(--mist);overflow:hidden;margin-bottom:10px"><span style="display:block;height:100%;width:100%;background:var(--gd)"></span></div>
+          <button class="btn"><i class="ti ti-user-plus"></i> Join this game</button>
+          <div class="muted" style="font-size:12px;margin-top:6px">If the game is full you'll be added to the waitlist.</div>
+          <!-- When RSVP has closed, the button is replaced by: "RSVP is closed for this game." -->
+        </div>
+      </div>
+      <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a class="active" onclick="show('gameday-spectator')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
+    </section>
+
+    <!-- GAME DAY (no game today) - nothing relevant runs today: say so in plain words, then show
+         the player's most recent game so the tab is never a dead end. The card is read-only. -->
+    <section class="screen" data-s="gameday-empty">
+      <div class="scroll">
+        <div class="row" style="justify-content:space-between;margin:6px 0 2px"><div><div class="muted">Today</div><div class="h" style="margin:0">No game today</div></div></div>
+        <div style="text-align:center;margin:16px 0">
+          <span class="mini-action" style="width:48px;height:48px;font-size:22px;display:inline-flex"><i class="ti ti-ball-football"></i></span>
+          <div class="muted" style="margin-top:8px">You have no game today. Games you RSVP to — or that run in your WhatsApp group — appear here on match day.</div>
+        </div>
+        <div class="label">Last game</div>
+        <div class="card">
+          <div style="font-weight:700;font-size:17px">Bay Area - Wednesday pickup</div>
+          <div class="meta-row" style="margin:8px 0"><span class="meta-chip"><i class="ti ti-message-circle"></i> Bay Area Soccer</span><span class="meta-chip"><i class="ti ti-map-pin"></i> Marina Field</span><span class="meta-chip"><i class="ti ti-calendar"></i> Wed Jul 22, 7:30 PM</span></div>
+          <div style="font-weight:700">14 going · 12 checked in · 2 teams</div>
+          <div class="muted" style="margin-top:4px">Team Vic 2W · Team Ade 1W 1D</div>
+        </div>
+      </div>
+      <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a class="active" onclick="show('gameday-empty')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
     </section>
 
     <!-- ADMIN CAPTAINS - choose 2, 3, or 4 captains -->
@@ -943,7 +994,7 @@
   function matchLink(el){ var s=activeScreen(); var player=el.querySelector('[style*="font-weight:600"]').textContent; if(matchPending){ var btn=matchPending.querySelector('button'); if(btn){ var done=document.createElement('span'); done.style.cssText='display:inline-flex;align-items:center;gap:5px;color:var(--g);font-size:13px;font-weight:700'; done.innerHTML="<i class='ti ti-circle-check'></i> "+player; btn.replaceWith(done); } matchPending.querySelector('.muted').textContent='linked to '+player; } s.querySelector('.match-pick').style.display='none'; s.querySelector('.match-list').style.display='block'; matchPending=null; }
   function adminMatchBack(){ var s=activeScreen(); if(s.querySelector('.match-pick').style.display!=='none'){ s.querySelector('.match-pick').style.display='none'; s.querySelector('.match-list').style.display='block'; matchPending=null; } else { back(); } }
 
-  var order=['signin','home','adminbroadcast','notifications','session','schedule','adminsession','gameday','captains','draft','postgame','claim','claimpick','adminmatch','leaderboard','players','profile','matchstats','rate'];
+  var order=['signin','home','adminbroadcast','notifications','session','schedule','adminsession','gameday','gameday-spectator','gameday-empty','captains','draft','postgame','claim','claimpick','adminmatch','leaderboard','players','profile','matchstats','rate'];
   function setView(v){
     var stage=document.getElementById('stage'); stage.dataset.view=v; hist=[];
     document.getElementById('c-flow').classList.toggle('active', v==='flow');
