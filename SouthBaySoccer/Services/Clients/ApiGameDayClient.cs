@@ -11,9 +11,20 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
 {
     private readonly ConcurrentDictionary<string, string> _idempotencyKeys = new();
 
-    public async Task<GameDayContextDto?> GetTodayContextAsync(Guid? sessionId, CancellationToken cancellationToken)
+    public async Task<GameDayContextDto?> GetTodayContextAsync(Guid? sessionId, bool allGames, CancellationToken cancellationToken)
     {
-        var route = sessionId is { } id ? $"game-day/today?sessionId={id}" : "game-day/today";
+        var query = new List<string>(2);
+        if (sessionId is { } id)
+        {
+            query.Add($"sessionId={id}");
+        }
+
+        if (allGames)
+        {
+            query.Add("all=true");
+        }
+
+        var route = query.Count == 0 ? "game-day/today" : $"game-day/today?{string.Join('&', query)}";
         using var response = await httpClient.GetAsync(route, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NoContent)
         {
@@ -22,6 +33,19 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
 
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<GameDayContextDto>(
+            cancellationToken: cancellationToken);
+    }
+
+    public async Task<LastGameSummaryDto?> GetLastGameSummaryAsync(CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.GetAsync("game-day/last-game", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NoContent)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<LastGameSummaryDto>(
             cancellationToken: cancellationToken);
     }
 

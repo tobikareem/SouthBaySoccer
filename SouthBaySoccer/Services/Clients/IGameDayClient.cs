@@ -8,8 +8,12 @@ public interface IGameDayClient
     /// <summary>
     /// Today's Game Day context. Pass a <paramref name="sessionId"/> to load a specific one of
     /// today's games (from <see cref="GameDayContextDto.TodaysGames"/>); null lets the server pick.
+    /// <paramref name="allGames"/> asks for every game today — honoured only for game admins.
     /// </summary>
-    Task<GameDayContextDto?> GetTodayContextAsync(Guid? sessionId, CancellationToken cancellationToken);
+    Task<GameDayContextDto?> GetTodayContextAsync(Guid? sessionId, bool allGames, CancellationToken cancellationToken);
+
+    /// <summary>The player's most recent past game, for the no-game-today state; null when none.</summary>
+    Task<LastGameSummaryDto?> GetLastGameSummaryAsync(CancellationToken cancellationToken);
 
     /// <summary>Games already played inside the admin edit window, for game-admin follow-up.</summary>
     Task<IReadOnlyList<RecentGameDto>> GetRecentGamesAsync(CancellationToken cancellationToken);
