@@ -118,6 +118,9 @@ public partial class SegmentedControl
                 continue;
             }
             var isSelected = index == selected;
+            SemanticProperties.SetDescription(
+                button,
+                isSelected ? $"{button.Text}, selected" : $"Select {button.Text}");
             button.SetAppThemeColor(BackgroundColorProperty,
                 (Color)resources[isSelected ? "SurfaceLight" : "BrandMistLight"],
                 (Color)resources[isSelected ? "SurfaceDark" : "BrandMistDark"]);

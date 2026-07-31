@@ -3,6 +3,7 @@ using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Rsvps;
 using SouthBaySoccer.Application.Features.Stats;
+using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Entities.Stats;
 using SouthBaySoccer.Domain.Enumerations;
@@ -196,6 +197,16 @@ public sealed record LastGameSummaryModel(
 /// on (Going/Waitlisted/Checked in), else the latest game run by a WhatsApp group they belong to.
 /// Null when neither exists — other groups' games are never surfaced.
 /// </summary>
+public interface ILastGameSummaryQueryHandler
+{
+    Task<LastGameSummaryModel?> HandleAsync(CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<LastGameSummaryModel>> HandleRecentAsync(
+        int take = 3,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>Default implementation of the player-facing last-game summary queries.</summary>
 public sealed class GetLastGameSummaryQueryHandler(
     ICurrentUser currentUser,
     IClock clock,
@@ -205,7 +216,7 @@ public sealed class GetLastGameSummaryQueryHandler(
     IRsvpRepository rsvpRepository,
     IPickupPalGameRepository pickupPalGameRepository,
     IPlayerGroupLinkRepository playerGroupLinkRepository,
-    IStatsRepository statsRepository)
+    IStatsRepository statsRepository) : ILastGameSummaryQueryHandler
 {
     /// <summary>How far back to look for the player's most recent game.</summary>
     public static readonly TimeSpan LookbackWindow = TimeSpan.FromDays(30);
@@ -268,15 +279,98 @@ public sealed class GetLastGameSummaryQueryHandler(
             return null;
         }
 
-        var venue = await venueRepository.GetByIdAsync(session.VenueId, cancellationToken);
-        var attendance = attendanceBySessionId[session.Id];
-        var match = await statsRepository.FindPrimaryMatchBySessionAsync(session.Id, cancellationToken);
-        var teams = match is null
-            ? []
-            : await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken);
-        var results = match is null
-            ? []
-            : await statsRepository.ListMatchResultsAsync(match.Id, cancellationToken);
+        return await BuildSummaryAsync(
+            profile,
+            session,
+            attendanceBySessionId[session.Id],
+            groupNamesBySessionId,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Returns the player's newest attended games. Unlike the single-summary fallback, group
+    /// membership alone never qualifies a game for this history.
+    /// </summary>
+    public async Task<IReadOnlyList<LastGameSummaryModel>> HandleRecentAsync(
+        int take = 3,
+        CancellationToken cancellationToken = default)
+    {
+        var identityUserId = currentUser.UserId ?? throw new ApplicationUnauthenticatedException();
+        var profile = await playerProfileRepository.FindByIdentityUserIdAsync(identityUserId, cancellationToken)
+            ?? throw new ApplicationNotFoundException("Player profile was not found.");
+        var localToday = SessionAdminTimeZone.ToLocal(clock.UtcNow).Date;
+        var todayStartsAtUtc = SessionAdminTimeZone.ToUtc(localToday, TimeSpan.Zero);
+        var sessions = await sessionRepository.ListPastGameDayCandidatesAsync(
+            todayStartsAtUtc.Subtract(LookbackWindow),
+            todayStartsAtUtc,
+            MaxPastSessions,
+            cancellationToken);
+        if (sessions.Count == 0)
+        {
+            return [];
+        }
+
+        var sessionIds = sessions.Select(session => session.Id).ToArray();
+        var attendanceBySessionId = await rsvpRepository.GetGameDayAttendanceBatchAsync(
+            sessionIds,
+            profile.Id,
+            cancellationToken);
+        var groupNamesBySessionId = await sessionRepository.GetGroupNamesBySessionAsync(
+            sessionIds,
+            cancellationToken);
+        var attendedSessions = sessions
+            // Recent history is an attendance record, not an RSVP-intent record. Going-only
+            // no-shows and waitlisted players who never received a spot must not see team details.
+            .Where(session => attendanceBySessionId[session.Id].IsCurrentPlayerCheckedIn)
+            .Take(Math.Clamp(take, 1, 3))
+            .ToArray();
+        var venuesById = (await venueRepository.ListByIdsAsync(
+                attendedSessions.Select(session => session.VenueId).Distinct().ToArray(),
+                cancellationToken))
+            .ToDictionary(venue => venue.Id);
+        var statsBySessionId = (await statsRepository.ListGameDaySummaryStatsAsync(
+                attendedSessions.Select(session => session.Id).ToArray(),
+                cancellationToken))
+            .ToDictionary(summary => summary.SessionId);
+        var summaries = new List<LastGameSummaryModel>(attendedSessions.Length);
+        foreach (var session in attendedSessions)
+        {
+            summaries.Add(await BuildSummaryAsync(
+                profile,
+                session,
+                attendanceBySessionId[session.Id],
+                groupNamesBySessionId,
+                cancellationToken,
+                new PreloadedSummaryData(
+                    venuesById.GetValueOrDefault(session.VenueId),
+                    statsBySessionId.GetValueOrDefault(session.Id))));
+        }
+
+        return summaries;
+    }
+
+    private async Task<LastGameSummaryModel> BuildSummaryAsync(
+        PlayerProfile profile,
+        Session session,
+        GameDayAttendanceRecord attendance,
+        IReadOnlyDictionary<Guid, string> groupNamesBySessionId,
+        CancellationToken cancellationToken,
+        PreloadedSummaryData? preloaded = null)
+    {
+        var venue = preloaded is null
+            ? await venueRepository.GetByIdAsync(session.VenueId, cancellationToken)
+            : preloaded.Venue;
+        var match = preloaded is null
+            ? await statsRepository.FindPrimaryMatchBySessionAsync(session.Id, cancellationToken)
+            : preloaded.Stats?.Match;
+        var teams = preloaded?.Stats?.Teams
+            ?? (match is null
+                ? []
+                : await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken));
+        var results = preloaded?.Stats?.Results
+            ?? (match is null
+                ? []
+                : await statsRepository.ListMatchResultsAsync(match.Id, cancellationToken));
         var isSettled = match?.Status is MatchStatus.Published or MatchStatus.Locked;
         var resultSummary = isSettled ? BuildResultSummary(results, teams) : null;
 
@@ -290,12 +384,21 @@ public sealed class GetLastGameSummaryQueryHandler(
             session.Id,
             checkedInIds,
             cancellationToken);
-        var assignments = match is null
-            ? []
-            : await statsRepository.ListAssignmentsAsync(match.Id, cancellationToken);
+        var assignments = preloaded?.Stats?.Assignments
+            ?? (match is null
+                ? []
+                : await statsRepository.ListAssignmentsAsync(match.Id, cancellationToken));
         var teamModels = match is null || teams.Count == 0
             ? []
-            : await BuildTeamModelsAsync(match, teams, assignments, results, roster, isSettled, cancellationToken);
+            : await BuildTeamModelsAsync(
+                match,
+                teams,
+                assignments,
+                results,
+                roster,
+                isSettled,
+                cancellationToken,
+                preloaded?.Stats?.Events);
 
         // Follow-up actions: the game may still need its teams locked, imported names matched, or
         // its result/goals confirmed — surfacing them here saves the admin a trip through Recent
@@ -346,6 +449,8 @@ public sealed class GetLastGameSummaryQueryHandler(
             canRateTeammates);
     }
 
+    private sealed record PreloadedSummaryData(Venue? Venue, GameDaySummaryStatsRecord? Stats);
+
     /// <summary>
     /// Team sheets with approved goal tallies. Only approved Goal events count — pending or rejected
     /// submissions belong to the confirmation flow, not a summary presented as fact.
@@ -357,9 +462,11 @@ public sealed class GetLastGameSummaryQueryHandler(
         IReadOnlyList<MatchResult> results,
         IReadOnlyList<GameDayRosterEntryModel> roster,
         bool isSettled,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<MatchEvent>? preloadedEvents = null)
     {
-        var events = await statsRepository.ListMatchEventsAsync(match.Id, cancellationToken);
+        var events = preloadedEvents
+            ?? await statsRepository.ListMatchEventsAsync(match.Id, cancellationToken);
         var goalsByPlayerId = events
             .Where(matchEvent => matchEvent.EventType == MatchEventType.Goal
                 && matchEvent.ReviewStatus == MatchEventReviewStatus.Approved

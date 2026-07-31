@@ -455,7 +455,10 @@
       </div>
     </section>
 
-    <!-- GAME DAY (participant) - timed check-in, admin/captain entry points. Only games the player
+    <!-- GAME DAY (participant) - timed check-in, admin/captain entry points. Non-admin players keep
+         Today as the default and can switch to Recent games for their three newest attended-game
+         summaries; the admin My games / All games today scope remains a separate Today-only control.
+         Only games the player
          holds a spot on (Going/Waitlist) appear; with none, group-chat games render read-only as
          the gameday-spectator screen, and with nothing relevant at all the gameday-empty screen
          shows the last game. The header names the group and field ("Bay Area Soccer · Marina
@@ -464,6 +467,9 @@
     <section class="screen" data-s="gameday">
       <div class="scroll">
         <div class="row" style="justify-content:space-between;margin:6px 0 2px"><div><div class="muted">Today - Bay Area Soccer · Marina Field</div><div class="h" style="margin:0">Bay Area - Wednesday pickup</div></div><span class="pill ok"><i class="ti ti-clock-check"></i> Open</span></div>
+        <!-- Non-admin players only: Today remains selected when a live game exists. Recent games
+             exposes up to three attended games, newest first, without replacing today's activity. -->
+        <div class="row" style="gap:6px;margin:8px 0"><span class="pill ok" style="flex:1;justify-content:center">Today</span><span class="pill" style="flex:1;justify-content:center">Recent games</span></div>
         <!-- Game admins only: scope switch between their games and everything running today. -->
         <div class="row" style="gap:6px;margin:8px 0"><span class="pill ok" style="flex:1;justify-content:center">My games</span><span class="pill" style="flex:1;justify-content:center">All games today</span></div>
         <div class="card hero-card">

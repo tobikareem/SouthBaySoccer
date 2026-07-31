@@ -333,6 +333,84 @@ public sealed class StatsRepositoryQueryTests
         db.ChangeTracker.HasChanges().Should().BeFalse();
     }
 
+    [Fact]
+    public async Task ReassignProfileStatsAsync_WhenFeedbackBecomesSelfOrCollides_SoftDeletesInvalidRows()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+        var season = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2026, 1, 1), EndsAtUtc = Utc(2026, 12, 31) };
+        var venue = new Venue { Id = Guid.NewGuid(), Name = $"Venue {Guid.NewGuid():N}", Locality = "Torrance" };
+        var source = CreatePlayer("Duplicate Player", "Forward");
+        var target = CreatePlayer("Canonical Player", "Forward");
+        var teammate = CreatePlayer("Teammate", "Midfielder");
+        var session = CreateSession(season.Id, venue.Id, teamCount: 2, startsAtUtc: Utc(2026, 7, 7));
+        var match = new SoccerMatch { Id = Guid.NewGuid(), SessionId = session.Id, MatchNumber = 1, Status = MatchStatus.InProgress };
+        await db.Seasons.AddAsync(season);
+        await db.Venues.AddAsync(venue);
+        await db.PlayerProfiles.AddRangeAsync(source, target, teammate);
+        await db.Sessions.AddAsync(session);
+        await db.Matches.AddAsync(match);
+
+        var sourceRatesTarget = new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = match.Id, VoterPlayerProfileId = source.Id, RatedPlayerProfileId = target.Id, Score = 7 };
+        var targetRatesSource = new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = match.Id, VoterPlayerProfileId = target.Id, RatedPlayerProfileId = source.Id, Score = 8 };
+        var sourceRatesTeammate = new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = match.Id, VoterPlayerProfileId = source.Id, RatedPlayerProfileId = teammate.Id, Score = 5 };
+        var targetRatesTeammate = new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = match.Id, VoterPlayerProfileId = target.Id, RatedPlayerProfileId = teammate.Id, Score = 9 };
+        var teammateRatesSource = new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = match.Id, VoterPlayerProfileId = teammate.Id, RatedPlayerProfileId = source.Id, Score = 6 };
+        var teammateRatesTarget = new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = match.Id, VoterPlayerProfileId = teammate.Id, RatedPlayerProfileId = target.Id, Score = 10 };
+        await db.PlayerRatingVotes.AddRangeAsync(
+            sourceRatesTarget,
+            targetRatesSource,
+            sourceRatesTeammate,
+            targetRatesTeammate,
+            teammateRatesSource,
+            teammateRatesTarget);
+
+        var sourceLikesTarget = new PlayerLike { Id = Guid.NewGuid(), MatchId = match.Id, GiverPlayerProfileId = source.Id, ReceiverPlayerProfileId = target.Id };
+        var targetLikesSource = new PlayerLike { Id = Guid.NewGuid(), MatchId = match.Id, GiverPlayerProfileId = target.Id, ReceiverPlayerProfileId = source.Id };
+        var sourceLikesTeammate = new PlayerLike { Id = Guid.NewGuid(), MatchId = match.Id, GiverPlayerProfileId = source.Id, ReceiverPlayerProfileId = teammate.Id };
+        var targetLikesTeammate = new PlayerLike { Id = Guid.NewGuid(), MatchId = match.Id, GiverPlayerProfileId = target.Id, ReceiverPlayerProfileId = teammate.Id };
+        var teammateLikesSource = new PlayerLike { Id = Guid.NewGuid(), MatchId = match.Id, GiverPlayerProfileId = teammate.Id, ReceiverPlayerProfileId = source.Id };
+        var teammateLikesTarget = new PlayerLike { Id = Guid.NewGuid(), MatchId = match.Id, GiverPlayerProfileId = teammate.Id, ReceiverPlayerProfileId = target.Id };
+        await db.PlayerLikes.AddRangeAsync(
+            sourceLikesTarget,
+            targetLikesSource,
+            sourceLikesTeammate,
+            targetLikesTeammate,
+            teammateLikesSource,
+            teammateLikesTarget);
+        await db.SaveChangesAsync();
+
+        await repository.ReassignProfileStatsAsync(source.Id, target.Id);
+        await db.SaveChangesAsync();
+
+        var activeVotes = await db.PlayerRatingVotes.Where(row => row.MatchId == match.Id).ToArrayAsync();
+        activeVotes.Should().HaveCount(2);
+        activeVotes.Should().ContainSingle(row =>
+            row.VoterPlayerProfileId == target.Id
+            && row.RatedPlayerProfileId == teammate.Id
+            && row.Score == targetRatesTeammate.Score);
+        activeVotes.Should().ContainSingle(row =>
+            row.VoterPlayerProfileId == teammate.Id
+            && row.RatedPlayerProfileId == target.Id
+            && row.Score == teammateRatesTarget.Score);
+        activeVotes.Should().OnlyContain(row => row.VoterPlayerProfileId != row.RatedPlayerProfileId);
+
+        var activeLikes = await db.PlayerLikes.Where(row => row.MatchId == match.Id).ToArrayAsync();
+        activeLikes.Should().HaveCount(2);
+        activeLikes.Should().ContainSingle(row =>
+            row.GiverPlayerProfileId == target.Id
+            && row.ReceiverPlayerProfileId == teammate.Id);
+        activeLikes.Should().ContainSingle(row =>
+            row.GiverPlayerProfileId == teammate.Id
+            && row.ReceiverPlayerProfileId == target.Id);
+        activeLikes.Should().OnlyContain(row => row.GiverPlayerProfileId != row.ReceiverPlayerProfileId);
+
+        (await db.PlayerRatingVotes.IgnoreQueryFilters().CountAsync(row => row.MatchId == match.Id && row.IsDeleted)).Should().Be(4);
+        (await db.PlayerLikes.IgnoreQueryFilters().CountAsync(row => row.MatchId == match.Id && row.IsDeleted)).Should().Be(4);
+    }
+
     private ServiceProvider CreateServiceProvider()
     {
         var clock = new Mock<IClock>();
