@@ -497,6 +497,23 @@ public sealed class ApiSprint03ClientTests
     }
 
     [Fact]
+    public async Task ApiGameDayClient_GetRecentGameSummariesAsync_UsesPlayerHistoryRoute()
+    {
+        HttpRequestMessage? observed = null;
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            return JsonResponse("[]");
+        }));
+
+        var summaries = await client.GetRecentGameSummariesAsync(CancellationToken.None);
+
+        summaries.Should().BeEmpty();
+        observed!.Method.Should().Be(HttpMethod.Get);
+        observed.RequestUri!.PathAndQuery.Should().Be("/game-day/recent-summaries");
+    }
+
+    [Fact]
     public async Task ApiGameDayClient_LateCheckInAsync_SendsAuditedAdminOverride()
     {
         HttpRequestMessage? observed = null;

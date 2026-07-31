@@ -34,6 +34,14 @@
         <Setter Property="TextColor"
                 Value="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}" />
     </Style>
+    <OnPlatform x:Key="EmojiFontFamily" x:TypeArguments="x:String">
+        <On Platform="Android" Value="sans-serif" />
+        <On Platform="iOS,MacCatalyst" Value="Apple Color Emoji" />
+        <On Platform="WinUI" Value="Segoe UI Emoji" />
+    </OnPlatform>
+    <Style x:Key="TextEmojiCaption" TargetType="Label" BasedOn="{StaticResource TextCaption}">
+        <Setter Property="FontFamily" Value="{StaticResource EmojiFontFamily}" />
+    </Style>
     <Style x:Key="TextLabel" TargetType="Label" BasedOn="{StaticResource TextCaption}">
         <Setter Property="FontFamily" Value="InterSemibold" />
         <Setter Property="FontSize" Value="{StaticResource FontLabel}" />

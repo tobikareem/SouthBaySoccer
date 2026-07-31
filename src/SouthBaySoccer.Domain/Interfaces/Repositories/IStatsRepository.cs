@@ -17,6 +17,14 @@ public interface IStatsRepository
 
     Task<Match?> FindPrimaryMatchBySessionAsync(Guid sessionId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Loads the primary match and its summary facts for several sessions using bounded batch
+    /// queries. Sessions without a match are omitted.
+    /// </summary>
+    Task<IReadOnlyList<GameDaySummaryStatsRecord>> ListGameDaySummaryStatsAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<MatchTeam>> ListMatchTeamsAsync(Guid matchId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<TeamAssignment>> ListAssignmentsAsync(Guid matchId, CancellationToken cancellationToken = default);
@@ -106,6 +114,21 @@ public interface IStatsRepository
         int matchTake,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>Match and stat facts needed to render one completed Game Day summary.</summary>
+/// <param name="SessionId">Session represented by this summary.</param>
+/// <param name="Match">The session's primary match.</param>
+/// <param name="Teams">Teams belonging to the primary match.</param>
+/// <param name="Results">Recorded results belonging to the primary match.</param>
+/// <param name="Assignments">Player-to-team assignments belonging to the primary match.</param>
+/// <param name="Events">Goal and assist events belonging to the primary match.</param>
+public sealed record GameDaySummaryStatsRecord(
+    Guid SessionId,
+    Match Match,
+    IReadOnlyList<MatchTeam> Teams,
+    IReadOnlyList<MatchResult> Results,
+    IReadOnlyList<TeamAssignment> Assignments,
+    IReadOnlyList<MatchEvent> Events);
 
 public sealed record LeaderboardReadModel(
     Guid PlayerProfileId,

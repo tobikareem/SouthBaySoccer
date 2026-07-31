@@ -208,7 +208,8 @@ White surface container.
 
 ### PlayerRow
 - `LeadingContent` (View?), `Initials`/`ImageSource`, `Name` (string), `Detail` (string?),
-  `TrailingText` (string?), `TrailingContent` (View?), `TapCommand` (ICommand?).
+  `TrailingText` (string?), `TrailingContent` (View?), `TapCommand` (ICommand?),
+  `SemanticDescription` (string?, defaults to `Name`).
 - Avatar + name + subtitle + trailing; tappable. A11y: row description.
 - Wireframe: going/waitlist lists, confirm-teammates rows, leaderboard rows.
 - The Game Day last-game team popup uses `Detail` for compact approved tallies: repeat `⚽` once per
@@ -219,6 +220,12 @@ White surface container.
 - `ItemsSource` (IEnumerable), `DisplayMember` (string?), `SelectedIndex` (int, two-way), `SelectedItem` (object, two-way), `SelectionChangedCommand` (ICommand?).
 - Pill segments on `BrandMist`; selected segment = `Surface`/`BrandGreen`.
 - Wireframe: leaderboard Goals/Assists/Rating/MVP.
+- Player Game Day uses a non-admin `Today | Recent games` segment when a current game and history
+  both exist. `Today` remains the default and retains the live Game Day context. `Recent games`
+  lists at most the player's three newest attended games, newest first, and reuses the existing
+  summary, team-sheet popup, and eligible `Finish up this game` actions for the selected game.
+  Group membership by itself does not add an unattended game to this history. The admin
+  `My games | All games today` scope remains separate and applies only to the Today view.
 
 ### CounterStepper
 - `Value` (int, two-way), `Minimum` (int=0), `Maximum` (int=99), `Step` (int=1), `Glyph` (string?), `Caption` (string?).
