@@ -32,11 +32,16 @@
                             <Grid
                                 ColumnDefinitions="*,Auto"
                                 ColumnSpacing="{StaticResource SpaceSm}"
-                                Padding="{StaticResource RowPadding}"
-                                SemanticProperties.Description="{Binding SemanticDescription}">
+                                Padding="{StaticResource RowPadding}">
                                 <VerticalStackLayout Grid.Column="0" VerticalOptions="Center" Spacing="{StaticResource SpaceXs}">
-                                    <Label Text="{Binding DisplayName}" Style="{StaticResource TextBodyStrong}" AutomationProperties.IsInAccessibleTree="False" />
-                                    <Label Text="{Binding StatusLabel}" Style="{StaticResource TextCaption}" AutomationProperties.IsInAccessibleTree="False" />
+                                    <Label
+                                        Text="{Binding DisplayName}"
+                                        Style="{StaticResource TextBodyStrong}"
+                                        SemanticProperties.Description="{Binding SemanticDescription}" />
+                                    <Label
+                                        Text="{Binding StatusLabel}"
+                                        Style="{StaticResource TextEmojiCaption}"
+                                        AutomationProperties.IsInAccessibleTree="False" />
                                 </VerticalStackLayout>
                                 <Button
                                     Grid.Column="1"

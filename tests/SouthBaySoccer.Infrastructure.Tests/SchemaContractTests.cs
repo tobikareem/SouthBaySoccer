@@ -81,6 +81,20 @@ public sealed class SchemaContractTests
     }
 
     [Fact]
+    public async Task PlayerLikes_WhenSchemaCreated_RejectsSelfLikesAndHasActiveUniqueness()
+    {
+        using var db = CreateDbContext();
+        var selfLike = await GetCheckConstraintDefinitionAsync(db, "PlayerLikes", "CK_PlayerLikes_NoSelfLike");
+        var indexes = await GetFilteredIndexesAsync(db, "PlayerLikes");
+
+        NormalizeSql(selfLike).Should().Contain("[GiverPlayerProfileId]<>[ReceiverPlayerProfileId]");
+        indexes.Should().Contain(i =>
+            i.Name == "IX_PlayerLikes_MatchId_GiverPlayerProfileId_ReceiverPlayerProfileId" &&
+            i.IsUnique &&
+            i.Filter.Contains("[IsDeleted]"));
+    }
+
+    [Fact]
     public async Task PlayerMatchStats_WhenSchemaCreated_StoresParticipationOnly()
     {
         using var db = CreateDbContext();

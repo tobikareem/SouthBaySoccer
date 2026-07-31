@@ -12,7 +12,7 @@ namespace SouthBaySoccer.Functions.Sessions;
 public sealed class GameDayFunctions(
     GameDayPickupPalRefreshService pickupPalRefreshService,
     GetTodayGameDayContextQueryHandler contextHandler,
-    GetLastGameSummaryQueryHandler lastGameSummaryHandler,
+    ILastGameSummaryQueryHandler lastGameSummaryHandler,
     GetRecentGamesQueryHandler recentGamesHandler,
     GetCaptainAssignmentQueryHandler getCaptainAssignmentHandler,
     AssignSessionCaptainsCommandHandler assignCaptainsHandler,
@@ -69,39 +69,20 @@ public sealed class GameDayFunctions(
         }
 
         var response = request.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(ToResponse(summary), cancellationToken);
+        return response;
+    }
+
+    [Function(nameof(GetRecentGameSummaries))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> GetRecentGameSummaries(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "game-day/recent-summaries")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var summaries = await lastGameSummaryHandler.HandleRecentAsync(3, cancellationToken);
+        var response = request.CreateResponse(HttpStatusCode.OK);
         await response.WriteAsJsonAsync(
-            new LastGameSummaryDto(
-                summary.SessionId,
-                summary.Title,
-                summary.GroupName,
-                summary.Venue,
-                ToLocal(summary.StartsAtUtc).ToString("ddd MMM d, h:mm tt", CultureInfo.InvariantCulture),
-                summary.StartsAtUtc,
-                summary.GoingCount,
-                summary.CheckedInCount,
-                summary.TeamCount,
-                summary.ResultSummary,
-                summary.WaitlistCount,
-                (summary.Teams ?? [])
-                    .Select(team => new LastGameTeamDto(
-                        team.TeamId,
-                        team.Name,
-                        team.CaptainName,
-                        team.ResultLabel,
-                        team.Members
-                            .Select(member => new LastGameTeamMemberDto(
-                                member.PlayerProfileId,
-                                member.DisplayName,
-                                member.IsCaptain,
-                                member.Goals,
-                                member.Assists))
-                            .ToArray()))
-                    .ToArray(),
-                summary.CanLockTeams,
-                summary.CanMatchPlayers,
-                summary.CanApprovePostGame,
-                summary.MatchId,
-                summary.CanRateTeammates),
+            summaries.Select(ToResponse).ToArray(),
             cancellationToken);
         return response;
     }
@@ -556,6 +537,40 @@ public sealed class GameDayFunctions(
             context.CanShowAllGames,
             context.IsShowingAllGames);
     }
+
+    private static LastGameSummaryDto ToResponse(LastGameSummaryModel summary) =>
+        new(
+            summary.SessionId,
+            summary.Title,
+            summary.GroupName,
+            summary.Venue,
+            ToLocal(summary.StartsAtUtc).ToString("ddd MMM d, h:mm tt", CultureInfo.InvariantCulture),
+            summary.StartsAtUtc,
+            summary.GoingCount,
+            summary.CheckedInCount,
+            summary.TeamCount,
+            summary.ResultSummary,
+            summary.WaitlistCount,
+            (summary.Teams ?? [])
+                .Select(team => new LastGameTeamDto(
+                    team.TeamId,
+                    team.Name,
+                    team.CaptainName,
+                    team.ResultLabel,
+                    team.Members
+                        .Select(member => new LastGameTeamMemberDto(
+                            member.PlayerProfileId,
+                            member.DisplayName,
+                            member.IsCaptain,
+                            member.Goals,
+                            member.Assists))
+                        .ToArray()))
+                .ToArray(),
+            summary.CanLockTeams,
+            summary.CanMatchPlayers,
+            summary.CanApprovePostGame,
+            summary.MatchId,
+            summary.CanRateTeammates);
 
     private static CaptainAssignmentDto ToResponse(CaptainAssignmentModel model) =>
         new(
