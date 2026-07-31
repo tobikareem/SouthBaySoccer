@@ -15,6 +15,52 @@ namespace SouthBaySoccer.Application.Tests.Scheduling;
 public sealed class GetLastGameSummaryHandlerTests
 {
     [Fact]
+    public async Task HandleRecentAsync_WhenMoreThanThreeRelevantGames_ReturnsNewestThreeAttendedOnly()
+    {
+        var context = new TestContext();
+        var newest = context.SessionAt(Utc(2026, 7, 23, 3, 0), "Fire FC");
+        var second = context.SessionAt(Utc(2026, 7, 21, 3, 0), "Bay Area Soccer");
+        var groupOnly = context.SessionAt(Utc(2026, 7, 20, 3, 0), "Unattended group game");
+        var third = context.SessionAt(Utc(2026, 7, 18, 3, 0), "Third attended");
+        var fourth = context.SessionAt(Utc(2026, 7, 15, 3, 0), "Fourth attended");
+        context.ConfigureSessions(newest, second, groupOnly, third, fourth);
+        context.Attend(newest, going: true, checkedIn: true);
+        context.Attend(second, going: true, checkedIn: true);
+        context.Attend(third, going: true, checkedIn: true);
+        context.Attend(fourth, going: true, checkedIn: true);
+        context.GroupNamesBySession[groupOnly.Id] = "Bay Area Soccer";
+        context.PlayerGroupNames.Add("Bay Area Soccer");
+
+        var summaries = await context.CreateHandler().HandleRecentAsync();
+
+        summaries.Select(summary => summary.SessionId).Should().Equal(newest.Id, second.Id, third.Id);
+        context.Stats.Verify(repository => repository.ListGameDaySummaryStatsAsync(
+            It.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 3),
+            It.IsAny<CancellationToken>()), Times.Once);
+        context.Venues.Verify(repository => repository.ListByIdsAsync(
+            It.IsAny<IReadOnlyCollection<Guid>>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        context.Stats.Verify(repository => repository.FindPrimaryMatchBySessionAsync(
+            It.IsAny<Guid>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleRecentAsync_WhenPlayerOnlyRsvpedGoingOrWaitlisted_ExcludesThoseGames()
+    {
+        var context = new TestContext();
+        var goingOnly = context.SessionAt(Utc(2026, 7, 23, 3, 0), "Going no-show");
+        var waitlistedOnly = context.SessionAt(Utc(2026, 7, 21, 3, 0), "Waitlisted");
+        context.ConfigureSessions(goingOnly, waitlistedOnly);
+        context.Attend(goingOnly, going: true);
+        context.Attend(waitlistedOnly, going: false);
+
+        var summaries = await context.CreateHandler().HandleRecentAsync();
+
+        summaries.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenPlayerAttendedAPastGame_ReturnsTheMostRecentOne()
     {
         var context = new TestContext();
@@ -460,6 +506,16 @@ public sealed class GetLastGameSummaryHandlerTests
             Stats
                 .Setup(x => x.ListMatchResultsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Array.Empty<MatchResult>());
+            Stats
+                .Setup(x => x.ListGameDaySummaryStatsAsync(
+                    It.IsAny<IReadOnlyCollection<Guid>>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<GameDaySummaryStatsRecord>());
+            Venues
+                .Setup(x => x.ListByIdsAsync(
+                    It.IsAny<IReadOnlyCollection<Guid>>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<Venue>());
         }
 
         public List<RosterMemberRecord> GoingRoster { get; } = [];
@@ -498,13 +554,20 @@ public sealed class GetLastGameSummaryHandlerTests
 
         // Counts come from the display roster (like the Game Day tiles), so attending seeds both the
         // attendance record and a 14-strong going roster with the first 12 checked in.
-        public void Attend(Session session, bool going)
+        public void Attend(Session session, bool going, bool checkedIn = false)
         {
             GoingRoster.Clear();
             GoingRoster.AddRange(Enumerable.Range(0, 14)
                 .Select(index => new RosterMemberRecord(Guid.NewGuid(), $"Player {index:D2}", string.Empty, false, null)));
             var checkedInIds = GoingRoster.Take(12).Select(member => member.PlayerProfileId).ToArray();
-            AttendanceBySession[session.Id] = new GameDayAttendanceRecord(14, 12, 0, going, !going, false, checkedInIds);
+            AttendanceBySession[session.Id] = new GameDayAttendanceRecord(
+                14,
+                12,
+                0,
+                going,
+                !going,
+                checkedIn,
+                checkedInIds);
         }
 
         public Session SessionAt(DateTime startsAtUtc, string title) => new()

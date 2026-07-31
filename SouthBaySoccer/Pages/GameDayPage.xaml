@@ -32,18 +32,28 @@
                         <Label Style="{StaticResource TextCaption}">
                             <Label.FormattedText>
                                 <FormattedString>
-                                    <Span Text="{Binding DateLabel}" />
+                                    <Span Text="{Binding DisplayDateLabel}" />
                                     <Span Text=" - " />
-                                    <Span Text="{Binding HeaderContextLabel}" />
+                                    <Span Text="{Binding DisplayHeaderContextLabel}" />
                                 </FormattedString>
                             </Label.FormattedText>
                         </Label>
-                        <Label Text="{Binding Title}" Style="{StaticResource TextH1}" SemanticProperties.HeadingLevel="Level1" />
+                        <Label Text="{Binding DisplayTitle}" Style="{StaticResource TextH1}" SemanticProperties.HeadingLevel="Level1" />
                     </VerticalStackLayout>
                     <!-- Variant computed on the page model (StatusBadgeVariant): competing DataTriggers
                          on one property resolve by activation order, not declaration order. -->
-                    <c:Badge Grid.Column="1" Text="{Binding StatusLabel}" Glyph="{x:Static fonts:FontAwesomeGlyphs.Clock}" Variant="{Binding StatusBadgeVariant}" IsVisible="{Binding IsNoGame, Converter={StaticResource InvertedBoolConverter}}" />
+                    <c:Badge Grid.Column="1" Text="{Binding StatusLabel}" Glyph="{x:Static fonts:FontAwesomeGlyphs.Clock}" Variant="{Binding StatusBadgeVariant}" IsVisible="{Binding ShowStatusBadge}" />
                 </Grid>
+
+                <!-- Player view switch: today's activity remains the default while recent attended
+                     games stay available from the same tab. Admins retain their separate scope. -->
+                <VerticalStackLayout Spacing="{StaticResource SpaceXs}" IsVisible="{Binding ShowPlayerViewSwitch}">
+                    <c:SegmentedControl
+                        ItemsSource="{Binding PlayerViewOptions}"
+                        SelectedIndex="{Binding SelectedPlayerViewIndex}"
+                        SelectionChangedCommand="{Binding SelectPlayerViewCommand}" />
+                    <Label Text="Review your last three games without leaving today's Game Day." Style="{StaticResource TextCaption}" Opacity="0.7" />
+                </VerticalStackLayout>
 
                 <!-- Game-admin scope switch: my games vs everything running today. -->
                 <VerticalStackLayout Spacing="{StaticResource SpaceXs}" IsVisible="{Binding CanShowAllGames}">
@@ -56,7 +66,7 @@
 
                 <!-- More than one relevant game today: a full vertical list (no hidden horizontal
                      scroll) so it is obvious the player can switch which game Game Day shows. -->
-                <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding HasMultipleGames}">
+                <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding ShowMultipleGames}">
                     <c:SectionHeader Text="Today's games" />
                     <Label Text="You have more than one game today - tap a game to switch." Style="{StaticResource TextCaption}" />
                     <VerticalStackLayout BindableLayout.ItemsSource="{Binding TodaysGames}" Spacing="{StaticResource SpaceSm}">
@@ -103,7 +113,7 @@
 
                 <!-- Spectator: watching a group's game without holding a spot on it. One banner says
                      exactly what this view is; one card offers the only available action, Join. -->
-                <VerticalStackLayout Spacing="{StaticResource SpaceMd}" IsVisible="{Binding IsSpectator}">
+                <VerticalStackLayout Spacing="{StaticResource SpaceMd}" IsVisible="{Binding ShowSpectatorContent}">
                     <Border Style="{StaticResource NoticeSurface}">
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
                             <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleInfo}" FontFamily="FontAwesomeSolid" Style="{StaticResource BrandIconLabel}" />
@@ -157,7 +167,7 @@
                 </VerticalStackLayout>
 
                 <!-- Counts are shared by participants and spectators; tap a count to see the people. -->
-                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="{StaticResource SpaceSm}" IsVisible="{Binding IsNoGame, Converter={StaticResource InvertedBoolConverter}}">
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="{StaticResource SpaceSm}" IsVisible="{Binding ShowTodayContent}">
                     <c:StatTile Value="{Binding GoingCount}" Label="Going" SemanticProperties.Hint="Tap to see who is going">
                         <c:StatTile.GestureRecognizers>
                             <TapGestureRecognizer Command="{Binding ShowRosterCommand}" CommandParameter="Going" />
@@ -174,7 +184,7 @@
                         </c:StatTile.GestureRecognizers>
                     </c:StatTile>
                 </Grid>
-                <Label Text="Tap a count above to see who's going, the waitlist, or who's checked in." Style="{StaticResource TextCaption}" HorizontalTextAlignment="Center" Opacity="0.7" IsVisible="{Binding IsNoGame, Converter={StaticResource InvertedBoolConverter}}" />
+                <Label Text="Tap a count above to see who's going, the waitlist, or who's checked in." Style="{StaticResource TextCaption}" HorizontalTextAlignment="Center" Opacity="0.7" IsVisible="{Binding ShowTodayContent}" />
 
                 <!-- Participant-only guidance and actions. -->
                 <VerticalStackLayout Spacing="{StaticResource SpaceMd}" IsVisible="{Binding IsParticipant}">
@@ -243,15 +253,33 @@
                 </VerticalStackLayout>
 
                 <!-- No relevant game today: say so plainly, then show where things last stood. -->
-                <VerticalStackLayout Spacing="{StaticResource SpaceMd}" IsVisible="{Binding IsNoGame}">
-                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}" HorizontalOptions="Center">
+                <VerticalStackLayout Spacing="{StaticResource SpaceMd}" IsVisible="{Binding ShowRecentSummary}">
+                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}" HorizontalOptions="Center" IsVisible="{Binding IsNoGame}">
                         <Border Style="{StaticResource IconTileSurface}" HorizontalOptions="Center">
                             <Label Text="{x:Static fonts:FontAwesomeGlyphs.Futbol}" FontFamily="FontAwesomeSolid" Style="{StaticResource BrandIconLabel}" HorizontalOptions="Center" VerticalOptions="Center" />
                         </Border>
                         <Label Text="{x:Static pageModels:GameDayPageModel.NoGameMessage}" Style="{StaticResource TextCaption}" HorizontalTextAlignment="Center" />
                     </VerticalStackLayout>
+                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding IsShowingRecentGames}">
+                        <c:SectionHeader Text="Your recent games" />
+                        <Label Text="Newest first - tap a game to review its summary." Style="{StaticResource TextCaption}" />
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding RecentGameSummaries}" Spacing="{StaticResource SpaceSm}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="pageModels:RecentGameSummaryItem">
+                                    <c:PlayerRow
+                                        Initials="RG"
+                                        Name="{Binding Summary.Title}"
+                                        Detail="{Binding ContextLabel}"
+                                        TrailingText="{Binding Summary.DateLabel}"
+                                        SemanticDescription="{Binding AccessibilityDescription}"
+                                        TapCommand="{Binding Source={x:Reference GameDay}, Path=BindingContext.SelectRecentGameCommand}"
+                                        TapCommandParameter="{Binding .}" />
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
                     <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding HasLastGame}">
-                        <c:SectionHeader Text="Last game" />
+                        <c:SectionHeader Text="Game summary" />
                         <c:BrandCard>
                             <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
                                 <Label Text="{Binding LastGame.Title}" Style="{StaticResource TextH2}" />

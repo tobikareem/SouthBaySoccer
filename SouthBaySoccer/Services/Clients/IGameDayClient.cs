@@ -15,6 +15,9 @@ public interface IGameDayClient
     /// <summary>The player's most recent past game, for the no-game-today state; null when none.</summary>
     Task<LastGameSummaryDto?> GetLastGameSummaryAsync(CancellationToken cancellationToken);
 
+    /// <summary>The player's three newest attended-game summaries, newest first.</summary>
+    Task<IReadOnlyList<LastGameSummaryDto>> GetRecentGameSummariesAsync(CancellationToken cancellationToken);
+
     /// <summary>Games already played inside the admin edit window, for game-admin follow-up.</summary>
     Task<IReadOnlyList<RecentGameDto>> GetRecentGamesAsync(CancellationToken cancellationToken);
 

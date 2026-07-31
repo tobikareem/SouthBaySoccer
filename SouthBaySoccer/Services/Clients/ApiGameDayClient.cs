@@ -49,6 +49,16 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
             cancellationToken: cancellationToken);
     }
 
+    public async Task<IReadOnlyList<LastGameSummaryDto>> GetRecentGameSummariesAsync(
+        CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.GetAsync("game-day/recent-summaries", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<LastGameSummaryDto>>(
+                   cancellationToken: cancellationToken)
+               ?? [];
+    }
+
     public async Task<IReadOnlyList<RecentGameDto>> GetRecentGamesAsync(CancellationToken cancellationToken)
     {
         using var response = await httpClient.GetAsync("game-day/recent", cancellationToken);
