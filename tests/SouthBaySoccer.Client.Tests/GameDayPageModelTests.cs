@@ -1,6 +1,7 @@
 using System.Windows.Input;
 using System.Xml.Linq;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Moq;
 using SouthBaySoccer.Contracts.Common;
 using SouthBaySoccer.Contracts.GameDay;
@@ -63,6 +64,73 @@ public class GameDayPageModelTests
         // Switching loads the chosen game explicitly (first load used the server's auto-pick, null).
         client.Verify(service => service.GetTodayContextAsync(otherGameId, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
         client.Verify(service => service.GetTodayContextAsync(null, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RecentGames_WhenPlayerHasTodayGame_PreservesTodayAndLetsPlayerSelectHistory()
+    {
+        var fireFc = LastGameWith() with { Title = "Fire FC Thursday pickup" };
+        var bayArea = LastGameWith() with { Title = "Bay Area Soccer Game" };
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SeedGameDayState().GetContext() with { CanShowAllGames = false });
+        client
+            .Setup(service => service.GetRecentGameSummariesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([fireFc, bayArea]);
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.ShowPlayerViewSwitch.Should().BeTrue();
+        pageModel.IsShowingRecentGames.Should().BeFalse();
+        pageModel.IsParticipant.Should().BeTrue();
+
+        pageModel.SelectPlayerViewCommand.Execute(GameDayPageModel.RecentGamesViewLabel);
+        pageModel.SelectRecentGameCommand.Execute(new RecentGameSummaryItem(bayArea));
+
+        pageModel.IsShowingRecentGames.Should().BeTrue();
+        pageModel.IsParticipant.Should().BeFalse();
+        pageModel.LastGame.Should().BeSameAs(bayArea);
+
+        pageModel.SelectPlayerViewCommand.Execute(GameDayPageModel.TodayViewLabel);
+
+        pageModel.IsShowingRecentGames.Should().BeFalse();
+        pageModel.IsParticipant.Should().BeTrue();
+        pageModel.LastGame.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Appearing_WhenRecentHistoryFails_LogsSanitizedFailureAndKeepsTodayAvailable()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SeedGameDayState().GetContext() with { CanShowAllGames = false });
+        client
+            .Setup(service => service.GetRecentGameSummariesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("sensitive response content"));
+        var logger = new Mock<ILogger<GameDayPageModel>>();
+        var pageModel = new GameDayPageModel(
+            client.Object,
+            Navigator().Object,
+            logger: logger.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsParticipant.Should().BeTrue();
+        pageModel.RecentGameSummaries.Should().BeEmpty();
+        logger.Verify(
+            candidate => candidate.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) =>
+                    state.ToString()!.Contains("InvalidOperationException")
+                    && !state.ToString()!.Contains("sensitive response content")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 
     [Fact]

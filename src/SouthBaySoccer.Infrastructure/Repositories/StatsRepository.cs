@@ -33,6 +33,57 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
             .ThenBy(x => x.Id)
             .FirstOrDefaultAsync(x => x.SessionId == sessionId, cancellationToken);
 
+    public async Task<IReadOnlyList<GameDaySummaryStatsRecord>> ListGameDaySummaryStatsAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (sessionIds.Count == 0)
+        {
+            return [];
+        }
+
+        var matches = await dbContext.Matches
+            .Where(match => sessionIds.Contains(match.SessionId))
+            .OrderBy(match => match.SessionId)
+            .ThenBy(match => match.MatchNumber)
+            .ThenBy(match => match.Id)
+            .ToArrayAsync(cancellationToken);
+        var primaryMatches = matches
+            .GroupBy(match => match.SessionId)
+            .Select(group => group.First())
+            .ToArray();
+        if (primaryMatches.Length == 0)
+        {
+            return [];
+        }
+
+        var matchIds = primaryMatches.Select(match => match.Id).ToArray();
+        var teams = await dbContext.MatchTeams
+            .Where(team => matchIds.Contains(team.MatchId))
+            .ToArrayAsync(cancellationToken);
+        var results = await dbContext.MatchResults
+            .Where(result => matchIds.Contains(result.MatchId))
+            .ToArrayAsync(cancellationToken);
+        var assignments = await dbContext.TeamAssignments
+            .Where(assignment => matchIds.Contains(assignment.MatchId))
+            .ToArrayAsync(cancellationToken);
+        var events = await dbContext.MatchEvents
+            .Where(matchEvent => matchIds.Contains(matchEvent.MatchId))
+            .OrderBy(matchEvent => matchEvent.Minute)
+            .ThenBy(matchEvent => matchEvent.Id)
+            .ToArrayAsync(cancellationToken);
+
+        return primaryMatches
+            .Select(match => new GameDaySummaryStatsRecord(
+                match.SessionId,
+                match,
+                teams.Where(team => team.MatchId == match.Id).ToArray(),
+                results.Where(result => result.MatchId == match.Id).ToArray(),
+                assignments.Where(assignment => assignment.MatchId == match.Id).ToArray(),
+                events.Where(matchEvent => matchEvent.MatchId == match.Id).ToArray()))
+            .ToArray();
+    }
+
     public async Task<IReadOnlyList<MatchTeam>> ListMatchTeamsAsync(Guid matchId, CancellationToken cancellationToken = default) =>
         await dbContext.MatchTeams.Where(x => x.MatchId == matchId).ToArrayAsync(cancellationToken);
 

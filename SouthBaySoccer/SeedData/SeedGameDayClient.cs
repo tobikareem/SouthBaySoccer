@@ -53,6 +53,13 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
             CanRateTeammates: true));
     }
 
+    public async Task<IReadOnlyList<LastGameSummaryDto>> GetRecentGameSummariesAsync(
+        CancellationToken cancellationToken)
+    {
+        var summary = await GetLastGameSummaryAsync(cancellationToken);
+        return summary is null ? [] : [summary];
+    }
+
     public Task<IReadOnlyList<RecentGameDto>> GetRecentGamesAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

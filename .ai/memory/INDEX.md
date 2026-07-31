@@ -41,3 +41,4 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [perf-baseline-and-telemetry](perf-baseline-and-telemetry.md) - Perf baseline/plan in _specs/perf/; prod SQL serverless auto-pause; App Insights requests-only telemetry
 - [group-broadcast-notifications](group-broadcast-notifications.md) - Admin broadcasts are group-scoped in-app announcements with a read-only player feed
 - [last-game-player-follow-up](last-game-player-follow-up.md) - Last-game rating action and approved goal/assist icon tallies
+- [player-game-day-recent-history](player-game-day-recent-history.md) - Today/Recent games preserves live Game Day plus three checked-in histories

@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
 using SouthBaySoccer.Contracts.GameDay;
 using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Clients;
@@ -40,7 +41,8 @@ public partial class GameDayPageModel(
     IRosterListPresenter? rosterListPresenter = null,
     IUserDialogService? dialogService = null,
     IRosterClient? rosterClient = null,
-    IProfileClient? profileClient = null) : ObservableObject
+    IProfileClient? profileClient = null,
+    ILogger<GameDayPageModel>? logger = null) : ObservableObject
 {
     private static readonly TimeZoneInfo VenueTimeZone = FindVenueTimeZone();
     public const string NoticeText = "RSVP is attendance intent. Game Day check-in records who is actually at the field.";
@@ -84,9 +86,11 @@ public partial class GameDayPageModel(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HeaderContextLabel))]
+    [NotifyPropertyChangedFor(nameof(DisplayHeaderContextLabel))]
     private string _venue = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayDateLabel))]
     private string _dateLabel = string.Empty;
 
     [ObservableProperty]
@@ -144,17 +148,22 @@ public partial class GameDayPageModel(
     /// <summary>Today's games the player can act on; the picker shows only when more than one runs.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMultipleGames))]
+    [NotifyPropertyChangedFor(nameof(ShowMultipleGames))]
     private IReadOnlyList<GameDayGameOption> _todaysGames = [];
 
     public bool HasMultipleGames => TodaysGames.Count > 1;
 
+    public bool ShowMultipleGames => HasMultipleGames && ShowTodayContent;
+
     /// <summary>The session's title (e.g. "Bay Area Soccer - Wednesday pickup"), for the header.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayTitle))]
     private string _title = "Game Day";
 
     /// <summary>The WhatsApp group the game runs in; null for a hand-created session.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HeaderContextLabel))]
+    [NotifyPropertyChangedFor(nameof(DisplayHeaderContextLabel))]
     [NotifyPropertyChangedFor(nameof(SpectatorBannerText))]
     private string? _groupName;
 
@@ -162,6 +171,14 @@ public partial class GameDayPageModel(
     public string HeaderContextLabel => string.IsNullOrWhiteSpace(GroupName)
         ? Venue
         : $"{GroupName} · {Venue}";
+
+    public string DisplayDateLabel => IsShowingRecentGames ? LastGame?.DateLabel ?? string.Empty : DateLabel;
+
+    public string DisplayHeaderContextLabel => IsShowingRecentGames
+        ? string.IsNullOrWhiteSpace(LastGame?.GroupName)
+            ? LastGame?.Venue ?? string.Empty
+            : $"{LastGame.GroupName} \u00B7 {LastGame.Venue}"
+        : HeaderContextLabel;
 
     /// <summary>
     /// Viewing a group's game without holding a spot on it: counts and rosters are visible,
@@ -172,9 +189,14 @@ public partial class GameDayPageModel(
     [NotifyPropertyChangedFor(nameof(SpectatorBannerText))]
     [NotifyPropertyChangedFor(nameof(HasJoinBlockedReason))]
     [NotifyPropertyChangedFor(nameof(StatusBadgeVariant))]
+    [NotifyPropertyChangedFor(nameof(ShowSpectatorContent))]
     private bool _isSpectator;
 
-    public bool IsParticipant => !IsSpectator && !IsNoGame;
+    public bool IsParticipant => !IsSpectator && !IsNoGame && !IsShowingRecentGames;
+
+    public bool ShowSpectatorContent => IsSpectator && !IsShowingRecentGames;
+
+    public bool ShowTodayContent => !IsNoGame && !IsShowingRecentGames;
 
     public string SpectatorBannerText => string.IsNullOrWhiteSpace(GroupName)
         ? "You're not on this game's list. You can see who's playing, or join below."
@@ -196,6 +218,7 @@ public partial class GameDayPageModel(
 
     /// <summary>Game admins may widen the page to every game running today.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowPlayerViewSwitch))]
     private bool _canShowAllGames;
 
     [ObservableProperty]
@@ -206,6 +229,42 @@ public partial class GameDayPageModel(
 
     /// <summary>The admin scope switch's two options.</summary>
     public IReadOnlyList<string> GameScopeOptions { get; } = [MyGamesLabel, AllGamesLabel];
+
+    public const string TodayViewLabel = "Today";
+    public const string RecentGamesViewLabel = "Recent games";
+
+    public IReadOnlyList<string> PlayerViewOptions { get; } = [TodayViewLabel, RecentGamesViewLabel];
+
+    [ObservableProperty]
+    private int _selectedPlayerViewIndex;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsParticipant))]
+    [NotifyPropertyChangedFor(nameof(ShowSpectatorContent))]
+    [NotifyPropertyChangedFor(nameof(ShowTodayContent))]
+    [NotifyPropertyChangedFor(nameof(ShowMultipleGames))]
+    [NotifyPropertyChangedFor(nameof(ShowRecentSummary))]
+    [NotifyPropertyChangedFor(nameof(ShowStatusBadge))]
+    [NotifyPropertyChangedFor(nameof(DisplayTitle))]
+    [NotifyPropertyChangedFor(nameof(ShowPlayerViewSwitch))]
+    [NotifyPropertyChangedFor(nameof(DisplayDateLabel))]
+    [NotifyPropertyChangedFor(nameof(DisplayHeaderContextLabel))]
+    private bool _isShowingRecentGames;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasRecentGames))]
+    [NotifyPropertyChangedFor(nameof(ShowPlayerViewSwitch))]
+    private IReadOnlyList<RecentGameSummaryItem> _recentGameSummaries = [];
+
+    public bool HasRecentGames => RecentGameSummaries.Count > 0;
+
+    public bool ShowPlayerViewSwitch => !CanShowAllGames && !IsNoGame && HasRecentGames;
+
+    public bool ShowRecentSummary => IsNoGame || IsShowingRecentGames;
+
+    public bool ShowStatusBadge => !IsNoGame && !IsShowingRecentGames;
+
+    public string DisplayTitle => IsShowingRecentGames ? RecentGamesViewLabel : Title;
 
     /// <summary>Which scope option is highlighted; kept in sync with <see cref="IsShowingAllGames"/>.</summary>
     [ObservableProperty]
@@ -233,6 +292,11 @@ public partial class GameDayPageModel(
     /// <summary>No relevant game today; the page shows the last-game summary instead.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsParticipant))]
+    [NotifyPropertyChangedFor(nameof(ShowTodayContent))]
+    [NotifyPropertyChangedFor(nameof(ShowMultipleGames))]
+    [NotifyPropertyChangedFor(nameof(ShowRecentSummary))]
+    [NotifyPropertyChangedFor(nameof(ShowStatusBadge))]
+    [NotifyPropertyChangedFor(nameof(ShowPlayerViewSwitch))]
     private bool _isNoGame;
 
     [ObservableProperty]
@@ -247,6 +311,8 @@ public partial class GameDayPageModel(
     [NotifyPropertyChangedFor(nameof(LastGameCanApprovePostGame))]
     [NotifyPropertyChangedFor(nameof(LastGameCanRateTeammates))]
     [NotifyPropertyChangedFor(nameof(HasLastGameActions))]
+    [NotifyPropertyChangedFor(nameof(DisplayDateLabel))]
+    [NotifyPropertyChangedFor(nameof(DisplayHeaderContextLabel))]
     [NotifyCanExecuteChangedFor(nameof(OpenLastGameRatingsCommand))]
     private LastGameSummaryDto? _lastGame;
 
@@ -798,6 +864,25 @@ public partial class GameDayPageModel(
             : ToggleAllGames(cancellationToken);
     }
 
+    [RelayCommand]
+    private void SelectPlayerView(string? option)
+    {
+        var showRecent = string.Equals(option, RecentGamesViewLabel, StringComparison.Ordinal)
+            && HasRecentGames;
+        IsShowingRecentGames = showRecent;
+        SelectedPlayerViewIndex = showRecent ? 1 : 0;
+        LastGame = showRecent ? RecentGameSummaries[0].Summary : null;
+    }
+
+    [RelayCommand]
+    private void SelectRecentGame(RecentGameSummaryItem? item)
+    {
+        if (IsShowingRecentGames && item is not null)
+        {
+            LastGame = item.Summary;
+        }
+    }
+
     private bool CanCheckInNow() => CanCheckIn && !IsBusy;
 
     private bool CanOpenCaptainAssignment() => CanAssignCaptains;
@@ -829,6 +914,9 @@ public partial class GameDayPageModel(
             }
 
             ApplyContext(context);
+            RecentGameSummaries = (await LoadRecentGameSummariesAsync(cancellationToken))
+                .Select(summary => new RecentGameSummaryItem(summary))
+                .ToArray();
         }
         catch (HttpRequestException ex) when (ex.StatusCode is null)
         {
@@ -837,6 +925,28 @@ public partial class GameDayPageModel(
         catch (Exception)
         {
             ApplyNonContent(ViewState.Error, ErrorTitle, ErrorMessage);
+        }
+    }
+
+    private async Task<IReadOnlyList<LastGameSummaryDto>> LoadRecentGameSummariesAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await gameDayClient.GetRecentGameSummariesAsync(cancellationToken) ?? [];
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // History is supplementary; today's Game Day remains usable if it cannot load. Record
+            // only the exception type so diagnostics never capture player data or response bodies.
+            logger?.LogWarning(
+                "Recent Game Day history failed to load ({FailureType}); Today remains available.",
+                ex.GetType().Name);
+            return [];
         }
     }
 
@@ -872,6 +982,9 @@ public partial class GameDayPageModel(
         }
 
         IsNoGame = true;
+        IsShowingRecentGames = false;
+        SelectedPlayerViewIndex = 0;
+        RecentGameSummaries = lastGame is null ? [] : [new RecentGameSummaryItem(lastGame)];
         IsSpectator = false;
         LastGame = lastGame;
         Title = NoGameTitle;
@@ -916,6 +1029,8 @@ public partial class GameDayPageModel(
         // re-running the server's auto-pick and possibly jumping to a different game.
         selectedSessionId = context.SessionId;
         IsNoGame = false;
+        IsShowingRecentGames = false;
+        SelectedPlayerViewIndex = 0;
         LastGame = null;
         Title = string.IsNullOrWhiteSpace(context.Title) ? "Game Day" : context.Title;
         GroupName = context.GroupName;
@@ -1052,6 +1167,17 @@ public sealed record GameDayGameOption(
     string TimeLabel,
     string StatusLabel,
     bool IsSelected);
+
+/// <summary>Display and accessibility projection for one player-facing recent-game choice.</summary>
+public sealed record RecentGameSummaryItem(LastGameSummaryDto Summary)
+{
+    public string ContextLabel => string.IsNullOrWhiteSpace(Summary.GroupName)
+        ? Summary.Venue
+        : $"{Summary.GroupName} \u00B7 {Summary.Venue}";
+
+    public string AccessibilityDescription =>
+        $"{Summary.Title}, {Summary.DateLabel}, {ContextLabel}, tap to review summary";
+}
 
 /// <summary>
 /// A Going or Waitlist member shown on the Game Day roster. <see cref="CanCheckIn"/> is precomputed
