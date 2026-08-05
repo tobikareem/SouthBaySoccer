@@ -18,6 +18,10 @@
             BindingContext="{Binding Path=BindingContext, Source={x:Reference TeamsView}, x:DataType=ContentPage}"
             EventName="Appearing"
             Command="{Binding AppearingCommand}" />
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference TeamsView}, x:DataType=ContentPage}"
+            EventName="Disappearing"
+            Command="{Binding DisappearingCommand}" />
     </ContentPage.Behaviors>
     <Grid RowDefinitions="Auto,*">
         <c:BrandHeader
@@ -36,9 +40,21 @@
             <ScrollView>
                 <VerticalStackLayout
                     Padding="{StaticResource LayoutPadding}"
-                    Spacing="{StaticResource SpaceMd}"
-                    BindableLayout.ItemsSource="{Binding Teams}">
-                    <BindableLayout.ItemTemplate>
+                    Spacing="{StaticResource SpaceMd}">
+                    <!-- Live-draft banner: a partial sheet must read as "in progress", never settled. -->
+                    <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding IsDraftInProgress}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}" FontFamily="FontAwesomeSolid" Style="{StaticResource BrandIconLabel}" VerticalOptions="Center" />
+                            <VerticalStackLayout Grid.Column="1">
+                                <Label Text="Draft in progress" Style="{StaticResource TextBodyStrong}" />
+                                <Label Text="{Binding OnTheClockLabel}" Style="{StaticResource TextCaption}" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Border>
+                    <VerticalStackLayout
+                        Spacing="{StaticResource SpaceMd}"
+                        BindableLayout.ItemsSource="{Binding Teams}">
+                        <BindableLayout.ItemTemplate>
                         <DataTemplate x:DataType="contracts:SessionTeamDto">
                             <Border Style="{StaticResource CardSurface}">
                                 <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
@@ -66,7 +82,24 @@
                                 </VerticalStackLayout>
                             </Border>
                         </DataTemplate>
-                    </BindableLayout.ItemTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                    <!-- Who is still on the board, mid-draft only. -->
+                    <c:SectionHeader Text="{Binding AvailableHeader}" IsVisible="{Binding HasAvailablePlayers}" />
+                    <Border Style="{StaticResource CardSurface}" IsVisible="{Binding HasAvailablePlayers}">
+                        <VerticalStackLayout
+                            Spacing="{StaticResource SpaceXs}"
+                            BindableLayout.ItemsSource="{Binding AvailablePlayers}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="contracts:SessionTeamMemberDto">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}" Padding="{StaticResource RowPadding}">
+                                        <Label Text="{Binding DisplayName}" Style="{StaticResource TextBody}" VerticalOptions="Center" />
+                                        <c:Badge Grid.Column="1" Text="You" Variant="Success" VerticalOptions="Center" IsVisible="{Binding IsMe}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </Border>
                 </VerticalStackLayout>
             </ScrollView>
         </c:StateView>

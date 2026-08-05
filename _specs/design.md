@@ -145,7 +145,11 @@ first-class acceptance tests, traced to the story IDs in `requirements.md`.
   local identity/profile records, and issues SouthBaySoccer access/refresh tokens. WhatsApp
   challenge links and callback verification are deferred.
 - Whether SMS (Twilio) ships in v1 or later (cost + A2P 10DLC registration).
-- Team-balancing algorithm for TEAM-2 (manual vs. rating-weighted auto-balance).
+- **Resolved - team balancing (TEAM-5):** both. Captains draft manually in strict snake order
+  (1st/2nd/3rd captain rank = admin's selection order = team number), one pick per turn, and a game
+  admin can auto-balance the whole roster instead: peer ratings with a shrinkage prior (K=4 votes
+  toward the roster mean), snake fill, then bounded best-swap optimization minimizing the spread of
+  team averages. Deterministic per (match, attempt). See `_specs/stories/TEAM-5-auto-balance/`.
 - **Resolved - 4-captain topology:** three captains means three separate teams and four captains means four separate teams. Two-captain nights
   create two teams; three- and four-captain nights create rotating team formats for the game day.
 - Minimum minutes threshold for a goalkeeper clean sheet, scaled to session length.

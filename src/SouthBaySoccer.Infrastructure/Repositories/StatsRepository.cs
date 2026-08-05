@@ -279,6 +279,101 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
             cancellationToken);
     }
 
+    public async Task ReplaceAllTeamAssignmentsAsync(
+        Guid matchId,
+        IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> playerProfileIdsByTeamId,
+        CancellationToken cancellationToken = default)
+    {
+        // The whole-match generalization of ReplaceTeamAssignmentsAsync above: MatchTeam rows are
+        // never touched, and an assignment already on its target team is reused rather than
+        // soft-deleted and re-created, so an auto-balance that keeps a player in place is a no-op
+        // for that row.
+        var targetTeamByPlayer = playerProfileIdsByTeamId
+            .SelectMany(pair => pair.Value.Select(playerId => (playerId, teamId: pair.Key)))
+            .ToDictionary(entry => entry.playerId, entry => entry.teamId);
+        var assignments = await dbContext.TeamAssignments
+            .Where(x => x.MatchId == matchId)
+            .ToArrayAsync(cancellationToken);
+
+        var keptPlayerIds = new HashSet<Guid>();
+        foreach (var assignment in assignments)
+        {
+            if (targetTeamByPlayer.TryGetValue(assignment.PlayerProfileId, out var teamId)
+                && assignment.MatchTeamId == teamId)
+            {
+                keptPlayerIds.Add(assignment.PlayerProfileId);
+            }
+            else
+            {
+                assignment.IsDeleted = true;
+            }
+        }
+
+        await dbContext.TeamAssignments.AddRangeAsync(
+            targetTeamByPlayer
+                .Where(entry => !keptPlayerIds.Contains(entry.Key))
+                .Select(entry => new TeamAssignment
+                {
+                    Id = Guid.NewGuid(),
+                    MatchId = matchId,
+                    MatchTeamId = entry.Value,
+                    PlayerProfileId = entry.Key,
+                }),
+            cancellationToken);
+
+        // Reconcile participation to exactly the assigned set, preserving existing rows (and any
+        // recorded minutes) for players who remain assigned anywhere.
+        var participants = await dbContext.PlayerMatchStats
+            .Where(x => x.MatchId == matchId)
+            .ToArrayAsync(cancellationToken);
+        var participantIds = participants.Select(x => x.PlayerProfileId).ToHashSet();
+        foreach (var participant in participants.Where(x => !targetTeamByPlayer.ContainsKey(x.PlayerProfileId)))
+        {
+            participant.IsDeleted = true;
+        }
+
+        await dbContext.PlayerMatchStats.AddRangeAsync(
+            targetTeamByPlayer.Keys
+                .Where(playerId => !participantIds.Contains(playerId))
+                .Select(playerId => new PlayerMatchStats
+                {
+                    Id = Guid.NewGuid(),
+                    MatchId = matchId,
+                    PlayerProfileId = playerId,
+                    Played = true,
+                    Started = true,
+                }),
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<PlayerRatingAggregateRecord>> ListPlayerRatingAggregatesAsync(
+        IReadOnlyCollection<Guid> playerProfileIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (playerProfileIds.Count == 0)
+        {
+            return [];
+        }
+
+        var idArray = playerProfileIds as Guid[] ?? playerProfileIds.ToArray();
+        // Same rating-eligible match statuses as the leaderboard aggregates: votes only count once
+        // a match is settled (Completed/Published/Locked).
+        var eligibleMatchIds = dbContext.Matches
+            .Where(match => match.Status == MatchStatus.Completed
+                || match.Status == MatchStatus.Published
+                || match.Status == MatchStatus.Locked)
+            .Select(match => match.Id);
+        return await dbContext.PlayerRatingVotes
+            .Where(vote => idArray.Contains(vote.RatedPlayerProfileId)
+                && eligibleMatchIds.Contains(vote.MatchId))
+            .GroupBy(vote => vote.RatedPlayerProfileId)
+            .Select(grouped => new PlayerRatingAggregateRecord(
+                grouped.Key,
+                grouped.Sum(vote => (decimal)vote.Score),
+                grouped.Count()))
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task SubmitPeerFeedbackAsync(
         Guid matchId,
         Guid voterPlayerProfileId,

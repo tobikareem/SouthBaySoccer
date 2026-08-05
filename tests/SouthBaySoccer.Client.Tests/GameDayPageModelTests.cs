@@ -11,6 +11,7 @@ using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
 using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Client.Tests.TestSupport;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -462,7 +463,236 @@ public class GameDayPageModelTests
         lastTeam.TeamCap.Should().Be(5);
     }
 
-    private static async Task<TeamDraftPageModel> LoadDraftAsync(int playerCount, int teamCount, int currentTeamIndex)
+    [Fact]
+    public async Task CaptainAssignment_TapOrderBecomesRankAndGrantPayloadOrder()
+    {
+        var pageModel = new CaptainAssignmentPageModel(new SeedGameDayClient(new SeedGameDayState()), Navigator().Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        pageModel.SelectCaptainCountCommand.Execute(2);
+        // Deselect everything through the command so the rank list stays in sync.
+        foreach (var item in pageModel.Players.Where(item => item.IsSelected).ToArray())
+        {
+            pageModel.ToggleCaptainCommand.Execute(item);
+        }
+
+        // Tap in reverse roster order: the SECOND roster row tapped first becomes the 1st captain.
+        var first = pageModel.Players[1];
+        var second = pageModel.Players[0];
+        pageModel.ToggleCaptainCommand.Execute(first);
+        pageModel.ToggleCaptainCommand.Execute(second);
+
+        first.RankLabel.Should().Be("1st captain");
+        second.RankLabel.Should().Be("2nd captain");
+
+        // Deselecting the 1st re-ranks the remaining captain up.
+        pageModel.ToggleCaptainCommand.Execute(first);
+        second.RankLabel.Should().Be("1st captain");
+        first.RankLabel.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task TeamDraft_ServerCaps_WinOverLocalSplit()
+    {
+        // Server says 7/4/4 (policy is server-owned); the local 15/3 split would say 5/5/5.
+        var pageModel = await LoadDraftAsync(playerCount: 15, teamCount: 3, currentTeamIndex: 0, teamCaps: [7, 4, 4]);
+
+        pageModel.TeamCap.Should().Be(7);
+    }
+
+    [Fact]
+    public async Task TeamDraft_CaptainOnTheirTurn_PicksStraightToServerAndReloads()
+    {
+        var (draft, players, _) = BuildDraft(playerCount: 6, teamCount: 2, currentTeamIndex: 0);
+        var captainDraft = draft with { CanManageAllTeams = false, IsMyTurn = true, OnTheClockLabel = "Your turn — pick 1 player" };
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(captainDraft);
+        client
+            .Setup(service => service.DraftPickAsync(captainDraft.SessionId, It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Success);
+        var pageModel = new TeamDraftPageModel(client.Object, Navigator().Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.HasTurnBanner.Should().BeTrue();
+        var target = pageModel.Players.First(item => item.IsPickable && !item.IsSelected);
+        await pageModel.TogglePickCommand.ExecuteAsync(target);
+
+        client.Verify(service => service.DraftPickAsync(captainDraft.SessionId, target.PlayerId, It.IsAny<long>(), It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Exactly(2), "a successful pick reloads the draft");
+        client.Verify(
+            service => service.SaveTeamPicksAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<long>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task TeamDraft_CaptainOffTurn_HasNoPickableRows()
+    {
+        var (draft, _, _) = BuildDraft(playerCount: 6, teamCount: 2, currentTeamIndex: 0);
+        var offTurn = draft with { CanManageAllTeams = false, IsMyTurn = false, OnTheClockLabel = "On the clock: Team 2" };
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(offTurn);
+        var pageModel = new TeamDraftPageModel(client.Object, Navigator().Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.OnTheClockLabel.Should().Be("On the clock: Team 2");
+        pageModel.Players.Where(item => !item.IsSelected).Should().OnlyContain(item => !item.IsPickable);
+    }
+
+    [Fact]
+    public async Task TeamDraft_AutoBalance_ConfirmsThenReloads()
+    {
+        var (draft, _, _) = BuildDraft(playerCount: 6, teamCount: 2, currentTeamIndex: 0);
+        var adminDraft = draft with { CanAutoBalance = true };
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(adminDraft);
+        client
+            .Setup(service => service.AutoBalanceTeamsAsync(adminDraft.SessionId, It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Success);
+        var dialogs = new Mock<IUserDialogService>();
+        dialogs
+            .Setup(d => d.ShowConfirmationAsync(
+                TeamDraftPageModel.AutoBalanceConfirmTitle,
+                TeamDraftPageModel.AutoBalanceConfirmMessage,
+                "Balance", "Cancel", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var pageModel = new TeamDraftPageModel(client.Object, Navigator().Object, dialogs.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        await pageModel.AutoBalanceCommand.ExecuteAsync(null);
+        await pageModel.AutoBalanceCommand.ExecuteAsync(null);
+
+        // The server owns the deal number; the client just fires the mutation each time.
+        client.Verify(service => service.AutoBalanceTeamsAsync(adminDraft.SessionId, It.IsAny<long>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+        client.Verify(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
+    }
+
+    [Fact]
+    public async Task TeamDraft_SwitchingTeamsWithUnsavedPicks_AsksBeforeDiscarding()
+    {
+        var (draft, players, teamIds) = BuildDraft(playerCount: 6, teamCount: 2, currentTeamIndex: 0);
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(draft with { CanManageAllTeams = true });
+        var dialogs = new Mock<IUserDialogService>();
+        dialogs
+            .Setup(d => d.ShowConfirmationAsync(
+                TeamDraftPageModel.DiscardPicksTitle,
+                TeamDraftPageModel.DiscardPicksMessage,
+                "Switch team", "Stay", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        var pageModel = new TeamDraftPageModel(client.Object, Navigator().Object, dialogs.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        // Dirty the current team's selection, then try to switch away.
+        var toggle = pageModel.Players.First(item => item.IsPickable && !item.IsSelected);
+        await pageModel.TogglePickCommand.ExecuteAsync(toggle);
+
+        await pageModel.SelectTeamCommand.ExecuteAsync(teamIds[1]);
+
+        dialogs.Verify(
+            d => d.ShowConfirmationAsync(
+                TeamDraftPageModel.DiscardPicksTitle,
+                TeamDraftPageModel.DiscardPicksMessage,
+                "Switch team", "Stay", It.IsAny<CancellationToken>()),
+            Times.Once);
+        // Declined: the dirty selection survives and the team did not switch.
+        pageModel.Players.Single(item => item.PlayerId == toggle.PlayerId).IsSelected.Should().BeTrue();
+        _ = players;
+    }
+
+    [Fact]
+    public async Task TeamDraft_WhileBusy_SaveAndTogglesAreInert()
+    {
+        var (draft, _, _) = BuildDraft(playerCount: 6, teamCount: 2, currentTeamIndex: 0);
+        var adminDraft = draft with { CanManageAllTeams = true, CanAutoBalance = true };
+        var balanceGate = new TaskCompletionSource<ClientCommandResult>();
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(adminDraft);
+        client
+            .Setup(service => service.AutoBalanceTeamsAsync(adminDraft.SessionId, It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .Returns(balanceGate.Task);
+        var dialogs = new Mock<IUserDialogService>();
+        dialogs
+            .Setup(d => d.ShowConfirmationAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var pageModel = new TeamDraftPageModel(client.Object, Navigator().Object, dialogs.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        var balancing = pageModel.AutoBalanceCommand.ExecuteAsync(null);
+
+        // Mid-balance nothing may mutate the (about-to-be-stale) selection or fire a save.
+        pageModel.SaveCommand.CanExecute(null).Should().BeFalse();
+        var toggle = pageModel.Players.First(item => item.IsPickable && !item.IsSelected);
+        await pageModel.TogglePickCommand.ExecuteAsync(toggle);
+        pageModel.Players.Single(item => item.PlayerId == toggle.PlayerId).IsSelected.Should().BeFalse();
+
+        balanceGate.SetResult(ClientCommandResult.Success);
+        await balancing;
+        pageModel.SaveCommand.CanExecute(null).Should().BeTrue("busy state clears once the balance completes");
+    }
+
+    [Fact]
+    public async Task TeamDraft_AutoBalance_CancelledConfirmDoesNothing()
+    {
+        var (draft, _, _) = BuildDraft(playerCount: 6, teamCount: 2, currentTeamIndex: 0);
+        var adminDraft = draft with { CanAutoBalance = true };
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(adminDraft);
+        var dialogs = new Mock<IUserDialogService>();
+        dialogs
+            .Setup(d => d.ShowConfirmationAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        var pageModel = new TeamDraftPageModel(client.Object, Navigator().Object, dialogs.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        await pageModel.AutoBalanceCommand.ExecuteAsync(null);
+
+        client.Verify(
+            service => service.AutoBalanceTeamsAsync(It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task TeamDraftPolling_AfterFailure_BacksOffFromTwoToFiveSeconds()
+    {
+        var (draft, _, _) = BuildDraft(playerCount: 6, teamCount: 2, currentTeamIndex: 0);
+        var client = new Mock<IGameDayClient>();
+        client.Setup(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(draft);
+        client.Setup(service => service.GetTeamDraftIfChangedAsync(
+                draft.SessionId,
+                draft.DraftRevision,
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("offline"));
+        var delay = new ControlledPollingDelay();
+        var pageModel = new TeamDraftPageModel(client.Object, Navigator().Object, pollingDelay: delay);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await delay.WaitForDelayCountAsync(1);
+        delay.Delays[0].Should().Be(TimeSpan.FromSeconds(2));
+        delay.ReleaseNext();
+        await delay.WaitForDelayCountAsync(2);
+
+        delay.Delays[1].Should().Be(TimeSpan.FromSeconds(5));
+        await pageModel.DisappearingCommand.ExecuteAsync(null);
+    }
+
+    private static (TeamDraftDto Draft, Guid[] Players, Guid[] TeamIds) BuildDraft(
+        int playerCount,
+        int teamCount,
+        int currentTeamIndex,
+        IReadOnlyList<int>? teamCaps = null)
     {
         var players = Enumerable.Range(0, playerCount).Select(_ => Guid.NewGuid()).ToArray();
         var teamIds = Enumerable.Range(0, teamCount).Select(_ => Guid.NewGuid()).ToArray();
@@ -485,8 +715,19 @@ public class GameDayPageModelTests
             TeamCount: teamCount,
             CheckedInPlayers: checkedIn,
             Teams: teams,
-            CanManageAllTeams: false);
+            // Multi-select + Save is the admin flow since TEAM-5; captains draft in snake turns.
+            CanManageAllTeams: true,
+            TeamCaps: teamCaps);
+        return (draft, players, teamIds);
+    }
 
+    private static async Task<TeamDraftPageModel> LoadDraftAsync(
+        int playerCount,
+        int teamCount,
+        int currentTeamIndex,
+        IReadOnlyList<int>? teamCaps = null)
+    {
+        var (draft, _, _) = BuildDraft(playerCount, teamCount, currentTeamIndex, teamCaps);
         var client = new Mock<IGameDayClient>();
         client
             .Setup(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
@@ -1134,7 +1375,7 @@ public class GameDayPageModelTests
             .Setup(c => c.GetCaptainAssignmentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
         client
-            .Setup(c => c.AssignCaptainsAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.AssignCaptainsAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ClientCommandResult.Failure(
                 "conflict", "Team count cannot change after results or stats have been recorded."));
         var dialogs = new Mock<IUserDialogService>();
@@ -1170,7 +1411,7 @@ public class GameDayPageModelTests
             .Setup(c => c.GetCaptainAssignmentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
         client
-            .Setup(c => c.UnlockTeamsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.UnlockTeamsAsync(It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ClientCommandResult.Success);
         var pageModel = new CaptainAssignmentPageModel(client.Object, Navigator().Object);
         await pageModel.AppearingCommand.ExecuteAsync(null);
@@ -1180,7 +1421,7 @@ public class GameDayPageModelTests
 
         await pageModel.UnlockTeamsCommand.ExecuteAsync(null);
 
-        client.Verify(c => c.UnlockTeamsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(c => c.UnlockTeamsAsync(It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -1466,7 +1707,8 @@ public class GameDayPageModelTests
         // The inline roster list was replaced by tappable count tiles that open a roster popup.
         gameDay.Should().Contain("ShowRosterCommand");
         captains.Should().Contain("PlayerRow").And.Contain("CheckBox");
-        draft.Should().Contain("TeamDraft.PickPlayer").And.Contain("PlayerRow");
+        draft.Should().Contain("Captain pick", "the badge is a human label, not implementation terminology")
+            .And.Contain("PlayerRow");
         draft.Should().Contain("SelectTeamCommand");
         postgame.Should().Contain("CounterStepper").And.Contain("Publish approved match");
         (gameDay + captains + draft + postgame).Should().Contain("FontAwesomeGlyphs");

@@ -219,6 +219,102 @@ public sealed class StatsRepositoryQueryTests
     }
 
     [Fact]
+    public async Task ListPlayerRatingAggregatesAsync_SumsVotesFromSettledMatchesForRequestedPlayersOnly()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+        var season = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2026, 1, 1), EndsAtUtc = Utc(2026, 12, 31) };
+        var venue = new Venue { Id = Guid.NewGuid(), Name = $"Venue {Guid.NewGuid():N}", Locality = "Torrance" };
+        var rated = CreatePlayer("Rated Player", "Forward");
+        var other = CreatePlayer("Other Player", "Forward");
+        var voter = CreatePlayer("Voter", "Midfielder");
+        var settledSession = CreateSession(season.Id, venue.Id, teamCount: 2, startsAtUtc: Utc(2026, 7, 7));
+        var draftSession = CreateSession(season.Id, venue.Id, teamCount: 2, startsAtUtc: Utc(2026, 7, 14));
+        var settled = new SoccerMatch { Id = Guid.NewGuid(), SessionId = settledSession.Id, MatchNumber = 1, Status = MatchStatus.Locked };
+        var draft = new SoccerMatch { Id = Guid.NewGuid(), SessionId = draftSession.Id, MatchNumber = 1, Status = MatchStatus.Draft };
+        await db.Seasons.AddAsync(season);
+        await db.Venues.AddAsync(venue);
+        await db.PlayerProfiles.AddRangeAsync(rated, other, voter);
+        await db.Sessions.AddRangeAsync(settledSession, draftSession);
+        await db.Matches.AddRangeAsync(settled, draft);
+        await db.PlayerRatingVotes.AddRangeAsync(
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = settled.Id, VoterPlayerProfileId = voter.Id, RatedPlayerProfileId = rated.Id, Score = 8 },
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = settled.Id, VoterPlayerProfileId = other.Id, RatedPlayerProfileId = rated.Id, Score = 6 },
+            // A vote on a still-draft match must not count.
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = draft.Id, VoterPlayerProfileId = voter.Id, RatedPlayerProfileId = rated.Id, Score = 1 },
+            // A vote for a player outside the requested set must not appear.
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = settled.Id, VoterPlayerProfileId = rated.Id, RatedPlayerProfileId = voter.Id, Score = 9 });
+        await db.SaveChangesAsync();
+
+        var aggregates = await repository.ListPlayerRatingAggregatesAsync([rated.Id, other.Id]);
+
+        var row = aggregates.Should().ContainSingle().Subject;
+        row.PlayerProfileId.Should().Be(rated.Id);
+        row.SumOfScores.Should().Be(14m);
+        row.VoteCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task ReplaceAllTeamAssignmentsAsync_MovesPlayersWithoutTouchingTeamsOrRetainedRows()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+        var season = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2026, 1, 1), EndsAtUtc = Utc(2026, 12, 31) };
+        var venue = new Venue { Id = Guid.NewGuid(), Name = $"Venue {Guid.NewGuid():N}", Locality = "Torrance" };
+        var session = CreateSession(season.Id, venue.Id, teamCount: 2, startsAtUtc: Utc(2026, 7, 7));
+        var match = new SoccerMatch { Id = Guid.NewGuid(), SessionId = session.Id, MatchNumber = 1, Status = MatchStatus.Draft };
+        var captainA = CreatePlayer("Captain A", "Forward");
+        var captainB = CreatePlayer("Captain B", "Forward");
+        var mover = CreatePlayer("Mover", "Midfielder");
+        var stayer = CreatePlayer("Stayer", "Defender");
+        var leaver = CreatePlayer("Leaver", "Forward");
+        var joiner = CreatePlayer("Joiner", "Midfielder");
+        var teamA = new MatchTeam { Id = Guid.NewGuid(), MatchId = match.Id, TeamNumber = 1, Name = "Team A", CaptainPlayerProfileId = captainA.Id };
+        var teamB = new MatchTeam { Id = Guid.NewGuid(), MatchId = match.Id, TeamNumber = 2, Name = "Team B", CaptainPlayerProfileId = captainB.Id };
+        await db.Seasons.AddAsync(season);
+        await db.Venues.AddAsync(venue);
+        await db.PlayerProfiles.AddRangeAsync(captainA, captainB, mover, stayer, leaver, joiner);
+        await db.Sessions.AddAsync(session);
+        await db.Matches.AddAsync(match);
+        await db.MatchTeams.AddRangeAsync(teamA, teamB);
+        foreach (var (teamId, playerId) in new[]
+        {
+            (teamA.Id, captainA.Id), (teamA.Id, mover.Id), (teamA.Id, stayer.Id),
+            (teamB.Id, captainB.Id), (teamB.Id, leaver.Id),
+        })
+        {
+            await db.TeamAssignments.AddAsync(new TeamAssignment { Id = Guid.NewGuid(), MatchId = match.Id, MatchTeamId = teamId, PlayerProfileId = playerId });
+            await db.PlayerMatchStats.AddAsync(new PlayerMatchStats { Id = Guid.NewGuid(), MatchId = match.Id, PlayerProfileId = playerId, Played = true, Started = true, MinutesPlayed = playerId == stayer.Id ? 42 : null });
+        }
+
+        await db.SaveChangesAsync();
+        var stayerAssignmentId = (await db.TeamAssignments.SingleAsync(x => x.PlayerProfileId == stayer.Id)).Id;
+
+        // New deal: mover A->B, leaver dropped, joiner added to A, captains and stayer unchanged.
+        await repository.ReplaceAllTeamAssignmentsAsync(match.Id, new Dictionary<Guid, IReadOnlyList<Guid>>
+        {
+            [teamA.Id] = [captainA.Id, stayer.Id, joiner.Id],
+            [teamB.Id] = [captainB.Id, mover.Id],
+        });
+        await db.SaveChangesAsync();
+
+        (await db.MatchTeams.CountAsync(x => x.MatchId == match.Id)).Should().Be(2, "team rows are never rebuilt");
+        var live = await db.TeamAssignments.Where(x => x.MatchId == match.Id).ToArrayAsync();
+        live.Single(x => x.PlayerProfileId == mover.Id).MatchTeamId.Should().Be(teamB.Id);
+        live.Single(x => x.PlayerProfileId == stayer.Id).Id.Should().Be(stayerAssignmentId, "an unchanged assignment is reused, not churned");
+        live.Should().NotContain(x => x.PlayerProfileId == leaver.Id);
+        live.Single(x => x.PlayerProfileId == joiner.Id).MatchTeamId.Should().Be(teamA.Id);
+        var participants = await db.PlayerMatchStats.Where(x => x.MatchId == match.Id).ToArrayAsync();
+        participants.Should().NotContain(x => x.PlayerProfileId == leaver.Id);
+        participants.Single(x => x.PlayerProfileId == stayer.Id).MinutesPlayed.Should().Be(42, "retained players keep their recorded facts");
+        participants.Single(x => x.PlayerProfileId == joiner.Id).Played.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task ReassignProfileStatsAsync_WhenSourceProfileCaptainsATeam_RepointsTheCaptaincy()
     {
         using var provider = CreateServiceProvider();

@@ -611,12 +611,13 @@ public sealed class ApiSprint03ClientTests
             return JsonResponse("{}");
         }));
 
-        var result = await client.AssignCaptainsAsync(SessionId, 2, captainIds, CancellationToken.None);
+        var result = await client.AssignCaptainsAsync(SessionId, 2, captainIds, 7, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         observed!.Method.Should().Be(HttpMethod.Put);
         observed.RequestUri!.PathAndQuery.Should().Be($"/game-day/sessions/{SessionId}/captains");
         observed.Headers.Contains("Idempotency-Key").Should().BeTrue();
+        observed.Headers.GetValues("If-Match").Should().ContainSingle().Which.Should().Be("\"draft-7\"");
         body.Should().Contain("captainCount").And.Contain(captainIds[0].ToString());
     }
 
@@ -639,9 +640,10 @@ public sealed class ApiSprint03ClientTests
             SessionId,
             2,
             captainIds,
+            7,
             CancellationToken.None);
         await first.Should().ThrowAsync<HttpRequestException>();
-        var retry = await client.AssignCaptainsAsync(SessionId, 2, captainIds, CancellationToken.None);
+        var retry = await client.AssignCaptainsAsync(SessionId, 2, captainIds, 7, CancellationToken.None);
 
         retry.IsSuccess.Should().BeTrue();
         keys.Should().HaveCount(2);
@@ -666,6 +668,7 @@ public sealed class ApiSprint03ClientTests
             SessionId,
             teamId,
             [playerId],
+            7,
             CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
@@ -673,6 +676,7 @@ public sealed class ApiSprint03ClientTests
         observed.RequestUri!.PathAndQuery.Should()
             .Be($"/game-day/sessions/{SessionId}/teams/{teamId}/picks");
         observed.Headers.Contains("Idempotency-Key").Should().BeTrue();
+        observed.Headers.GetValues("If-Match").Should().ContainSingle().Which.Should().Be("\"draft-7\"");
         body.Should().Contain(playerId.ToString());
     }
 
@@ -686,12 +690,68 @@ public sealed class ApiSprint03ClientTests
             return JsonResponse("{}");
         }));
 
-        var result = await client.LockTeamsAsync(SessionId, CancellationToken.None);
+        var result = await client.LockTeamsAsync(SessionId, 7, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         observed!.Method.Should().Be(HttpMethod.Post);
         observed.RequestUri!.PathAndQuery.Should().Be($"/game-day/sessions/{SessionId}/teams/lock");
         observed.Headers.Contains("Idempotency-Key").Should().BeTrue();
+        observed.Headers.GetValues("If-Match").Should().ContainSingle().Which.Should().Be("\"draft-7\"");
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_GetTeamDraftIfChangedAsync_NotModifiedReturnsNoPayload()
+    {
+        HttpRequestMessage? observed = null;
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            return new HttpResponseMessage(HttpStatusCode.NotModified);
+        }));
+
+        var result = await client.GetTeamDraftIfChangedAsync(SessionId, 7, CancellationToken.None);
+
+        result.Changed.Should().BeFalse();
+        result.Revision.Should().Be(7);
+        result.Value.Should().BeNull();
+        observed!.Headers.GetValues("If-None-Match").Should().ContainSingle().Which.Should().Be("\"draft-7\"");
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_GetTeamDraftIfChangedAsync_EqualRevisionOkResponseIsUnchanged()
+    {
+        var client = new ApiGameDayClient(CreateHttpClient(_ =>
+        {
+            var response = JsonResponse(
+                $$"""
+                {
+                  "sessionId": "{{SessionId}}",
+                  "matchId": "22222222-2222-2222-2222-222222222222",
+                  "teamId": "33333333-3333-3333-3333-333333333333",
+                  "teamName": "Team One",
+                  "captainName": "Captain",
+                  "canPickPlayers": true,
+                  "isLocked": false,
+                  "teamCount": 2,
+                  "checkedInPlayers": [],
+                  "teams": [],
+                  "draftRevision": 7,
+                  "draftValidator": "\"draft-7-roster-ABCDEF0123456789\""
+                }
+                """);
+            response.Headers.ETag = new System.Net.Http.Headers.EntityTagHeaderValue("\"draft-7-roster-ABCDEF0123456789\"");
+            return response;
+        }));
+
+        var result = await client.GetTeamDraftIfChangedAsync(
+            SessionId,
+            7,
+            "\"draft-7-roster-ABCDEF0123456789\"",
+            CancellationToken.None);
+
+        result.Changed.Should().BeFalse();
+        result.Revision.Should().Be(7);
+        result.Value.Should().BeNull();
     }
 
     [Theory]
