@@ -62,6 +62,8 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<GetRecentGamesQueryHandler>();
         builder.Services.AddScoped<IValidator<AssignSessionCaptainsCommand>, AssignSessionCaptainsCommandValidator>();
         builder.Services.AddScoped<IValidator<SaveCaptainTeamPicksCommand>, SaveCaptainTeamPicksCommandValidator>();
+        builder.Services.AddScoped<IValidator<DraftPickCommand>, DraftPickCommandValidator>();
+        builder.Services.AddScoped<IValidator<AutoBalanceTeamsCommand>, AutoBalanceTeamsCommandValidator>();
         builder.Services.AddScoped<IValidator<LockSessionTeamsCommand>, LockSessionTeamsCommandValidator>();
         builder.Services.AddScoped<IValidator<UnlockSessionTeamsCommand>, UnlockSessionTeamsCommandValidator>();
         builder.Services.AddScoped<IValidator<ApprovePostGameStatCommand>, ApprovePostGameStatCommandValidator>();
@@ -71,6 +73,8 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<AssignSessionCaptainsCommandHandler>();
         builder.Services.AddScoped<GetTeamDraftQueryHandler>();
         builder.Services.AddScoped<SaveCaptainTeamPicksCommandHandler>();
+        builder.Services.AddScoped<DraftPickCommandHandler>();
+        builder.Services.AddScoped<AutoBalanceTeamsCommandHandler>();
         builder.Services.AddScoped<LockSessionTeamsCommandHandler>();
         builder.Services.AddScoped<UnlockSessionTeamsCommandHandler>();
         builder.Services.AddScoped<GetSessionTeamsQueryHandler>();

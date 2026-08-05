@@ -160,7 +160,7 @@ internal static class SouthBaySoccerModelConfiguration
 
     private static void ConfigureStats(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Match>(b => { ConfigureBase(b, "Matches", true); b.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired(); b.HasOne<Session>().WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => new { x.SessionId, x.MatchNumber }).IsUnique().HasFilter("[IsDeleted] = 0"); b.HasIndex(x => new { x.Status, x.SessionId }).HasFilter("[IsDeleted] = 0"); });
+        modelBuilder.Entity<Match>(b => { ConfigureBase(b, "Matches", true); b.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired(); b.Property(x => x.DraftRevision).IsRequired(); b.HasOne<Session>().WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => new { x.SessionId, x.MatchNumber }).IsUnique().HasFilter("[IsDeleted] = 0"); b.HasIndex(x => new { x.Status, x.SessionId }).HasFilter("[IsDeleted] = 0"); });
         modelBuilder.Entity<MatchTeam>(b => { ConfigureBase(b, "MatchTeams", true); b.Property(x => x.Name).HasMaxLength(80).IsRequired(); b.HasOne<Match>().WithMany().HasForeignKey(x => x.MatchId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => new { x.MatchId, x.TeamNumber }).IsUnique().HasFilter("[IsDeleted] = 0"); });
         modelBuilder.Entity<TeamAssignment>(b => { ConfigureBase(b, "TeamAssignments", true); b.HasOne<Match>().WithMany().HasForeignKey(x => x.MatchId).OnDelete(DeleteBehavior.Restrict); b.HasOne<MatchTeam>().WithMany().HasForeignKey(x => x.MatchTeamId).OnDelete(DeleteBehavior.Restrict); b.HasOne<PlayerProfile>().WithMany().HasForeignKey(x => x.PlayerProfileId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => new { x.MatchId, x.PlayerProfileId }).IsUnique().HasFilter("[IsDeleted] = 0"); b.HasIndex(x => new { x.MatchTeamId, x.PlayerProfileId }).IsUnique().HasFilter("[IsDeleted] = 0"); });
         modelBuilder.Entity<MatchResult>(b => { ConfigureBase(b, "MatchResults", true); b.HasOne<Match>().WithMany().HasForeignKey(x => x.MatchId).OnDelete(DeleteBehavior.Restrict); b.HasOne<MatchTeam>().WithMany().HasForeignKey(x => x.MatchTeamId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => new { x.MatchId, x.MatchTeamId }).IsUnique().HasFilter("[IsDeleted] = 0"); b.ToTable(t => t.HasCheckConstraint("CK_MatchResults_NonNegative", "[Wins] >= 0 AND [Draws] >= 0 AND [Losses] >= 0 AND [GoalsFor] >= 0 AND [GoalsAgainst] >= 0")); });
@@ -223,4 +223,3 @@ internal static class SouthBaySoccerModelConfiguration
         }
     }
 }
-

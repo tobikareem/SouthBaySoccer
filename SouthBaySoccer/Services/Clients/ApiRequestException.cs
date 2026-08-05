@@ -15,12 +15,14 @@ public sealed class ApiRequestException : HttpRequestException
         string message,
         string? title = null,
         string? detail = null,
-        string? firstFieldError = null)
+        string? firstFieldError = null,
+        string? problemType = null)
         : base(message, null, statusCode)
     {
         Title = title;
         Detail = detail;
         FirstFieldError = firstFieldError;
+        ProblemType = problemType;
     }
 
     /// <summary>The RFC 7807 "title" from the server's problem-details body, if present.</summary>
@@ -34,6 +36,9 @@ public sealed class ApiRequestException : HttpRequestException
     /// name to message array), if the server included one.
     /// </summary>
     public string? FirstFieldError { get; }
+
+    /// <summary>The RFC 7807 problem type URI, when supplied by the server.</summary>
+    public string? ProblemType { get; }
 
     /// <summary>
     /// Best available user-safe message: the server's <see cref="FirstFieldError"/> (a specific field

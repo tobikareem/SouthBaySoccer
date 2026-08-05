@@ -337,6 +337,25 @@ public sealed class GameDayContextHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenRosteredPlayerDuringDraft_CanWatchTheTeamsView()
+    {
+        // Players get the read-only teams view even mid-draft: the view labels the live state
+        // (whose turn, who's unpicked) instead of hiding until lock.
+        var context = new TestContext();
+        var session = context.SessionAt(Utc(2026, 7, 23, 2, 40));
+        var match = new Match { Id = Guid.NewGuid(), SessionId = session.Id, MatchNumber = 1, Status = MatchStatus.Draft };
+        context.ConfigureSession(session);
+        context.ConfigureMatch(session, match);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new RosterMemberRecord(context.Profile.Id, "Ada", "MID", false, null)]);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result!.CanViewTeams.Should().BeTrue("a rostered player may watch the draft read-only");
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenAdminIsInsideDraftWindow_EnablesCaptainAssignment()
     {
         var context = new TestContext();
