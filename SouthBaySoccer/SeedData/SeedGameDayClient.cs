@@ -177,6 +177,23 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
         return Task.FromResult(state.SaveTeamPicks(sessionId, teamId, playerIds));
     }
 
+    public Task<ClientCommandResult> DraftPickAsync(
+        Guid sessionId,
+        Guid playerId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(state.DraftPick(sessionId, playerId));
+    }
+
+    public Task<ClientCommandResult> AutoBalanceTeamsAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(state.AutoBalanceTeams(sessionId));
+    }
+
     public Task<ClientCommandResult> LockTeamsAsync(
         Guid sessionId,
         CancellationToken cancellationToken)
@@ -212,7 +229,19 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
                         false))
                     .ToArray()))
             .ToArray();
-        return Task.FromResult<SessionTeamsDto?>(new SessionTeamsDto(draft.SessionId, draft.MatchId, teams));
+        var assignedIds = draft.Teams.SelectMany(team => team.PlayerIds).ToHashSet();
+        var available = draft.CheckedInPlayers
+            .Where(player => !assignedIds.Contains(player.Player.Id))
+            .OrderBy(player => player.Player.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(player => new SessionTeamMemberDto(player.Player.Id, player.Player.DisplayName, false, false))
+            .ToArray();
+        return Task.FromResult<SessionTeamsDto?>(new SessionTeamsDto(
+            draft.SessionId,
+            draft.MatchId,
+            teams,
+            IsDraftInProgress: !draft.IsLocked,
+            OnTheClockLabel: draft.OnTheClockLabel,
+            AvailablePlayers: available));
     }
 
     public Task<PostGameApprovalDto?> GetPostGameApprovalAsync(

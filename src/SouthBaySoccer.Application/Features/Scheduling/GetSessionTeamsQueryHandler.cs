@@ -1,5 +1,6 @@
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Common;
+using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 
 namespace SouthBaySoccer.Application.Features.Scheduling;
@@ -7,7 +8,10 @@ namespace SouthBaySoccer.Application.Features.Scheduling;
 public sealed record SessionTeamsModel(
     Guid SessionId,
     Guid MatchId,
-    IReadOnlyList<SessionTeamModel> Teams);
+    IReadOnlyList<SessionTeamModel> Teams,
+    bool IsDraftInProgress = false,
+    string OnTheClockLabel = "",
+    IReadOnlyList<SessionTeamMemberModel>? AvailablePlayers = null);
 
 public sealed record SessionTeamModel(
     Guid TeamId,
@@ -25,7 +29,9 @@ public sealed record SessionTeamMemberModel(
 /// <summary>
 /// Read-only view of the teams for a session, available to any player on the roster (not just
 /// captains/admins). Shows every team with its members, the caller's own team marked, so a player
-/// can see who they are with and who they are up against.
+/// can see who they are with and who they are up against. While the draft is still running it also
+/// reports whose turn it is and who is yet to be picked, so a rostered player can watch the draft
+/// unfold without being able to touch it.
 /// </summary>
 public sealed class GetSessionTeamsQueryHandler(
     ICurrentUser currentUser,
@@ -88,6 +94,42 @@ public sealed class GetSessionTeamsQueryHandler(
             })
             .ToArray();
 
-        return new SessionTeamsModel(sessionId, match.Id, teamModels);
+        // Mid-draft, the sheets are still forming: label the state explicitly (whose turn it is)
+        // and list who is yet to be picked, so a partial view reads as "in progress", never stale.
+        var isDraftInProgress = match.Status == MatchStatus.Draft && teams.Count > 0;
+        var onTheClockLabel = string.Empty;
+        IReadOnlyList<SessionTeamMemberModel>? availablePlayers = null;
+        if (isDraftInProgress)
+        {
+            var teamsByRank = teams.OrderBy(team => team.TeamNumber).ToArray();
+            var caps = GameDayWorkflowQueries.ComputeTeamCaps(roster.Count, teamsByRank.Length);
+            var nonCaptainCounts = teamsByRank
+                .Select(team => assignments.Count(assignment => assignment.MatchTeamId == team.Id
+                    && assignment.PlayerProfileId != team.CaptainPlayerProfileId))
+                .ToArray();
+            var (onTheClockTeamId, _) = GameDayWorkflowQueries.ResolveDraftTurn(teamsByRank, caps, nonCaptainCounts);
+            onTheClockLabel = onTheClockTeamId is { } clockTeamId
+                ? $"On the clock: {teamsByRank.Single(team => team.Id == clockTeamId).Name}"
+                : "Draft complete — waiting for the lock";
+
+            var assignedIds = assignments.Select(assignment => assignment.PlayerProfileId).ToHashSet();
+            availablePlayers = roster
+                .Where(member => !assignedIds.Contains(member.PlayerProfileId))
+                .OrderBy(member => member.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .Select(member => new SessionTeamMemberModel(
+                    member.PlayerProfileId,
+                    member.DisplayName,
+                    IsCaptain: false,
+                    member.PlayerProfileId == actor.Id))
+                .ToArray();
+        }
+
+        return new SessionTeamsModel(
+            sessionId,
+            match.Id,
+            teamModels,
+            isDraftInProgress,
+            onTheClockLabel,
+            availablePlayers);
     }
 }

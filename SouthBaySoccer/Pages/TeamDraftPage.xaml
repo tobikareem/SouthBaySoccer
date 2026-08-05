@@ -12,6 +12,9 @@
     Shell.NavBarIsVisible="False"
     Style="{StaticResource BrandPage}"
     Title="Pick team">
+    <ContentPage.Resources>
+        <toolkit:InvertedBoolConverter x:Key="InvertedBoolConverter" />
+    </ContentPage.Resources>
     <ContentPage.Behaviors>
         <toolkit:EventToCommandBehavior BindingContext="{Binding Path=BindingContext, Source={x:Reference DraftPage}, x:DataType=ContentPage}" EventName="Appearing" Command="{Binding AppearingCommand}" />
     </ContentPage.Behaviors>
@@ -20,7 +23,16 @@
         <c:StateView Grid.Row="1" State="{Binding State}" Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}" GlyphFontFamily="FontAwesomeSolid">
             <ScrollView>
                 <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">
+                    <!-- Snake-turn banner: always tells everyone whose pick it is, no training needed. -->
+                    <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding HasTurnBanner}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}" FontFamily="FontAwesomeSolid" Style="{StaticResource BrandIconLabel}" VerticalOptions="Center" />
+                            <Label Grid.Column="1" Text="{Binding OnTheClockLabel}" Style="{StaticResource TextBodyStrong}" VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
                     <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding CanManageAllTeams}">
+                        <!-- Admin-only: replaces every team with a rating-balanced deal; tapping again re-deals. -->
+                        <Button Text="Auto-balance teams" Command="{Binding AutoBalanceCommand}" Style="{StaticResource SecondaryButton}" />
                         <c:SectionHeader Text="Drafting for" />
                         <ScrollView Orientation="Horizontal">
                             <HorizontalStackLayout BindableLayout.ItemsSource="{Binding Teams}" Spacing="{StaticResource SpaceSm}">
@@ -49,7 +61,7 @@
                                 <Label Text="{Binding TeamName}" Style="{StaticResource TextBodyStrong}" />
                                 <Label Text="{Binding Summary}" Style="{StaticResource TextCaption}" />
                             </VerticalStackLayout>
-                            <c:Badge Grid.Column="1" Text="TeamDraft.PickPlayer" Glyph="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}" Variant="Success" IsVisible="{Binding CanPickPlayers}" />
+                            <c:Badge Grid.Column="1" Text="Captain pick" Glyph="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}" Variant="Success" IsVisible="{Binding CanPickPlayers}" />
                         </Grid>
                     </c:BrandCard>
                     <Entry Text="{Binding SearchText}" Placeholder="Search confirmed roster" Style="{StaticResource BrandEntry}" />
@@ -76,9 +88,11 @@
                     <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding IsLocked}">
                         <Label Text="Teams are locked. Picks are now read-only." Style="{StaticResource TextCaption}" />
                     </Border>
-                    <!-- IsEnabled is driven by SaveCommand.CanExecute (CanPickPlayers &amp;&amp; not locked, and
-                         false while a save is in flight) so the button greys out after it is tapped. -->
-                    <Button Text="Save team picks" Command="{Binding SaveCommand}" Style="{StaticResource PrimaryButton}" />
+                    <!-- Bulk save is the admin's correction tool; captains draft one pick at a time on
+                         their turn, so they never see this button. IsEnabled is driven by
+                         SaveCommand.CanExecute so it greys out after it is tapped. -->
+                    <Button Text="Save team picks" Command="{Binding SaveCommand}" Style="{StaticResource PrimaryButton}" IsVisible="{Binding CanManageAllTeams}" />
+                    <Label Text="Captains: tap a player on your turn to pick them." Style="{StaticResource TextCaption}" HorizontalTextAlignment="Center" IsVisible="{Binding CanManageAllTeams, Converter={StaticResource InvertedBoolConverter}}" />
                     <Label Text="Permission expires when teams lock." Style="{StaticResource TextCaption}" HorizontalTextAlignment="Center" />
                 </VerticalStackLayout>
             </ScrollView>

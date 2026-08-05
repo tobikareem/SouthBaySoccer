@@ -74,6 +74,17 @@ public interface IGameDayClient
         IReadOnlyList<Guid> playerIds,
         CancellationToken cancellationToken);
 
+    /// <summary>One snake-draft pick by the on-the-clock captain (or an admin on their behalf).</summary>
+    Task<ClientCommandResult> DraftPickAsync(
+        Guid sessionId,
+        Guid playerId,
+        CancellationToken cancellationToken);
+
+    /// <summary>Admin-only: re-deals every team by rating balance; the server deals the next variant each run.</summary>
+    Task<ClientCommandResult> AutoBalanceTeamsAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken);
+
     Task<ClientCommandResult> LockTeamsAsync(
         Guid sessionId,
         CancellationToken cancellationToken);

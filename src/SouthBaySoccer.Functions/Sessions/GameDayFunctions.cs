@@ -21,6 +21,8 @@ public sealed class GameDayFunctions(
     GetSessionTeamsQueryHandler getSessionTeamsHandler,
     GetTeamDraftQueryHandler getTeamDraftHandler,
     SaveCaptainTeamPicksCommandHandler saveTeamPicksHandler,
+    DraftPickCommandHandler draftPickHandler,
+    AutoBalanceTeamsCommandHandler autoBalanceTeamsHandler,
     GetPostGameApprovalQueryHandler getPostGameApprovalHandler,
     ApprovePostGameStatCommandHandler approvePostGameStatHandler,
     SavePostGameTeamResultCommandHandler savePostGameTeamResultHandler,
@@ -355,6 +357,57 @@ public sealed class GameDayFunctions(
             cancellationToken);
     }
 
+    [Function(nameof(DraftPick))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> DraftPick(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "game-day/sessions/{sessionId:guid}/teams/picks")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadRequiredJsonAsync<DraftPickRequest>(request, cancellationToken);
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(DraftPick),
+            GetIdempotencyKey(request),
+            new { sessionId, body.PlayerProfileId },
+            async token =>
+            {
+                var result = await draftPickHandler.HandleAsync(
+                    new DraftPickCommand(sessionId, body.PlayerProfileId),
+                    token);
+                return new IdempotentResponse<GameDayMutationResponse>(
+                    HttpStatusCode.OK,
+                    ToResponse(result));
+            },
+            cancellationToken);
+    }
+
+    [Function(nameof(AutoBalanceTeams))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> AutoBalanceTeams(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "game-day/sessions/{sessionId:guid}/teams/auto-balance")] HttpRequestData request,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        // No body: the deal number is server-owned (Match.AutoBalanceVersion), so a page reopen
+        // or a second admin can never replay an old variant.
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(AutoBalanceTeams),
+            GetIdempotencyKey(request),
+            new { sessionId },
+            async token =>
+            {
+                var result = await autoBalanceTeamsHandler.HandleAsync(
+                    new AutoBalanceTeamsCommand(sessionId),
+                    token);
+                return new IdempotentResponse<GameDayMutationResponse>(
+                    HttpStatusCode.OK,
+                    ToResponse(result));
+            },
+            cancellationToken);
+    }
+
     [Function(nameof(GetPostGameApproval))]
     [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
     public async Task<HttpResponseData> GetPostGameApproval(
@@ -595,13 +648,15 @@ public sealed class GameDayFunctions(
                     team.CaptainName,
                     team.IsMine,
                     team.Members
-                        .Select(member => new SessionTeamMemberDto(
-                            member.PlayerProfileId,
-                            member.DisplayName,
-                            member.IsCaptain,
-                            member.IsMe))
+                        .Select(ToResponse)
                         .ToArray()))
-                .ToArray());
+                .ToArray(),
+            model.IsDraftInProgress,
+            model.OnTheClockLabel,
+            model.AvailablePlayers?.Select(ToResponse).ToArray());
+
+    private static SessionTeamMemberDto ToResponse(SessionTeamMemberModel member) =>
+        new(member.PlayerProfileId, member.DisplayName, member.IsCaptain, member.IsMe);
 
     private static TeamDraftDto ToResponse(TeamDraftModel model) =>
         new(
@@ -620,7 +675,13 @@ public sealed class GameDayFunctions(
                 team.CaptainId,
                 team.CaptainName,
                 team.PlayerIds)).ToArray(),
-            model.CanManageAllTeams);
+            model.CanManageAllTeams,
+            model.TeamCaps,
+            model.OnTheClockTeamId,
+            model.OnTheClockLabel,
+            model.IsMyTurn,
+            model.RoundNumber,
+            model.CanAutoBalance);
 
     private static PostGameApprovalDto ToResponse(PostGameApprovalModel model) =>
         new(

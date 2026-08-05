@@ -40,6 +40,59 @@ public class TeamsViewPageModelTests
     }
 
     [Fact]
+    public async Task Appearing_MidDraft_ShowsBannerAndPlayersYetToBePicked()
+    {
+        var teams = new[]
+        {
+            new SessionTeamDto(Guid.NewGuid(), "Team Ada", "Ada", true,
+            [
+                new SessionTeamMemberDto(Guid.NewGuid(), "Ada", true, true),
+            ]),
+        };
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(x => x.GetSessionTeamsAsync(SessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SessionTeamsDto(
+                SessionId,
+                Guid.NewGuid(),
+                teams,
+                IsDraftInProgress: true,
+                OnTheClockLabel: "On the clock: Team Ada",
+                AvailablePlayers:
+                [
+                    new SessionTeamMemberDto(Guid.NewGuid(), "Bench One", false, false),
+                    new SessionTeamMemberDto(Guid.NewGuid(), "Bench Two", false, true),
+                ]));
+        var model = CreateModel(client);
+
+        await model.AppearingCommand.ExecuteAsync(null);
+
+        model.IsDraftInProgress.Should().BeTrue();
+        model.OnTheClockLabel.Should().Be("On the clock: Team Ada");
+        model.HasAvailablePlayers.Should().BeTrue();
+        model.AvailableHeader.Should().Be("Yet to be picked (2)");
+        model.AvailablePlayers.Should().ContainSingle(player => player.IsMe);
+    }
+
+    [Fact]
+    public async Task Appearing_SettledTeams_HidesDraftChrome()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(x => x.GetSessionTeamsAsync(SessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SessionTeamsDto(
+                SessionId,
+                Guid.NewGuid(),
+                [new SessionTeamDto(Guid.NewGuid(), "Team Ada", "Ada", true, [])]));
+        var model = CreateModel(client);
+
+        await model.AppearingCommand.ExecuteAsync(null);
+
+        model.IsDraftInProgress.Should().BeFalse();
+        model.HasAvailablePlayers.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Appearing_WhenNoTeams_ShowsEmpty()
     {
         var client = new Mock<IGameDayClient>();

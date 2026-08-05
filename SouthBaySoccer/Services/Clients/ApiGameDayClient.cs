@@ -266,6 +266,48 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
         }, () => _idempotencyKeys.TryRemove(operation, out _));
     }
 
+    public Task<ClientCommandResult> DraftPickAsync(
+        Guid sessionId,
+        Guid playerId,
+        CancellationToken cancellationToken)
+    {
+        var operation = $"draft-pick:{sessionId}:{playerId}";
+        return ExecuteCommandAsync(async () =>
+        {
+            using var request = CreateIdempotentRequest(
+                HttpMethod.Post,
+                $"game-day/sessions/{sessionId}/teams/picks",
+                new DraftPickRequest(playerId),
+                GetIdempotencyKey(operation));
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            CompleteDefinitiveResponse(operation, response.StatusCode);
+            response.EnsureSuccessStatusCode();
+            return ClientCommandResult.Success;
+        }, () => _idempotencyKeys.TryRemove(operation, out _));
+    }
+
+    public Task<ClientCommandResult> AutoBalanceTeamsAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        // The deal number is server-owned; the idempotency key (cached per operation until a
+        // definitive response) makes a network retry replay the same deal while each new tap is a
+        // fresh mutation.
+        var operation = $"auto-balance:{sessionId}";
+        return ExecuteCommandAsync(async () =>
+        {
+            using var request = CreateIdempotentRequest(
+                HttpMethod.Post,
+                $"game-day/sessions/{sessionId}/teams/auto-balance",
+                new AutoBalanceTeamsRequest(),
+                GetIdempotencyKey(operation));
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            CompleteDefinitiveResponse(operation, response.StatusCode);
+            response.EnsureSuccessStatusCode();
+            return ClientCommandResult.Success;
+        }, () => _idempotencyKeys.TryRemove(operation, out _));
+    }
+
     public Task<ClientCommandResult> LockTeamsAsync(
         Guid sessionId,
         CancellationToken cancellationToken)

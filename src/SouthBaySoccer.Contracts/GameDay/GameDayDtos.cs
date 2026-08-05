@@ -162,7 +162,10 @@ public sealed record CaptainAssignmentDto(
 public sealed record SessionTeamsDto(
     Guid SessionId,
     Guid MatchId,
-    IReadOnlyList<SessionTeamDto> Teams);
+    IReadOnlyList<SessionTeamDto> Teams,
+    bool IsDraftInProgress = false,
+    string OnTheClockLabel = "",
+    IReadOnlyList<SessionTeamMemberDto>? AvailablePlayers = null);
 
 public sealed record SessionTeamDto(
     Guid TeamId,
@@ -199,9 +202,21 @@ public sealed record TeamDraftDto(
     int TeamCount,
     IReadOnlyList<CheckedInPlayerDto> CheckedInPlayers,
     IReadOnlyList<MatchTeamDto> Teams,
-    bool CanManageAllTeams = false);
+    bool CanManageAllTeams = false,
+    IReadOnlyList<int>? TeamCaps = null,
+    Guid? OnTheClockTeamId = null,
+    string OnTheClockLabel = "",
+    bool IsMyTurn = false,
+    int RoundNumber = 1,
+    bool CanAutoBalance = false);
 
 public sealed record SaveTeamPicksRequest(IReadOnlyList<Guid> PlayerProfileIds);
+
+/// <summary>One snake-draft pick by the on-the-clock captain (or an admin acting for them).</summary>
+public sealed record DraftPickRequest(Guid PlayerProfileId);
+
+/// <summary>Deals the whole roster into balanced teams; bumping Attempt re-deals deterministically.</summary>
+public sealed record AutoBalanceTeamsRequest;
 
 public sealed record PendingStatApprovalDto(
     Guid SubmissionId,

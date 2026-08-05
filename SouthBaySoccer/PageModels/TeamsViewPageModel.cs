@@ -34,6 +34,23 @@ public partial class TeamsViewPageModel(
     [ObservableProperty]
     private IReadOnlyList<SessionTeamDto> _teams = [];
 
+    /// <summary>True while captains are still picking: the view labels itself a live draft.</summary>
+    [ObservableProperty]
+    private bool _isDraftInProgress;
+
+    [ObservableProperty]
+    private string _onTheClockLabel = string.Empty;
+
+    /// <summary>Going/Waitlist players not yet picked by any team, shown only mid-draft.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAvailablePlayers))]
+    [NotifyPropertyChangedFor(nameof(AvailableHeader))]
+    private IReadOnlyList<SessionTeamMemberDto> _availablePlayers = [];
+
+    public bool HasAvailablePlayers => AvailablePlayers.Count > 0;
+
+    public string AvailableHeader => $"Yet to be picked ({AvailablePlayers.Count})";
+
     [RelayCommand(AllowConcurrentExecutions = false)]
     private Task Appearing(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
 
@@ -56,6 +73,9 @@ public partial class TeamsViewPageModel(
             }
 
             Teams = model.Teams;
+            IsDraftInProgress = model.IsDraftInProgress;
+            OnTheClockLabel = model.OnTheClockLabel;
+            AvailablePlayers = model.AvailablePlayers ?? [];
             StateTitle = string.Empty;
             StateMessage = string.Empty;
             State = ViewState.Content;
@@ -73,6 +93,9 @@ public partial class TeamsViewPageModel(
     private void ApplyNonContent(ViewState state, string title, string message)
     {
         Teams = [];
+        IsDraftInProgress = false;
+        OnTheClockLabel = string.Empty;
+        AvailablePlayers = [];
         StateTitle = title;
         StateMessage = message;
         State = state;

@@ -58,7 +58,13 @@ public sealed class GameDayWorkflowHandlerTests
             It.Is<AuditLogEntry>(entry => entry.Action == "Session.Captains.Assign"
                 && entry.ActorPlayerProfileId == context.Actor.Id),
             It.IsAny<CancellationToken>()), Times.Once);
-        context.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        context.UnitOfWork.Verify(
+            x => x.ExecuteInSerializableTransactionAsync(
+                It.IsAny<Func<CancellationToken, Task<GameDayMutationModel>>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once,
+            "draft mutations commit through the serializable transaction");
     }
 
     [Fact]
@@ -160,8 +166,10 @@ public sealed class GameDayWorkflowHandlerTests
             otherTeam.Id,
             [context.Actor.Id]));
 
+        // Since the snake draft (TEAM-5), the bulk replace is the admin's correction tool only;
+        // captains draft one pick at a time on their turn.
         await act.Should().ThrowAsync<ApplicationForbiddenException>()
-            .WithMessage("*captain or a game admin*");
+            .WithMessage("*game admin*");
         context.Stats.Verify(x => x.ReplaceTeamAssignmentsAsync(
             It.IsAny<Guid>(),
             It.IsAny<Guid>(),
@@ -181,7 +189,9 @@ public sealed class GameDayWorkflowHandlerTests
             .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync([
                 context.Roster(captainId, "Cap One"),
-                context.Roster(pickId, "Pick One")
+                context.Roster(pickId, "Pick One"),
+                context.Roster(Guid.NewGuid(), "Bench One"),
+                context.Roster(Guid.NewGuid(), "Bench Two")
             ]);
         var handler = new SaveCaptainTeamPicksCommandHandler(
             context.CurrentUser.Object,
@@ -211,7 +221,9 @@ public sealed class GameDayWorkflowHandlerTests
     [Fact]
     public async Task HandleAsync_WhenAnotherTeamAlreadyPickedPlayer_RejectsDraftMutation()
     {
-        var context = new TestContext(postGame: false, isGameAdmin: false);
+        // Admin path: bulk save is admin-only since TEAM-5, and the cross-team conflict guard
+        // still applies to admins.
+        var context = new TestContext(postGame: false, isGameAdmin: true);
         var otherCaptainId = Guid.NewGuid();
         var selectedPlayerId = Guid.NewGuid();
         var actorTeam = context.Team(context.Actor.Id, 1);
@@ -227,7 +239,9 @@ public sealed class GameDayWorkflowHandlerTests
             .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync([
                 context.Roster(context.Actor.Id, "Ada Green"),
-                context.Roster(selectedPlayerId, "Picked Player")
+                context.Roster(selectedPlayerId, "Picked Player"),
+                context.Roster(Guid.NewGuid(), "Bench One"),
+                context.Roster(Guid.NewGuid(), "Bench Two")
             ]);
         var handler = new SaveCaptainTeamPicksCommandHandler(
             context.CurrentUser.Object,
@@ -461,6 +475,68 @@ public sealed class GameDayWorkflowHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenBulkSaveExceedsTheTeamCap_RejectsWithTheCap()
+    {
+        // The admin correction tool obeys the same server-owned caps as the draft: 4 players over
+        // 2 teams caps each side at 2, so captain + 2 picks must be refused.
+        var context = new TestContext(postGame: false, isGameAdmin: true);
+        var captainId = Guid.NewGuid();
+        var pickOne = Guid.NewGuid();
+        var pickTwo = Guid.NewGuid();
+        var team = context.Team(captainId, 1);
+        context.ConfigureMatch([team, context.Team(Guid.NewGuid(), 2)]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(captainId, "Cap One"),
+                context.Roster(pickOne, "Pick One"),
+                context.Roster(pickTwo, "Pick Two"),
+                context.Roster(Guid.NewGuid(), "Bench One")
+            ]);
+        var handler = new SaveCaptainTeamPicksCommandHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new SaveCaptainTeamPicksCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Stats.Object,
+            context.Audits.Object,
+            context.UnitOfWork.Object);
+
+        var act = () => handler.HandleAsync(new SaveCaptainTeamPicksCommand(
+            context.Session.Id,
+            team.Id,
+            [pickOne, pickTwo]));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("*at most 2 players*");
+        context.Stats.Verify(x => x.ReplaceTeamAssignmentsAsync(
+            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public void ResolveDraftTurn_WhenATeamIsOverConsumed_StillHandsTheTurnToUnderCapTeams()
+    {
+        // Roster churn (an RSVP flipping mid-draft) can shrink caps below counts already recorded;
+        // the replay must treat the over-full team as done rather than stalling or looping.
+        var teams = new[]
+        {
+            new MatchTeam { Id = Guid.NewGuid(), TeamNumber = 1, CaptainPlayerProfileId = Guid.NewGuid() },
+            new MatchTeam { Id = Guid.NewGuid(), TeamNumber = 2, CaptainPlayerProfileId = Guid.NewGuid() },
+        };
+
+        var (onTheClock, _) = GameDayWorkflowQueries.ResolveDraftTurn(teams, [2, 2], [3, 0]);
+
+        onTheClock.Should().Be(teams[1].Id, "the only team still under its cap is on the clock");
+
+        var (complete, _) = GameDayWorkflowQueries.ResolveDraftTurn(teams, [2, 2], [3, 1]);
+        complete.Should().BeNull("every under-cap slot is consumed");
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenResultsAndReviewsAreComplete_PublishesAndAuditsMatch()
     {
         var context = new TestContext(postGame: true, isGameAdmin: false);
@@ -491,6 +567,7 @@ public sealed class GameDayWorkflowHandlerTests
         context.Audits.Verify(x => x.AddAsync(
             It.Is<AuditLogEntry>(entry => entry.Action == "PostGame.Publish"),
             It.IsAny<CancellationToken>()), Times.Once);
+        // Publish is a post-game mutation, not a draft one — it commits directly.
         context.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -590,6 +667,41 @@ public sealed class GameDayWorkflowHandlerTests
         result.Teams.Should().ContainSingle();
         result.Teams[0].IsMine.Should().BeTrue();
         result.Teams[0].Members.Should().ContainSingle(member => member.IsMe && member.IsCaptain);
+        result.IsDraftInProgress.Should().BeFalse("the match has left Draft");
+        result.AvailablePlayers.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetSessionTeams_MidDraft_ReportsTurnAndPlayersYetToBePicked()
+    {
+        // The player's live draft view: partial sheets are labelled with whose turn it is, and the
+        // remaining Going/Waitlist pool is listed so watching the draft makes sense.
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        var captainId = Guid.NewGuid();
+        var team = context.Team(captainId, 1);
+        var undraftedId = Guid.NewGuid();
+        context.ConfigureMatch([team], MatchStatus.Draft);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(captainId, "Vic Green"),
+                context.Roster(context.Actor.Id, "Ada Green"),
+                context.Roster(undraftedId, "Bench Player"),
+            ]);
+        context.Stats
+            .Setup(x => x.ListAssignmentsAsync(context.Match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([context.Assignment(team.Id, captainId)]);
+        var handler = CreateSessionTeamsHandler(context);
+
+        var result = await handler.HandleAsync(context.Session.Id);
+
+        result.IsDraftInProgress.Should().BeTrue();
+        result.OnTheClockLabel.Should().Be("On the clock: Team Green");
+        result.AvailablePlayers.Should().NotBeNull();
+        result.AvailablePlayers!.Select(player => player.DisplayName)
+            .Should().Equal("Ada Green", "Bench Player");
+        result.AvailablePlayers!.Single(player => player.PlayerProfileId == context.Actor.Id)
+            .IsMe.Should().BeTrue();
     }
 
     [Fact]
@@ -623,10 +735,222 @@ public sealed class GameDayWorkflowHandlerTests
             context.PickupPalGames.Object,
             context.Stats.Object);
 
+    [Fact]
+    public async Task DraftPick_WhenOnTheClockCaptainPicks_AssignsToTheirTeam()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        var otherCaptainId = Guid.NewGuid();
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var otherTeam = context.Team(otherCaptainId, 2);
+        var pickId = Guid.NewGuid();
+        context.ConfigureMatch([actorTeam, otherTeam]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(context.Actor.Id, "Ada Green"),
+                context.Roster(otherCaptainId, "Vic White"),
+                context.Roster(pickId, "New Pick"),
+                context.Roster(Guid.NewGuid(), "Bench Player"),
+            ]);
+
+        // 4 eligible / 2 teams => caps 2/2; no picks yet => team 1 (the actor's) is on the clock.
+        var result = await CreateDraftPickHandler(context)
+            .HandleAsync(new DraftPickCommand(context.Session.Id, pickId));
+
+        result.AffectedCount.Should().Be(1);
+        context.Stats.Verify(x => x.ReplaceTeamAssignmentsAsync(
+            context.Match.Id,
+            actorTeam.Id,
+            It.Is<IReadOnlyList<Guid>>(ids => ids.Contains(pickId) && ids.Contains(context.Actor.Id)),
+            It.IsAny<CancellationToken>()));
+    }
+
+    [Fact]
+    public async Task DraftPick_WhenNotYourTurn_RejectsWithTeamOnTheClock()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        var firstCaptainId = Guid.NewGuid();
+        var benchId = Guid.NewGuid();
+        var firstTeam = context.Team(firstCaptainId, 1);
+        var actorTeam = context.Team(context.Actor.Id, 2);
+        context.ConfigureMatch([firstTeam, actorTeam]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(firstCaptainId, "Vic Green"),
+                context.Roster(context.Actor.Id, "Ada White"),
+                context.Roster(benchId, "Bench One"),
+                context.Roster(Guid.NewGuid(), "Bench Two"),
+            ]);
+
+        var act = () => CreateDraftPickHandler(context)
+            .HandleAsync(new DraftPickCommand(context.Session.Id, benchId));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("*Team Green is on the clock*");
+    }
+
+    [Fact]
+    public async Task DraftPick_WhenPlayerAlreadyDrafted_Rejects()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var takenId = Guid.NewGuid();
+        context.ConfigureMatch([actorTeam]);
+        context.Stats
+            .Setup(x => x.ListAssignmentsAsync(context.Match.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([context.Assignment(actorTeam.Id, takenId)]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(context.Actor.Id, "Ada Green"),
+                context.Roster(takenId, "Taken Player"),
+                context.Roster(Guid.NewGuid(), "Bench"),
+            ]);
+
+        var act = () => CreateDraftPickHandler(context)
+            .HandleAsync(new DraftPickCommand(context.Session.Id, takenId));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("*already been drafted*");
+    }
+
+    [Fact]
+    public async Task AutoBalance_WhenNotGameAdmin_IsForbidden()
+    {
+        // Captains included: one captain must not be able to erase every other captain's picks.
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        context.ConfigureMatch([actorTeam, context.Team(Guid.NewGuid(), 2)]);
+
+        var act = () => CreateAutoBalanceHandler(context)
+            .HandleAsync(new AutoBalanceTeamsCommand(context.Session.Id));
+
+        await act.Should().ThrowAsync<ApplicationForbiddenException>();
+        context.Stats.Verify(
+            x => x.ReplaceAllTeamAssignmentsAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Theory]
+    [InlineData(MatchStatus.InProgress)]
+    [InlineData(MatchStatus.Completed)]
+    [InlineData(MatchStatus.NeedsReview)]
+    public async Task AutoBalance_WhenMatchLeftDraft_Rejects(MatchStatus status)
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: true);
+        context.ConfigureMatch([context.Team(Guid.NewGuid(), 1), context.Team(Guid.NewGuid(), 2)], status);
+
+        var act = () => CreateAutoBalanceHandler(context)
+            .HandleAsync(new AutoBalanceTeamsCommand(context.Session.Id));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("*still a draft*");
+    }
+
+    [Fact]
+    public async Task AutoBalance_WhenAdminOnDraftMatch_DealsEveryEligiblePlayerOnce()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: true);
+        var captainA = Guid.NewGuid();
+        var captainB = Guid.NewGuid();
+        var teamA = context.Team(captainA, 1);
+        var teamB = context.Team(captainB, 2);
+        context.ConfigureMatch([teamA, teamB]);
+        var roster = new[] { captainA, captainB }
+            .Concat(Enumerable.Range(0, 7).Select(_ => Guid.NewGuid()))
+            .ToArray();
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(roster.Select((id, index) => context.Roster(id, $"Player {index}")).ToArray());
+        context.Stats
+            .Setup(x => x.ListPlayerRatingAggregatesAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PlayerRatingAggregateRecord(roster[2], 27m, 3)]);
+        IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>? written = null;
+        context.Stats
+            .Setup(x => x.ReplaceAllTeamAssignmentsAsync(
+                context.Match.Id,
+                It.IsAny<IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback((Guid _, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> deal, CancellationToken _) => written = deal)
+            .Returns(Task.CompletedTask);
+
+        var result = await CreateAutoBalanceHandler(context)
+            .HandleAsync(new AutoBalanceTeamsCommand(context.Session.Id));
+
+        result.AffectedCount.Should().Be(9);
+        written.Should().NotBeNull();
+        // 9 eligible / 2 teams => caps 5/4 with the extra on the 1st-ranked team.
+        written![teamA.Id].Should().HaveCount(5).And.Contain(captainA);
+        written[teamB.Id].Should().HaveCount(4).And.Contain(captainB);
+        written.Values.SelectMany(ids => ids).Should().OnlyHaveUniqueItems().And.BeEquivalentTo(roster);
+        context.Audits.Verify(x => x.AddAsync(
+            It.Is<AuditLogEntry>(entry => entry.Action == "TeamDraft.AutoBalance"),
+            It.IsAny<CancellationToken>()));
+        context.UnitOfWork.Verify(
+            x => x.ExecuteInSerializableTransactionAsync(
+                It.IsAny<Func<CancellationToken, Task<GameDayMutationModel>>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once,
+            "draft mutations commit through the serializable transaction");
+    }
+
+    [Fact]
+    public async Task AutoBalance_WhenCaptainNoLongerEligible_Rejects()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: true);
+        var teamA = context.Team(Guid.NewGuid(), 1);
+        var teamB = context.Team(Guid.NewGuid(), 2);
+        context.ConfigureMatch([teamA, teamB]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(teamA.CaptainPlayerProfileId!.Value, "Captain A"),
+                context.Roster(Guid.NewGuid(), "Someone Else"),
+            ]);
+
+        var act = () => CreateAutoBalanceHandler(context)
+            .HandleAsync(new AutoBalanceTeamsCommand(context.Session.Id));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("*Not enough eligible players*");
+    }
+
+    private static DraftPickCommandHandler CreateDraftPickHandler(TestContext context) =>
+        new(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new DraftPickCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Stats.Object,
+            context.Audits.Object,
+            context.UnitOfWork.Object);
+
+    private static AutoBalanceTeamsCommandHandler CreateAutoBalanceHandler(TestContext context) =>
+        new(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            new AutoBalanceTeamsCommandValidator(),
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Stats.Object,
+            context.Audits.Object,
+            context.UnitOfWork.Object);
+
     private sealed class TestContext
     {
         public TestContext(bool postGame, bool isGameAdmin)
         {
+            WireSerializableTransaction();
             Clock.SetupGet(x => x.UtcNow).Returns(postGame
                 ? Session.StartsAtUtc.AddMinutes(100)
                 : Session.StartsAtUtc.AddMinutes(-5));
@@ -692,6 +1016,19 @@ public sealed class GameDayWorkflowHandlerTests
         public Mock<IStatsRepository> Stats { get; } = new();
         public Mock<IAuditLogRepository> Audits { get; } = new();
         public Mock<IUnitOfWork> UnitOfWork { get; } = new();
+
+        /// <summary>
+        /// The wrapped handlers run their read-check-write core through the serializable
+        /// transaction; the test double simply invokes the operation so guards still execute.
+        /// </summary>
+        public void WireSerializableTransaction() =>
+            UnitOfWork
+                .Setup(x => x.ExecuteInSerializableTransactionAsync(
+                    It.IsAny<Func<CancellationToken, Task<GameDayMutationModel>>>(),
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns((Func<CancellationToken, Task<GameDayMutationModel>> operation, string _, CancellationToken token) =>
+                    operation(token));
 
         public void ConfigureMatch(IReadOnlyList<MatchTeam> teams, MatchStatus status = MatchStatus.Draft)
         {

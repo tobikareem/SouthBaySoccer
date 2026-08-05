@@ -1249,8 +1249,12 @@ public partial class CaptainAssignmentPageModel(
     // The captains already granted for this session (from the last load), used to disable the Grant
     // button once the current selection matches - and re-enable it the moment the admin changes the
     // captains or the count so they can re-cut the teams.
-    private readonly HashSet<Guid> grantedCaptainIds = [];
+    private readonly List<Guid> grantedRankedCaptainIds = [];
     private int grantedCaptainCount;
+
+    // Tap order IS the captain ranking: first tapped = 1st captain = team 1 = first snake pick.
+    // Kept separately from Players (which stays in roster order) and re-ranked on every change.
+    private readonly List<Guid> selectionOrder = [];
 
     [ObservableProperty]
     private ViewState _state = ViewState.Loading;
@@ -1304,14 +1308,15 @@ public partial class CaptainAssignmentPageModel(
     public bool HasGrantedCaptains => grantedCaptainCount > 0;
 
     /// <summary>
-    /// True when the current selection exactly matches the captains already granted, so re-granting
-    /// would be a no-op. Disables the Grant button; changing a captain or the count clears it.
+    /// True when the current selection exactly matches the captains already granted — including
+    /// their rank order, since rank decides team number and snake pick order. Disables the Grant
+    /// button; changing a captain, the order, or the count clears it.
     /// </summary>
     public bool IsCurrentSelectionGranted =>
         HasGrantedCaptains
         && CaptainCount == grantedCaptainCount
-        && Players.Count(item => item.IsSelected) == grantedCaptainCount
-        && Players.Where(item => item.IsSelected).Select(item => item.PlayerId).ToHashSet().SetEquals(grantedCaptainIds);
+        && selectionOrder.Count == grantedCaptainCount
+        && selectionOrder.SequenceEqual(grantedRankedCaptainIds);
 
     public bool HasGrantStatus => HasGrantedCaptains;
 
@@ -1347,11 +1352,19 @@ public partial class CaptainAssignmentPageModel(
         }
 
         CaptainCount = parsedCount;
-        foreach (var item in Players.Where(item => item.IsSelected).Skip(parsedCount))
+        // Shrinking the count drops the lowest-ranked captains, keeping the earliest taps.
+        foreach (var droppedId in selectionOrder.Skip(parsedCount).ToArray())
         {
-            item.IsSelected = false;
+            var item = Players.FirstOrDefault(player => player.PlayerId == droppedId);
+            if (item is not null)
+            {
+                item.IsSelected = false;
+            }
+
+            selectionOrder.Remove(droppedId);
         }
 
+        RefreshRankLabels();
         NotifyGrantState();
     }
 
@@ -1380,14 +1393,54 @@ public partial class CaptainAssignmentPageModel(
             return;
         }
 
+        PruneSelectionOrder();
         item.IsSelected = !item.IsSelected;
+        if (item.IsSelected)
+        {
+            selectionOrder.Remove(item.PlayerId);
+            selectionOrder.Add(item.PlayerId);
+        }
+        else
+        {
+            // Deselecting re-ranks everyone below (2nd becomes 1st, etc.).
+            selectionOrder.Remove(item.PlayerId);
+        }
+
+        RefreshRankLabels();
         NotifyGrantState();
     }
+
+    // Selection state can be driven from outside the command (bindings, tests); ranks must always
+    // describe what is actually selected, so drop stale entries before reasoning about order.
+    private void PruneSelectionOrder() =>
+        selectionOrder.RemoveAll(playerId =>
+            Players.FirstOrDefault(player => player.PlayerId == playerId) is not { IsSelected: true });
+
+    private void RefreshRankLabels()
+    {
+        var labelsById = selectionOrder
+            .Select((playerId, index) => (playerId, label: RankLabel(index)))
+            .ToDictionary(entry => entry.playerId, entry => entry.label);
+        foreach (var player in Players)
+        {
+            player.RankLabel = labelsById.GetValueOrDefault(player.PlayerId, string.Empty);
+        }
+    }
+
+    private static string RankLabel(int index) => index switch
+    {
+        0 => "1st captain",
+        1 => "2nd captain",
+        2 => "3rd captain",
+        _ => $"{index + 1}th captain",
+    };
 
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanGrant))]
     private async Task Grant(CancellationToken cancellationToken)
     {
-        var selected = Players.Where(item => item.IsSelected).Select(item => item.PlayerId).ToArray();
+        // Tap order carries through: index 0 becomes team 1's captain (1st snake pick), and so on.
+        PruneSelectionOrder();
+        var selected = selectionOrder.ToArray();
         if (selected.Length != CaptainCount)
         {
             return;
@@ -1469,13 +1522,16 @@ public partial class CaptainAssignmentPageModel(
         CanLockTeams = dto.CanLockTeams;
         CanUnlockTeams = dto.CanUnlockTeams;
         IsLocked = dto.IsLocked;
-        grantedCaptainIds.Clear();
+        grantedRankedCaptainIds.Clear();
+        // SelectedCaptainIds arrive in team-number order, which is the granted ranking.
         foreach (var id in dto.SelectedCaptainIds)
         {
-            grantedCaptainIds.Add(id);
+            grantedRankedCaptainIds.Add(id);
         }
 
         grantedCaptainCount = dto.SelectedCaptainIds.Count;
+        selectionOrder.Clear();
+        selectionOrder.AddRange(dto.SelectedCaptainIds);
         Players.Clear();
         foreach (var player in dto.CheckedInPlayers)
         {
@@ -1487,6 +1543,7 @@ public partial class CaptainAssignmentPageModel(
                 dto.SelectedCaptainIds.Contains(player.Player.Id)));
         }
 
+        RefreshRankLabels();
         ApplyFilter();
         NotifyGrantState();
         State = ViewState.Content;
@@ -1504,8 +1561,19 @@ public partial class CaptainAssignmentPageModel(
 
 public partial class TeamDraftPageModel(
     IGameDayClient gameDayClient,
-    IGameDayNavigator navigator) : ObservableObject
+    IGameDayNavigator navigator,
+    IUserDialogService? dialogService = null) : ObservableObject
 {
+    public const string AutoBalanceConfirmTitle = "Auto-balance teams?";
+    public const string AutoBalanceConfirmMessage =
+        "This replaces every team's current picks with a rating-balanced deal. Captains stay on their teams.";
+    public const string AutoBalanceFailedTitle = "Couldn't balance teams";
+    public const string PickFailedTitle = "Couldn't make that pick";
+    public const string SaveFailedTitle = "Couldn't save the picks";
+    public const string DiscardPicksTitle = "Discard unsaved picks?";
+    public const string DiscardPicksMessage =
+        "You have unsaved changes on this team. Switching teams will discard them.";
+
     private Guid sessionId;
     private Guid teamId;
     private TeamDraftDto? draft;
@@ -1551,10 +1619,32 @@ public partial class TeamDraftPageModel(
     public ObservableCollection<DraftTeamOption> Teams { get; } = [];
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AutoBalanceCommand))]
     private bool _canManageAllTeams;
 
     [ObservableProperty]
     private Guid _selectedTeamId;
+
+    /// <summary>Snake-draft turn banner: whose team is on the clock, from the server.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTurnBanner))]
+    private string _onTheClockLabel = string.Empty;
+
+    public bool HasTurnBanner => !string.IsNullOrWhiteSpace(OnTheClockLabel);
+
+    /// <summary>True when the viewer may make the next snake pick (their turn, or an admin).</summary>
+    [ObservableProperty]
+    private bool _isMyTurn;
+
+    /// <summary>Server-granted: game admin on a still-draft match.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AutoBalanceCommand))]
+    private bool _canAutoBalance;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AutoBalanceCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    private bool _isBusy;
 
     [RelayCommand]
     private Task Back() => navigator.GoBackAsync();
@@ -1562,13 +1652,21 @@ public partial class TeamDraftPageModel(
     [RelayCommand(AllowConcurrentExecutions = false)]
     private Task Appearing(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
 
-    [RelayCommand]
-    private void TogglePick(DraftPlayerItem? item)
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task TogglePick(DraftPlayerItem? item, CancellationToken cancellationToken)
     {
-        // IsPickable already accounts for ownership and this team's cap, so this both blocks picking
-        // past the cap and leaves already-picked players releasable.
-        if (item is null || !item.IsPickable)
+        // IsPickable already accounts for ownership, the turn, and this team's cap. Nothing may
+        // mutate the selection while another draft mutation (pick, save, balance) is in flight.
+        if (item is null || !item.IsPickable || IsBusy)
         {
+            return;
+        }
+
+        // Captains draft one player at a time on their snake turn - the pick goes straight to the
+        // server, which enforces the order. Admins keep the local multi-select + Save flow.
+        if (!CanManageAllTeams)
+        {
+            await PickAsync(item, cancellationToken);
             return;
         }
 
@@ -1576,13 +1674,123 @@ public partial class TeamDraftPageModel(
         RefreshCapAndPicks();
     }
 
-    [RelayCommand]
-    private void SelectTeam(Guid team)
+    private async Task PickAsync(DraftPlayerItem item, CancellationToken cancellationToken)
     {
-        if (CanManageAllTeams && team != Guid.Empty && team != teamId)
+        if (IsBusy || item.IsSelected)
         {
-            ProjectTeam(team);
-            MarkSelectedTeam(team);
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var result = await gameDayClient.DraftPickAsync(sessionId, item.PlayerId, cancellationToken);
+            if (result.IsSuccess)
+            {
+                await LoadAsync(cancellationToken);
+                return;
+            }
+
+            if (dialogService is not null)
+            {
+                await dialogService.ShowAlertAsync(
+                    PickFailedTitle,
+                    result.ErrorMessage ?? "Something went wrong. Please try again.",
+                    "OK");
+            }
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    // Admin-only: replaces every team's picks with a rating-balanced deal; tapping again re-deals
+    // (the server owns the deal number and bumps it each run, so every tap is the next variant).
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanExecuteAutoBalance))]
+    private async Task AutoBalance(CancellationToken cancellationToken)
+    {
+        if (dialogService is not null
+            && !await dialogService.ShowConfirmationAsync(
+                AutoBalanceConfirmTitle,
+                AutoBalanceConfirmMessage,
+                "Balance",
+                "Cancel",
+                cancellationToken))
+        {
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var result = await gameDayClient.AutoBalanceTeamsAsync(sessionId, cancellationToken);
+            if (result.IsSuccess)
+            {
+                await LoadAsync(cancellationToken);
+                return;
+            }
+
+            if (dialogService is not null)
+            {
+                await dialogService.ShowAlertAsync(
+                    AutoBalanceFailedTitle,
+                    result.ErrorMessage ?? "Something went wrong. Please try again.",
+                    "OK");
+            }
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanExecuteAutoBalance() => CanManageAllTeams && CanAutoBalance && !IsBusy;
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task SelectTeam(Guid team, CancellationToken cancellationToken)
+    {
+        if (!CanManageAllTeams || team == Guid.Empty || team == teamId || IsBusy)
+        {
+            return;
+        }
+
+        // Switching re-projects from the last server dto, which would silently drop any toggles
+        // the admin hasn't saved yet - ask first.
+        if (HasUnsavedSelection
+            && dialogService is not null
+            && !await dialogService.ShowConfirmationAsync(
+                DiscardPicksTitle,
+                DiscardPicksMessage,
+                "Switch team",
+                "Stay",
+                cancellationToken))
+        {
+            return;
+        }
+
+        ProjectTeam(team);
+        MarkSelectedTeam(team);
+    }
+
+    /// <summary>Whether the current team's checkbox state differs from the last loaded server state.</summary>
+    private bool HasUnsavedSelection
+    {
+        get
+        {
+            if (draft is null)
+            {
+                return false;
+            }
+
+            var serverTeam = draft.Teams.FirstOrDefault(candidate => candidate.TeamId == teamId);
+            if (serverTeam is null)
+            {
+                return false;
+            }
+
+            var selectedIds = Players.Where(item => item.IsSelected).Select(item => item.PlayerId).ToHashSet();
+            return !selectedIds.SetEquals(serverTeam.PlayerIds);
         }
     }
 
@@ -1602,15 +1810,32 @@ public partial class TeamDraftPageModel(
             return;
         }
 
-        var selected = Players.Where(item => item.IsSelected).Select(item => item.PlayerId).ToArray();
-        var result = await gameDayClient.SaveTeamPicksAsync(sessionId, teamId, selected, cancellationToken);
-        if (result.IsSuccess)
+        IsBusy = true;
+        try
         {
-            await LoadAsync(cancellationToken);
+            var selected = Players.Where(item => item.IsSelected).Select(item => item.PlayerId).ToArray();
+            var result = await gameDayClient.SaveTeamPicksAsync(sessionId, teamId, selected, cancellationToken);
+            if (result.IsSuccess)
+            {
+                await LoadAsync(cancellationToken);
+                return;
+            }
+
+            if (dialogService is not null)
+            {
+                await dialogService.ShowAlertAsync(
+                    SaveFailedTitle,
+                    result.ErrorMessage ?? "Something went wrong. Please try again.",
+                    "OK");
+            }
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 
-    private bool CanSave() => CanPickPlayers && !IsLocked;
+    private bool CanSave() => CanPickPlayers && !IsLocked && !IsBusy;
 
     partial void OnSearchTextChanged(string value)
     {
@@ -1632,9 +1857,12 @@ public partial class TeamDraftPageModel(
 
         draft = dto;
         sessionId = dto.SessionId;
-        // Denominator for the per-team cap: everyone in the Going + Waitlist eligible roster.
+        // Denominator for the per-team cap fallback: everyone in the Going + Waitlist roster.
         totalEligible = dto.CheckedInPlayers.Count;
         CanManageAllTeams = dto.CanManageAllTeams;
+        OnTheClockLabel = dto.OnTheClockLabel;
+        IsMyTurn = dto.IsMyTurn;
+        CanAutoBalance = dto.CanAutoBalance;
         Teams.Clear();
         foreach (var team in dto.Teams)
         {
@@ -1669,32 +1897,43 @@ public partial class TeamDraftPageModel(
         {
             assigned.TryGetValue(player.Player.Id, out var owner);
             var isMine = currentTeam.PlayerIds.Contains(player.Player.Id);
+            // A captain drafts in snake turns: only undrafted players, and only on their turn (the
+            // server re-checks). Admins keep the toggle semantics, including releasing own players.
+            var canPick = dto.CanPickPlayers
+                && !dto.IsLocked
+                && player.Player.Id != currentTeam.CaptainId
+                && (dto.CanManageAllTeams
+                    ? owner is null || isMine
+                    : owner is null && dto.IsMyTurn);
             Players.Add(new DraftPlayerItem(
                 player.Player.Id,
                 player.Player.Initials,
                 player.Player.DisplayName,
                 isMine ? player.Detail : owner is null ? player.Detail : $"Already picked - {owner}",
                 isMine,
-                dto.CanPickPlayers
-                    && !dto.IsLocked
-                    && player.Player.Id != currentTeam.CaptainId
-                    && (owner is null || isMine)));
+                canPick));
         }
 
         RefreshCapAndPicks();
     }
 
-    // Recomputes this team's cap (its share of the roster), how many are on it, and each row's
-    // pickability, then refreshes the progress caption. Runs after every projection and toggle so
-    // the count tracks the roster - a fresh load picks up players who RSVP'd since it last opened.
+    // Refreshes this team's cap, how many are on it, and each row's pickability, then the progress
+    // caption. Caps are server-owned policy (TeamDraftDto.TeamCaps, by team rank) so the client and
+    // server can never disagree; the local split survives only as a fallback for an older API.
     private void RefreshCapAndPicks()
     {
-        var teamCount = draft?.Teams.Count ?? 0;
-        var baseCap = teamCount > 0 ? totalEligible / teamCount : 0;
-        var remainder = teamCount > 0 ? totalEligible % teamCount : 0;
-        // Distribute the remainder one extra at a time to the first teams, so with 16 players and 3
-        // teams the caps are 6, 5, 5 rather than everyone capped at 5 and one player left over.
-        TeamCap = baseCap + (IndexOfCurrentTeam() < remainder ? 1 : 0);
+        var teamIndex = IndexOfCurrentTeam();
+        if (draft?.TeamCaps is { } serverCaps && teamIndex < serverCaps.Count)
+        {
+            TeamCap = serverCaps[teamIndex];
+        }
+        else
+        {
+            var teamCount = draft?.Teams.Count ?? 0;
+            var baseCap = teamCount > 0 ? totalEligible / teamCount : 0;
+            var remainder = teamCount > 0 ? totalEligible % teamCount : 0;
+            TeamCap = baseCap + (teamIndex < remainder ? 1 : 0);
+        }
 
         SelectedCount = Players.Count(item => item.IsSelected);
         var isFull = SelectedCount >= TeamCap;
@@ -1941,6 +2180,16 @@ public partial class CaptainPlayerItem(Guid playerId, string initials, string na
 
     [ObservableProperty]
     private bool _isVisible = true;
+
+    /// <summary>
+    /// "1st captain" / "2nd captain" / … in tap order; rank decides team number and snake-draft
+    /// pick order. Empty while unselected.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasRank))]
+    private string _rankLabel = string.Empty;
+
+    public bool HasRank => !string.IsNullOrEmpty(RankLabel);
 }
 
 public partial class DraftTeamOption(Guid teamId, string name, string captainName) : ObservableObject

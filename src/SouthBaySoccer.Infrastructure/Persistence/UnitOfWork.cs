@@ -46,4 +46,53 @@ internal sealed class UnitOfWork : IUnitOfWork
             throw new ApplicationConflictException("The requested change conflicts with a concurrent update. Refresh and try again.");
         }
     }
+
+    /// <inheritdoc />
+    // Same shape as RsvpRepository.ExecuteInSerializableTransactionAsync (the in-repo precedent for
+    // read-check-write races): serializable isolation makes the guards' reads range-locked, the
+    // execution strategy wraps the manual transaction (required by EnableRetryOnFailure), and
+    // deadlock/serialization victims retry from the top with a cleared change tracker.
+    public async Task<T> ExecuteInSerializableTransactionAsync<T>(
+        Func<CancellationToken, Task<T>> operation,
+        string conflictMessage,
+        CancellationToken cancellationToken = default)
+    {
+        const int maxAttempts = 3;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                var strategy = _context.Database.CreateExecutionStrategy();
+                return await strategy.ExecuteAsync(async () =>
+                {
+                    await using var transaction = await _context.Database.BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable,
+                        cancellationToken);
+                    var result = await operation(cancellationToken);
+                    await _context.SaveChangesAsync(cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+                    return result;
+                });
+            }
+            catch (Exception ex) when (IsRetryableConcurrencyFailure(ex) && attempt < maxAttempts)
+            {
+                _context.ChangeTracker.Clear();
+            }
+            catch (Exception ex) when (IsRetryableConcurrencyFailure(ex))
+            {
+                throw new ApplicationConflictException(conflictMessage);
+            }
+        }
+
+        throw new ApplicationConflictException(conflictMessage);
+    }
+
+    private static bool IsRetryableConcurrencyFailure(Exception exception) =>
+        exception is DbUpdateConcurrencyException
+        || exception is DbUpdateException { InnerException: SqlException sqlException } && IsRetryableSqlFailure(sqlException)
+        || exception is SqlException directSqlException && IsRetryableSqlFailure(directSqlException);
+
+    private static bool IsRetryableSqlFailure(SqlException exception) =>
+        exception.Errors.Cast<SqlError>().Any(error => error.Number is 1205 or 2601 or 2627 or 3960);
 }

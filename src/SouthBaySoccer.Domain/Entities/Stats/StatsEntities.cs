@@ -4,7 +4,9 @@ using SouthBaySoccer.Domain.Enumerations;
 namespace SouthBaySoccer.Domain.Entities.Stats;
 
 /// <summary>Represents a played match within a session.</summary>
-public class Match : BaseEntity { public Guid SessionId { get; set; } public int MatchNumber { get; set; } public MatchStatus Status { get; set; } public DateTime? StartedAtUtc { get; set; } public DateTime? CompletedAtUtc { get; set; } }
+public class Match : BaseEntity { public Guid SessionId { get; set; } public int MatchNumber { get; set; } public MatchStatus Status { get; set; } public DateTime? StartedAtUtc { get; set; } public DateTime? CompletedAtUtc { get; set; }
+    /// <summary>How many auto-balance deals have run; the seed for the next deal, owned and incremented server-side.</summary>
+    public int AutoBalanceVersion { get; set; } }
 /// <summary>Represents a team within a single match.</summary>
 public class MatchTeam : BaseEntity { public Guid MatchId { get; set; } public int TeamNumber { get; set; } public string Name { get; set; } = string.Empty; public Guid? CaptainPlayerProfileId { get; set; } }
 /// <summary>Represents a player assignment to a match team.</summary>
