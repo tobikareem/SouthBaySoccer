@@ -34,6 +34,17 @@ Anchored to wireframe screens `captains` (rank badges) and `draft` (turn banner 
 - Draft page: turn banner (`NoticeSurface`); captains tap-to-pick on their turn (server call +
   reload) and never see the bulk Save; admins keep multi-select + Save, the team switcher, and the
   Auto-balance button (confirm dialog; each run bumps the attempt).
+- Draft and read-only team pages use conditional adaptive polling while visible. `Match.DraftRevision`
+  is the server-owned version for every material team-workflow mutation; GET responses expose a
+  composite draft/roster validator and return `304 Not Modified` for a matching `If-None-Match`. Draft
+  updated clients send the caller's revision through `If-Match`; stale state is a typed
+  `412 draft-revision-conflict`. Missing preconditions remain temporarily accepted for deployed
+  client compatibility, while malformed supplied values are rejected.
+  Captain/admin polling targets two seconds, spectator polling five seconds, with jitter and
+  5/10/30-second failure backoff. The composite validator changes for eligible-roster changes even
+  when the mutation revision is unchanged. Polling pauses while the
+  app is backgrounded and stops on page disappearance or when the match leaves Draft.
+  `AutoBalanceVersion` remains separate and is used only for deterministic re-deal sequencing.
 
 ## Concurrency (review hardening)
 

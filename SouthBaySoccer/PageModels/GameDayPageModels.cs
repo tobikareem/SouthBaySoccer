@@ -4,6 +4,7 @@ using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using SouthBaySoccer.Contracts.Common;
 using SouthBaySoccer.Contracts.GameDay;
 using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Clients;
@@ -1244,6 +1245,7 @@ public partial class CaptainAssignmentPageModel(
 {
     public const string GrantFailedTitle = "Couldn't grant captains";
     public const string LockFailedTitle = "Couldn't lock teams";
+    public const string UnlockFailedTitle = "Couldn't unlock teams";
 
     private Guid sessionId;
     // The captains already granted for this session (from the last load), used to disable the Grant
@@ -1251,6 +1253,7 @@ public partial class CaptainAssignmentPageModel(
     // captains or the count so they can re-cut the teams.
     private readonly List<Guid> grantedRankedCaptainIds = [];
     private int grantedCaptainCount;
+    private long draftRevision;
 
     // Tap order IS the captain ranking: first tapped = 1st captain = team 1 = first snake pick.
     // Kept separately from Players (which stays in roster order) and re-ranked on every change.
@@ -1446,10 +1449,15 @@ public partial class CaptainAssignmentPageModel(
             return;
         }
 
-        var result = await gameDayClient.AssignCaptainsAsync(sessionId, CaptainCount, selected, cancellationToken);
+        var result = await gameDayClient.AssignCaptainsAsync(sessionId, CaptainCount, selected, draftRevision, cancellationToken);
         if (result.IsSuccess)
         {
             await LoadAsync(cancellationToken);
+            return;
+        }
+
+        if (await ReloadCaptainConflictAsync(result, cancellationToken))
+        {
             return;
         }
 
@@ -1475,10 +1483,15 @@ public partial class CaptainAssignmentPageModel(
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanExecuteLockTeams))]
     private async Task LockTeams(CancellationToken cancellationToken)
     {
-        var result = await gameDayClient.LockTeamsAsync(sessionId, cancellationToken);
+        var result = await gameDayClient.LockTeamsAsync(sessionId, draftRevision, cancellationToken);
         if (result.IsSuccess)
         {
             await LoadAsync(cancellationToken);
+            return;
+        }
+
+        if (await ReloadCaptainConflictAsync(result, cancellationToken))
+        {
             return;
         }
 
@@ -1497,10 +1510,24 @@ public partial class CaptainAssignmentPageModel(
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanExecuteUnlockTeams))]
     private async Task UnlockTeams(CancellationToken cancellationToken)
     {
-        var result = await gameDayClient.UnlockTeamsAsync(sessionId, cancellationToken);
+        var result = await gameDayClient.UnlockTeamsAsync(sessionId, draftRevision, cancellationToken);
         if (result.IsSuccess)
         {
             await LoadAsync(cancellationToken);
+            return;
+        }
+
+        if (await ReloadCaptainConflictAsync(result, cancellationToken))
+        {
+            return;
+        }
+
+        if (dialogService is not null)
+        {
+            await dialogService.ShowAlertAsync(
+                UnlockFailedTitle,
+                result.ErrorMessage ?? "Something went wrong. Please try again.",
+                "OK");
         }
     }
 
@@ -1518,6 +1545,7 @@ public partial class CaptainAssignmentPageModel(
         }
 
         sessionId = dto.SessionId;
+        draftRevision = dto.DraftRevision;
         CaptainCount = dto.CaptainCount;
         CanLockTeams = dto.CanLockTeams;
         CanUnlockTeams = dto.CanUnlockTeams;
@@ -1549,6 +1577,27 @@ public partial class CaptainAssignmentPageModel(
         State = ViewState.Content;
     }
 
+    private async Task<bool> ReloadCaptainConflictAsync(
+        ClientCommandResult result,
+        CancellationToken cancellationToken)
+    {
+        if (!string.Equals(result.ErrorCode, "draft_revision_conflict", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        await LoadAsync(cancellationToken);
+        if (dialogService is not null)
+        {
+            await dialogService.ShowAlertAsync(
+                "Draft changed",
+                "The draft changed on another device. The latest teams are now shown.",
+                "OK");
+        }
+
+        return true;
+    }
+
     private void ApplyFilter()
     {
         foreach (var item in Players)
@@ -1562,7 +1611,9 @@ public partial class CaptainAssignmentPageModel(
 public partial class TeamDraftPageModel(
     IGameDayClient gameDayClient,
     IGameDayNavigator navigator,
-    IUserDialogService? dialogService = null) : ObservableObject
+    IUserDialogService? dialogService = null,
+    IPollingDelay? pollingDelay = null,
+    IAppLifecycleState? appLifecycleState = null) : ObservableObject
 {
     public const string AutoBalanceConfirmTitle = "Auto-balance teams?";
     public const string AutoBalanceConfirmMessage =
@@ -1573,11 +1624,17 @@ public partial class TeamDraftPageModel(
     public const string DiscardPicksTitle = "Discard unsaved picks?";
     public const string DiscardPicksMessage =
         "You have unsaved changes on this team. Switching teams will discard them.";
+    public const string DraftChangedMessage = "The draft changed on another device. Latest picks are now shown.";
 
     private Guid sessionId;
     private Guid teamId;
     private TeamDraftDto? draft;
     private int totalEligible;
+    private long draftRevision;
+    private string? draftValidator;
+    private CancellationTokenSource? pollingCancellation;
+    private Task? pollingTask;
+    private readonly IAppLifecycleState lifecycleState = appLifecycleState ?? AlwaysActiveAppLifecycleState.Instance;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
@@ -1650,7 +1707,23 @@ public partial class TeamDraftPageModel(
     private Task Back() => navigator.GoBackAsync();
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task Appearing(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
+    private async Task Appearing(CancellationToken cancellationToken)
+    {
+        await StopPollingAsync();
+        var pageCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        pollingCancellation = pageCancellation;
+        await LoadAsync(pageCancellation.Token);
+        if (ReferenceEquals(pollingCancellation, pageCancellation)
+            && !pageCancellation.IsCancellationRequested
+            && State == ViewState.Content
+            && !IsLocked)
+        {
+            pollingTask = PollAsync(pageCancellation.Token);
+        }
+    }
+
+    [RelayCommand]
+    private Task Disappearing() => StopPollingAsync();
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task TogglePick(DraftPlayerItem? item, CancellationToken cancellationToken)
@@ -1684,10 +1757,15 @@ public partial class TeamDraftPageModel(
         IsBusy = true;
         try
         {
-            var result = await gameDayClient.DraftPickAsync(sessionId, item.PlayerId, cancellationToken);
+            var result = await gameDayClient.DraftPickAsync(sessionId, item.PlayerId, draftRevision, cancellationToken);
             if (result.IsSuccess)
             {
                 await LoadAsync(cancellationToken);
+                return;
+            }
+
+            if (await ReloadConflictAsync(result, cancellationToken))
+            {
                 return;
             }
 
@@ -1724,10 +1802,15 @@ public partial class TeamDraftPageModel(
         IsBusy = true;
         try
         {
-            var result = await gameDayClient.AutoBalanceTeamsAsync(sessionId, cancellationToken);
+            var result = await gameDayClient.AutoBalanceTeamsAsync(sessionId, draftRevision, cancellationToken);
             if (result.IsSuccess)
             {
                 await LoadAsync(cancellationToken);
+                return;
+            }
+
+            if (await ReloadConflictAsync(result, cancellationToken))
+            {
                 return;
             }
 
@@ -1814,10 +1897,15 @@ public partial class TeamDraftPageModel(
         try
         {
             var selected = Players.Where(item => item.IsSelected).Select(item => item.PlayerId).ToArray();
-            var result = await gameDayClient.SaveTeamPicksAsync(sessionId, teamId, selected, cancellationToken);
+            var result = await gameDayClient.SaveTeamPicksAsync(sessionId, teamId, selected, draftRevision, cancellationToken);
             if (result.IsSuccess)
             {
                 await LoadAsync(cancellationToken);
+                return;
+            }
+
+            if (await ReloadConflictAsync(result, cancellationToken))
+            {
                 return;
             }
 
@@ -1848,14 +1936,34 @@ public partial class TeamDraftPageModel(
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
-        var dto = await gameDayClient.GetTeamDraftAsync(sessionId == Guid.Empty ? Guid.Parse("20000000-0000-0000-0000-000000000001") : sessionId, cancellationToken);
+        TeamDraftDto? dto;
+        try
+        {
+            dto = await gameDayClient.GetTeamDraftAsync(sessionId == Guid.Empty ? Guid.Parse("20000000-0000-0000-0000-000000000001") : sessionId, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         if (dto is null)
         {
             State = ViewState.Empty;
             return;
         }
 
+        ApplyDraft(dto);
+    }
+
+    private void ApplyDraft(TeamDraftDto dto)
+    {
+        var preferredTeamId = teamId;
         draft = dto;
+        draftRevision = dto.DraftRevision;
+        draftValidator = dto.DraftValidator;
         sessionId = dto.SessionId;
         // Denominator for the per-team cap fallback: everyone in the Going + Waitlist roster.
         totalEligible = dto.CheckedInPlayers.Count;
@@ -1869,9 +1977,132 @@ public partial class TeamDraftPageModel(
             Teams.Add(new DraftTeamOption(team.TeamId, team.Name, team.CaptainName));
         }
 
-        ProjectTeam(dto.TeamId);
-        MarkSelectedTeam(dto.TeamId);
+        var projectedTeamId = dto.Teams.Any(team => team.TeamId == preferredTeamId)
+            ? preferredTeamId
+            : dto.TeamId;
+        ProjectTeam(projectedTeamId);
+        MarkSelectedTeam(projectedTeamId);
+        OnSearchTextChanged(SearchText);
         State = ViewState.Content;
+    }
+
+    private async Task PollAsync(CancellationToken cancellationToken)
+    {
+        var failures = 0;
+        var pollImmediately = false;
+        while (!cancellationToken.IsCancellationRequested && !IsLocked && (CanManageAllTeams || CanPickPlayers))
+        {
+            var interval = failures switch
+            {
+                1 => TimeSpan.FromSeconds(5),
+                2 => TimeSpan.FromSeconds(10),
+                >= 3 => TimeSpan.FromSeconds(30),
+                _ => TimeSpan.FromSeconds(2),
+            };
+
+            CancellationToken activeToken = default;
+            try
+            {
+                activeToken = await lifecycleState.WaitForActiveTokenAsync(cancellationToken);
+                using var activeRequest = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, activeToken);
+                if (!pollImmediately)
+                {
+                    await (pollingDelay ?? new JitteredPollingDelay()).DelayAsync(interval, activeRequest.Token);
+                }
+                pollImmediately = false;
+                if (IsBusy || HasUnsavedSelection)
+                {
+                    continue;
+                }
+
+                var requestedRevision = draftRevision;
+                var result = string.IsNullOrWhiteSpace(draftValidator)
+                    ? await gameDayClient.GetTeamDraftIfChangedAsync(
+                        sessionId,
+                        requestedRevision,
+                        activeRequest.Token)
+                    : await gameDayClient.GetTeamDraftIfChangedAsync(
+                        sessionId,
+                        requestedRevision,
+                        draftValidator,
+                        activeRequest.Token);
+                failures = 0;
+                var validatorChanged = result.Value is { } responseDraft
+                    && !string.Equals(responseDraft.DraftValidator, draftValidator, StringComparison.Ordinal);
+                if (result.Changed
+                    && result.Value is { } changedDraft
+                    && !activeRequest.IsCancellationRequested
+                    && !IsBusy
+                    && !HasUnsavedSelection
+                    && (changedDraft.DraftRevision > draftRevision || validatorChanged))
+                {
+                    ApplyDraft(changedDraft);
+                }
+                else if (!result.Changed)
+                {
+                    draftValidator = result.Validator ?? draftValidator;
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (OperationCanceledException) when (activeToken.IsCancellationRequested)
+            {
+                pollImmediately = true;
+            }
+            catch (ApiRequestException exception) when (
+                exception.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+            {
+                break;
+            }
+            catch (HttpRequestException exception) when (
+                exception.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+            {
+                break;
+            }
+            catch (Exception)
+            {
+                failures++;
+            }
+        }
+    }
+
+    private async Task StopPollingAsync()
+    {
+        var cancellation = pollingCancellation;
+        var task = pollingTask;
+        cancellation?.Cancel();
+        if (task is not null)
+        {
+            try
+            {
+                await task;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        cancellation?.Dispose();
+        pollingCancellation = null;
+        pollingTask = null;
+    }
+
+    private async Task<bool> ReloadConflictAsync(ClientCommandResult result, CancellationToken cancellationToken)
+    {
+        if (!string.Equals(result.ErrorCode, "draft_revision_conflict", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        await LoadAsync(cancellationToken);
+        if (dialogService is not null)
+        {
+            await dialogService.ShowAlertAsync(PickFailedTitle, DraftChangedMessage, "OK");
+        }
+
+        return true;
     }
 
     // Re-projects the roster for the given team without a network round-trip. A captain always sees

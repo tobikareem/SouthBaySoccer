@@ -17,6 +17,7 @@
     </ContentPage.Resources>
     <ContentPage.Behaviors>
         <toolkit:EventToCommandBehavior BindingContext="{Binding Path=BindingContext, Source={x:Reference DraftPage}, x:DataType=ContentPage}" EventName="Appearing" Command="{Binding AppearingCommand}" />
+        <toolkit:EventToCommandBehavior BindingContext="{Binding Path=BindingContext, Source={x:Reference DraftPage}, x:DataType=ContentPage}" EventName="Disappearing" Command="{Binding DisappearingCommand}" />
     </ContentPage.Behaviors>
     <Grid RowDefinitions="Auto,*">
         <c:BrandHeader Title="Pick team" Subtitle="{Binding CaptainName, StringFormat='Captain - {0}'}" ShowBack="True" BackCommand="{Binding BackCommand}" />

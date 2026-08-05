@@ -217,9 +217,10 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
         Guid sessionId,
         int captainCount,
         IReadOnlyList<Guid> captainIds,
+        long revision,
         CancellationToken cancellationToken)
     {
-        var operation = $"captains:{sessionId}:{captainCount}:{string.Join(',', captainIds)}";
+        var operation = $"captains:{sessionId}:{captainCount}:{string.Join(',', captainIds)}:{revision}";
         return ExecuteCommandAsync(async () =>
         {
             using var request = CreateIdempotentRequest(
@@ -227,6 +228,7 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
                 $"game-day/sessions/{sessionId}/captains",
                 new AssignCaptainsRequest(captainCount, captainIds),
                 GetIdempotencyKey(operation));
+            AddIfMatch(request, revision);
             using var response = await httpClient.SendAsync(request, cancellationToken);
             CompleteDefinitiveResponse(operation, response.StatusCode);
             response.EnsureSuccessStatusCode();
@@ -244,14 +246,39 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
             cancellationToken: cancellationToken);
     }
 
+    public Task<ConditionalReadResult<TeamDraftDto>> GetTeamDraftIfChangedAsync(
+        Guid sessionId,
+        long revision,
+        CancellationToken cancellationToken) =>
+        GetIfChangedAsync<TeamDraftDto>(
+            $"game-day/sessions/{sessionId}/draft",
+            revision,
+            value => value.DraftRevision,
+            value => value.DraftValidator,
+            cancellationToken);
+
+    public Task<ConditionalReadResult<TeamDraftDto>> GetTeamDraftIfChangedAsync(
+        Guid sessionId,
+        long revision,
+        string? validator,
+        CancellationToken cancellationToken) =>
+        GetIfChangedAsync<TeamDraftDto>(
+            $"game-day/sessions/{sessionId}/draft",
+            revision,
+            value => value.DraftRevision,
+            value => value.DraftValidator,
+            cancellationToken,
+            validator);
+
     public Task<ClientCommandResult> SaveTeamPicksAsync(
         Guid sessionId,
         Guid teamId,
         IReadOnlyList<Guid> playerIds,
+        long revision,
         CancellationToken cancellationToken)
     {
         var canonicalPlayerIds = playerIds.Distinct().Order().ToArray();
-        var operation = $"picks:{sessionId}:{teamId}:{Fingerprint(canonicalPlayerIds)}";
+        var operation = $"picks:{sessionId}:{teamId}:{Fingerprint(canonicalPlayerIds)}:{revision}";
         return ExecuteCommandAsync(async () =>
         {
             using var request = CreateIdempotentRequest(
@@ -259,6 +286,7 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
                 $"game-day/sessions/{sessionId}/teams/{teamId}/picks",
                 new SaveTeamPicksRequest(canonicalPlayerIds),
                 GetIdempotencyKey(operation));
+            AddIfMatch(request, revision);
             using var response = await httpClient.SendAsync(request, cancellationToken);
             CompleteDefinitiveResponse(operation, response.StatusCode);
             response.EnsureSuccessStatusCode();
@@ -269,9 +297,10 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
     public Task<ClientCommandResult> DraftPickAsync(
         Guid sessionId,
         Guid playerId,
+        long revision,
         CancellationToken cancellationToken)
     {
-        var operation = $"draft-pick:{sessionId}:{playerId}";
+        var operation = $"draft-pick:{sessionId}:{playerId}:{revision}";
         return ExecuteCommandAsync(async () =>
         {
             using var request = CreateIdempotentRequest(
@@ -279,6 +308,7 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
                 $"game-day/sessions/{sessionId}/teams/picks",
                 new DraftPickRequest(playerId),
                 GetIdempotencyKey(operation));
+            AddIfMatch(request, revision);
             using var response = await httpClient.SendAsync(request, cancellationToken);
             CompleteDefinitiveResponse(operation, response.StatusCode);
             response.EnsureSuccessStatusCode();
@@ -288,12 +318,13 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
 
     public Task<ClientCommandResult> AutoBalanceTeamsAsync(
         Guid sessionId,
+        long revision,
         CancellationToken cancellationToken)
     {
         // The deal number is server-owned; the idempotency key (cached per operation until a
         // definitive response) makes a network retry replay the same deal while each new tap is a
         // fresh mutation.
-        var operation = $"auto-balance:{sessionId}";
+        var operation = $"auto-balance:{sessionId}:{revision}";
         return ExecuteCommandAsync(async () =>
         {
             using var request = CreateIdempotentRequest(
@@ -301,6 +332,7 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
                 $"game-day/sessions/{sessionId}/teams/auto-balance",
                 new AutoBalanceTeamsRequest(),
                 GetIdempotencyKey(operation));
+            AddIfMatch(request, revision);
             using var response = await httpClient.SendAsync(request, cancellationToken);
             CompleteDefinitiveResponse(operation, response.StatusCode);
             response.EnsureSuccessStatusCode();
@@ -310,15 +342,17 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
 
     public Task<ClientCommandResult> LockTeamsAsync(
         Guid sessionId,
+        long revision,
         CancellationToken cancellationToken)
     {
-        var operation = $"lock-teams:{sessionId}";
+        var operation = $"lock-teams:{sessionId}:{revision}";
         return ExecuteCommandAsync(async () =>
         {
             using var request = CreateIdempotentRequest(
                 HttpMethod.Post,
                 $"game-day/sessions/{sessionId}/teams/lock",
                 GetIdempotencyKey(operation));
+            AddIfMatch(request, revision);
             using var response = await httpClient.SendAsync(request, cancellationToken);
             CompleteDefinitiveResponse(operation, response.StatusCode);
             response.EnsureSuccessStatusCode();
@@ -328,15 +362,17 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
 
     public Task<ClientCommandResult> UnlockTeamsAsync(
         Guid sessionId,
+        long revision,
         CancellationToken cancellationToken)
     {
-        var operation = $"unlock-teams:{sessionId}";
+        var operation = $"unlock-teams:{sessionId}:{revision}";
         return ExecuteCommandAsync(async () =>
         {
             using var request = CreateIdempotentRequest(
                 HttpMethod.Post,
                 $"game-day/sessions/{sessionId}/teams/unlock",
                 GetIdempotencyKey(operation));
+            AddIfMatch(request, revision);
             using var response = await httpClient.SendAsync(request, cancellationToken);
             CompleteDefinitiveResponse(operation, response.StatusCode);
             response.EnsureSuccessStatusCode();
@@ -352,6 +388,94 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<SessionTeamsDto>(
             cancellationToken: cancellationToken);
+    }
+
+    public Task<ConditionalReadResult<SessionTeamsDto>> GetSessionTeamsIfChangedAsync(
+        Guid sessionId,
+        long revision,
+        CancellationToken cancellationToken) =>
+        GetIfChangedAsync<SessionTeamsDto>(
+            $"game-day/sessions/{sessionId}/teams",
+            revision,
+            value => value.DraftRevision,
+            value => value.DraftValidator,
+            cancellationToken);
+
+    public Task<ConditionalReadResult<SessionTeamsDto>> GetSessionTeamsIfChangedAsync(
+        Guid sessionId,
+        long revision,
+        string? validator,
+        CancellationToken cancellationToken) =>
+        GetIfChangedAsync<SessionTeamsDto>(
+            $"game-day/sessions/{sessionId}/teams",
+            revision,
+            value => value.DraftRevision,
+            value => value.DraftValidator,
+            cancellationToken,
+            validator);
+
+    private async Task<ConditionalReadResult<T>> GetIfChangedAsync<T>(
+        string route,
+        long revision,
+        Func<T, long> getRevision,
+        Func<T, string> getValidator,
+        CancellationToken cancellationToken,
+        string? validator = null)
+        where T : class
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, route);
+        var requestedValidator = string.IsNullOrWhiteSpace(validator) ? FormatDraftEtag(revision) : validator;
+        request.Headers.TryAddWithoutValidation("If-None-Match", requestedValidator);
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotModified)
+        {
+            var unchangedValidator = response.Headers.ETag?.Tag;
+            if (unchangedValidator is not null
+                && !string.Equals(unchangedValidator, requestedValidator, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("The draft ETag did not match the requested revision.");
+            }
+
+            return new ConditionalReadResult<T>(false, revision, null, requestedValidator);
+        }
+
+        response.EnsureSuccessStatusCode();
+        var value = await response.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken)
+            ?? throw new InvalidDataException("The changed draft response did not include a body.");
+        var responseValidator = response.Headers.ETag?.Tag;
+        var responseRevision = getRevision(value);
+        if (string.IsNullOrWhiteSpace(responseValidator)
+            || !responseValidator.StartsWith($"\"draft-{responseRevision}-", StringComparison.Ordinal)
+            || !responseValidator.EndsWith('"')
+            || !string.Equals(responseValidator, getValidator(value), StringComparison.Ordinal)
+            || responseRevision < revision)
+        {
+            throw new InvalidDataException("The changed draft response contained inconsistent revision data.");
+        }
+
+        if (responseRevision == revision
+            && string.Equals(responseValidator, requestedValidator, StringComparison.Ordinal))
+        {
+            return new ConditionalReadResult<T>(false, revision, null, responseValidator);
+        }
+
+        return new ConditionalReadResult<T>(true, responseRevision, value, responseValidator);
+    }
+
+    private static void AddIfMatch(HttpRequestMessage request, long revision) =>
+        request.Headers.TryAddWithoutValidation("If-Match", FormatDraftEtag(revision));
+
+    private static string FormatDraftEtag(long revision) => $"\"draft-{revision}\"";
+
+    private static long? ParseDraftEtag(string? etag)
+    {
+        const string prefix = "\"draft-";
+        return etag is not null
+            && etag.StartsWith(prefix, StringComparison.Ordinal)
+            && etag.EndsWith('"')
+            && long.TryParse(etag.AsSpan(prefix.Length, etag.Length - prefix.Length - 1), out var revision)
+                ? revision
+                : null;
     }
 
     public async Task<PostGameApprovalDto?> GetPostGameApprovalAsync(
@@ -469,7 +593,10 @@ public sealed class ApiGameDayClient(HttpClient httpClient) : IGameDayClient
         catch (ApiRequestException ex) when (IsClientError(ex.StatusCode))
         {
             onDefinitiveFailure?.Invoke();
-            return ClientCommandResult.Failure($"http_{(int)ex.StatusCode!.Value}", ex.UserMessage);
+            var errorCode = ex.ProblemType?.EndsWith("/draft-revision-conflict", StringComparison.Ordinal) == true
+                ? "draft_revision_conflict"
+                : $"http_{(int)ex.StatusCode!.Value}";
+            return ClientCommandResult.Failure(errorCode, ex.UserMessage);
         }
         catch (HttpRequestException ex) when (IsClientError(ex.StatusCode))
         {

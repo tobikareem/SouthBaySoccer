@@ -11,7 +11,9 @@ public sealed record SessionTeamsModel(
     IReadOnlyList<SessionTeamModel> Teams,
     bool IsDraftInProgress = false,
     string OnTheClockLabel = "",
-    IReadOnlyList<SessionTeamMemberModel>? AvailablePlayers = null);
+    IReadOnlyList<SessionTeamMemberModel>? AvailablePlayers = null,
+    long DraftRevision = 0,
+    string DraftValidator = "");
 
 public sealed record SessionTeamModel(
     Guid TeamId,
@@ -41,7 +43,14 @@ public sealed class GetSessionTeamsQueryHandler(
     IPickupPalGameRepository pickupPalGameRepository,
     IStatsRepository statsRepository)
 {
-    public async Task<SessionTeamsModel> HandleAsync(Guid sessionId, CancellationToken cancellationToken = default)
+    public async Task<SessionTeamsModel> HandleAsync(Guid sessionId, CancellationToken cancellationToken = default) =>
+        await HandleConditionalAsync(sessionId, null, cancellationToken)
+            ?? throw new InvalidOperationException("An unconditional teams query cannot be not modified.");
+
+    public async Task<SessionTeamsModel?> HandleConditionalAsync(
+        Guid sessionId,
+        string? knownDraftValidator,
+        CancellationToken cancellationToken = default)
     {
         var actor = await GameDayWorkflowAuthorization.GetCurrentProfileAsync(
             currentUser,
@@ -124,12 +133,17 @@ public sealed class GetSessionTeamsQueryHandler(
                 .ToArray();
         }
 
-        return new SessionTeamsModel(
+        var model = new SessionTeamsModel(
             sessionId,
             match.Id,
             teamModels,
             isDraftInProgress,
             onTheClockLabel,
-            availablePlayers);
+            availablePlayers,
+            match.DraftRevision);
+        var draftValidator = GameDayWorkflowQueries.BuildDraftValidator(model.DraftRevision, model);
+        return string.Equals(knownDraftValidator, draftValidator, StringComparison.Ordinal)
+            ? null
+            : model with { DraftValidator = draftValidator };
     }
 }

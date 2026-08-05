@@ -11,6 +11,7 @@ using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
 using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Client.Tests.TestSupport;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -508,7 +509,7 @@ public class GameDayPageModelTests
             .Setup(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(captainDraft);
         client
-            .Setup(service => service.DraftPickAsync(captainDraft.SessionId, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Setup(service => service.DraftPickAsync(captainDraft.SessionId, It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ClientCommandResult.Success);
         var pageModel = new TeamDraftPageModel(client.Object, Navigator().Object);
         await pageModel.AppearingCommand.ExecuteAsync(null);
@@ -517,10 +518,10 @@ public class GameDayPageModelTests
         var target = pageModel.Players.First(item => item.IsPickable && !item.IsSelected);
         await pageModel.TogglePickCommand.ExecuteAsync(target);
 
-        client.Verify(service => service.DraftPickAsync(captainDraft.SessionId, target.PlayerId, It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(service => service.DraftPickAsync(captainDraft.SessionId, target.PlayerId, It.IsAny<long>(), It.IsAny<CancellationToken>()), Times.Once);
         client.Verify(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Exactly(2), "a successful pick reloads the draft");
         client.Verify(
-            service => service.SaveTeamPicksAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()),
+            service => service.SaveTeamPicksAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<long>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -550,7 +551,7 @@ public class GameDayPageModelTests
             .Setup(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(adminDraft);
         client
-            .Setup(service => service.AutoBalanceTeamsAsync(adminDraft.SessionId, It.IsAny<CancellationToken>()))
+            .Setup(service => service.AutoBalanceTeamsAsync(adminDraft.SessionId, It.IsAny<long>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ClientCommandResult.Success);
         var dialogs = new Mock<IUserDialogService>();
         dialogs
@@ -566,7 +567,7 @@ public class GameDayPageModelTests
         await pageModel.AutoBalanceCommand.ExecuteAsync(null);
 
         // The server owns the deal number; the client just fires the mutation each time.
-        client.Verify(service => service.AutoBalanceTeamsAsync(adminDraft.SessionId, It.IsAny<CancellationToken>()), Times.Exactly(2));
+        client.Verify(service => service.AutoBalanceTeamsAsync(adminDraft.SessionId, It.IsAny<long>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
         client.Verify(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
     }
 
@@ -615,7 +616,7 @@ public class GameDayPageModelTests
             .Setup(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(adminDraft);
         client
-            .Setup(service => service.AutoBalanceTeamsAsync(adminDraft.SessionId, It.IsAny<CancellationToken>()))
+            .Setup(service => service.AutoBalanceTeamsAsync(adminDraft.SessionId, It.IsAny<long>(), It.IsAny<CancellationToken>()))
             .Returns(balanceGate.Task);
         var dialogs = new Mock<IUserDialogService>();
         dialogs
@@ -658,8 +659,33 @@ public class GameDayPageModelTests
         await pageModel.AutoBalanceCommand.ExecuteAsync(null);
 
         client.Verify(
-            service => service.AutoBalanceTeamsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            service => service.AutoBalanceTeamsAsync(It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task TeamDraftPolling_AfterFailure_BacksOffFromTwoToFiveSeconds()
+    {
+        var (draft, _, _) = BuildDraft(playerCount: 6, teamCount: 2, currentTeamIndex: 0);
+        var client = new Mock<IGameDayClient>();
+        client.Setup(service => service.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(draft);
+        client.Setup(service => service.GetTeamDraftIfChangedAsync(
+                draft.SessionId,
+                draft.DraftRevision,
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("offline"));
+        var delay = new ControlledPollingDelay();
+        var pageModel = new TeamDraftPageModel(client.Object, Navigator().Object, pollingDelay: delay);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await delay.WaitForDelayCountAsync(1);
+        delay.Delays[0].Should().Be(TimeSpan.FromSeconds(2));
+        delay.ReleaseNext();
+        await delay.WaitForDelayCountAsync(2);
+
+        delay.Delays[1].Should().Be(TimeSpan.FromSeconds(5));
+        await pageModel.DisappearingCommand.ExecuteAsync(null);
     }
 
     private static (TeamDraftDto Draft, Guid[] Players, Guid[] TeamIds) BuildDraft(
@@ -1349,7 +1375,7 @@ public class GameDayPageModelTests
             .Setup(c => c.GetCaptainAssignmentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
         client
-            .Setup(c => c.AssignCaptainsAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.AssignCaptainsAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ClientCommandResult.Failure(
                 "conflict", "Team count cannot change after results or stats have been recorded."));
         var dialogs = new Mock<IUserDialogService>();
@@ -1385,7 +1411,7 @@ public class GameDayPageModelTests
             .Setup(c => c.GetCaptainAssignmentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dto);
         client
-            .Setup(c => c.UnlockTeamsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.UnlockTeamsAsync(It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ClientCommandResult.Success);
         var pageModel = new CaptainAssignmentPageModel(client.Object, Navigator().Object);
         await pageModel.AppearingCommand.ExecuteAsync(null);
@@ -1395,7 +1421,7 @@ public class GameDayPageModelTests
 
         await pageModel.UnlockTeamsCommand.ExecuteAsync(null);
 
-        client.Verify(c => c.UnlockTeamsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(c => c.UnlockTeamsAsync(It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

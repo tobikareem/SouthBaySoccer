@@ -4,6 +4,7 @@ using SouthBaySoccer.Contracts.GameDay;
 using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Client.Tests.TestSupport;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -105,6 +106,40 @@ public class TeamsViewPageModelTests
 
         model.State.Should().Be(ViewState.Empty);
         model.Teams.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Polling_WhenDraftSettles_AppliesInBackgroundAndStops()
+    {
+        var initial = new SessionTeamsDto(
+            SessionId,
+            Guid.NewGuid(),
+            [new SessionTeamDto(Guid.NewGuid(), "Team Ada", "Ada", true, [])],
+            IsDraftInProgress: true,
+            DraftRevision: 4);
+        var settled = initial with { IsDraftInProgress = false, DraftRevision = 5 };
+        var client = new Mock<IGameDayClient>();
+        client.Setup(x => x.GetSessionTeamsAsync(SessionId, It.IsAny<CancellationToken>())).ReturnsAsync(initial);
+        client.Setup(x => x.GetSessionTeamsIfChangedAsync(SessionId, 4, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ConditionalReadResult<SessionTeamsDto>(true, 5, settled));
+        var delay = new ControlledPollingDelay();
+        var model = new TeamsViewPageModel(client.Object, new Mock<IGameDayNavigator>().Object, delay);
+        model.ApplyQueryAttributes(new Dictionary<string, object> { ["sessionId"] = SessionId.ToString() });
+
+        await model.AppearingCommand.ExecuteAsync(null);
+        await delay.WaitForDelayCountAsync(1);
+        delay.Delays[0].Should().Be(TimeSpan.FromSeconds(5));
+        delay.ReleaseNext();
+
+        for (var attempt = 0; attempt < 100 && model.IsDraftInProgress; attempt++)
+        {
+            await Task.Delay(10);
+        }
+
+        model.IsDraftInProgress.Should().BeFalse();
+        model.State.Should().Be(ViewState.Content, "background refresh must not flash Loading");
+        await model.DisappearingCommand.ExecuteAsync(null);
+        client.Verify(x => x.GetSessionTeamsIfChangedAsync(SessionId, 4, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static TeamsViewPageModel CreateModel(Mock<IGameDayClient> client)

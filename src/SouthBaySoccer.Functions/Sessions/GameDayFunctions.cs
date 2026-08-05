@@ -185,21 +185,23 @@ public sealed class GameDayFunctions(
         Guid sessionId,
         CancellationToken cancellationToken)
     {
+        var expectedDraftRevision = GetOptionalDraftRevision(request, "If-Match");
         return await idempotentRequestExecutor.ExecuteAsync(
             request,
             nameof(LockSessionTeams),
             GetIdempotencyKey(request),
-            new { sessionId },
+            new { sessionId, expectedDraftRevision },
             async token =>
             {
                 var result = await lockSessionTeamsHandler.HandleAsync(
-                    new LockSessionTeamsCommand(sessionId),
+                    new LockSessionTeamsCommand(sessionId, expectedDraftRevision),
                     token);
                 return new IdempotentResponse<GameDayMutationResponse>(
                     HttpStatusCode.OK,
                     ToResponse(result));
             },
-            cancellationToken);
+            cancellationToken,
+            DraftRevisionHeaders);
     }
 
     [Function(nameof(UnlockSessionTeams))]
@@ -209,21 +211,23 @@ public sealed class GameDayFunctions(
         Guid sessionId,
         CancellationToken cancellationToken)
     {
+        var expectedDraftRevision = GetOptionalDraftRevision(request, "If-Match");
         return await idempotentRequestExecutor.ExecuteAsync(
             request,
             nameof(UnlockSessionTeams),
             GetIdempotencyKey(request),
-            new { sessionId },
+            new { sessionId, expectedDraftRevision },
             async token =>
             {
                 var result = await unlockSessionTeamsHandler.HandleAsync(
-                    new UnlockSessionTeamsCommand(sessionId),
+                    new UnlockSessionTeamsCommand(sessionId, expectedDraftRevision),
                     token);
                 return new IdempotentResponse<GameDayMutationResponse>(
                     HttpStatusCode.OK,
                     ToResponse(result));
             },
-            cancellationToken);
+            cancellationToken,
+            DraftRevisionHeaders);
     }
 
     [Function(nameof(GetSessionTeams))]
@@ -233,8 +237,13 @@ public sealed class GameDayFunctions(
         Guid sessionId,
         CancellationToken cancellationToken)
     {
-        var result = await getSessionTeamsHandler.HandleAsync(sessionId, cancellationToken);
-        return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(result), cancellationToken);
+        var knownValidator = GetOptionalConditionalDraftValidator(request);
+        var result = await getSessionTeamsHandler.HandleConditionalAsync(sessionId, knownValidator, cancellationToken);
+        if (result is null)
+        {
+            return CreateNotModifiedResponse(request, knownValidator!);
+        }
+        return await WriteDraftJsonAsync(request, ToResponse(result), result.DraftValidator, cancellationToken);
     }
 
     [Function(nameof(GetCaptainAssignment))]
@@ -244,8 +253,13 @@ public sealed class GameDayFunctions(
         Guid sessionId,
         CancellationToken cancellationToken)
     {
-        var result = await getCaptainAssignmentHandler.HandleAsync(sessionId, cancellationToken);
-        return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(result), cancellationToken);
+        var knownValidator = GetOptionalConditionalDraftValidator(request);
+        var result = await getCaptainAssignmentHandler.HandleConditionalAsync(sessionId, knownValidator, cancellationToken);
+        if (result is null)
+        {
+            return CreateNotModifiedResponse(request, knownValidator!);
+        }
+        return await WriteDraftJsonAsync(request, ToResponse(result), result.DraftValidator, cancellationToken);
     }
 
     [Function(nameof(AssignCaptains))]
@@ -256,24 +270,27 @@ public sealed class GameDayFunctions(
         CancellationToken cancellationToken)
     {
         var body = await ReadRequiredJsonAsync<AssignCaptainsRequest>(request, cancellationToken);
+        var expectedDraftRevision = GetOptionalDraftRevision(request, "If-Match");
         return await idempotentRequestExecutor.ExecuteAsync(
             request,
             nameof(AssignCaptains),
             GetIdempotencyKey(request),
-            new { sessionId, body.CaptainCount, body.CaptainPlayerProfileIds },
+            new { sessionId, body.CaptainCount, body.CaptainPlayerProfileIds, expectedDraftRevision },
             async token =>
             {
                 var result = await assignCaptainsHandler.HandleAsync(
                     new AssignSessionCaptainsCommand(
                         sessionId,
                         body.CaptainCount,
-                        body.CaptainPlayerProfileIds),
+                        body.CaptainPlayerProfileIds,
+                        expectedDraftRevision),
                     token);
                 return new IdempotentResponse<GameDayMutationResponse>(
                     HttpStatusCode.OK,
                     ToResponse(result));
             },
-            cancellationToken);
+            cancellationToken,
+            DraftRevisionHeaders);
     }
 
     [Function(nameof(GetSessionUnlinked))]
@@ -327,8 +344,13 @@ public sealed class GameDayFunctions(
         Guid sessionId,
         CancellationToken cancellationToken)
     {
-        var result = await getTeamDraftHandler.HandleAsync(sessionId, cancellationToken);
-        return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(result), cancellationToken);
+        var knownValidator = GetOptionalConditionalDraftValidator(request);
+        var result = await getTeamDraftHandler.HandleConditionalAsync(sessionId, knownValidator, cancellationToken);
+        if (result is null)
+        {
+            return CreateNotModifiedResponse(request, knownValidator!);
+        }
+        return await WriteDraftJsonAsync(request, ToResponse(result), result.DraftValidator, cancellationToken);
     }
 
     [Function(nameof(SaveTeamPicks))]
@@ -340,21 +362,23 @@ public sealed class GameDayFunctions(
         CancellationToken cancellationToken)
     {
         var body = await ReadRequiredJsonAsync<SaveTeamPicksRequest>(request, cancellationToken);
+        var expectedDraftRevision = GetOptionalDraftRevision(request, "If-Match");
         return await idempotentRequestExecutor.ExecuteAsync(
             request,
             nameof(SaveTeamPicks),
             GetIdempotencyKey(request),
-            new { sessionId, teamId, body.PlayerProfileIds },
+            new { sessionId, teamId, body.PlayerProfileIds, expectedDraftRevision },
             async token =>
             {
                 var result = await saveTeamPicksHandler.HandleAsync(
-                    new SaveCaptainTeamPicksCommand(sessionId, teamId, body.PlayerProfileIds),
+                    new SaveCaptainTeamPicksCommand(sessionId, teamId, body.PlayerProfileIds, expectedDraftRevision),
                     token);
                 return new IdempotentResponse<GameDayMutationResponse>(
                     HttpStatusCode.OK,
                     ToResponse(result));
             },
-            cancellationToken);
+            cancellationToken,
+            DraftRevisionHeaders);
     }
 
     [Function(nameof(DraftPick))]
@@ -365,21 +389,23 @@ public sealed class GameDayFunctions(
         CancellationToken cancellationToken)
     {
         var body = await ReadRequiredJsonAsync<DraftPickRequest>(request, cancellationToken);
+        var expectedDraftRevision = GetOptionalDraftRevision(request, "If-Match");
         return await idempotentRequestExecutor.ExecuteAsync(
             request,
             nameof(DraftPick),
             GetIdempotencyKey(request),
-            new { sessionId, body.PlayerProfileId },
+            new { sessionId, body.PlayerProfileId, expectedDraftRevision },
             async token =>
             {
                 var result = await draftPickHandler.HandleAsync(
-                    new DraftPickCommand(sessionId, body.PlayerProfileId),
+                    new DraftPickCommand(sessionId, body.PlayerProfileId, expectedDraftRevision),
                     token);
                 return new IdempotentResponse<GameDayMutationResponse>(
                     HttpStatusCode.OK,
                     ToResponse(result));
             },
-            cancellationToken);
+            cancellationToken,
+            DraftRevisionHeaders);
     }
 
     [Function(nameof(AutoBalanceTeams))]
@@ -391,21 +417,23 @@ public sealed class GameDayFunctions(
     {
         // No body: the deal number is server-owned (Match.AutoBalanceVersion), so a page reopen
         // or a second admin can never replay an old variant.
+        var expectedDraftRevision = GetOptionalDraftRevision(request, "If-Match");
         return await idempotentRequestExecutor.ExecuteAsync(
             request,
             nameof(AutoBalanceTeams),
             GetIdempotencyKey(request),
-            new { sessionId },
+            new { sessionId, expectedDraftRevision },
             async token =>
             {
                 var result = await autoBalanceTeamsHandler.HandleAsync(
-                    new AutoBalanceTeamsCommand(sessionId),
+                    new AutoBalanceTeamsCommand(sessionId, expectedDraftRevision),
                     token);
                 return new IdempotentResponse<GameDayMutationResponse>(
                     HttpStatusCode.OK,
                     ToResponse(result));
             },
-            cancellationToken);
+            cancellationToken,
+            DraftRevisionHeaders);
     }
 
     [Function(nameof(GetPostGameApproval))]
@@ -635,7 +663,9 @@ public sealed class GameDayFunctions(
             model.CheckedInPlayers.Select(ToResponse).ToArray(),
             model.CanLockTeams,
             model.IsLocked,
-            model.CanUnlockTeams);
+            model.CanUnlockTeams,
+            model.DraftRevision,
+            model.DraftValidator);
 
     private static SessionTeamsDto ToResponse(SessionTeamsModel model) =>
         new(
@@ -653,7 +683,9 @@ public sealed class GameDayFunctions(
                 .ToArray(),
             model.IsDraftInProgress,
             model.OnTheClockLabel,
-            model.AvailablePlayers?.Select(ToResponse).ToArray());
+            model.AvailablePlayers?.Select(ToResponse).ToArray(),
+            model.DraftRevision,
+            model.DraftValidator);
 
     private static SessionTeamMemberDto ToResponse(SessionTeamMemberModel member) =>
         new(member.PlayerProfileId, member.DisplayName, member.IsCaptain, member.IsMe);
@@ -681,7 +713,9 @@ public sealed class GameDayFunctions(
             model.OnTheClockLabel,
             model.IsMyTurn,
             model.RoundNumber,
-            model.CanAutoBalance);
+            model.CanAutoBalance,
+            model.DraftRevision,
+            model.DraftValidator);
 
     private static PostGameApprovalDto ToResponse(PostGameApprovalModel model) =>
         new(
@@ -716,7 +750,91 @@ public sealed class GameDayFunctions(
         new(player.Id, player.DisplayName, player.Initials, player.Position, player.IsGuest);
 
     private static GameDayMutationResponse ToResponse(GameDayMutationModel model) =>
-        new(model.SessionId, model.MatchId, model.AffectedCount);
+        new(model.SessionId, model.MatchId, model.AffectedCount, model.DraftRevision);
+
+    private static IReadOnlyDictionary<string, string> DraftRevisionHeaders(GameDayMutationResponse response) =>
+        new Dictionary<string, string> { ["ETag"] = FormatDraftEtag(response.DraftRevision) };
+
+    private static string FormatDraftEtag(long revision) => $"\"draft-{revision}\"";
+
+    private static long GetRequiredDraftRevision(HttpRequestData request, string headerName)
+    {
+        if (request.Headers.TryGetValues(headerName, out var values))
+        {
+            var candidates = values.ToArray();
+            var value = candidates.Length == 1 ? candidates[0] : null;
+            const string prefix = "\"draft-";
+            if (value is not null
+                && value.StartsWith(prefix, StringComparison.Ordinal)
+                && value.EndsWith('"'))
+            {
+                var revisionEnd = value.IndexOf('-', prefix.Length);
+                revisionEnd = revisionEnd < 0 ? value.Length - 1 : revisionEnd;
+                if (long.TryParse(value.AsSpan(prefix.Length, revisionEnd - prefix.Length), out var revision)
+                    && revision >= 0)
+                {
+                    return revision;
+                }
+            }
+        }
+
+        throw new ValidationProblemException(new Dictionary<string, string[]>
+        {
+            [headerName] = [$"A valid {headerName} header in the form \"draft-<revision>\" is required."],
+        });
+    }
+
+    private static long? GetOptionalDraftRevision(HttpRequestData request, string headerName)
+    {
+        if (!request.Headers.Contains(headerName))
+        {
+            return null;
+        }
+
+        return GetRequiredDraftRevision(request, headerName);
+    }
+
+    private static string? GetOptionalConditionalDraftValidator(HttpRequestData request)
+    {
+        if (!request.Headers.TryGetValues("If-None-Match", out var values))
+        {
+            return null;
+        }
+
+        foreach (var candidate in values.SelectMany(value => value.Split(',')))
+        {
+            var value = candidate.Trim();
+            if (value.StartsWith("\"draft-", StringComparison.Ordinal)
+                && value.EndsWith('"'))
+            {
+                return value;
+            }
+        }
+
+        // Unknown, weak, wildcard, and malformed validators are cache misses on a safe GET.
+        return null;
+    }
+
+    private static HttpResponseData CreateNotModifiedResponse(HttpRequestData request, string draftValidator)
+    {
+        var response = request.CreateResponse(HttpStatusCode.NotModified);
+        response.Headers.Add("ETag", draftValidator);
+        response.Headers.Add("Cache-Control", "private, no-cache");
+        return response;
+    }
+
+    private static async Task<HttpResponseData> WriteDraftJsonAsync<T>(
+        HttpRequestData request,
+        T value,
+        string draftValidator,
+        CancellationToken cancellationToken)
+    {
+        var response = request.CreateResponse(HttpStatusCode.OK);
+        response.Headers.Add("ETag", draftValidator);
+        response.Headers.Add("Cache-Control", "private, no-cache");
+        await response.WriteAsJsonAsync(value, cancellationToken: cancellationToken);
+        return response;
+    }
 
     // Optional ?sessionId= for the Game Day picker: which of today's games to load. Absent or
     // unparseable means "let the server auto-pick today's game".

@@ -84,6 +84,9 @@ public static class MauiProgram
         builder.Services.AddSingleton<StartupErrorHandler>();
         builder.Services.AddSingleton<IUserDialogService, UserDialogService>();
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<IPollingDelay, JitteredPollingDelay>();
+        builder.Services.AddSingleton<AppLifecycleState>();
+        builder.Services.AddSingleton<IAppLifecycleState>(services => services.GetRequiredService<AppLifecycleState>());
         builder.Services.AddSingleton<MainPageModel>();
         builder.Services.AddSingleton<ProjectListPageModel>();
         builder.Services.AddSingleton<ManageMetaPageModel>();

@@ -28,6 +28,12 @@ public sealed class SeedGameDayState
     private bool isTeamsLocked;
     private int autoBalanceVersion;
     private bool isPublished;
+    private long draftRevision;
+
+    public long DraftRevision
+    {
+        get { lock (syncRoot) { return draftRevision; } }
+    }
 
     public SeedGameDayState()
     {
@@ -63,6 +69,7 @@ public sealed class SeedGameDayState
             recentFormUpdates = [];
             isTeamsLocked = false;
             isPublished = false;
+            draftRevision = 1;
         }
     }
 
@@ -201,7 +208,9 @@ public sealed class SeedGameDayState
                 Array.AsReadOnly(captainIds.ToArray()),
                 CheckedInPlayers(),
                 CanLockTeams: !isTeamsLocked,
-                IsLocked: isTeamsLocked);
+                IsLocked: isTeamsLocked,
+                DraftRevision: draftRevision,
+                DraftValidator: DraftValidator());
         }
     }
 
@@ -225,6 +234,12 @@ public sealed class SeedGameDayState
                 return ClientCommandResult.Failure("captain_not_checked_in", "Captains must be checked in.");
             }
 
+
+            if (captainCount == count && captainIds.SequenceEqual(selectedCaptainIds))
+            {
+                return ClientCommandResult.Success;
+            }
+
             captainCount = count;
             captainIds = selectedCaptainIds.ToList();
             teamPlayerIds = ActiveTeamIds().ToDictionary(
@@ -236,6 +251,7 @@ public sealed class SeedGameDayState
             isPublished = false;
             isTeamsLocked = false;
             recentFormUpdates.Clear();
+            draftRevision++;
 
             return ClientCommandResult.Success;
         }
@@ -275,7 +291,9 @@ public sealed class SeedGameDayState
                     : $"On the clock: {onTheClockName}",
                 IsMyTurn: onTheClockTeamId is not null,
                 RoundNumber: 1,
-                CanAutoBalance: !locked);
+                CanAutoBalance: !locked,
+                DraftRevision: draftRevision,
+                DraftValidator: DraftValidator());
         }
     }
 
@@ -305,6 +323,7 @@ public sealed class SeedGameDayState
             }
 
             teamPlayerIds[teamId].Add(playerId);
+            draftRevision++;
             return ClientCommandResult.Success;
         }
     }
@@ -314,13 +333,14 @@ public sealed class SeedGameDayState
     {
         lock (syncRoot)
         {
-            // Mirrors the server: the deal number is state-owned, so every run visibly re-deals.
-            autoBalanceVersion++;
-            var attempt = autoBalanceVersion;
             if (isTeamsLocked || isPublished)
             {
                 return ClientCommandResult.Failure("teams_locked", "Teams are locked.");
             }
+
+            // Mirrors the server: rejected mutations do not consume a deterministic deal number.
+            autoBalanceVersion++;
+            var attempt = autoBalanceVersion;
 
             var teamIds = ActiveTeamIds().ToArray();
             var captains = teamIds.ToDictionary(teamId => teamId, CaptainId);
@@ -347,6 +367,8 @@ public sealed class SeedGameDayState
                     }
                 }
             }
+
+            draftRevision++;
 
             return ClientCommandResult.Success;
         }
@@ -430,7 +452,13 @@ public sealed class SeedGameDayState
                 return ClientCommandResult.Failure("player_already_assigned", "A player can only be assigned to one team.");
             }
 
+            if (teamPlayerIds[teamId].ToHashSet().SetEquals(selected))
+            {
+                return ClientCommandResult.Success;
+            }
+
             teamPlayerIds[teamId] = selected.ToList();
+            draftRevision++;
             return ClientCommandResult.Success;
         }
     }
@@ -444,7 +472,33 @@ public sealed class SeedGameDayState
                 return ClientCommandResult.Failure("session_not_found", "The session was not found.");
             }
 
+            if (isTeamsLocked)
+            {
+                return ClientCommandResult.Success;
+            }
+
             isTeamsLocked = true;
+            draftRevision++;
+            return ClientCommandResult.Success;
+        }
+    }
+
+    public ClientCommandResult UnlockTeams(Guid sessionId)
+    {
+        lock (syncRoot)
+        {
+            if (sessionId != SeedFixtures.MarinaSessionId)
+            {
+                return ClientCommandResult.Failure("session_not_found", "The session was not found.");
+            }
+
+            if (!isTeamsLocked)
+            {
+                return ClientCommandResult.Success;
+            }
+
+            isTeamsLocked = false;
+            draftRevision++;
             return ClientCommandResult.Success;
         }
     }
@@ -579,6 +633,8 @@ public sealed class SeedGameDayState
             .ToArray());
 
     private IEnumerable<Guid> ActiveTeamIds() => teamIds.Take(captainCount);
+
+    private string DraftValidator() => $"\"draft-{draftRevision}-roster-SEED\"";
 
     private Guid CaptainId(Guid teamId) => captainIds[Array.IndexOf(teamIds, teamId)];
 

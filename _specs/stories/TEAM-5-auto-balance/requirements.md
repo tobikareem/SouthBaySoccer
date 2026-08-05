@@ -33,6 +33,32 @@ Scenario: Caps are server policy
   Given 16 eligible players and 3 teams
   Then the server projects caps 6/5/5 (extra to the 1st-ranked team)
   And the client renders the projected caps without recomputing them
+
+Scenario: The next captain sees a completed pick without refreshing manually
+  Given multiple captains have the draft page open
+  When the on-the-clock captain drafts one player
+  Then the server advances the draft revision atomically with the pick
+  And the other visible draft pages discover the revision within approximately 2 seconds
+  And unchanged polls return no draft payload
+  And the next captain's available players become enabled without navigating away
+
+Scenario: A stale page cannot overwrite a newer draft
+  Given my page was loaded at an older draft revision
+  When I submit a pick or admin team mutation after another device changed the draft
+  Then the server rejects my stale revision with a typed precondition failure
+  And the client reloads the latest draft before allowing another mutation
+
+Scenario: Roster changes appear during a draft
+  Given the eligible roster changes without a team mutation
+  When a draft or spectator page remains visible
+  Then the composite conditional validator changes
+  And the next poll shows the roster change without waiting for another team mutation
+
+Scenario: Polling pauses with the application
+  Given a draft or spectator page is visible
+  When the application leaves the foreground
+  Then pending polling work is cancelled and no more requests are sent
+  And resuming the application triggers an immediate conditional refresh
 ```
 
 ## Player draft watch (read-only)
@@ -45,6 +71,7 @@ Scenario: Rostered players can watch the draft live
   And every team sheet so far, their own team and name marked
   And a "Yet to be picked (N)" list of the Going/Waitlist players still on the board
   And nothing on the page is tappable — watching only
+  And the visible page checks for changes approximately every 5 seconds without overlapping requests
   And once teams lock, the banner and the yet-to-be-picked list disappear
 ```
 

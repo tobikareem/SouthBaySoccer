@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using FluentValidation;
 using SouthBaySoccer.Application.Abstractions.Authentication;
@@ -31,7 +33,9 @@ public sealed record CaptainAssignmentModel(
     IReadOnlyList<CheckedInGameDayPlayerModel> CheckedInPlayers,
     bool CanLockTeams,
     bool IsLocked,
-    bool CanUnlockTeams = false);
+    bool CanUnlockTeams = false,
+    long DraftRevision = 0,
+    string DraftValidator = "");
 
 public sealed record GameDayMatchTeamModel(
     Guid TeamId,
@@ -57,7 +61,9 @@ public sealed record TeamDraftModel(
     string OnTheClockLabel = "",
     bool IsMyTurn = false,
     int RoundNumber = 1,
-    bool CanAutoBalance = false);
+    bool CanAutoBalance = false,
+    long DraftRevision = 0,
+    string DraftValidator = "");
 
 public sealed record PendingStatApprovalModel(
     Guid SubmissionId,
@@ -95,20 +101,22 @@ public sealed record LinkParticipantToProfileCommand(Guid ParticipantId, Guid Pl
 public sealed record AssignSessionCaptainsCommand(
     Guid SessionId,
     int CaptainCount,
-    IReadOnlyList<Guid> CaptainPlayerProfileIds);
+    IReadOnlyList<Guid> CaptainPlayerProfileIds,
+    long? ExpectedDraftRevision = null);
 
 public sealed record SaveCaptainTeamPicksCommand(
     Guid SessionId,
     Guid MatchTeamId,
-    IReadOnlyList<Guid> PlayerProfileIds);
+    IReadOnlyList<Guid> PlayerProfileIds,
+    long? ExpectedDraftRevision = null);
 
-public sealed record DraftPickCommand(Guid SessionId, Guid PlayerProfileId);
+public sealed record DraftPickCommand(Guid SessionId, Guid PlayerProfileId, long? ExpectedDraftRevision = null);
 
-public sealed record AutoBalanceTeamsCommand(Guid SessionId);
+public sealed record AutoBalanceTeamsCommand(Guid SessionId, long? ExpectedDraftRevision = null);
 
-public sealed record LockSessionTeamsCommand(Guid SessionId);
+public sealed record LockSessionTeamsCommand(Guid SessionId, long? ExpectedDraftRevision = null);
 
-public sealed record UnlockSessionTeamsCommand(Guid SessionId);
+public sealed record UnlockSessionTeamsCommand(Guid SessionId, long? ExpectedDraftRevision = null);
 
 public sealed record ApprovePostGameStatCommand(Guid SessionId, Guid MatchEventId);
 
@@ -121,7 +129,7 @@ public sealed record SavePostGameTeamResultCommand(
 
 public sealed record PublishPostGameCommand(Guid SessionId);
 
-public sealed record GameDayMutationModel(Guid SessionId, Guid MatchId, int AffectedCount);
+public sealed record GameDayMutationModel(Guid SessionId, Guid MatchId, int AffectedCount, long DraftRevision = 0);
 
 public sealed class AssignSessionCaptainsCommandValidator : AbstractValidator<AssignSessionCaptainsCommand>
 {
@@ -216,17 +224,24 @@ public sealed class GetCaptainAssignmentQueryHandler(
 {
     public async Task<CaptainAssignmentModel> HandleAsync(
         Guid sessionId,
+        CancellationToken cancellationToken = default) =>
+        await HandleConditionalAsync(sessionId, null, cancellationToken)
+            ?? throw new InvalidOperationException("An unconditional captain query cannot be not modified.");
+
+    public async Task<CaptainAssignmentModel?> HandleConditionalAsync(
+        Guid sessionId,
+        string? knownDraftValidator,
         CancellationToken cancellationToken = default)
     {
         GameDayWorkflowAuthorization.EnsureGameAdmin(currentUser);
         _ = await GameDayWorkflowQueries.GetSessionAsync(sessionRepository, sessionId, cancellationToken);
+        var match = await statsRepository.FindPrimaryMatchBySessionAsync(sessionId, cancellationToken);
         var roster = await GameDayWorkflowQueries.ListEligibleRosterAsync(
             rsvpRepository,
             pickupPalGameRepository,
             playerProfileRepository,
             sessionId,
             cancellationToken);
-        var match = await statsRepository.FindPrimaryMatchBySessionAsync(sessionId, cancellationToken);
         var teams = match is null
             ? []
             : await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken);
@@ -248,7 +263,7 @@ public sealed class GetCaptainAssignmentQueryHandler(
                 && (await statsRepository.ListMatchEventsAsync(match.Id, cancellationToken)).Count == 0;
         }
 
-        return new CaptainAssignmentModel(
+        var model = new CaptainAssignmentModel(
             sessionId,
             match?.Id ?? Guid.Empty,
             teams.Count is >= 2 and <= 4 ? teams.Count : 2,
@@ -261,7 +276,12 @@ public sealed class GetCaptainAssignmentQueryHandler(
                     && assignments.Any(assignment => assignment.MatchTeamId == team.Id
                         && assignment.PlayerProfileId == captainId)),
             match is not null && match.Status != MatchStatus.Draft,
-            canUnlockTeams);
+            canUnlockTeams,
+            match?.DraftRevision ?? 0);
+        var draftValidator = GameDayWorkflowQueries.BuildDraftValidator(model.DraftRevision, model);
+        return string.Equals(knownDraftValidator, draftValidator, StringComparison.Ordinal)
+            ? null
+            : model with { DraftValidator = draftValidator };
     }
 }
 
@@ -343,6 +363,7 @@ public sealed class AssignSessionCaptainsCommandHandler(
         var match = await statsRepository.FindPrimaryMatchBySessionAsync(command.SessionId, cancellationToken);
         if (match is not null)
         {
+            GameDayWorkflowQueries.EnsureExpectedDraftRevision(match, command.ExpectedDraftRevision);
             GameDayWorkflowQueries.EnsureTeamsEditable(
                 match,
                 GameDayWorkflowAuthorization.IsGameAdmin(currentUser));
@@ -358,7 +379,7 @@ public sealed class AssignSessionCaptainsCommandHandler(
             if (currentTeams.Count == command.CaptainCount
                 && orderedCurrentCaptainIds.SequenceEqual(command.CaptainPlayerProfileIds))
             {
-                return new GameDayMutationModel(command.SessionId, match.Id, 0);
+                return new GameDayMutationModel(command.SessionId, match.Id, 0, match.DraftRevision);
             }
 
             var hasRecordedFacts = (await statsRepository.ListMatchResultsAsync(match.Id, cancellationToken)).Count > 0
@@ -388,6 +409,7 @@ public sealed class AssignSessionCaptainsCommandHandler(
                 MatchNumber = 1,
                 Status = MatchStatus.Draft,
             };
+            GameDayWorkflowQueries.EnsureExpectedDraftRevision(match, command.ExpectedDraftRevision);
         }
 
         var teams = command.CaptainPlayerProfileIds.Select((captainId, index) => new MatchTeam
@@ -415,6 +437,7 @@ public sealed class AssignSessionCaptainsCommandHandler(
         }).ToArray();
 
         session.TeamCount = command.CaptainCount;
+        match.DraftRevision++;
 
         if (await statsRepository.FindMatchAsync(match.Id, cancellationToken) is null)
         {
@@ -448,7 +471,7 @@ public sealed class AssignSessionCaptainsCommandHandler(
             OccurredAtUtc = clock.UtcNow,
         }, cancellationToken);
 
-        return new GameDayMutationModel(command.SessionId, match.Id, command.CaptainCount);
+        return new GameDayMutationModel(command.SessionId, match.Id, command.CaptainCount, match.DraftRevision);
     }
 }
 
@@ -496,9 +519,10 @@ public sealed class LockSessionTeamsCommandHandler(
             GameDayWorkflowAuthorization.IsGameAdmin(currentUser));
         var match = await statsRepository.FindPrimaryMatchBySessionAsync(command.SessionId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Captain assignments were not found for this session.");
+        GameDayWorkflowQueries.EnsureExpectedDraftRevision(match, command.ExpectedDraftRevision);
         if (match.Status == MatchStatus.InProgress)
         {
-            return new GameDayMutationModel(session.Id, match.Id, 0);
+            return new GameDayMutationModel(session.Id, match.Id, 0, match.DraftRevision);
         }
 
         if (match.Status != MatchStatus.Draft)
@@ -531,6 +555,7 @@ public sealed class LockSessionTeamsCommandHandler(
 
         match.Status = MatchStatus.InProgress;
         match.StartedAtUtc ??= session.StartsAtUtc;
+        match.DraftRevision++;
         await auditLogRepository.AddAsync(new AuditLogEntry
         {
             Id = Guid.NewGuid(),
@@ -548,7 +573,7 @@ public sealed class LockSessionTeamsCommandHandler(
             }),
             OccurredAtUtc = clock.UtcNow,
         }, cancellationToken);
-        return new GameDayMutationModel(session.Id, match.Id, 1);
+        return new GameDayMutationModel(session.Id, match.Id, 1, match.DraftRevision);
     }
 }
 
@@ -589,12 +614,13 @@ public sealed class UnlockSessionTeamsCommandHandler(
         var session = await GameDayWorkflowQueries.GetSessionAsync(sessionRepository, command.SessionId, cancellationToken);
         var match = await statsRepository.FindPrimaryMatchBySessionAsync(command.SessionId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Captain assignments were not found for this session.");
+        GameDayWorkflowQueries.EnsureExpectedDraftRevision(match, command.ExpectedDraftRevision);
         // No upper time bound, mirroring Lock (which an admin may do whenever the session is published):
         // unlock is already fully constrained by requiring InProgress with no recorded results/stats, so
         // the button's CanUnlockTeams and this handler agree.
         if (match.Status == MatchStatus.Draft)
         {
-            return new GameDayMutationModel(session.Id, match.Id, 0);
+            return new GameDayMutationModel(session.Id, match.Id, 0, match.DraftRevision);
         }
 
         if (match.Status != MatchStatus.InProgress)
@@ -613,6 +639,7 @@ public sealed class UnlockSessionTeamsCommandHandler(
         // Back to Draft so captains can pick again; the game has not really started, so clear the mark.
         match.Status = MatchStatus.Draft;
         match.StartedAtUtc = null;
+        match.DraftRevision++;
         await auditLogRepository.AddAsync(new AuditLogEntry
         {
             Id = Guid.NewGuid(),
@@ -628,7 +655,7 @@ public sealed class UnlockSessionTeamsCommandHandler(
             }),
             OccurredAtUtc = clock.UtcNow,
         }, cancellationToken);
-        return new GameDayMutationModel(session.Id, match.Id, 1);
+        return new GameDayMutationModel(session.Id, match.Id, 1, match.DraftRevision);
     }
 }
 
@@ -641,7 +668,14 @@ public sealed class GetTeamDraftQueryHandler(
     IPickupPalGameRepository pickupPalGameRepository,
     IStatsRepository statsRepository)
 {
-    public async Task<TeamDraftModel> HandleAsync(Guid sessionId, CancellationToken cancellationToken = default)
+    public async Task<TeamDraftModel> HandleAsync(Guid sessionId, CancellationToken cancellationToken = default) =>
+        await HandleConditionalAsync(sessionId, null, cancellationToken)
+            ?? throw new InvalidOperationException("An unconditional draft query cannot be not modified.");
+
+    public async Task<TeamDraftModel?> HandleConditionalAsync(
+        Guid sessionId,
+        string? knownDraftValidator,
+        CancellationToken cancellationToken = default)
     {
         var actor = await GameDayWorkflowAuthorization.GetCurrentProfileAsync(
             currentUser,
@@ -667,13 +701,13 @@ public sealed class GetTeamDraftQueryHandler(
                 ?? throw new ApplicationNotFoundException("Captain assignments were not found for this session.");
         }
 
-        var assignments = await statsRepository.ListAssignmentsAsync(match.Id, cancellationToken);
         var roster = await GameDayWorkflowQueries.ListEligibleRosterAsync(
             rsvpRepository,
             pickupPalGameRepository,
             playerProfileRepository,
             sessionId,
             cancellationToken);
+        var assignments = await statsRepository.ListAssignmentsAsync(match.Id, cancellationToken);
         // An admin keeps editing after kick-off (and after results are recorded) until the match is
         // published or locked; a captain's sheet freezes as soon as the match leaves Draft.
         var locked = isGameAdmin
@@ -704,7 +738,7 @@ public sealed class GetTeamDraftQueryHandler(
                 ? "Your turn — pick 1 player"
                 : $"On the clock: {teamsByRank.Single(team => team.Id == onTheClockTeamId).Name}";
 
-        return new TeamDraftModel(
+        var model = new TeamDraftModel(
             sessionId,
             match.Id,
             actorTeam.Id,
@@ -721,7 +755,12 @@ public sealed class GetTeamDraftQueryHandler(
             onTheClockLabel,
             isMyTurn,
             roundNumber,
-            CanAutoBalance: isGameAdmin && match.Status == MatchStatus.Draft && !locked);
+            CanAutoBalance: isGameAdmin && match.Status == MatchStatus.Draft && !locked,
+            DraftRevision: match.DraftRevision);
+        var draftValidator = GameDayWorkflowQueries.BuildDraftValidator(model.DraftRevision, model);
+        return string.Equals(knownDraftValidator, draftValidator, StringComparison.Ordinal)
+            ? null
+            : model with { DraftValidator = draftValidator };
     }
 }
 
@@ -773,6 +812,7 @@ public sealed class SaveCaptainTeamPicksCommandHandler(
         GameDayWorkflowQueries.EnsureCaptainDraftWindow(session, clock.UtcNow, isGameAdmin: true);
         var match = await statsRepository.FindPrimaryMatchBySessionAsync(command.SessionId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Captain assignments were not found for this session.");
+        GameDayWorkflowQueries.EnsureExpectedDraftRevision(match, command.ExpectedDraftRevision);
         GameDayWorkflowQueries.EnsureTeamsEditable(match, isGameAdmin: true);
 
         var teams = await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken);
@@ -816,11 +856,21 @@ public sealed class SaveCaptainTeamPicksCommandHandler(
             throw new ApplicationConflictException("A selected player has already been drafted by another team.");
         }
 
+        var currentIds = assignments
+            .Where(x => x.MatchTeamId == team.Id)
+            .Select(x => x.PlayerProfileId)
+            .ToHashSet();
+        if (currentIds.SetEquals(requestedIds))
+        {
+            return new GameDayMutationModel(session.Id, match.Id, 0, match.DraftRevision);
+        }
+
         await statsRepository.ReplaceTeamAssignmentsAsync(
             match.Id,
             team.Id,
             requestedIds,
             cancellationToken);
+        match.DraftRevision++;
         await auditLogRepository.AddAsync(new AuditLogEntry
         {
             Id = Guid.NewGuid(),
@@ -839,7 +889,7 @@ public sealed class SaveCaptainTeamPicksCommandHandler(
             OccurredAtUtc = clock.UtcNow,
         }, cancellationToken);
 
-        return new GameDayMutationModel(session.Id, match.Id, requestedIds.Length);
+        return new GameDayMutationModel(session.Id, match.Id, requestedIds.Length, match.DraftRevision);
     }
 }
 
@@ -890,6 +940,7 @@ public sealed class DraftPickCommandHandler(
         GameDayWorkflowQueries.EnsureCaptainDraftWindow(session, clock.UtcNow, isGameAdmin);
         var match = await statsRepository.FindPrimaryMatchBySessionAsync(command.SessionId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Captain assignments were not found for this session.");
+        GameDayWorkflowQueries.EnsureExpectedDraftRevision(match, command.ExpectedDraftRevision);
         GameDayWorkflowQueries.EnsureTeamsEditable(match, isGameAdmin);
 
         var teamsByRank = (await statsRepository.ListMatchTeamsAsync(match.Id, cancellationToken))
@@ -953,6 +1004,7 @@ public sealed class DraftPickCommandHandler(
             onTheClockTeam.Id,
             teamMemberIds,
             cancellationToken);
+        match.DraftRevision++;
         await auditLogRepository.AddAsync(new AuditLogEntry
         {
             Id = Guid.NewGuid(),
@@ -970,7 +1022,7 @@ public sealed class DraftPickCommandHandler(
             }),
             OccurredAtUtc = clock.UtcNow,
         }, cancellationToken);
-        return new GameDayMutationModel(session.Id, match.Id, 1);
+        return new GameDayMutationModel(session.Id, match.Id, 1, match.DraftRevision);
     }
 }
 
@@ -1028,6 +1080,7 @@ public sealed class AutoBalanceTeamsCommandHandler(
         GameDayWorkflowQueries.EnsureCaptainDraftWindow(session, clock.UtcNow, isGameAdmin: true);
         var match = await statsRepository.FindPrimaryMatchBySessionAsync(command.SessionId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Captain assignments were not found for this session.");
+        GameDayWorkflowQueries.EnsureExpectedDraftRevision(match, command.ExpectedDraftRevision);
         if (match.Status != MatchStatus.Draft)
         {
             throw new ApplicationConflictException("Teams can only be auto-balanced while the match is still a draft.");
@@ -1087,6 +1140,7 @@ public sealed class AutoBalanceTeamsCommandHandler(
         // regardless of which admin, device, or page session triggers it — deterministically
         // produces the NEXT variant, never a replay of an old one.
         match.AutoBalanceVersion++;
+        match.DraftRevision++;
         var attempt = match.AutoBalanceVersion;
         var seed = TeamBalancer.DeriveSeed(match.Id, attempt);
         var deal = TeamBalancer.Balance(seeds, players, seed);
@@ -1112,7 +1166,7 @@ public sealed class AutoBalanceTeamsCommandHandler(
             }),
             OccurredAtUtc = clock.UtcNow,
         }, cancellationToken);
-        return new GameDayMutationModel(session.Id, match.Id, roster.Count);
+        return new GameDayMutationModel(session.Id, match.Id, roster.Count, match.DraftRevision);
     }
 
     // Postconditions are invariants of the balancer, not user errors: a violation means a bug, and
@@ -1770,6 +1824,22 @@ internal static class GameDayWorkflowAuthorization
 
 internal static class GameDayWorkflowQueries
 {
+    internal static string BuildDraftValidator(long draftRevision, object representation)
+    {
+        var hashInput = JsonSerializer.Serialize(representation);
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(hashInput)))[..16];
+        return $"\"draft-{draftRevision}-roster-{hash}\"";
+    }
+
+    internal static void EnsureExpectedDraftRevision(Match match, long? expectedDraftRevision)
+    {
+        if (expectedDraftRevision is { } expected && expected != match.DraftRevision)
+        {
+            throw new ApplicationPreconditionFailedException(
+                "The draft changed since it was loaded. Reload the teams and try again.");
+        }
+    }
+
     private static readonly TimeSpan PostGameOffset = TimeSpan.FromMinutes(90);
 
     internal static async Task<Session> GetSessionAsync(

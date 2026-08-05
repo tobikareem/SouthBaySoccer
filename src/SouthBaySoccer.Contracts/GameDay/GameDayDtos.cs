@@ -157,7 +157,9 @@ public sealed record CaptainAssignmentDto(
     IReadOnlyList<CheckedInPlayerDto> CheckedInPlayers,
     bool CanLockTeams = false,
     bool IsLocked = false,
-    bool CanUnlockTeams = false);
+    bool CanUnlockTeams = false,
+    long DraftRevision = 0,
+    string DraftValidator = "");
 
 public sealed record SessionTeamsDto(
     Guid SessionId,
@@ -165,7 +167,9 @@ public sealed record SessionTeamsDto(
     IReadOnlyList<SessionTeamDto> Teams,
     bool IsDraftInProgress = false,
     string OnTheClockLabel = "",
-    IReadOnlyList<SessionTeamMemberDto>? AvailablePlayers = null);
+    IReadOnlyList<SessionTeamMemberDto>? AvailablePlayers = null,
+    long DraftRevision = 0,
+    string DraftValidator = "");
 
 public sealed record SessionTeamDto(
     Guid TeamId,
@@ -208,7 +212,9 @@ public sealed record TeamDraftDto(
     string OnTheClockLabel = "",
     bool IsMyTurn = false,
     int RoundNumber = 1,
-    bool CanAutoBalance = false);
+    bool CanAutoBalance = false,
+    long DraftRevision = 0,
+    string DraftValidator = "");
 
 public sealed record SaveTeamPicksRequest(IReadOnlyList<Guid> PlayerProfileIds);
 
@@ -259,7 +265,7 @@ public sealed record TeamResultUpdateDto(
 
 public sealed record SavePostGameTeamResultRequest(int Wins, int Draws, int Losses);
 
-public sealed record GameDayMutationResponse(Guid SessionId, Guid MatchId, int AffectedCount);
+public sealed record GameDayMutationResponse(Guid SessionId, Guid MatchId, int AffectedCount, long DraftRevision = 0);
 
 public sealed record RecentFormUpdateDto(
     Guid PlayerId,

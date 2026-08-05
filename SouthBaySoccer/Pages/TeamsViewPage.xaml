@@ -18,6 +18,10 @@
             BindingContext="{Binding Path=BindingContext, Source={x:Reference TeamsView}, x:DataType=ContentPage}"
             EventName="Appearing"
             Command="{Binding AppearingCommand}" />
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference TeamsView}, x:DataType=ContentPage}"
+            EventName="Disappearing"
+            Command="{Binding DisappearingCommand}" />
     </ContentPage.Behaviors>
     <Grid RowDefinitions="Auto,*">
         <c:BrandHeader

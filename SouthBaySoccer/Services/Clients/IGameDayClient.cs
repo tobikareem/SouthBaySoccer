@@ -62,40 +62,70 @@ public interface IGameDayClient
         Guid sessionId,
         int captainCount,
         IReadOnlyList<Guid> captainIds,
+        long revision,
         CancellationToken cancellationToken);
 
     Task<TeamDraftDto?> GetTeamDraftAsync(
         Guid sessionId,
         CancellationToken cancellationToken);
 
+    Task<ConditionalReadResult<TeamDraftDto>> GetTeamDraftIfChangedAsync(
+        Guid sessionId,
+        long revision,
+        CancellationToken cancellationToken);
+
+    Task<ConditionalReadResult<TeamDraftDto>> GetTeamDraftIfChangedAsync(
+        Guid sessionId,
+        long revision,
+        string? validator,
+        CancellationToken cancellationToken) =>
+        GetTeamDraftIfChangedAsync(sessionId, revision, cancellationToken);
+
     Task<ClientCommandResult> SaveTeamPicksAsync(
         Guid sessionId,
         Guid teamId,
         IReadOnlyList<Guid> playerIds,
+        long revision,
         CancellationToken cancellationToken);
 
     /// <summary>One snake-draft pick by the on-the-clock captain (or an admin on their behalf).</summary>
     Task<ClientCommandResult> DraftPickAsync(
         Guid sessionId,
         Guid playerId,
+        long revision,
         CancellationToken cancellationToken);
 
     /// <summary>Admin-only: re-deals every team by rating balance; the server deals the next variant each run.</summary>
     Task<ClientCommandResult> AutoBalanceTeamsAsync(
         Guid sessionId,
+        long revision,
         CancellationToken cancellationToken);
 
     Task<ClientCommandResult> LockTeamsAsync(
         Guid sessionId,
+        long revision,
         CancellationToken cancellationToken);
 
     Task<ClientCommandResult> UnlockTeamsAsync(
         Guid sessionId,
+        long revision,
         CancellationToken cancellationToken);
 
     Task<SessionTeamsDto?> GetSessionTeamsAsync(
         Guid sessionId,
         CancellationToken cancellationToken);
+
+    Task<ConditionalReadResult<SessionTeamsDto>> GetSessionTeamsIfChangedAsync(
+        Guid sessionId,
+        long revision,
+        CancellationToken cancellationToken);
+
+    Task<ConditionalReadResult<SessionTeamsDto>> GetSessionTeamsIfChangedAsync(
+        Guid sessionId,
+        long revision,
+        string? validator,
+        CancellationToken cancellationToken) =>
+        GetSessionTeamsIfChangedAsync(sessionId, revision, cancellationToken);
 
     Task<PostGameApprovalDto?> GetPostGameApprovalAsync(
         Guid sessionId,

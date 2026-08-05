@@ -946,6 +946,85 @@ public sealed class GameDayWorkflowHandlerTests
             context.Audits.Object,
             context.UnitOfWork.Object);
 
+    [Fact]
+    public async Task CaptainAssignment_WhenKnownValidatorMatches_ReturnsNotModified()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: true);
+        context.Match.DraftRevision = 12;
+        context.ConfigureMatch([context.Team(context.Actor.Id, 1)]);
+        var handler = new GetCaptainAssignmentQueryHandler(
+            context.CurrentUser.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Profiles.Object,
+            context.Stats.Object);
+
+        var current = await handler.HandleAsync(context.Session.Id);
+        context.Stats.Invocations.Clear();
+
+        var result = await handler.HandleConditionalAsync(context.Session.Id, current.DraftValidator);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task TeamDraft_WhenKnownValidatorMatches_ReturnsNotModified()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: true);
+        context.Match.DraftRevision = 8;
+        context.ConfigureMatch([context.Team(context.Actor.Id, 1)]);
+        var handler = new GetTeamDraftQueryHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Stats.Object);
+
+        var current = await handler.HandleAsync(context.Session.Id);
+        context.Stats.Invocations.Clear();
+
+        var result = await handler.HandleConditionalAsync(context.Session.Id, current.DraftValidator);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SessionTeams_WhenKnownRevisionMatches_AuthorizesRosterThenSkipsProjection()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        context.Match.DraftRevision = 4;
+        context.ConfigureMatch([context.Team(context.Actor.Id, 1)]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([context.Roster(context.Actor.Id, "Ada Green")]);
+
+        var handler = CreateSessionTeamsHandler(context);
+        var current = await handler.HandleAsync(context.Session.Id);
+        context.Stats.Invocations.Clear();
+
+        var result = await handler.HandleConditionalAsync(context.Session.Id, current.DraftValidator);
+
+        result.Should().BeNull();
+        context.Rsvps.Verify(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task DraftPick_WhenExpectedRevisionIsStale_RejectsBeforeAssignmentReads()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        context.Match.DraftRevision = 3;
+        context.ConfigureMatch([context.Team(context.Actor.Id, 1)]);
+
+        var act = () => CreateDraftPickHandler(context)
+            .HandleAsync(new DraftPickCommand(context.Session.Id, Guid.NewGuid(), ExpectedDraftRevision: 2));
+
+        await act.Should().ThrowAsync<ApplicationPreconditionFailedException>().WithMessage("*draft changed*");
+        context.Stats.Verify(x => x.ListMatchTeamsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private sealed class TestContext
     {
         public TestContext(bool postGame, bool isGameAdmin)

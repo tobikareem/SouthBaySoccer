@@ -42,3 +42,6 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [group-broadcast-notifications](group-broadcast-notifications.md) - Admin broadcasts are group-scoped in-app announcements with a read-only player feed
 - [last-game-player-follow-up](last-game-player-follow-up.md) - Last-game rating action and approved goal/assist icon tallies
 - [player-game-day-recent-history](player-game-day-recent-history.md) - Today/Recent games preserves live Game Day plus three checked-in histories
+# Game Day live draft state
+
+- [Game Day draft revision and adaptive polling](game-day-draft-revision.md)
