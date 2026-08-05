@@ -563,12 +563,12 @@
       <div class="scroll">
         <div class="seg"><a class="active" onclick="captainMode(this,2)">2 captains</a><a onclick="captainMode(this,3)">3 captains</a><a onclick="captainMode(this,4)">4 captains</a></div>
         <div class="card"><div class="row" style="justify-content:space-between"><span style="font-weight:700">Team captains</span><span class="pill ok"><i class="ti ti-key"></i> one team each</span></div><div class="meta-row"><span class="team-chip">Team 1 - TK</span><span class="team-chip">Team 2 - KT</span><span class="team-chip cap3" style="display:none">Team 3 - JD</span><span class="team-chip cap4" style="display:none">Team 4 - SM</span></div></div>
-        <div class="notice"><i class="ti ti-alert-circle"></i><div>Captains must be selected from checked-in players only. Selection max follows the active tab.</div></div>
+        <div class="notice"><i class="ti ti-alert-circle"></i><div>Tap captains in order: the 1st captain gets team 1 and the first pick of the snake draft (1-2-3, then 3-2-1). Selection max follows the active tab.</div></div>
         <div class="input" style="display:flex;align-items:center;gap:8px;margin:12px 0;background:#fbfcfb"><i class="ti ti-search" style="color:var(--sage)"></i><input aria-label="Search checked-in players" placeholder="Search checked-in players" oninput="filterRows(this,'captain-list')" style="border:0;outline:0;background:transparent;width:100%;font-size:15px;color:var(--ink)" /></div>
         <div class="label" style="margin-top:14px">Checked-in players</div>
         <div class="card captain-list" style="padding:6px 14px">
-          <label class="checkrow"><input type="checkbox" checked onchange="capCheck(this)"><span class="avatar" style="width:30px;height:30px;font-size:11px">TK</span><div style="flex:1"><div style="font-weight:600">Tobi Kareem</div><div class="muted">checked in - midfielder</div></div><span class="pill ok">Captain</span></label>
-          <label class="checkrow"><input type="checkbox" checked onchange="capCheck(this)"><span class="avatar" style="width:30px;height:30px;font-size:11px">KT</span><div style="flex:1"><div style="font-weight:600">Kola T.</div><div class="muted">checked in - forward</div></div><span class="pill ok">Captain</span></label>
+          <label class="checkrow"><input type="checkbox" checked onchange="capCheck(this)"><span class="avatar" style="width:30px;height:30px;font-size:11px">TK</span><div style="flex:1"><div style="font-weight:600">Tobi Kareem</div><div class="muted">checked in - midfielder</div></div><span class="pill ok">1st captain</span></label>
+          <label class="checkrow"><input type="checkbox" checked onchange="capCheck(this)"><span class="avatar" style="width:30px;height:30px;font-size:11px">KT</span><div style="flex:1"><div style="font-weight:600">Kola T.</div><div class="muted">checked in - forward</div></div><span class="pill ok">2nd captain</span></label>
           <label class="checkrow"><input type="checkbox" onchange="capCheck(this)"><span class="avatar" style="width:30px;height:30px;font-size:11px">JD</span><div style="flex:1"><div style="font-weight:600">Jide D.</div><div class="muted">checked in - midfielder</div></div></label>
           <label class="checkrow" style="border:none"><input type="checkbox" onchange="capCheck(this)"><span class="avatar" style="width:30px;height:30px;font-size:11px">SM</span><div style="flex:1"><div style="font-weight:600">Sade M.</div><div class="muted">checked in - goalkeeper</div></div></label>
         </div>
@@ -581,6 +581,10 @@
     <section class="screen" data-s="draft">
       <div class="ghdr"><span class="flag"></span><div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Captain - Tobi</div><div style="font-size:17px;font-weight:500">Pick team</div></div></div></div>
       <div class="scroll">
+        <!-- TEAM-5: snake-turn banner (always visible) + admin-only auto-balance. Captains tap a
+             player on their turn to pick; the bulk Save below is admin-only. -->
+        <div class="notice"><i class="ti ti-clock"></i><div><b>On the clock: Team Green</b> - round 2 of the snake draft (1-2-3, then 3-2-1).</div></div>
+        <button class="btn" style="border:1px solid var(--line)"><i class="ti ti-scale"></i> Auto-balance teams (admin)</button>
         <div class="card"><div class="row" style="justify-content:space-between"><div><div style="font-weight:700">Team Green</div><div class="muted"><span id="pickCount">4</span> picked - 8 unassigned</div></div><span class="pill ok"><i class="ti ti-key"></i> TeamDraft.PickPlayer</span></div></div>
         <div class="input" style="display:flex;align-items:center;gap:8px;margin:12px 0;background:#fbfcfb"><i class="ti ti-search" style="color:var(--sage)"></i><input aria-label="Search checked-in roster" placeholder="Search checked-in roster" oninput="filterRows(this,'draft-list')" style="border:0;outline:0;background:transparent;width:100%;font-size:15px;color:var(--ink)" /></div>
         <div class="label">Checked-in roster</div>
@@ -590,8 +594,8 @@
           <label class="checkrow"><input type="checkbox" onchange="draftToggle(this)"><span class="avatar" style="width:30px;height:30px;font-size:11px">SM</span><div style="flex:1"><div style="font-weight:600">Sade M.</div><div class="muted">Goalkeeper - checked in</div></div></label>
           <label class="checkrow" style="border:none;opacity:.55"><input type="checkbox" disabled><span class="avatar" style="width:30px;height:30px;font-size:11px">FO</span><div style="flex:1"><div style="font-weight:600">Femi O.</div><div class="muted">Already picked - Team White</div></div><i class="ti ti-lock" style="color:var(--sage)"></i></label>
         </div>
-        <button class="btn primary"><i class="ti ti-device-floppy"></i> Save team picks</button>
-        <p class="muted" style="text-align:center">Permission expires when teams lock.</p>
+        <button class="btn primary"><i class="ti ti-device-floppy"></i> Save team picks (admin)</button>
+        <p class="muted" style="text-align:center">Captains: tap a player on your turn to pick them. Permission expires when teams lock.</p>
       </div>
     </section>
 

@@ -26,7 +26,14 @@ public sealed class SeedGameDayState
     private List<PendingStatApprovalDto> approvals = [];
     private List<RecentFormUpdateDto> recentFormUpdates = [];
     private bool isTeamsLocked;
+    private int autoBalanceVersion;
     private bool isPublished;
+    private long draftRevision;
+
+    public long DraftRevision
+    {
+        get { lock (syncRoot) { return draftRevision; } }
+    }
 
     public SeedGameDayState()
     {
@@ -62,6 +69,7 @@ public sealed class SeedGameDayState
             recentFormUpdates = [];
             isTeamsLocked = false;
             isPublished = false;
+            draftRevision = 1;
         }
     }
 
@@ -200,7 +208,9 @@ public sealed class SeedGameDayState
                 Array.AsReadOnly(captainIds.ToArray()),
                 CheckedInPlayers(),
                 CanLockTeams: !isTeamsLocked,
-                IsLocked: isTeamsLocked);
+                IsLocked: isTeamsLocked,
+                DraftRevision: draftRevision,
+                DraftValidator: DraftValidator());
         }
     }
 
@@ -224,6 +234,12 @@ public sealed class SeedGameDayState
                 return ClientCommandResult.Failure("captain_not_checked_in", "Captains must be checked in.");
             }
 
+
+            if (captainCount == count && captainIds.SequenceEqual(selectedCaptainIds))
+            {
+                return ClientCommandResult.Success;
+            }
+
             captainCount = count;
             captainIds = selectedCaptainIds.ToList();
             teamPlayerIds = ActiveTeamIds().ToDictionary(
@@ -235,6 +251,7 @@ public sealed class SeedGameDayState
             isPublished = false;
             isTeamsLocked = false;
             recentFormUpdates.Clear();
+            draftRevision++;
 
             return ClientCommandResult.Success;
         }
@@ -247,6 +264,12 @@ public sealed class SeedGameDayState
             var teams = MatchTeams();
             var currentTeam = teams.FirstOrDefault(team => team.CaptainId == SeedFixtures.CurrentPlayerId)
                 ?? teams[0];
+            var locked = isTeamsLocked || isPublished;
+            var caps = TeamCaps();
+            var onTheClockTeamId = locked ? null : ResolveOnTheClockTeamId(caps);
+            var onTheClockName = onTheClockTeamId is { } clockId
+                ? teams.First(team => team.TeamId == clockId).Name
+                : null;
 
             return new TeamDraftDto(
                 sessionId,
@@ -254,11 +277,149 @@ public sealed class SeedGameDayState
                 currentTeam.TeamId,
                 currentTeam.Name,
                 currentTeam.CaptainName,
-                !isTeamsLocked && !isPublished,
-                isTeamsLocked || isPublished,
+                !locked,
+                locked,
                 captainCount,
                 CheckedInPlayers(),
-                teams);
+                teams,
+                // The seed player runs demos as the organizer, so the admin surface is visible.
+                CanManageAllTeams: true,
+                TeamCaps: caps,
+                OnTheClockTeamId: onTheClockTeamId,
+                OnTheClockLabel: locked || onTheClockName is null
+                    ? "Draft complete"
+                    : $"On the clock: {onTheClockName}",
+                IsMyTurn: onTheClockTeamId is not null,
+                RoundNumber: 1,
+                CanAutoBalance: !locked,
+                DraftRevision: draftRevision,
+                DraftValidator: DraftValidator());
+        }
+    }
+
+    /// <summary>One snake-draft pick: assigns the player to the seed's on-the-clock team.</summary>
+    public ClientCommandResult DraftPick(Guid sessionId, Guid playerId)
+    {
+        lock (syncRoot)
+        {
+            if (isTeamsLocked || isPublished)
+            {
+                return ClientCommandResult.Failure("teams_locked", "Teams are locked.");
+            }
+
+            if (!checkedInPlayerIds.Contains(playerId))
+            {
+                return ClientCommandResult.Failure("player_not_checked_in", "Only checked-in players can be assigned.");
+            }
+
+            if (teamPlayerIds.Values.Any(ids => ids.Contains(playerId)))
+            {
+                return ClientCommandResult.Failure("player_already_assigned", "That player has already been drafted.");
+            }
+
+            if (ResolveOnTheClockTeamId(TeamCaps()) is not { } teamId)
+            {
+                return ClientCommandResult.Failure("draft_complete", "The draft is complete — every team is full.");
+            }
+
+            teamPlayerIds[teamId].Add(playerId);
+            draftRevision++;
+            return ClientCommandResult.Success;
+        }
+    }
+
+    /// <summary>Re-deals every team, captains fixed, rotated deterministically by attempt.</summary>
+    public ClientCommandResult AutoBalanceTeams(Guid sessionId)
+    {
+        lock (syncRoot)
+        {
+            if (isTeamsLocked || isPublished)
+            {
+                return ClientCommandResult.Failure("teams_locked", "Teams are locked.");
+            }
+
+            // Mirrors the server: rejected mutations do not consume a deterministic deal number.
+            autoBalanceVersion++;
+            var attempt = autoBalanceVersion;
+
+            var teamIds = ActiveTeamIds().ToArray();
+            var captains = teamIds.ToDictionary(teamId => teamId, CaptainId);
+            var pool = checkedInPlayerIds
+                .Where(playerId => !captains.Values.Contains(playerId))
+                .OrderBy(playerId => playerId)
+                .ToArray();
+            var caps = TeamCaps();
+            teamPlayerIds = teamIds.ToDictionary(
+                teamId => teamId,
+                teamId => new List<Guid> { captains[teamId] });
+            foreach (var (playerId, offset) in pool.Select((playerId, index) => (playerId, index)))
+            {
+                // Attempt-shifted round-robin: deterministic yet visibly different per attempt.
+                var slot = (offset + attempt) % teamIds.Length;
+                for (var probe = 0; probe < teamIds.Length; probe++)
+                {
+                    var candidate = teamIds[(slot + probe) % teamIds.Length];
+                    var candidateIndex = Array.IndexOf(teamIds, candidate);
+                    if (teamPlayerIds[candidate].Count < caps[candidateIndex])
+                    {
+                        teamPlayerIds[candidate].Add(playerId);
+                        break;
+                    }
+                }
+            }
+
+            draftRevision++;
+
+            return ClientCommandResult.Success;
+        }
+    }
+
+    // Mirrors the server's rank-ordered split: total / teams, remainder to the first teams.
+    private IReadOnlyList<int> TeamCaps()
+    {
+        var teamCount = Math.Max(1, captainCount);
+        var total = checkedInPlayerIds.Count;
+        var baseCap = total / teamCount;
+        var remainder = total % teamCount;
+        return Enumerable.Range(0, teamCount)
+            .Select(index => baseCap + (index < remainder ? 1 : 0))
+            .ToArray();
+    }
+
+    // Snake replay over non-captain counts, skipping full teams — the seed twin of the server rule.
+    private Guid? ResolveOnTheClockTeamId(IReadOnlyList<int> caps)
+    {
+        var teamIds = ActiveTeamIds().ToArray();
+        var counts = teamIds.Select(teamId => teamPlayerIds[teamId].Count - 1).ToArray();
+        var consumed = new int[teamIds.Length];
+        var descending = false;
+        while (true)
+        {
+            var progressed = false;
+            for (var step = 0; step < teamIds.Length; step++)
+            {
+                var index = descending ? teamIds.Length - 1 - step : step;
+                if (consumed[index] >= caps[index] - 1)
+                {
+                    continue;
+                }
+
+                if (consumed[index] < counts[index])
+                {
+                    consumed[index]++;
+                    progressed = true;
+                    continue;
+                }
+
+                return teamIds[index];
+            }
+
+            if (!progressed)
+            {
+                return null;
+            }
+
+            descending = !descending;
         }
     }
 
@@ -291,7 +452,13 @@ public sealed class SeedGameDayState
                 return ClientCommandResult.Failure("player_already_assigned", "A player can only be assigned to one team.");
             }
 
+            if (teamPlayerIds[teamId].ToHashSet().SetEquals(selected))
+            {
+                return ClientCommandResult.Success;
+            }
+
             teamPlayerIds[teamId] = selected.ToList();
+            draftRevision++;
             return ClientCommandResult.Success;
         }
     }
@@ -305,7 +472,33 @@ public sealed class SeedGameDayState
                 return ClientCommandResult.Failure("session_not_found", "The session was not found.");
             }
 
+            if (isTeamsLocked)
+            {
+                return ClientCommandResult.Success;
+            }
+
             isTeamsLocked = true;
+            draftRevision++;
+            return ClientCommandResult.Success;
+        }
+    }
+
+    public ClientCommandResult UnlockTeams(Guid sessionId)
+    {
+        lock (syncRoot)
+        {
+            if (sessionId != SeedFixtures.MarinaSessionId)
+            {
+                return ClientCommandResult.Failure("session_not_found", "The session was not found.");
+            }
+
+            if (!isTeamsLocked)
+            {
+                return ClientCommandResult.Success;
+            }
+
+            isTeamsLocked = false;
+            draftRevision++;
             return ClientCommandResult.Success;
         }
     }
@@ -440,6 +633,8 @@ public sealed class SeedGameDayState
             .ToArray());
 
     private IEnumerable<Guid> ActiveTeamIds() => teamIds.Take(captainCount);
+
+    private string DraftValidator() => $"\"draft-{draftRevision}-roster-SEED\"";
 
     private Guid CaptainId(Guid teamId) => captainIds[Array.IndexOf(teamIds, teamId)];
 

@@ -22,6 +22,9 @@
                 <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">
                     <!-- The active count is filled (PrimaryButton) so the current selection stays
                          visually distinct after it is tapped; the others stay outlined. -->
+                    <!-- Horizontal scroll so the three buttons never clip on narrow screens or
+                         enlarged accessibility fonts (same pattern as the draft team switcher). -->
+                    <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never">
                     <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
                         <Button Text="2 captains" Command="{Binding SelectCaptainCountCommand}" CommandParameter="2" Style="{StaticResource GhostButton}">
                             <Button.Triggers>
@@ -45,8 +48,9 @@
                             </Button.Triggers>
                         </Button>
                     </HorizontalStackLayout>
+                    </ScrollView>
                     <Border Style="{StaticResource NoticeSurface}">
-                        <Label Text="Captains can be any Going or Waitlist player - check-in is not required. Pick as many as the captain count." Style="{StaticResource TextCaption}" />
+                        <Label Text="Tap captains in order: the 1st captain gets team 1 and the first pick of the snake draft (1-2-3, then 3-2-1)." Style="{StaticResource TextCaption}" />
                     </Border>
                     <Entry Text="{Binding SearchText}" Placeholder="Search Going &amp; Waitlist players" Style="{StaticResource BrandEntry}" />
                     <c:SectionHeader Text="Going &amp; Waitlist players" />
@@ -56,7 +60,11 @@
                                 <DataTemplate x:DataType="pageModels:CaptainPlayerItem">
                                     <c:PlayerRow Initials="{Binding Initials}" Name="{Binding Name}" Detail="{Binding Detail}" TapCommand="{Binding BindingContext.ToggleCaptainCommand, Source={x:Reference CaptainsPage}}" TapCommandParameter="{Binding .}" IsVisible="{Binding IsVisible}">
                                         <c:PlayerRow.TrailingContent>
-                                            <CheckBox IsChecked="{Binding IsSelected}" InputTransparent="True" />
+                                            <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
+                                                <!-- Tap order = rank = team number = snake pick order. -->
+                                                <c:Badge Text="{Binding RankLabel}" Variant="Success" IsVisible="{Binding HasRank}" VerticalOptions="Center" />
+                                                <CheckBox IsChecked="{Binding IsSelected}" InputTransparent="True" />
+                                            </HorizontalStackLayout>
                                         </c:PlayerRow.TrailingContent>
                                     </c:PlayerRow>
                                 </DataTemplate>

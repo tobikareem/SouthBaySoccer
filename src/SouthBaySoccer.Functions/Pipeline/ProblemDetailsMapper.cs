@@ -56,6 +56,11 @@ public sealed class ProblemDetailsMapper : IProblemDetailsMapper
                 // specifically what conflicted.
                 conflict.Message,
                 "conflict"),
+            ApplicationPreconditionFailedException precondition => Create(
+                HttpStatusCode.PreconditionFailed,
+                "Draft changed",
+                precondition.Message,
+                "draft-revision-conflict"),
             ApplicationForbiddenException => Create(
                 HttpStatusCode.Forbidden,
                 "Forbidden",
@@ -125,5 +130,4 @@ public sealed class ProblemDetailsMapper : IProblemDetailsMapper
         return problem;
     }
 }
-
 

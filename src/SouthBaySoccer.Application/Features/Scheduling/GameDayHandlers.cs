@@ -703,12 +703,11 @@ public sealed class GetTodayGameDayContextQueryHandler(
             && match.Status is not MatchStatus.Published and not MatchStatus.Locked
             && roster.Any(member => member.PlayerProfileId == profile.Id);
 
-        // Any rostered player may view the teams read-only once they are settled (locked or later) -
-        // not mid-draft, when a player would see partial/stale sheets, and not after an admin unlock
-        // reverts to Draft. The client shows this only to players who cannot draft (captains/admins
-        // use the draft screen instead).
+        // Any rostered player may view the teams read-only — including mid-draft, where the teams
+        // view now labels the state explicitly (whose turn it is, who is yet to be picked) so a
+        // partial sheet reads as "draft in progress", never as a settled roster. The client shows
+        // this only to players who cannot draft (captains/admins use the draft screen instead).
         var canViewTeams = match is not null
-            && match.Status != MatchStatus.Draft
             && teams.Count > 0
             && roster.Any(member => member.PlayerProfileId == profile.Id);
 

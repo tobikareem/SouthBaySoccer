@@ -4,6 +4,10 @@
 **Milestone:** M11 client first, then M8 backend  
 **Visual source:** the `captains` and `draft` screens in [`../../../documentation/mobile-wireframes.html`](../../../documentation/mobile-wireframes.html).
 
+> **Amended by TEAM-5:** captains no longer bulk-edit their team sheet — they draft one player per
+> turn in snake order, and the bulk "Save team picks" flow is game-admin only. Captain selection is
+> ranked (tap order = team number = pick order). See `../TEAM-5-auto-balance/`.
+
 ## User stories
 
 *As a* GameAdmin, *I want* to choose 2, 3, or 4 captains from the checked-in game-day roster, *so that*
