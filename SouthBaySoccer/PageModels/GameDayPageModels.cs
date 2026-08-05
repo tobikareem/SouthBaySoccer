@@ -914,26 +914,33 @@ public partial class GameDayPageModel(
             }
 
             ApplyContext(context);
-            RecentGameSummaries = (await LoadRecentGameSummariesAsync(cancellationToken))
-                .Select(summary => new RecentGameSummaryItem(summary))
-                .ToArray();
+            await ApplyRecentGameSummariesAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (HttpRequestException ex) when (ex.StatusCode is null)
         {
             ApplyNonContent(ViewState.Offline, "You're offline", "Reconnect to check in at the field.");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger?.LogWarning(
+                "Game Day failed to load ({FailureType}).",
+                ex.GetType().Name);
             ApplyNonContent(ViewState.Error, ErrorTitle, ErrorMessage);
         }
     }
 
-    private async Task<IReadOnlyList<LastGameSummaryDto>> LoadRecentGameSummariesAsync(
+    private async Task ApplyRecentGameSummariesAsync(
         CancellationToken cancellationToken)
     {
         try
         {
-            return await gameDayClient.GetRecentGameSummariesAsync(cancellationToken) ?? [];
+            RecentGameSummaries = (await gameDayClient.GetRecentGameSummariesAsync(cancellationToken) ?? [])
+                .Select(summary => new RecentGameSummaryItem(summary))
+                .ToArray();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -946,7 +953,6 @@ public partial class GameDayPageModel(
             logger?.LogWarning(
                 "Recent Game Day history failed to load ({FailureType}); Today remains available.",
                 ex.GetType().Name);
-            return [];
         }
     }
 
