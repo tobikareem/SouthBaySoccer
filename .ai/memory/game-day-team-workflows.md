@@ -6,7 +6,14 @@ created: 2026-07-22
 ---
 
 The primary session Match is the server-side state machine for game-day team and postgame work.
-`Draft` permits GameAdmin captain topology changes and resource-scoped captain picks. The idempotent
+`Draft` permits GameAdmin captain topology changes and resource-scoped captain picks.
+
+Captain draft window: captains may act on the pre-game team workflow for the whole Pacific game
+day — from Pacific midnight of the session's start date (or check-in opening, whichever is earlier,
+`CaptainTeamSetupOpensAtUtc`) until post-game opens 90 minutes after kickoff. GameAdmins are
+unconstrained by this (publish until 3 days after kickoff). `GetTeamDraftQueryHandler`'s `locked`
+mirrors `IsTeamSetupOpen` for non-admins so the draft page can never show picks the mutation would
+reject; before the window it labels the state "Drafting opens on game day". The idempotent
 GameAdmin `POST game-day/sessions/{sessionId}/teams/lock` transition validates captains and the
 confirmed (Going + Waitlist) assignment roster, audits the action, and moves the Match to
 `InProgress`. Result and event-review commands reject `Draft`; normal mutation rejects `Published`

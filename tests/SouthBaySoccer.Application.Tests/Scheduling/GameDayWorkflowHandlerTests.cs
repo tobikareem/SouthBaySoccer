@@ -816,6 +816,160 @@ public sealed class GameDayWorkflowHandlerTests
     }
 
     [Fact]
+    public async Task DraftPick_OnGameDayMorningBeforeCheckIn_AssignsToTheirTeam()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        // Game-day morning Pacific (8:00 AM July 22), hours before check-in opens at 7:30 PM.
+        context.Clock.SetupGet(x => x.UtcNow).Returns(new DateTime(2026, 7, 22, 15, 0, 0, DateTimeKind.Utc));
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var pickId = Guid.NewGuid();
+        context.ConfigureMatch([actorTeam]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(context.Actor.Id, "Ada Green"),
+                context.Roster(pickId, "New Pick"),
+            ]);
+
+        var result = await CreateDraftPickHandler(context)
+            .HandleAsync(new DraftPickCommand(context.Session.Id, pickId));
+
+        result.AffectedCount.Should().Be(1);
+        context.Stats.Verify(x => x.ReplaceTeamAssignmentsAsync(
+            context.Match.Id,
+            actorTeam.Id,
+            It.Is<IReadOnlyList<Guid>>(ids => ids.Contains(pickId)),
+            It.IsAny<CancellationToken>()));
+    }
+
+    [Fact]
+    public async Task DraftPick_AtExactPacificMidnightOfGameDay_AssignsToTheirTeam()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        // Exactly the window boundary: Pacific midnight of July 22 is 07:00 UTC; >= opens the window.
+        context.Clock.SetupGet(x => x.UtcNow).Returns(new DateTime(2026, 7, 22, 7, 0, 0, DateTimeKind.Utc));
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var pickId = Guid.NewGuid();
+        context.ConfigureMatch([actorTeam]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(context.Actor.Id, "Ada Green"),
+                context.Roster(pickId, "New Pick"),
+            ]);
+
+        var result = await CreateDraftPickHandler(context)
+            .HandleAsync(new DraftPickCommand(context.Session.Id, pickId));
+
+        result.AffectedCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task DraftPick_WhenCheckInOpensBeforeGameDayMidnight_OpensAtCheckIn()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        // Check-in opens the prior evening (July 21, 10:00 PM PDT), before Pacific midnight of the
+        // game day; the earlier of the two wins, so a captain may already draft at 11:00 PM.
+        context.Session.CheckInOpensAtUtc = new DateTime(2026, 7, 22, 5, 0, 0, DateTimeKind.Utc);
+        context.Clock.SetupGet(x => x.UtcNow).Returns(new DateTime(2026, 7, 22, 6, 0, 0, DateTimeKind.Utc));
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var pickId = Guid.NewGuid();
+        context.ConfigureMatch([actorTeam]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(context.Actor.Id, "Ada Green"),
+                context.Roster(pickId, "New Pick"),
+            ]);
+
+        var result = await CreateDraftPickHandler(context)
+            .HandleAsync(new DraftPickCommand(context.Session.Id, pickId));
+
+        result.AffectedCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task DraftPick_BeforeGameDay_RejectsUntilGameDayStarts()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        // The night before the Pacific game day (July 21, 10:00 PM PDT).
+        context.Clock.SetupGet(x => x.UtcNow).Returns(new DateTime(2026, 7, 22, 5, 0, 0, DateTimeKind.Utc));
+        var actorTeam = context.Team(context.Actor.Id, 1);
+        var pickId = Guid.NewGuid();
+        context.ConfigureMatch([actorTeam]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(context.Actor.Id, "Ada Green"),
+                context.Roster(pickId, "New Pick"),
+            ]);
+
+        var act = () => CreateDraftPickHandler(context)
+            .HandleAsync(new DraftPickCommand(context.Session.Id, pickId));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("*opens on game day*");
+    }
+
+    [Fact]
+    public async Task TeamDraft_CaptainBeforeGameDay_LocksPicksAndExplains()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        context.Clock.SetupGet(x => x.UtcNow).Returns(new DateTime(2026, 7, 22, 5, 0, 0, DateTimeKind.Utc));
+        context.ConfigureMatch([context.Team(context.Actor.Id, 1)]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(context.Actor.Id, "Ada Green"),
+                context.Roster(Guid.NewGuid(), "Bench Player"),
+            ]);
+        var handler = new GetTeamDraftQueryHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Stats.Object);
+
+        var result = await handler.HandleAsync(context.Session.Id);
+
+        result.CanPickPlayers.Should().BeFalse();
+        result.IsLocked.Should().BeTrue();
+        result.IsMyTurn.Should().BeFalse();
+        result.OnTheClockLabel.Should().Be("Drafting opens on game day");
+    }
+
+    [Fact]
+    public async Task TeamDraft_CaptainOnGameDayMorning_IsOnTheClock()
+    {
+        var context = new TestContext(postGame: false, isGameAdmin: false);
+        context.Clock.SetupGet(x => x.UtcNow).Returns(new DateTime(2026, 7, 22, 15, 0, 0, DateTimeKind.Utc));
+        context.ConfigureMatch([context.Team(context.Actor.Id, 1)]);
+        context.Rsvps
+            .Setup(x => x.ListGoingRosterAsync(context.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                context.Roster(context.Actor.Id, "Ada Green"),
+                context.Roster(Guid.NewGuid(), "Bench Player"),
+            ]);
+        var handler = new GetTeamDraftQueryHandler(
+            context.CurrentUser.Object,
+            context.Clock.Object,
+            context.Profiles.Object,
+            context.Sessions.Object,
+            context.Rsvps.Object,
+            context.PickupPalGames.Object,
+            context.Stats.Object);
+
+        var result = await handler.HandleAsync(context.Session.Id);
+
+        result.CanPickPlayers.Should().BeTrue();
+        result.IsLocked.Should().BeFalse();
+        result.IsMyTurn.Should().BeTrue();
+        result.OnTheClockLabel.Should().Be("Your turn — pick 1 player");
+    }
+
+    [Fact]
     public async Task AutoBalance_WhenNotGameAdmin_IsForbidden()
     {
         // Captains included: one captain must not be able to erase every other captain's picks.

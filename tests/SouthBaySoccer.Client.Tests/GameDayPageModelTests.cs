@@ -135,6 +135,82 @@ public class GameDayPageModelTests
     }
 
     [Fact]
+    public async Task Appearing_WhenRecentHistoryBindingThrows_KeepsLoadedTodayContext()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SeedGameDayState().GetContext() with { CanShowAllGames = false });
+        client
+            .Setup(service => service.GetRecentGameSummariesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([LastGameWith()]);
+        var logger = new Mock<ILogger<GameDayPageModel>>();
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object, logger: logger.Object);
+        pageModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(GameDayPageModel.RecentGameSummaries))
+            {
+                throw new InvalidOperationException("Android binding failure");
+            }
+        };
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsParticipant.Should().BeTrue();
+        pageModel.Title.Should().NotBe(GameDayPageModel.NoGameTitle);
+        logger.Verify(
+            candidate => candidate.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) =>
+                    state.ToString()!.Contains("Recent Game Day history failed to load")
+                    && state.ToString()!.Contains("InvalidOperationException")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Appearing_WhenRecentHistoryIsCanceled_PropagatesCancellationWithoutReplacingToday()
+    {
+        var requestStarted = new TaskCompletionSource<CancellationToken>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SeedGameDayState().GetContext() with { CanShowAllGames = false });
+        client
+            .Setup(service => service.GetRecentGameSummariesAsync(It.IsAny<CancellationToken>()))
+            .Returns<CancellationToken>(async cancellationToken =>
+            {
+                requestStarted.SetResult(cancellationToken);
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return [];
+            });
+        var logger = new Mock<ILogger<GameDayPageModel>>();
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object, logger: logger.Object);
+
+        var load = pageModel.AppearingCommand.ExecuteAsync(null);
+        var observedToken = await requestStarted.Task;
+        pageModel.AppearingCommand.Cancel();
+        var act = async () => await load;
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        observedToken.IsCancellationRequested.Should().BeTrue();
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsParticipant.Should().BeTrue();
+        logger.Verify(
+            candidate => candidate.Log(
+                It.IsAny<LogLevel>(),
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task GameDayActions_OpenDraftAndPostGameRoutes()
     {
         var navigator = Navigator();
