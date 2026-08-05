@@ -79,6 +79,24 @@ public interface IStatsRepository
         IReadOnlyList<Guid> playerProfileIds,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Replaces every team's player assignments for the match in one pass while leaving the
+    /// <see cref="MatchTeam"/> rows (names, captains, team numbers) untouched. Participation rows
+    /// are reconciled to exactly the assigned set; unchanged assignments are reused, not churned.
+    /// </summary>
+    Task ReplaceAllTeamAssignmentsAsync(
+        Guid matchId,
+        IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> playerProfileIdsByTeamId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sums peer-rating votes for the given players across rating-eligible (completed or later)
+    /// matches. Players with no votes are absent from the result.
+    /// </summary>
+    Task<IReadOnlyList<PlayerRatingAggregateRecord>> ListPlayerRatingAggregatesAsync(
+        IReadOnlyCollection<Guid> playerProfileIds,
+        CancellationToken cancellationToken = default);
+
     Task SubmitPeerFeedbackAsync(
         Guid matchId,
         Guid voterPlayerProfileId,
@@ -129,6 +147,12 @@ public sealed record GameDaySummaryStatsRecord(
     IReadOnlyList<MatchResult> Results,
     IReadOnlyList<TeamAssignment> Assignments,
     IReadOnlyList<MatchEvent> Events);
+
+/// <summary>Raw peer-rating totals for one player: the sum keeps shrinkage math exact.</summary>
+public sealed record PlayerRatingAggregateRecord(
+    Guid PlayerProfileId,
+    decimal SumOfScores,
+    int VoteCount);
 
 public sealed record LeaderboardReadModel(
     Guid PlayerProfileId,

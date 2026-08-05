@@ -118,6 +118,8 @@ public sealed class GameDayEndpointMetadataTests
     [InlineData(nameof(GameDayFunctions.ApprovePostGameStat), AuthenticationPolicies.AuthenticatedPlayer, "post", "game-day/sessions/{sessionId:guid}/post-game/events/{matchEventId:guid}/approve")]
     [InlineData(nameof(GameDayFunctions.SavePostGameTeamResult), AuthenticationPolicies.AuthenticatedPlayer, "put", "game-day/sessions/{sessionId:guid}/post-game/results/{teamId:guid}")]
     [InlineData(nameof(GameDayFunctions.PublishPostGame), AuthenticationPolicies.AuthenticatedPlayer, "post", "game-day/sessions/{sessionId:guid}/post-game/publish")]
+    [InlineData(nameof(GameDayFunctions.DraftPick), AuthenticationPolicies.AuthenticatedPlayer, "post", "game-day/sessions/{sessionId:guid}/teams/picks")]
+    [InlineData(nameof(GameDayFunctions.AutoBalanceTeams), AuthenticationPolicies.AuthenticatedPlayer, "post", "game-day/sessions/{sessionId:guid}/teams/auto-balance")]
     public void GameDayWorkflowEndpoint_WhenMetadataResolved_UsesExpectedPolicyAndRoute(
         string methodName,
         string policy,
@@ -151,6 +153,8 @@ public sealed class GameDayEndpointMetadataTests
             getSessionTeamsHandler: null!,
             getTeamDraftHandler: null!,
             saveTeamPicksHandler: null!,
+            draftPickHandler: null!,
+            autoBalanceTeamsHandler: null!,
             getPostGameApprovalHandler: null!,
             approvePostGameStatHandler: null!,
             savePostGameTeamResultHandler: null!,

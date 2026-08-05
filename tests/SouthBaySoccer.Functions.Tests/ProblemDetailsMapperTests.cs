@@ -65,6 +65,18 @@ public sealed class ProblemDetailsMapperTests
     }
 
     [Fact]
+    public void Map_WhenDraftRevisionIsStale_ReturnsTypedPreconditionFailure()
+    {
+        var exception = new ApplicationPreconditionFailedException("The draft changed.");
+
+        var problem = _mapper.Map(exception, "correlation-123");
+
+        problem.Status.Should().Be(412);
+        problem.Type.Should().EndWith("/draft-revision-conflict");
+        problem.Detail.Should().Be("The draft changed.");
+    }
+
+    [Fact]
     public void Map_WhenUnexpectedException_DoesNotExposeSensitiveMessage()
     {
         var exception = new InvalidOperationException("connection string secret=abc123");
