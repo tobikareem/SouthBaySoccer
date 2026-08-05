@@ -18,3 +18,4 @@ One line per lesson. Skim this at the start of a task; read the full entry when 
 - [sync-upsert-must-merge-human-links](2026-07-29-sync-upsert-must-merge-human-links.md) - The recurring Pickup Pal import must coalesce PlayerProfileId, never null it — it kept wiping admin Match links within a minute
 - [profile-merge-must-repoint-every-fk](2026-07-30-profile-merge-must-repoint-every-fk.md) - Profile merges must re-point every profile FK (CaptainPlayerProfileId was missed) and workflow buttons must show disabled, not hidden
 - [profile-merge-feedback-final-keys](2026-07-30-profile-merge-feedback-final-keys.md) - Reconcile complete post-merge rating/like keys and soft-delete self-feedback or collisions
+- [supplementary-viewmodel-assignment-boundary](2026-08-05-supplementary-viewmodel-assignment-boundary.md) - Optional UI property assignment can throw through binding callbacks; isolate the whole operation
