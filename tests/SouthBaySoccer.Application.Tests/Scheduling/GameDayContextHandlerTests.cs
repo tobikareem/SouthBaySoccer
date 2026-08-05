@@ -409,7 +409,7 @@ public sealed class GameDayContextHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_WhenCaptainIsBeforeCheckInOpens_WithholdsTeamDraft()
+    public async Task HandleAsync_WhenCaptainIsOnGameDayBeforeCheckIn_EnablesTeamDraft()
     {
         var context = new TestContext();
         var session = context.SessionAt(Utc(2026, 7, 23, 5, 0));
@@ -427,7 +427,9 @@ public sealed class GameDayContextHandlerTests
         var result = await context.CreateHandler().HandleAsync();
 
         result.Should().NotBeNull();
-        result!.CanDraftTeam.Should().BeFalse("captains still wait for game-day check-in");
+        // Today's projection only surfaces sessions on the current Pacific game day, and captains
+        // may draft all game day — check-in opening no longer gates them.
+        result!.CanDraftTeam.Should().BeTrue("captains can draft any time on the game day itself");
         result.CanAssignCaptains.Should().BeFalse();
     }
 
