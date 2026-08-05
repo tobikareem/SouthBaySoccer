@@ -709,12 +709,16 @@ public sealed class GetTeamDraftQueryHandler(
             cancellationToken);
         var assignments = await statsRepository.ListAssignmentsAsync(match.Id, cancellationToken);
         // An admin keeps editing after kick-off (and after results are recorded) until the match is
-        // published or locked; a captain's sheet freezes as soon as the match leaves Draft.
+        // published or locked; a captain's sheet freezes as soon as the match leaves Draft. The
+        // captain branch mirrors IsTeamSetupOpen so this page can never show picks the draft-pick
+        // mutation would reject (e.g. before the session's game day starts). One clock read so the
+        // window checks below cannot straddle the boundary.
+        var nowUtc = clock.UtcNow;
         var locked = isGameAdmin
             ? match.Status is MatchStatus.Published or MatchStatus.Locked
-                || !GameDayWorkflowQueries.IsAdminTeamEditOpen(session, clock.UtcNow)
+                || !GameDayWorkflowQueries.IsAdminTeamEditOpen(session, nowUtc)
             : match.Status != MatchStatus.Draft
-                || GameDayWorkflowQueries.IsPostGameOpen(session, clock.UtcNow);
+                || !GameDayWorkflowQueries.IsTeamSetupOpen(session, nowUtc, isGameAdmin: false);
         var captainName = actorTeam.CaptainPlayerProfileId == actor.Id
             ? actor.DisplayName
             : roster.FirstOrDefault(member => member.PlayerProfileId == actorTeam.CaptainPlayerProfileId)?.DisplayName
@@ -732,11 +736,19 @@ public sealed class GetTeamDraftQueryHandler(
         var isMyTurn = !locked
             && onTheClockTeamId is { } clockTeamId
             && (isGameAdmin || teamsByRank.Single(team => team.Id == clockTeamId).CaptainPlayerProfileId == actor.Id);
-        var onTheClockLabel = locked || onTheClockTeamId is null
-            ? "Draft complete"
-            : isMyTurn && !isGameAdmin
-                ? "Your turn — pick 1 player"
-                : $"On the clock: {teamsByRank.Single(team => team.Id == onTheClockTeamId).Name}";
+        // A captain who peeks before the game day starts is locked but the draft is not over —
+        // say so instead of the misleading "Draft complete".
+        var opensLater = !isGameAdmin
+            && match.Status == MatchStatus.Draft
+            && session.Status == SessionStatus.Published
+            && nowUtc < GameDayWorkflowQueries.CaptainTeamSetupOpensAtUtc(session);
+        var onTheClockLabel = opensLater
+            ? "Drafting opens on game day"
+            : locked || onTheClockTeamId is null
+                ? "Draft complete"
+                : isMyTurn && !isGameAdmin
+                    ? "Your turn — pick 1 player"
+                    : $"On the clock: {teamsByRank.Single(team => team.Id == onTheClockTeamId).Name}";
 
         var model = new TeamDraftModel(
             sessionId,
@@ -1877,7 +1889,7 @@ internal static class GameDayWorkflowQueries
 
     /// <summary>
     /// Game admins set teams up ahead of time and correct them afterwards; captains only act during
-    /// the game-day window, from check-in until post-game opens.
+    /// the game-day window, from the start of the session's game day until post-game opens.
     /// </summary>
     internal static void EnsureCaptainDraftWindow(Session session, DateTime nowUtc, bool isGameAdmin)
     {
@@ -1897,9 +1909,9 @@ internal static class GameDayWorkflowQueries
             return;
         }
 
-        if (nowUtc < session.CheckInOpensAtUtc)
+        if (nowUtc < CaptainTeamSetupOpensAtUtc(session))
         {
-            throw new ApplicationConflictException("Captain assignment opens with game-day check-in.");
+            throw new ApplicationConflictException("Captain drafting opens on game day.");
         }
 
         if (IsPostGameOpen(session, nowUtc))
@@ -1941,14 +1953,32 @@ internal static class GameDayWorkflowQueries
     }
 
     /// <summary>
+    /// When captains (and other non-admins) may start acting on the pre-game team workflow: the
+    /// start of the session's Pacific game day, or check-in opening, whichever comes first. Check-in
+    /// can open minutes before kickoff, which is far too late for captains drafting earlier in the
+    /// day, so game-day midnight is the practical boundary; taking the earlier of the two means this
+    /// only ever widens the window relative to check-in.
+    /// </summary>
+    internal static DateTime CaptainTeamSetupOpensAtUtc(Session session)
+    {
+        var gameDayMidnightUtc = SessionAdminTimeZone.ToUtc(
+            SessionAdminTimeZone.ToLocal(session.StartsAtUtc).Date,
+            TimeSpan.Zero);
+        return gameDayMidnightUtc <= session.CheckInOpensAtUtc
+            ? gameDayMidnightUtc
+            : session.CheckInOpensAtUtc;
+    }
+
+    /// <summary>
     /// True when the actor may act on the pre-game team workflow now: published, not yet post-game,
-    /// and either a game admin (any time after publish) or anyone else once check-in has opened.
+    /// and either a game admin (any time after publish) or anyone else once the session's game day
+    /// has started (see <see cref="CaptainTeamSetupOpensAtUtc"/>).
     /// </summary>
     internal static bool IsTeamSetupOpen(Session session, DateTime nowUtc, bool isGameAdmin) =>
         isGameAdmin
             ? IsAdminTeamEditOpen(session, nowUtc)
             : session.Status == SessionStatus.Published
-              && nowUtc >= session.CheckInOpensAtUtc
+              && nowUtc >= CaptainTeamSetupOpensAtUtc(session)
               && !IsPostGameOpen(session, nowUtc);
 
     internal static void EnsurePostGameWindow(Session session, DateTime nowUtc)
