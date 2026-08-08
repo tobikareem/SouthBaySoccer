@@ -106,6 +106,9 @@
                     <c:BrandCard
                         Padding="{StaticResource CardPadding}"
                         IsVisible="{Binding CanConfirmTeammates}">
+                        <!-- BrandCard.Body holds exactly one View; both states share this container
+                             so the empty message is never silently dropped. -->
+                        <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
                         <Label
                             Text="{x:Static pageModels:MatchStatsPageModel.EmptyMessage}"
                             Style="{StaticResource TextCaption}"
@@ -159,6 +162,7 @@
                                     </c:PlayerRow>
                                 </DataTemplate>
                             </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
                         </VerticalStackLayout>
                     </c:BrandCard>
 

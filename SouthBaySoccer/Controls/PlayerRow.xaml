@@ -18,15 +18,32 @@
                          IsVisible="False"
                          Content="{Binding LeadingContent, Source={x:Reference Root}}"
                          VerticalOptions="Center" />
-            <controls:Avatar Initials="{Binding Initials, Source={x:Reference Root}}"
+            <controls:Avatar x:Name="AvatarSlot"
+                             Initials="{Binding Initials, Source={x:Reference Root}}"
                              ImageSource="{Binding ImageSource, Source={x:Reference Root}}"
                              Description="{Binding Name, Source={x:Reference Root}}" />
+            <!-- Menu/navigation rows show a real icon tile, never a fake person avatar. Setting
+                 Glyph swaps this in for the Avatar; leaving it unset keeps the row about a person. -->
+            <Border x:Name="GlyphSlot"
+                    Style="{StaticResource IconTileSurface}"
+                    IsVisible="False"
+                    VerticalOptions="Center"
+                    AutomationProperties.IsInAccessibleTree="False">
+                <Label Text="{Binding Glyph, Source={x:Reference Root}}"
+                       FontFamily="{Binding GlyphFontFamily, Source={x:Reference Root}}"
+                       Style="{StaticResource BrandIconLabel}"
+                       HorizontalTextAlignment="Center"
+                       VerticalTextAlignment="Center"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center" />
+            </Border>
         </HorizontalStackLayout>
         <VerticalStackLayout Grid.Column="1"
                              Spacing="{StaticResource SpaceXs}"
                              VerticalOptions="Center">
             <Label Text="{Binding Name, Source={x:Reference Root}}"
-                   Style="{StaticResource TextBodyStrong}" />
+                   Style="{StaticResource TextBodyStrong}"
+                   LineBreakMode="TailTruncation" />
             <Label Text="{Binding Detail, Source={x:Reference Root}}"
                    Style="{StaticResource TextCaption}" />
         </VerticalStackLayout>

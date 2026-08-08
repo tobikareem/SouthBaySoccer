@@ -69,6 +69,9 @@ public partial class GameDayPageModel(
     private ViewState _state = ViewState.Loading;
 
     [ObservableProperty]
+    private bool _isRefreshing;
+
+    [ObservableProperty]
     private string _stateTitle = string.Empty;
 
     [ObservableProperty]
@@ -443,6 +446,20 @@ public partial class GameDayPageModel(
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private Task Retry(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task Refresh(CancellationToken cancellationToken)
+    {
+        IsRefreshing = true;
+        try
+        {
+            await LoadAsync(cancellationToken);
+        }
+        finally
+        {
+            IsRefreshing = false;
+        }
+    }
 
     // Picker tap: load a different one of today's games. No-op if it is already showing.
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -904,7 +921,12 @@ public partial class GameDayPageModel(
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
-        State = ViewState.Loading;
+        // Pull-to-refresh keeps the content on screen (RefreshView shows the spinner);
+        // only non-content states swap to the full-page loading view.
+        if (State != ViewState.Content)
+        {
+            State = ViewState.Loading;
+        }
         try
         {
             var context = await gameDayClient.GetTodayContextAsync(selectedSessionId, showAllGames, cancellationToken);
@@ -1252,6 +1274,12 @@ public partial class CaptainAssignmentPageModel(
     public const string GrantFailedTitle = "Couldn't grant captains";
     public const string LockFailedTitle = "Couldn't lock teams";
     public const string UnlockFailedTitle = "Couldn't unlock teams";
+    public const string EmptyTitle = "No roster yet";
+    public const string EmptyMessage = "No confirmed players were found for this game.";
+    public const string ErrorTitle = "Something went wrong";
+    public const string ErrorMessage = "We couldn't load the captain roster. Please try again.";
+    public const string OfflineTitle = "You're offline";
+    public const string OfflineMessage = "Reconnect to assign captains.";
 
     private Guid sessionId;
     // The captains already granted for this session (from the last load), used to disable the Grant
@@ -1267,6 +1295,12 @@ public partial class CaptainAssignmentPageModel(
 
     [ObservableProperty]
     private ViewState _state = ViewState.Loading;
+
+    [ObservableProperty]
+    private string _stateTitle = string.Empty;
+
+    [ObservableProperty]
+    private string _stateMessage = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedCountText))]
@@ -1541,15 +1575,45 @@ public partial class CaptainAssignmentPageModel(
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
 
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task Retry(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
-        var dto = await gameDayClient.GetCaptainAssignmentAsync(sessionId == Guid.Empty ? Guid.Parse("20000000-0000-0000-0000-000000000001") : sessionId, cancellationToken);
-        if (dto is null)
+        // Reloads after a mutation keep the content on screen; only non-content states spin.
+        if (State != ViewState.Content)
         {
-            State = ViewState.Empty;
+            State = ViewState.Loading;
+        }
+
+        CaptainAssignmentDto? dto;
+        try
+        {
+            dto = await gameDayClient.GetCaptainAssignmentAsync(sessionId == Guid.Empty ? Guid.Parse("20000000-0000-0000-0000-000000000001") : sessionId, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is null)
+        {
+            ApplyNonContent(ViewState.Offline, OfflineTitle, OfflineMessage);
+            return;
+        }
+        catch (Exception)
+        {
+            ApplyNonContent(ViewState.Error, ErrorTitle, ErrorMessage);
             return;
         }
 
+        if (dto is null)
+        {
+            ApplyNonContent(ViewState.Empty, EmptyTitle, EmptyMessage);
+            return;
+        }
+
+        StateTitle = string.Empty;
+        StateMessage = string.Empty;
         sessionId = dto.SessionId;
         draftRevision = dto.DraftRevision;
         CaptainCount = dto.CaptainCount;
@@ -1581,6 +1645,21 @@ public partial class CaptainAssignmentPageModel(
         ApplyFilter();
         NotifyGrantState();
         State = ViewState.Content;
+    }
+
+    private void ApplyNonContent(ViewState state, string title, string message)
+    {
+        // A reload that fails while content is on screen (e.g. right after a successful
+        // mutation) must not wipe the user's context; keep the momentarily-stale content.
+        if (State == ViewState.Content && state is ViewState.Error or ViewState.Offline)
+        {
+            return;
+        }
+
+        Players.Clear();
+        StateTitle = title;
+        StateMessage = message;
+        State = state;
     }
 
     private async Task<bool> ReloadCaptainConflictAsync(
@@ -1631,6 +1710,12 @@ public partial class TeamDraftPageModel(
     public const string DiscardPicksMessage =
         "You have unsaved changes on this team. Switching teams will discard them.";
     public const string DraftChangedMessage = "The draft changed on another device. Latest picks are now shown.";
+    public const string EmptyTitle = "No draft yet";
+    public const string EmptyMessage = "Captains haven't been assigned for this game.";
+    public const string ErrorTitle = "Something went wrong";
+    public const string ErrorMessage = "We couldn't load the draft. Please try again.";
+    public const string OfflineTitle = "You're offline";
+    public const string OfflineMessage = "Reconnect to keep drafting.";
 
     private Guid sessionId;
     private Guid teamId;
@@ -1660,6 +1745,12 @@ public partial class TeamDraftPageModel(
 
     [ObservableProperty]
     private ViewState _state = ViewState.Loading;
+
+    [ObservableProperty]
+    private string _stateTitle = string.Empty;
+
+    [ObservableProperty]
+    private string _stateMessage = string.Empty;
 
     [ObservableProperty]
     private string _teamName = string.Empty;
@@ -1940,8 +2031,17 @@ public partial class TeamDraftPageModel(
         }
     }
 
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task Retry(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
+        // Reloads after a pick keep the draft on screen; only non-content states spin.
+        if (State != ViewState.Content)
+        {
+            State = ViewState.Loading;
+        }
+
         TeamDraftDto? dto;
         try
         {
@@ -1951,16 +2051,28 @@ public partial class TeamDraftPageModel(
         {
             return;
         }
+        catch (HttpRequestException ex) when (ex.StatusCode is null)
+        {
+            ApplyNonContent(ViewState.Offline, OfflineTitle, OfflineMessage);
+            return;
+        }
+        catch (Exception)
+        {
+            ApplyNonContent(ViewState.Error, ErrorTitle, ErrorMessage);
+            return;
+        }
         if (cancellationToken.IsCancellationRequested)
         {
             return;
         }
         if (dto is null)
         {
-            State = ViewState.Empty;
+            ApplyNonContent(ViewState.Empty, EmptyTitle, EmptyMessage);
             return;
         }
 
+        StateTitle = string.Empty;
+        StateMessage = string.Empty;
         ApplyDraft(dto);
     }
 
@@ -1990,6 +2102,22 @@ public partial class TeamDraftPageModel(
         MarkSelectedTeam(projectedTeamId);
         OnSearchTextChanged(SearchText);
         State = ViewState.Content;
+    }
+
+    private void ApplyNonContent(ViewState state, string title, string message)
+    {
+        // A reload that fails while content is on screen (e.g. right after a successful
+        // mutation) must not wipe the user's context; keep the momentarily-stale content.
+        if (State == ViewState.Content && state is ViewState.Error or ViewState.Offline)
+        {
+            return;
+        }
+
+        Players.Clear();
+        Teams.Clear();
+        StateTitle = title;
+        StateMessage = message;
+        State = state;
     }
 
     private async Task PollAsync(CancellationToken cancellationToken)
@@ -2207,6 +2335,13 @@ public partial class PostGameApprovalPageModel(
     IGameDayClient gameDayClient,
     IGameDayNavigator navigator) : ObservableObject
 {
+    public const string EmptyTitle = "Nothing to review";
+    public const string EmptyMessage = "This game has no results or stats waiting for review.";
+    public const string ErrorTitle = "Something went wrong";
+    public const string ErrorMessage = "We couldn't load the post-game review. Please try again.";
+    public const string OfflineTitle = "You're offline";
+    public const string OfflineMessage = "Reconnect to review results.";
+
     private Guid sessionId;
 
     [ObservableProperty]
@@ -2220,6 +2355,12 @@ public partial class PostGameApprovalPageModel(
 
     [ObservableProperty]
     private ViewState _state = ViewState.Loading;
+
+    [ObservableProperty]
+    private string _stateTitle = string.Empty;
+
+    [ObservableProperty]
+    private string _stateMessage = string.Empty;
 
     // The game/session being reviewed, shown in the header so a captain/admin knows which one.
     [ObservableProperty]
@@ -2370,15 +2511,45 @@ public partial class PostGameApprovalPageModel(
         }
     }
 
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task Retry(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
-        var dto = await gameDayClient.GetPostGameApprovalAsync(sessionId == Guid.Empty ? Guid.Parse("20000000-0000-0000-0000-000000000001") : sessionId, cancellationToken);
-        if (dto is null)
+        // Reloads after approve/save/publish keep the review on screen; only non-content states spin.
+        if (State != ViewState.Content)
         {
-            State = ViewState.Empty;
+            State = ViewState.Loading;
+        }
+
+        PostGameApprovalDto? dto;
+        try
+        {
+            dto = await gameDayClient.GetPostGameApprovalAsync(sessionId == Guid.Empty ? Guid.Parse("20000000-0000-0000-0000-000000000001") : sessionId, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is null)
+        {
+            ApplyNonContent(ViewState.Offline, OfflineTitle, OfflineMessage);
+            return;
+        }
+        catch (Exception)
+        {
+            ApplyNonContent(ViewState.Error, ErrorTitle, ErrorMessage);
             return;
         }
 
+        if (dto is null)
+        {
+            ApplyNonContent(ViewState.Empty, EmptyTitle, EmptyMessage);
+            return;
+        }
+
+        StateTitle = string.Empty;
+        StateMessage = string.Empty;
         sessionId = dto.SessionId;
         GameTitle = dto.GameTitle;
         GameDateLabel = dto.DateLabel;
@@ -2403,6 +2574,22 @@ public partial class PostGameApprovalPageModel(
         RefreshResultsHint();
         State = ViewState.Content;
     }
+
+    private void ApplyNonContent(ViewState state, string title, string message)
+    {
+        // A reload that fails while content is on screen (e.g. right after a successful
+        // mutation) must not wipe the user's context; keep the momentarily-stale content.
+        if (State == ViewState.Content && state is ViewState.Error or ViewState.Offline)
+        {
+            return;
+        }
+
+        TeamResults.Clear();
+        Approvals.Clear();
+        StateTitle = title;
+        StateMessage = message;
+        State = state;
+    }
 }
 
 public partial class CaptainPlayerItem(Guid playerId, string initials, string name, string detail, bool isSelected) : ObservableObject
@@ -2424,9 +2611,13 @@ public partial class CaptainPlayerItem(Guid playerId, string initials, string na
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasRank))]
+    [NotifyPropertyChangedFor(nameof(SemanticLabel))]
     private string _rankLabel = string.Empty;
 
     public bool HasRank => !string.IsNullOrEmpty(RankLabel);
+
+    /// <summary>Screen-reader label carrying the selection state the visual checkbox conveys.</summary>
+    public string SemanticLabel => HasRank ? $"{Name}, {RankLabel}" : $"{Name}, not a captain";
 }
 
 public partial class DraftTeamOption(Guid teamId, string name, string captainName) : ObservableObject
@@ -2452,6 +2643,7 @@ public partial class DraftPlayerItem(Guid playerId, string initials, string name
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDimmed))]
+    [NotifyPropertyChangedFor(nameof(SemanticLabel))]
     private bool _isSelected = isSelected;
 
     [ObservableProperty]
@@ -2464,10 +2656,18 @@ public partial class DraftPlayerItem(Guid playerId, string initials, string name
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDimmed))]
+    [NotifyPropertyChangedFor(nameof(SemanticLabel))]
     private bool _isPickable = canPick;
 
     /// <summary>Greys the row: not on this team and not pickable (taken by another team, or team full).</summary>
     public bool IsDimmed => !IsSelected && !IsPickable;
+
+    /// <summary>Screen-reader label carrying the pick state the visual checkbox conveys.</summary>
+    public string SemanticLabel => IsSelected
+        ? $"{Name}, on this team"
+        : IsPickable
+            ? $"{Name}, available"
+            : $"{Name}, unavailable";
 }
 
 public partial class TeamResultItem(Guid teamId, string teamName, int teamCount, int wins, int draws, int losses) : ObservableObject
@@ -2545,10 +2745,14 @@ public partial class StatApprovalItem(Guid submissionId, string initials, string
 
     public string ApprovalActionText => Status == StatApprovalStatus.NeedsReview ? "Resolve" : "Approve";
 
+    /// <summary>Screen-reader label matching the visible action verb ("Resolve" vs "Approve").</summary>
+    public string ApprovalSemanticDescription => $"{ApprovalActionText} {Name} stats";
+
     partial void OnStatusChanged(StatApprovalStatus value)
     {
         OnPropertyChanged(nameof(CanApprove));
         OnPropertyChanged(nameof(ApprovalActionText));
+        OnPropertyChanged(nameof(ApprovalSemanticDescription));
     }
 
     public static StatApprovalItem From(PendingStatApprovalDto dto)

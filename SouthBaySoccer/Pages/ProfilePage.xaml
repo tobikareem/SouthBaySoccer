@@ -44,6 +44,8 @@
             Glyph="{x:Static fonts:FontAwesomeGlyphs.User}"
             GlyphFontFamily="FontAwesomeSolid"
             RetryCommand="{Binding RefreshCommand}">
+            <RefreshView Command="{Binding RefreshCommand}"
+                         IsRefreshing="{Binding IsRefreshing, Mode=TwoWay}">
             <ScrollView>
                 <VerticalStackLayout
                     Padding="{StaticResource LayoutPadding}"
@@ -214,6 +216,7 @@
                     </VerticalStackLayout>
                 </VerticalStackLayout>
             </ScrollView>
+            </RefreshView>
         </c:StateView>
     </Grid>
 </ContentPage>

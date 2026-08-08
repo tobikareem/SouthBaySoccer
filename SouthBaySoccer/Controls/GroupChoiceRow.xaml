@@ -13,8 +13,8 @@
             SemanticProperties.Description="{Binding SemanticDescription, Source={x:Reference Root}}">
         <Border.Triggers>
             <DataTrigger TargetType="Border" Binding="{Binding IsSelected, Source={x:Reference Root}}" Value="True">
-                <Setter Property="BackgroundColor" Value="{StaticResource BrandMistLight}" />
-                <Setter Property="Stroke" Value="{StaticResource BrandGreenLight}" />
+                <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}" />
+                <Setter Property="Stroke" Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
             </DataTrigger>
         </Border.Triggers>
         <VerticalStackLayout Spacing="{StaticResource SpaceXs}">

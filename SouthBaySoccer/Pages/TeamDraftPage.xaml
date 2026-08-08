@@ -21,7 +21,7 @@
     </ContentPage.Behaviors>
     <Grid RowDefinitions="Auto,*">
         <c:BrandHeader Title="Pick team" Subtitle="{Binding CaptainName, StringFormat='Captain - {0}'}" ShowBack="True" BackCommand="{Binding BackCommand}" />
-        <c:StateView Grid.Row="1" State="{Binding State}" Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}" GlyphFontFamily="FontAwesomeSolid">
+        <c:StateView Grid.Row="1" State="{Binding State}" Title="{Binding StateTitle}" Message="{Binding StateMessage}" RetryCommand="{Binding RetryCommand}" Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}" GlyphFontFamily="FontAwesomeSolid">
             <ScrollView>
                 <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">
                     <!-- Snake-turn banner: always tells everyone whose pick it is, no training needed. -->
@@ -65,13 +65,13 @@
                             <c:Badge Grid.Column="1" Text="Captain pick" Glyph="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}" Variant="Success" IsVisible="{Binding CanPickPlayers}" />
                         </Grid>
                     </c:BrandCard>
-                    <Entry Text="{Binding SearchText}" Placeholder="Search confirmed roster" Style="{StaticResource BrandEntry}" />
+                    <Entry Text="{Binding SearchText}" Placeholder="Search confirmed roster" Style="{StaticResource BrandEntry}" SemanticProperties.Description="Search the confirmed roster" />
                     <c:SectionHeader Text="Confirmed roster (Going &amp; Waitlist)" />
                     <c:BrandCard>
                         <VerticalStackLayout BindableLayout.ItemsSource="{Binding Players}" Spacing="{StaticResource SpaceXs}">
                             <BindableLayout.ItemTemplate>
                                 <DataTemplate x:DataType="pageModels:DraftPlayerItem">
-                                    <c:PlayerRow Initials="{Binding Initials}" Name="{Binding Name}" Detail="{Binding Detail}" TapCommand="{Binding BindingContext.TogglePickCommand, Source={x:Reference DraftPage}}" TapCommandParameter="{Binding .}" IsEnabled="{Binding IsPickable}" IsVisible="{Binding IsVisible}">
+                                    <c:PlayerRow Initials="{Binding Initials}" Name="{Binding Name}" Detail="{Binding Detail}" SemanticDescription="{Binding SemanticLabel}" TapCommand="{Binding BindingContext.TogglePickCommand, Source={x:Reference DraftPage}}" TapCommandParameter="{Binding .}" IsEnabled="{Binding IsPickable}" IsVisible="{Binding IsVisible}">
                                         <!-- Grey players taken by another team or blocked by this team's cap. -->
                                         <c:PlayerRow.Triggers>
                                             <DataTrigger TargetType="c:PlayerRow" Binding="{Binding IsDimmed}" Value="True">
@@ -79,7 +79,7 @@
                                             </DataTrigger>
                                         </c:PlayerRow.Triggers>
                                         <c:PlayerRow.TrailingContent>
-                                            <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding IsPickable}" InputTransparent="True" />
+                                            <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding IsPickable}" InputTransparent="True" AutomationProperties.IsInAccessibleTree="False" />
                                         </c:PlayerRow.TrailingContent>
                                     </c:PlayerRow>
                                 </DataTemplate>

@@ -225,6 +225,18 @@ public class LeaderboardPageModelTests
         page.ToString().Should().NotContain("#");
     }
 
+    [Fact]
+    public async Task Refresh_ReloadsRankingAndClearsIsRefreshing()
+    {
+        var pageModel = CreatePageModel();
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.RefreshCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsRefreshing.Should().BeFalse("the pull spinner must clear when the refresh completes");
+    }
+
     private static LeaderboardPageModel CreatePageModel(
         Mock<ILeaderboardClient>? client = null,
         Mock<ILeaderboardNavigator>? navigator = null,

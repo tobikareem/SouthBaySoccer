@@ -18,23 +18,25 @@
             EventName="Appearing"
             Command="{Binding AppearingCommand}" />
     </ContentPage.Behaviors>
-    <c:StateView
-        State="{Binding State}"
-        Title="{Binding StateTitle}"
-        Message="{Binding StateMessage}"
-        Glyph="{x:Static fonts:FontAwesomeGlyphs.Futbol}"
-        GlyphFontFamily="FontAwesomeSolid"
-        RetryCommand="{Binding RetryCommand}">
+    <!-- Header lives outside the StateView so the back button survives Loading/Empty/Error. -->
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader
+            Title="Recent games"
+            Subtitle="Fix teams or clear the stat queue after the game"
+            ShowBack="True"
+            BackCommand="{Binding BackCommand}" />
+        <c:StateView
+            Grid.Row="1"
+            State="{Binding State}"
+            Title="{Binding StateTitle}"
+            Message="{Binding StateMessage}"
+            Glyph="{x:Static fonts:FontAwesomeGlyphs.Futbol}"
+            GlyphFontFamily="FontAwesomeSolid"
+            RetryCommand="{Binding RetryCommand}">
         <ScrollView>
             <VerticalStackLayout
                 Padding="{StaticResource LayoutPadding}"
                 Spacing="{StaticResource SpaceMd}">
-
-                <c:BrandHeader
-                    Title="Recent games"
-                    Subtitle="Fix teams or clear the stat queue after the game"
-                    ShowBack="True"
-                    BackCommand="{Binding BackCommand}" />
 
                 <VerticalStackLayout
                     BindableLayout.ItemsSource="{Binding Games}"
@@ -93,5 +95,6 @@
                 </VerticalStackLayout>
             </VerticalStackLayout>
         </ScrollView>
-    </c:StateView>
+        </c:StateView>
+    </Grid>
 </ContentPage>
