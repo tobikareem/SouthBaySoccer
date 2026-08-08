@@ -41,6 +41,9 @@ public partial class ProfilePageModel(
     private ViewState _state = ViewState.Loading;
 
     [ObservableProperty]
+    private bool _isRefreshing;
+
+    [ObservableProperty]
     private string _stateTitle = string.Empty;
 
     [ObservableProperty]
@@ -124,11 +127,19 @@ public partial class ProfilePageModel(
     private Task Appearing(CancellationToken cancellationToken) => LoadProfileAsync(cancellationToken);
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task Refresh(CancellationToken cancellationToken)
+    private async Task Refresh(CancellationToken cancellationToken)
     {
         // An explicit pull must not be answered from the cache that serves tab switches.
         responseCache.Invalidate("profile:");
-        return LoadProfileAsync(cancellationToken);
+        IsRefreshing = true;
+        try
+        {
+            await LoadProfileAsync(cancellationToken);
+        }
+        finally
+        {
+            IsRefreshing = false;
+        }
     }
 
     [RelayCommand]
@@ -180,7 +191,12 @@ public partial class ProfilePageModel(
     private async Task LoadProfileAsync(CancellationToken cancellationToken)
     {
         ClearProfile();
-        State = ViewState.Loading;
+        // Pull-to-refresh keeps the content on screen (RefreshView shows the spinner);
+        // only non-content states swap to the full-page loading view.
+        if (State != ViewState.Content)
+        {
+            State = ViewState.Loading;
+        }
         IsBusy = true;
 
         try

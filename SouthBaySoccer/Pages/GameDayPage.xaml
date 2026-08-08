@@ -23,6 +23,8 @@
             Command="{Binding AppearingCommand}" />
     </ContentPage.Behaviors>
     <c:StateView State="{Binding State}" Title="{Binding StateTitle}" Message="{Binding StateMessage}" Glyph="{x:Static fonts:FontAwesomeGlyphs.Futbol}" GlyphFontFamily="FontAwesomeSolid" RetryCommand="{Binding RetryCommand}">
+        <RefreshView Command="{Binding RefreshCommand}"
+                     IsRefreshing="{Binding IsRefreshing, Mode=TwoWay}">
         <ScrollView>
             <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">
                 <!-- Shared header: which group and field this page is about, the session's own title,
@@ -200,6 +202,7 @@
                         <Label Text="Reason for late arrival" Style="{StaticResource TextLabel}" />
                         <Entry
                             Text="{Binding LateCheckInReason}"
+                            Style="{StaticResource BrandEntry}"
                             Placeholder="For example, traffic delay"
                             MaxLength="240"
                             SemanticProperties.Description="Reason required for the audited late check-in override" />
@@ -242,14 +245,14 @@
                         </Label>
                     </VerticalStackLayout>
                     <c:SectionHeader Text="Game-day actions" IsVisible="{Binding HasGameDayActions}" />
-                    <c:PlayerRow Initials="CA" Name="Assign captains" Detail="2, 3, or 4 captains = 2, 3, or 4 teams" TapCommand="{Binding OpenCaptainAssignmentCommand}" IsVisible="{Binding CanAssignCaptains}" />
-                    <c:PlayerRow Initials="DR" Name="Pick your team" Detail="Captain permission - session scoped" TapCommand="{Binding OpenTeamDraftCommand}" IsVisible="{Binding ShowPickTeam}" />
-                    <c:PlayerRow Initials="VT" Name="View your team" Detail="See your team and who you're up against" TapCommand="{Binding OpenTeamsViewCommand}" IsVisible="{Binding ShowViewTeams}" />
-                    <c:PlayerRow Initials="RG" Name="Recent games" Detail="Fix teams or review stats after the game" TapCommand="{Binding OpenRecentGamesCommand}" IsVisible="{Binding CanManageCheckIns}" />
-                    <c:PlayerRow Initials="ME" Name="Not on the list?" Detail="Claim your spot on a recent game" TapCommand="{Binding OpenClaimSpotCommand}" />
-                    <c:PlayerRow Initials="MS" Name="Submit your stats" Detail="Report your goals and assists for confirmation" TapCommand="{Binding OpenMatchStatsCommand}" IsVisible="{Binding CanSubmitOwnStats}" />
-                    <c:PlayerRow Initials="RT" Name="Rate teammates" Detail="Rate, like, and pick one MVP" TapCommand="{Binding OpenRateTeammatesCommand}" IsVisible="{Binding CanSubmitOwnStats}" />
-                    <c:PlayerRow Initials="PG" Name="Approve stats and result" Detail="After game - captains only" TapCommand="{Binding OpenPostGameApprovalCommand}" IsVisible="{Binding CanApprovePostGame}" />
+                    <c:PlayerRow Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}" Name="Assign captains" Detail="2, 3, or 4 captains = 2, 3, or 4 teams" TapCommand="{Binding OpenCaptainAssignmentCommand}" IsVisible="{Binding CanAssignCaptains}" />
+                    <c:PlayerRow Glyph="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}" Name="Pick your team" Detail="Captain permission - session scoped" TapCommand="{Binding OpenTeamDraftCommand}" IsVisible="{Binding ShowPickTeam}" />
+                    <c:PlayerRow Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}" Name="View your team" Detail="See your team and who you're up against" TapCommand="{Binding OpenTeamsViewCommand}" IsVisible="{Binding ShowViewTeams}" />
+                    <c:PlayerRow Glyph="{x:Static fonts:FontAwesomeGlyphs.CalendarDays}" Name="Recent games" Detail="Fix teams or review stats after the game" TapCommand="{Binding OpenRecentGamesCommand}" IsVisible="{Binding CanManageCheckIns}" />
+                    <c:PlayerRow Glyph="{x:Static fonts:FontAwesomeGlyphs.CirclePlus}" Name="Not on the list?" Detail="Claim your spot on a recent game" TapCommand="{Binding OpenClaimSpotCommand}" />
+                    <c:PlayerRow Glyph="{x:Static fonts:FontAwesomeGlyphs.ChartColumn}" Name="Submit your stats" Detail="Report your goals and assists for confirmation" TapCommand="{Binding OpenMatchStatsCommand}" IsVisible="{Binding CanSubmitOwnStats}" />
+                    <c:PlayerRow Glyph="{x:Static fonts:FontAwesomeGlyphs.Star}" Name="Rate teammates" Detail="Rate, like, and pick one MVP" TapCommand="{Binding OpenRateTeammatesCommand}" IsVisible="{Binding CanSubmitOwnStats}" />
+                    <c:PlayerRow Glyph="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}" Name="Approve stats and result" Detail="After game - captains only" TapCommand="{Binding OpenPostGameApprovalCommand}" IsVisible="{Binding CanApprovePostGame}" />
                 </VerticalStackLayout>
 
                 <!-- No relevant game today: say so plainly, then show where things last stood. -->
@@ -267,7 +270,7 @@
                             <BindableLayout.ItemTemplate>
                                 <DataTemplate x:DataType="pageModels:RecentGameSummaryItem">
                                     <c:PlayerRow
-                                        Initials="RG"
+                                        Glyph="{x:Static fonts:FontAwesomeGlyphs.Futbol}"
                                         Name="{Binding Summary.Title}"
                                         Detail="{Binding ContextLabel}"
                                         TrailingText="{Binding Summary.DateLabel}"
@@ -328,13 +331,14 @@
                         </VerticalStackLayout>
                         <!-- Rating is open to eligible players; the remaining actions are role-gated. -->
                         <c:SectionHeader Text="Finish up this game" IsVisible="{Binding HasLastGameActions}" />
-                        <c:PlayerRow Initials="RT" Name="Rate teammates" Detail="Rate, like, and pick one MVP" TapCommand="{Binding OpenLastGameRatingsCommand}" IsVisible="{Binding LastGameCanRateTeammates}" SemanticProperties.Hint="Opens teammate ratings for the last game" />
-                        <c:PlayerRow Initials="LT" Name="Lock the teams" Detail="Teams were never locked - assign captains and lock" TapCommand="{Binding OpenLastGameCaptainsCommand}" IsVisible="{Binding LastGameCanLockTeams}" />
-                        <c:PlayerRow Initials="MP" Name="Match players" Detail="Link imported names to profiles" TapCommand="{Binding OpenLastGameMatchPlayersCommand}" IsVisible="{Binding LastGameCanMatchPlayers}" />
-                        <c:PlayerRow Initials="CR" Name="Confirm result and goals" Detail="Approve the team win/loss and each goal" TapCommand="{Binding OpenLastGameApprovalCommand}" IsVisible="{Binding LastGameCanApprovePostGame}" />
+                        <c:PlayerRow Glyph="{x:Static fonts:FontAwesomeGlyphs.Star}" Name="Rate teammates" Detail="Rate, like, and pick one MVP" TapCommand="{Binding OpenLastGameRatingsCommand}" IsVisible="{Binding LastGameCanRateTeammates}" SemanticProperties.Hint="Opens teammate ratings for the last game" />
+                        <c:PlayerRow Glyph="{x:Static fonts:FontAwesomeGlyphs.Lock}" Name="Lock the teams" Detail="Teams were never locked - assign captains and lock" TapCommand="{Binding OpenLastGameCaptainsCommand}" IsVisible="{Binding LastGameCanLockTeams}" />
+                        <c:PlayerRow Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}" Name="Match players" Detail="Link imported names to profiles" TapCommand="{Binding OpenLastGameMatchPlayersCommand}" IsVisible="{Binding LastGameCanMatchPlayers}" />
+                        <c:PlayerRow Glyph="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}" Name="Confirm result and goals" Detail="Approve the team win/loss and each goal" TapCommand="{Binding OpenLastGameApprovalCommand}" IsVisible="{Binding LastGameCanApprovePostGame}" />
                     </VerticalStackLayout>
                 </VerticalStackLayout>
             </VerticalStackLayout>
         </ScrollView>
+        </RefreshView>
     </c:StateView>
 </ContentPage>

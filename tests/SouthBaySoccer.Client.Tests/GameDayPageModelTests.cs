@@ -68,6 +68,26 @@ public class GameDayPageModelTests
     }
 
     [Fact]
+    public async Task GameDay_Refresh_ReloadsContextAndClearsIsRefreshing()
+    {
+        var context = new SeedGameDayState().GetContext();
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(context);
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.RefreshCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsRefreshing.Should().BeFalse("the pull spinner must clear when the refresh completes");
+        client.Verify(
+            service => service.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.AtLeast(2));
+    }
+
+    [Fact]
     public async Task RecentGames_WhenPlayerHasTodayGame_PreservesTodayAndLetsPlayerSelectHistory()
     {
         var fireFc = LastGameWith() with { Title = "Fire FC Thursday pickup" };
@@ -396,6 +416,126 @@ public class GameDayPageModelTests
 
         pageModel.CaptainCount.Should().Be(4);
         pageModel.SelectedCountText.Should().Contain("max 4");
+    }
+
+    [Fact]
+    public async Task CaptainAssignment_WhenOffline_ShowsOfflineStateWithMessage()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetCaptainAssignmentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new System.Net.Http.HttpRequestException());
+        var pageModel = new CaptainAssignmentPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Offline);
+        pageModel.StateTitle.Should().Be(CaptainAssignmentPageModel.OfflineTitle);
+        pageModel.StateMessage.Should().Be(CaptainAssignmentPageModel.OfflineMessage);
+    }
+
+    [Fact]
+    public async Task CaptainAssignment_WhenLoadFails_ShowsErrorThenRetryRecovers()
+    {
+        var cap = Guid.NewGuid();
+        var dto = new CaptainAssignmentDto(
+            Guid.NewGuid(), Guid.NewGuid(), 2, new[] { 2, 3, 4 },
+            new[] { cap },
+            new[] { new CheckedInPlayerDto(new PlayerSummaryDto(cap, "Player 0", "P0", "Midfielder", false), "going") });
+        var client = new Mock<IGameDayClient>();
+        client
+            .SetupSequence(c => c.GetCaptainAssignmentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("boom"))
+            .ReturnsAsync(dto);
+        var pageModel = new CaptainAssignmentPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        pageModel.State.Should().Be(ViewState.Error);
+        pageModel.StateTitle.Should().Be(CaptainAssignmentPageModel.ErrorTitle);
+
+        await pageModel.RetryCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.Players.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task TeamDraft_WhenOffline_ShowsOfflineStateWithMessage()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new System.Net.Http.HttpRequestException());
+        var pageModel = new TeamDraftPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Offline);
+        pageModel.StateTitle.Should().Be(TeamDraftPageModel.OfflineTitle);
+        pageModel.StateMessage.Should().Be(TeamDraftPageModel.OfflineMessage);
+    }
+
+    [Fact]
+    public async Task TeamDraft_WhenLoadFails_ShowsErrorThenRetryRecovers()
+    {
+        var (draft, _, _) = BuildDraft(playerCount: 4, teamCount: 2, currentTeamIndex: 0);
+        var client = new Mock<IGameDayClient>();
+        client
+            .SetupSequence(c => c.GetTeamDraftAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("boom"))
+            .ReturnsAsync(draft);
+        var pageModel = new TeamDraftPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        pageModel.State.Should().Be(ViewState.Error);
+        pageModel.StateTitle.Should().Be(TeamDraftPageModel.ErrorTitle);
+
+        await pageModel.RetryCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.Players.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task PostGameApproval_WhenOffline_ShowsOfflineStateWithMessage()
+    {
+        var client = new Mock<IGameDayClient>();
+        client
+            .Setup(c => c.GetPostGameApprovalAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new System.Net.Http.HttpRequestException());
+        var pageModel = new PostGameApprovalPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Offline);
+        pageModel.StateTitle.Should().Be(PostGameApprovalPageModel.OfflineTitle);
+        pageModel.StateMessage.Should().Be(PostGameApprovalPageModel.OfflineMessage);
+    }
+
+    [Fact]
+    public async Task PostGameApproval_WhenLoadFails_ShowsErrorThenRetryRecovers()
+    {
+        var teamId = Guid.NewGuid();
+        var dto = new PostGameApprovalDto(
+            Guid.NewGuid(), Guid.NewGuid(), CanApprove: true, IsPublished: false, NeedsReview: false,
+            TeamCount: 2,
+            new[] { new TeamResultDto(teamId, "Team Green", 1, 0, 0) },
+            Array.Empty<PendingStatApprovalDto>());
+        var client = new Mock<IGameDayClient>();
+        client
+            .SetupSequence(c => c.GetPostGameApprovalAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("boom"))
+            .ReturnsAsync(dto);
+        var pageModel = new PostGameApprovalPageModel(client.Object, Navigator().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        pageModel.State.Should().Be(ViewState.Error);
+        pageModel.StateTitle.Should().Be(PostGameApprovalPageModel.ErrorTitle);
+
+        await pageModel.RetryCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.TeamResults.Should().NotBeEmpty();
     }
 
     [Fact]
