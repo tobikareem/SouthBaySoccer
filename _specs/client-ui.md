@@ -123,6 +123,10 @@ Header font Inter Semibold; body Inter Regular (registered in `MauiProgram.cs` f
 - Sizes: `TouchMin` 44; primary buttons 46 minimum; `AvatarSm` 28, `AvatarMd` 34,
   `AvatarLg` 54; `BarHeight` 8; `IconMd` 20.
 - Wireframe padding: cards 15, badges `9,5`, buttons `14,11`, rows `0,8`, segments `12,7`.
+- Layout: `LayoutPadding` (OnIdiom `12`/desktop `20`) is the page gutter; `IconSize` (21) and the
+  five Shell tab icons (`IconSessions`, `IconGameDay`, `IconStats`, `IconPlayers`, `IconProfile`)
+  also live in `BrandTokens.xaml` — migrated from the deleted sample-template dictionaries; the
+  brand system owns them now.
 
 ## 5. Shared styles (`BrandStyles.xaml`)
 
@@ -142,6 +146,14 @@ Keyed styles (and a few implicit) built only from tokens:
     (Game Day check-in), where a green button would vanish. Use this, never inline
     `BackgroundColor="White"` on a page.
 - **Entry/Editor**: `BrandEntry` — `SurfaceAlt` bg, `BrandLine` border, `RadiusMd`, focus ring `BrandGreen`.
+- **Inputs**: `BrandEditor`, `BrandPicker`, `BrandDatePicker`, `BrandTimePicker` — same recipe as
+  `BrandEntry` (SurfaceAlt bg, Ink text, Sage placeholder/title, Inter `FontBody`, `TouchMin`
+  height). Every Editor/Picker/DatePicker/TimePicker on a product page must carry one of these;
+  a bare input falls back to platform defaults, not brand type.
+- **Baseline implicit styles** (owned here since the template dictionaries were deleted):
+  `Shell` (+derived, brand tab-bar colors), `Page` (+derived, surface bg + zero padding),
+  `CheckBox` (brand green, `TouchMin` minimums), `Switch` (brand green on-color),
+  `ActivityIndicator` (brand green).
 - **Frame/Border**: `CardSurface` (white, 1px `BrandLine`, `RadiusLg`), `TintSurface` (`BrandMist`).
 - **Wireframe surfaces**: `HeroCardSurface` (Pine→Flag Green), `StatTileSurface`
   (Mist/subtle white, fine green-tinted line), `NoticeSurface` (Mist + green-tinted line),
@@ -209,8 +221,12 @@ White surface container.
 ### PlayerRow
 - `LeadingContent` (View?), `Initials`/`ImageSource`, `Name` (string), `Detail` (string?),
   `TrailingText` (string?), `TrailingContent` (View?), `TapCommand` (ICommand?),
-  `SemanticDescription` (string?, defaults to `Name`).
+  `SemanticDescription` (string?, defaults to `Name`), `Glyph` (string?) + `GlyphFontFamily`
+  (default `FontAwesomeSolid`).
 - Avatar + name + subtitle + trailing; tappable. A11y: row description.
+- **Menu mode**: setting `Glyph` swaps the person avatar for an `IconTileSurface` icon tile —
+  use this for navigation/action rows (Game Day actions, recent-game rows). Never fake a person
+  avatar with made-up initials for a non-person row; leave `Glyph` unset for real people.
 - Wireframe: going/waitlist lists, confirm-teammates rows, leaderboard rows.
 - The Game Day last-game team popup uses `Detail` for compact approved tallies: repeat `⚽` once per
   goal and `🦶` once per assist; prefix `Captain · ` for the captain. The last-game "Finish up this

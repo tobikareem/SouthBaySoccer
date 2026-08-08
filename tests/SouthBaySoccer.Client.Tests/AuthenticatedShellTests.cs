@@ -98,7 +98,9 @@ public class AuthenticatedShellTests
     [Fact]
     public void AppShell_TabIcons_UseTypedFontAwesomeSolidResources()
     {
-        var styles = LoadXaml("AppStyles.xaml");
+        // The tab icon set migrated into the brand tokens when the sample-template dictionaries
+        // were deleted; BrandTokens.xaml owns it now.
+        var styles = LoadXaml("BrandTokens.xaml");
         var expectedGlyphs = new Dictionary<string, string>
         {
             ["IconSessions"] = "FontAwesomeGlyphs.CalendarDays",

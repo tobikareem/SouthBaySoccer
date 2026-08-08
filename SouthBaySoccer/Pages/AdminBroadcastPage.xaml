@@ -60,6 +60,7 @@
                             <Label Grid.Column="1" Text="{Binding CharacterCountLabel}" Style="{StaticResource TextCaption}" />
                         </Grid>
                         <Editor Text="{Binding Body}"
+                                Style="{StaticResource BrandEditor}"
                                 MaxLength="500"
                                 IsEnabled="{Binding IsComposerEnabled}"
                                 Placeholder="Share a game update with your group"
@@ -96,7 +97,7 @@
                             <DataTemplate x:DataType="announcements:SentAnnouncementDto">
                                 <Grid ColumnDefinitions="*,Auto">
                                     <VerticalStackLayout>
-                                        <Label Text="{Binding Body}" MaxLines="2" LineBreakMode="TailTruncation" />
+                                        <Label Text="{Binding Body}" Style="{StaticResource TextBody}" MaxLines="2" LineBreakMode="TailTruncation" />
                                         <Label Text="{Binding GroupName}" Style="{StaticResource TextCaption}" />
                                     </VerticalStackLayout>
                                     <Label Grid.Column="1" Text="{Binding ReadCount, StringFormat='{}{0} seen'}" Style="{StaticResource TextCaption}" />

@@ -36,7 +36,7 @@
 
                     <Border Padding="{StaticResource CardPadding}"
                             BackgroundColor="{AppThemeBinding Light={StaticResource DangerSurfaceLight}, Dark={StaticResource DangerSurfaceDark}}"
-                            StrokeShape="RoundRectangle 12"
+                            StrokeShape="{StaticResource ShapeInset}"
                             IsVisible="{Binding IsCanceled}">
                         <Label Text="Session has been cancelled"
                                Style="{StaticResource TextH2}"
@@ -135,6 +135,8 @@
                            Style="{StaticResource TextCaption}"
                            TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
                            Padding="{StaticResource RowPadding}"
+                           MinimumHeightRequest="{StaticResource TouchMin}"
+                           VerticalTextAlignment="Center"
                            IsVisible="{Binding HasMoreGoing}"
                            SemanticProperties.Description="Show all going players">
                         <Label.GestureRecognizers>
@@ -194,7 +196,7 @@
                         <Label Text="{x:Static fonts:FontAwesomeGlyphs.Plug}"
                                FontFamily="FontAwesomeSolid"
                                FontSize="{StaticResource FontCaption}"
-                               TextColor="{StaticResource BrandSageLight}"
+                               TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
                                VerticalTextAlignment="Center" />
                         <Label Text="Confirmed via Pickup Pal"
                                Style="{StaticResource TextCaption}"
