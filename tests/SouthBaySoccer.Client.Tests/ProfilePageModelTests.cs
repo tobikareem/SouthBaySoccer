@@ -177,6 +177,7 @@ public class ProfilePageModelTests
         await pageModel.RefreshCommand.ExecuteAsync(null);
 
         pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsRefreshing.Should().BeFalse("the pull spinner must clear when the refresh completes");
         profileClient.Verify(
             client => client.GetCurrentProfileAsync(It.IsAny<CancellationToken>()),
             Times.Exactly(2));

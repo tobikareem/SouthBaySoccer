@@ -17,7 +17,7 @@
     </ContentPage.Behaviors>
     <Grid RowDefinitions="Auto,*">
         <c:BrandHeader Title="Assign captains" Subtitle="Admin only" ShowBack="True" BackCommand="{Binding BackCommand}" />
-        <c:StateView Grid.Row="1" State="{Binding State}" Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}" GlyphFontFamily="FontAwesomeSolid">
+        <c:StateView Grid.Row="1" State="{Binding State}" Title="{Binding StateTitle}" Message="{Binding StateMessage}" RetryCommand="{Binding RetryCommand}" Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}" GlyphFontFamily="FontAwesomeSolid">
             <ScrollView>
                 <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">
                     <!-- The active count is filled (PrimaryButton) so the current selection stays
@@ -26,21 +26,21 @@
                          enlarged accessibility fonts (same pattern as the draft team switcher). -->
                     <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never">
                     <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
-                        <Button Text="2 captains" Command="{Binding SelectCaptainCountCommand}" CommandParameter="2" Style="{StaticResource GhostButton}">
+                        <Button Text="2 captains" Command="{Binding SelectCaptainCountCommand}" CommandParameter="2" Style="{StaticResource GhostButton}" SemanticProperties.Hint="Sets 2 captains, which cuts the roster into 2 teams">
                             <Button.Triggers>
                                 <DataTrigger TargetType="Button" Binding="{Binding IsTwoCaptains}" Value="True">
                                     <Setter Property="Style" Value="{StaticResource PrimaryButton}" />
                                 </DataTrigger>
                             </Button.Triggers>
                         </Button>
-                        <Button Text="3 captains" Command="{Binding SelectCaptainCountCommand}" CommandParameter="3" Style="{StaticResource GhostButton}">
+                        <Button Text="3 captains" Command="{Binding SelectCaptainCountCommand}" CommandParameter="3" Style="{StaticResource GhostButton}" SemanticProperties.Hint="Sets 3 captains, which cuts the roster into 3 teams">
                             <Button.Triggers>
                                 <DataTrigger TargetType="Button" Binding="{Binding IsThreeCaptains}" Value="True">
                                     <Setter Property="Style" Value="{StaticResource PrimaryButton}" />
                                 </DataTrigger>
                             </Button.Triggers>
                         </Button>
-                        <Button Text="4 captains" Command="{Binding SelectCaptainCountCommand}" CommandParameter="4" Style="{StaticResource GhostButton}">
+                        <Button Text="4 captains" Command="{Binding SelectCaptainCountCommand}" CommandParameter="4" Style="{StaticResource GhostButton}" SemanticProperties.Hint="Sets 4 captains, which cuts the roster into 4 teams">
                             <Button.Triggers>
                                 <DataTrigger TargetType="Button" Binding="{Binding IsFourCaptains}" Value="True">
                                     <Setter Property="Style" Value="{StaticResource PrimaryButton}" />
@@ -52,18 +52,18 @@
                     <Border Style="{StaticResource NoticeSurface}">
                         <Label Text="Tap captains in order: the 1st captain gets team 1 and the first pick of the snake draft (1-2-3, then 3-2-1)." Style="{StaticResource TextCaption}" />
                     </Border>
-                    <Entry Text="{Binding SearchText}" Placeholder="Search Going &amp; Waitlist players" Style="{StaticResource BrandEntry}" />
+                    <Entry Text="{Binding SearchText}" Placeholder="Search Going &amp; Waitlist players" Style="{StaticResource BrandEntry}" SemanticProperties.Description="Search the Going and Waitlist roster" />
                     <c:SectionHeader Text="Going &amp; Waitlist players" />
                     <c:BrandCard>
                         <VerticalStackLayout BindableLayout.ItemsSource="{Binding Players}" Spacing="{StaticResource SpaceXs}">
                             <BindableLayout.ItemTemplate>
                                 <DataTemplate x:DataType="pageModels:CaptainPlayerItem">
-                                    <c:PlayerRow Initials="{Binding Initials}" Name="{Binding Name}" Detail="{Binding Detail}" TapCommand="{Binding BindingContext.ToggleCaptainCommand, Source={x:Reference CaptainsPage}}" TapCommandParameter="{Binding .}" IsVisible="{Binding IsVisible}">
+                                    <c:PlayerRow Initials="{Binding Initials}" Name="{Binding Name}" Detail="{Binding Detail}" SemanticDescription="{Binding SemanticLabel}" TapCommand="{Binding BindingContext.ToggleCaptainCommand, Source={x:Reference CaptainsPage}}" TapCommandParameter="{Binding .}" IsVisible="{Binding IsVisible}">
                                         <c:PlayerRow.TrailingContent>
                                             <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
                                                 <!-- Tap order = rank = team number = snake pick order. -->
                                                 <c:Badge Text="{Binding RankLabel}" Variant="Success" IsVisible="{Binding HasRank}" VerticalOptions="Center" />
-                                                <CheckBox IsChecked="{Binding IsSelected}" InputTransparent="True" />
+                                                <CheckBox IsChecked="{Binding IsSelected}" InputTransparent="True" AutomationProperties.IsInAccessibleTree="False" />
                                             </HorizontalStackLayout>
                                         </c:PlayerRow.TrailingContent>
                                     </c:PlayerRow>

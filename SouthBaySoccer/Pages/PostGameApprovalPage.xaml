@@ -18,7 +18,7 @@
     </ContentPage.Behaviors>
     <Grid RowDefinitions="Auto,*">
         <c:BrandHeader Title="Approve stats" Subtitle="{Binding ReviewSubtitle}" ShowBack="True" BackCommand="{Binding BackCommand}" />
-        <c:StateView Grid.Row="1" State="{Binding State}" Glyph="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}" GlyphFontFamily="FontAwesomeSolid">
+        <c:StateView Grid.Row="1" State="{Binding State}" Title="{Binding StateTitle}" Message="{Binding StateMessage}" RetryCommand="{Binding RetryCommand}" Glyph="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}" GlyphFontFamily="FontAwesomeSolid">
             <ScrollView>
                 <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">
                     <VerticalStackLayout BindableLayout.ItemsSource="{Binding TeamResults}" Spacing="{StaticResource SpaceMd}">
@@ -26,23 +26,20 @@
                             <DataTemplate x:DataType="pageModels:TeamResultItem">
                                 <c:BrandCard>
                                     <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <VerticalStackLayout>
-                                                <Label Text="{Binding TeamName}" Style="{StaticResource TextBodyStrong}" />
-                                                <Label Text="{Binding Detail}" Style="{StaticResource TextCaption}" />
-                                            </VerticalStackLayout>
-                                            <c:Badge Grid.Column="1" Text="{Binding Detail}" Variant="Neutral" />
-                                        </Grid>
-                                        <c:CounterStepper Caption="Wins" Value="{Binding Wins}" Minimum="0" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
-                                        <c:CounterStepper Caption="Draws" Value="{Binding Draws}" Minimum="0" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
-                                        <c:CounterStepper Caption="Losses" Value="{Binding Losses}" Minimum="0" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
+                                        <VerticalStackLayout>
+                                            <Label Text="{Binding TeamName}" Style="{StaticResource TextBodyStrong}" />
+                                            <Label Text="{Binding Detail}" Style="{StaticResource TextCaption}" />
+                                        </VerticalStackLayout>
+                                        <c:CounterStepper Caption="Wins" Value="{Binding Wins}" Minimum="0" SemanticCaption="{Binding TeamName, StringFormat='{0} wins'}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
+                                        <c:CounterStepper Caption="Draws" Value="{Binding Draws}" Minimum="0" SemanticCaption="{Binding TeamName, StringFormat='{0} draws'}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
+                                        <c:CounterStepper Caption="Losses" Value="{Binding Losses}" Minimum="0" SemanticCaption="{Binding TeamName, StringFormat='{0} losses'}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
                                                             <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding HasResultsHint}">
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
                             <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleInfo}" FontFamily="FontAwesomeSolid" Style="{StaticResource BrandIconLabel}" />
                             <Label Grid.Column="1" Text="{Binding ResultsHint}" Style="{StaticResource TextCaption}" />
                         </Grid>
                     </Border>
-<Button Text="Save result" Command="{Binding BindingContext.SaveResultCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" Style="{StaticResource GhostButton}" />
+<Button Text="Save result" Command="{Binding BindingContext.SaveResultCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" SemanticProperties.Description="{Binding TeamName, StringFormat='Save {0} result'}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" Style="{StaticResource GhostButton}" />
                                     </VerticalStackLayout>
                                 </c:BrandCard>
                             </DataTemplate>
@@ -64,7 +61,7 @@
                                 <DataTemplate x:DataType="pageModels:StatApprovalItem">
                                     <c:PlayerRow Initials="{Binding Initials}" Name="{Binding Name}" Detail="{Binding Detail}">
                                         <c:PlayerRow.TrailingContent>
-                                            <Button Text="{Binding ApprovalActionText}" Command="{Binding BindingContext.ApproveStatCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" Style="{StaticResource GhostButton}" IsVisible="{Binding CanApprove}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
+                                            <Button Text="{Binding ApprovalActionText}" Command="{Binding BindingContext.ApproveStatCommand, Source={x:Reference PostGamePage}}" CommandParameter="{Binding .}" SemanticProperties.Description="{Binding ApprovalSemanticDescription}" Style="{StaticResource GhostButton}" IsVisible="{Binding CanApprove}" IsEnabled="{Binding BindingContext.CanEditPostGame, Source={x:Reference PostGamePage}}" />
                                         </c:PlayerRow.TrailingContent>
                                     </c:PlayerRow>
                                 </DataTemplate>

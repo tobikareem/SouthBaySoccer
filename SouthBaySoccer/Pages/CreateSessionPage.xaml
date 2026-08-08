@@ -98,7 +98,7 @@
                                       </Grid>
                                       <Border Padding="{StaticResource SpaceSm}"
                                               BackgroundColor="{AppThemeBinding Light={StaticResource DangerSurfaceLight}, Dark={StaticResource DangerSurfaceDark}}"
-                                              StrokeShape="RoundRectangle 8"
+                                              StrokeShape="{StaticResource ShapeNotice}"
                                               IsVisible="{Binding IsCanceled}">
                                         <Label Text="Session has been cancelled"
                                                Style="{StaticResource TextBodyStrong}"
@@ -124,7 +124,7 @@
                                        SemanticProperties.Description="Game date" />
                                 <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
                                     <Label Text="GAME DATE" Style="{StaticResource TextLabel}" />
-                                    <DatePicker Date="{Binding GameDate}"
+                                    <DatePicker Style="{StaticResource BrandDatePicker}" Date="{Binding GameDate}"
                                                 MinimumHeightRequest="{StaticResource TouchMin}"
                                                 SemanticProperties.Description="Game date" />
                                 </VerticalStackLayout>
@@ -140,7 +140,7 @@
                                        SemanticProperties.Description="Start time" />
                                 <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
                                     <Label Text="START TIME" Style="{StaticResource TextLabel}" />
-                                    <TimePicker Time="{Binding StartTime}"
+                                    <TimePicker Style="{StaticResource BrandTimePicker}" Time="{Binding StartTime}"
                                                 MinimumHeightRequest="{StaticResource TouchMin}"
                                                 SemanticProperties.Description="Start time" />
                                 </VerticalStackLayout>
@@ -159,13 +159,13 @@
                                       ColumnSpacing="{StaticResource SpaceSm}">
                                     <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
                                         <Label Text="RSVP CLOSE DATE" Style="{StaticResource TextLabel}" />
-                                        <DatePicker Date="{Binding RsvpCloseDate}"
+                                        <DatePicker Style="{StaticResource BrandDatePicker}" Date="{Binding RsvpCloseDate}"
                                                     MinimumHeightRequest="{StaticResource TouchMin}"
                                                     SemanticProperties.Description="RSVP close date" />
                                     </VerticalStackLayout>
                                     <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
                                         <Label Text="RSVP CLOSE TIME" Style="{StaticResource TextLabel}" />
-                                        <TimePicker Time="{Binding RsvpCloseTime}"
+                                        <TimePicker Style="{StaticResource BrandTimePicker}" Time="{Binding RsvpCloseTime}"
                                                     MinimumHeightRequest="{StaticResource TouchMin}"
                                                     SemanticProperties.Description="RSVP close time" />
                                     </VerticalStackLayout>
@@ -185,13 +185,13 @@
                                       ColumnSpacing="{StaticResource SpaceSm}">
                                     <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
                                         <Label Text="CHECK-IN OPENS" Style="{StaticResource TextLabel}" />
-                                        <TimePicker Time="{Binding CheckInOpen}"
+                                        <TimePicker Style="{StaticResource BrandTimePicker}" Time="{Binding CheckInOpen}"
                                                     MinimumHeightRequest="{StaticResource TouchMin}"
                                                     SemanticProperties.Description="Check-in opens" />
                                     </VerticalStackLayout>
                                     <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
                                         <Label Text="CHECK-IN CLOSES" Style="{StaticResource TextLabel}" />
-                                        <TimePicker Time="{Binding CheckInClose}"
+                                        <TimePicker Style="{StaticResource BrandTimePicker}" Time="{Binding CheckInClose}"
                                                     MinimumHeightRequest="{StaticResource TouchMin}"
                                                     SemanticProperties.Description="Check-in closes" />
                                     </VerticalStackLayout>
@@ -289,6 +289,7 @@
                                         Text="Map"
                                         Style="{StaticResource LinkButton}"
                                         ContentLayout="Left,6"
+                                        Command="{Binding OpenVenueMapCommand}"
                                         SemanticProperties.Description="Open venue map"
                                         VerticalOptions="Center">
                                     <Button.ImageSource>
