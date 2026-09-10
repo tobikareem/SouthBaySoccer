@@ -45,3 +45,4 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 # Game Day live draft state
 
 - [Game Day draft revision and adaptive polling](game-day-draft-revision.md)
+- [pickuppal-account-creation](pickuppal-account-creation.md) - PickupPal account-creation API contract and the rules for the future N9ja Bay signup flow (full doc in documentation/)
