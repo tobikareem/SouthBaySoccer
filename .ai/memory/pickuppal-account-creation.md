@@ -1,6 +1,6 @@
 ---
 name: pickuppal-account-creation
-description: PickupPal account-creation API contract (web signup, WhatsApp pre-reg token, link code) and the rules N9ja Bay must follow when it adds signup
+description: PickupPal account-creation contract plus the agreed N9ja Bay sign-up (!!register) and verified sign-in (!!login) flows; spec in AUTH-10
 type: project
 created: 2026-09-10
 ---
@@ -30,6 +30,27 @@ Durable facts to apply:
 - **No email verification exists anywhere in PickupPal.** WhatsApp linking is the only proof of
   control, and it proves the phone, not the email. The link gate on web is client-side, fails open,
   and is skippable; the API enforces nothing.
+
+## Agreed N9ja Bay flows (2026-09-14)
+
+Spec: `_specs/stories/AUTH-10-whatsapp-verified-onboarding/`. Wireframes: screens `signup-*`,
+`signin-verify`, `signin-waiting` in `documentation/mobile-wireframes.html`.
+
+- **The bot cannot message first (WhatsApp rule, confirmed by the Pickup Pal developer).** Every
+  proof of phone ownership starts with the player sending the bot a message that N9ja Bay prefills
+  through a `wa.me` link. Bot-initiated one-time codes are not an option; do not propose them again.
+- **Sign-up:** app prefills `!!register n9jabay`; bot mints the existing pre-reg token and replies
+  with an N9ja Bay app link (`/register?token=`) instead of the web URL; app link opens the details
+  form; Functions call validate, email check, then `register/whatsapp`, then the normal sync and
+  token issue. Account arrives linked. Phone is verified before anything is created.
+- **Sign-in:** phone lookup no longer issues tokens on a fresh device. It returns
+  `verificationRequired`; app prefills `!!login n9jabay`; bot replies with `/login?token=`; Functions
+  redeem it, check it against a server-side `PendingPhoneSignIn`, then issue tokens. "Remember this
+  device" is a 30-day refresh token, revoked on sign-out.
+- **Pickup Pal work still pending:** client argument on `!!register`/`!!login`, login-token
+  redemption endpoint, bot API key, account deletion endpoint, app-link host. Track in M13.0.
+- **Apple:** in-app sign-up triggers the 5.1.1(v) account-deletion requirement; it is part of the
+  same milestone, not a follow-up.
 
 **Why:** PickupPal stays the identity source of truth ([[pickuppal-phone-sign-in]]), so N9ja Bay
 signup means creating the PickupPal user through our Functions, then running our existing sync.
