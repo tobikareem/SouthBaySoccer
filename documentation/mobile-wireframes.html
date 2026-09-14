@@ -221,12 +221,51 @@
         <div class="label">Welcome back</div><div class="h">Your next game starts here.</div>
         <p class="muted" style="margin:4px 0 12px;line-height:1.5">Sign in with the phone number connected to your Pickup Pal account.</p>
         <div class="input" style="display:flex;align-items:center;gap:9px;background:#fbfcfb"><i class="ti ti-phone" style="color:var(--g);font-size:20px"></i><span style="font-size:15px">+1 (555) 014-9421</span></div>
-        <button class="btn primary" style="margin-top:12px" onclick="show('home')"><i class="ti ti-login-2" style="font-size:20px"></i> Sign in with phone</button>
+        <button class="btn primary" style="margin-top:12px" onclick="show('signin-verify')"><i class="ti ti-login-2" style="font-size:20px"></i> Sign in with phone</button>
         <div class="notice" style="margin-top:14px"><i class="ti ti-shield-check"></i><div><strong>Password-free and secure</strong><br>Pickup Pal verifies your account. N9ja Bay stores only app session tokens on this device.</div></div>
         <div style="display:flex;align-items:center;gap:10px;margin:18px 0 12px;color:var(--sage);font-size:12px"><span style="flex:1;height:1px;background:var(--line)"></span>new to n9ja bay?<span style="flex:1;height:1px;background:var(--line)"></span></div>
         <button class="btn ghost" onclick="show('signup-start')"><i class="ti ti-user-plus"></i> Create your account</button>
         <p class="muted" style="text-align:center;margin-top:12px;line-height:1.5">Takes about a minute. You'll confirm your number on WhatsApp, then finish here.</p>
         <div class="card" style="margin:16px 0 6px;background:#fbfcfb"><div class="row" style="justify-content:space-between"><div><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.4px">Need help?</div><div style="font-weight:600">Pickup Pal bot</div></div><span class="link"><i class="ti ti-brand-whatsapp"></i> Message</span></div></div>
+      </div>
+    </section>
+
+    <!-- SIGN IN 2 — account found, prove phone possession via !!login -->
+    <section class="screen" data-s="signin-verify">
+      <div class="ghdr"><span class="flag"></span>
+        <div class="row" style="gap:10px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Sign in</div><div style="font-size:17px;font-weight:500">Verify it's you</div></div></div>
+      </div>
+      <div class="scroll" style="padding-top:16px">
+        <div class="card" style="margin:0 0 14px;padding:12px 14px;background:#fbfcfb"><div class="row"><span class="avatar" style="width:40px;height:40px;font-size:13px">AO</span><div style="flex:1"><div style="font-weight:700">Ada Okafor</div><div class="muted">Pickup Pal account · +1 (555) ••• 9421</div></div><i class="ti ti-circle-check" style="color:var(--g);font-size:22px"></i></div></div>
+        <div class="h">One tap on WhatsApp to finish.</div>
+        <p class="muted" style="margin:4px 0 14px;line-height:1.5">We found your account. To make sure it's really you, send the bot a message from this number and tap the link it sends back.</p>
+        <div class="label">Message we'll send to the bot</div>
+        <div class="input" style="display:flex;align-items:center;gap:9px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px"><i class="ti ti-message-2" style="color:var(--sage);font-size:18px"></i>!!login n9jabay</div>
+        <p class="muted" style="margin:6px 0 0;font-size:12px">Goes to Pickup Pal bot, +1 (650) 220-5416. Nothing is sent until you tap.</p>
+        <button class="btn wa" style="margin-top:14px" onclick="show('signin-waiting')"><i class="ti ti-brand-whatsapp" style="font-size:20px"></i> Continue with WhatsApp</button>
+        <div class="toggle-row" onclick="this.querySelector('.switch').classList.toggle('on')"><span class="switch on"></span><div style="flex:1;font-size:13px;line-height:1.4"><div style="font-weight:600">Remember this device</div><div class="muted">Skip this step here for 30 days.</div></div></div>
+        <div class="notice" style="margin-top:14px"><i class="ti ti-shield-check"></i><div><strong>Why the extra step?</strong><br>Knowing a phone number isn't the same as owning it. The WhatsApp reply proves this is your number, without a password or a texted code.</div></div>
+        <p class="muted" style="text-align:center;margin-top:16px">Not you? <span class="link" onclick="back()">Use a different number</span></p>
+      </div>
+    </section>
+
+    <!-- SIGN IN 3 — waiting for the bot's login link -->
+    <section class="screen" data-s="signin-waiting">
+      <div class="ghdr"><span class="flag"></span>
+        <div class="row" style="gap:10px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Sign in</div><div style="font-size:17px;font-weight:500">Waiting for WhatsApp</div></div></div>
+      </div>
+      <div class="scroll" style="padding-top:22px;text-align:center">
+        <div class="avatar" style="width:74px;height:74px;margin:6px auto 14px;background:var(--mist)"><i class="ti ti-brand-whatsapp" style="font-size:38px;color:var(--wa)"></i></div>
+        <div class="h">Check your WhatsApp.</div>
+        <p class="muted" style="margin:4px 14px 16px;line-height:1.5">Tap the link the Pickup Pal bot sent you. You'll land on your sessions, already signed in.</p>
+        <div class="card" style="text-align:left;padding:12px 14px;background:#fbfcfb">
+          <div class="row" style="justify-content:space-between"><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.4px">Link expires in</div><span class="pill warn"><i class="ti ti-clock"></i> <span data-countdown>14:51</span></span></div>
+          <div class="bar" style="margin-top:9px"><i style="width:99%"></i></div>
+          <p class="muted" style="margin:9px 0 0">Links work once. If it expires, send the message again from the previous screen.</p>
+        </div>
+        <button class="btn wa" onclick="show('home')"><i class="ti ti-brand-whatsapp" style="font-size:20px"></i> Open WhatsApp again</button>
+        <button class="btn ghost" style="margin-top:10px" onclick="show('home')"><i class="ti ti-clipboard-text"></i> Paste the link instead</button>
+        <p class="muted" style="margin-top:14px;line-height:1.5">No reply? Make sure the message went to the bot from <strong>+1 (555) ••• 9421</strong>, not from another phone.</p>
       </div>
     </section>
 
@@ -1121,7 +1160,7 @@
   function matchLink(el){ var s=activeScreen(); var player=el.querySelector('[style*="font-weight:600"]').textContent; if(matchPending){ var btn=matchPending.querySelector('button'); if(btn){ var done=document.createElement('span'); done.style.cssText='display:inline-flex;align-items:center;gap:5px;color:var(--g);font-size:13px;font-weight:700'; done.innerHTML="<i class='ti ti-circle-check'></i> "+player; btn.replaceWith(done); } matchPending.querySelector('.muted').textContent='linked to '+player; } s.querySelector('.match-pick').style.display='none'; s.querySelector('.match-list').style.display='block'; matchPending=null; }
   function adminMatchBack(){ var s=activeScreen(); if(s.querySelector('.match-pick').style.display!=='none'){ s.querySelector('.match-pick').style.display='none'; s.querySelector('.match-list').style.display='block'; matchPending=null; } else { back(); } }
 
-  var order=['signin','signup-start','signup-waiting','signup-expired','signup-details','signup-welcome','home','adminbroadcast','notifications','session','schedule','adminsession','gameday','gameday-spectator','gameday-empty','captains','draft','postgame','claim','claimpick','adminmatch','leaderboard','players','profile','matchstats','rate'];
+  var order=['signin','signin-verify','signin-waiting','signup-start','signup-waiting','signup-expired','signup-details','signup-welcome','home','adminbroadcast','notifications','session','schedule','adminsession','gameday','gameday-spectator','gameday-empty','captains','draft','postgame','claim','claimpick','adminmatch','leaderboard','players','profile','matchstats','rate'];
   function setView(v){
     var stage=document.getElementById('stage'); stage.dataset.view=v; hist=[];
     document.getElementById('c-flow').classList.toggle('active', v==='flow');
