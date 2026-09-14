@@ -29,6 +29,7 @@ depends on, rather than copying them (so invariants/NFRs never drift).
 | `AUTH-7` | [`AUTH-7-welcome-back-screen/`](AUTH-7-welcome-back-screen/requirements.md) | The Welcome Back (sign-in) screen — first app route. |
 | `AUTH-8` | [`AUTH-8-continue-with-whatsapp/`](AUTH-8-continue-with-whatsapp/requirements.md) | Phone-number sign-in backed by Pickup Pal lookup; WhatsApp challenge auth is deferred. |
 | `AUTH-9` | [`AUTH-9-pickup-pal-actions/`](AUTH-9-pickup-pal-actions/requirements.md) | Pickup Pal bot / signup external actions. |
+| `AUTH-10` | [`AUTH-10-whatsapp-verified-onboarding/`](AUTH-10-whatsapp-verified-onboarding/requirements.md) | In-app sign-up via `!!register n9jabay` app link, `!!login` possession check at sign-in, remember-device, account deletion. Supersedes the AUTH-9 web sign-up path. |
 
 ### UI-first client screens (built against seed data — see [`../design.md`](../design.md) §12)
 
