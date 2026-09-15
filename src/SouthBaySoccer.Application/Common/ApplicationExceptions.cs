@@ -65,3 +65,15 @@ public sealed class ApplicationForbiddenException : ApplicationExceptionBase
     {
     }
 }
+
+/// <summary>
+/// Indicates that an upstream provider the request depends on (for example Pickup Pal) could not be
+/// reached or answered with a server error. Local state has already been persisted where applicable.
+/// </summary>
+public sealed class ApplicationServiceUnavailableException : ApplicationExceptionBase
+{
+    public ApplicationServiceUnavailableException(string message)
+        : base(message)
+    {
+    }
+}

@@ -5,10 +5,10 @@ namespace SouthBaySoccer.Application.Features.Authentication;
 /// <summary>
 /// Validates Pickup Pal phone sign-in requests.
 /// </summary>
-public sealed class SignInByPhoneCommandValidator : AbstractValidator<SignInByPhoneCommand>
+public sealed class BeginPhoneSignInCommandValidator : AbstractValidator<BeginPhoneSignInCommand>
 {
-    /// <summary>Initializes a new instance of the <see cref="SignInByPhoneCommandValidator"/> class.</summary>
-    public SignInByPhoneCommandValidator()
+    /// <summary>Initializes a new instance of the <see cref="BeginPhoneSignInCommandValidator"/> class.</summary>
+    public BeginPhoneSignInCommandValidator()
     {
         RuleFor(x => x.PhoneNumber)
             .NotEmpty()
