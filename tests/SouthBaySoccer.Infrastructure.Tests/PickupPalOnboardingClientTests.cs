@@ -224,8 +224,7 @@ public sealed class PickupPalOnboardingClientTests
     [Theory]
     [InlineData(HttpStatusCode.OK)]
     [InlineData(HttpStatusCode.NoContent)]
-    [InlineData(HttpStatusCode.NotFound)]
-    public async Task DeleteUserAsync_WhenDeletedOrAlreadyGone_Completes(HttpStatusCode statusCode)
+    public async Task DeleteUserAsync_WhenDeleted_Completes(HttpStatusCode statusCode)
     {
         HttpRequestMessage? sent = null;
         var client = CreateClient(
@@ -245,12 +244,55 @@ public sealed class PickupPalOnboardingClientTests
 
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
     [InlineData(HttpStatusCode.InternalServerError)]
-    public async Task DeleteUserAsync_WhenRefusedOrFailing_ThrowsUnavailableSoOutboxRetries(HttpStatusCode statusCode)
+    // While DeleteUser is an unconfirmed placeholder route, a 404 means "no such route", not
+    // "already gone": it must stay retryable rather than be recorded as a completed deletion.
+    [InlineData(HttpStatusCode.NotFound)]
+    public async Task DeleteUserAsync_WhenRefusedMissingOrFailing_ThrowsUnavailableSoOutboxRetries(HttpStatusCode statusCode)
     {
         var client = CreateClient(_ => new HttpResponseMessage(statusCode));
 
         var act = () => client.DeleteUserAsync("u1");
+
+        await act.Should().ThrowAsync<ApplicationServiceUnavailableException>();
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task ValidateRegistrationTokenAsync_WhenApiKeyRejected_ThrowsUnavailableBeforeReadingBody(HttpStatusCode statusCode)
+    {
+        // A 401 body that happens to look like a validation result must never be read as
+        // "token invalid": the failure is ours (API key), so it is reported as upstream unavailable.
+        var client = CreateClient(_ => Json("""{ "valid": false, "reason": "invalid" }""", statusCode));
+
+        var act = () => client.ValidateRegistrationTokenAsync(Token);
+
+        await act.Should().ThrowAsync<ApplicationServiceUnavailableException>();
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, """{ "error": "Invalid registration token" }""")]
+    [InlineData(HttpStatusCode.Forbidden, """{ "error": { "message": "Forbidden", "status": 403 } }""")]
+    [InlineData(HttpStatusCode.Unauthorized, "")]
+    public async Task RegisterWithTokenAsync_WhenApiKeyRejected_ThrowsUnavailableNeverATokenFailure(HttpStatusCode statusCode, string body)
+    {
+        var client = CreateClient(_ => Json(body, statusCode));
+
+        var act = () => client.RegisterWithTokenAsync(Registration);
+
+        await act.Should().ThrowAsync<ApplicationServiceUnavailableException>();
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task RedeemLoginTokenAsync_WhenApiKeyRejected_ThrowsUnavailable(HttpStatusCode statusCode)
+    {
+        var client = CreateClient(_ => Json("""{ "error": "Unauthorized" }""", statusCode));
+
+        var act = () => client.RedeemLoginTokenAsync(Token);
 
         await act.Should().ThrowAsync<ApplicationServiceUnavailableException>();
     }

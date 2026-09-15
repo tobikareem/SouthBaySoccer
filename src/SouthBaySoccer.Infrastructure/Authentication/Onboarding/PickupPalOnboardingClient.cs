@@ -128,12 +128,14 @@ public sealed class PickupPalOnboardingClient(HttpClient httpClient, IOptions<Pi
             StringComparison.Ordinal);
 
         using var response = await SendAsync(HttpMethod.Delete, route, content: null, cancellationToken);
-        if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound)
+        if (response.IsSuccessStatusCode)
         {
             return;
         }
 
-        // Anything else (missing API key, unexpected 4xx, 5xx) is retryable from the outbox.
+        // While DeleteUser is an unconfirmed placeholder route a 404 most likely means "no such
+        // route", not "user already gone", so it is not success: the outbox row stays scheduled for
+        // retry. Missing API key, unexpected 4xx, and 5xx are retryable for the same reason.
         throw new ApplicationServiceUnavailableException(UnavailableMessage);
     }
 
@@ -152,9 +154,10 @@ public sealed class PickupPalOnboardingClient(HttpClient httpClient, IOptions<Pi
             request.Headers.TryAddWithoutValidation(options.Value.ApiKeyHeaderName, apiKey);
         }
 
+        HttpResponseMessage response;
         try
         {
-            return await httpClient.SendAsync(request, cancellationToken);
+            response = await httpClient.SendAsync(request, cancellationToken);
         }
         catch (HttpRequestException)
         {
@@ -165,6 +168,16 @@ public sealed class PickupPalOnboardingClient(HttpClient httpClient, IOptions<Pi
             // HttpClient timeout surfaces as TaskCanceledException without the caller's token set.
             throw new ApplicationServiceUnavailableException(UnavailableMessage);
         }
+
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            // Our API key was rejected (or a proxy answered). Decided before any body is parsed so
+            // a 401 body can never be read as a token outcome such as { valid: false }.
+            response.Dispose();
+            throw new ApplicationServiceUnavailableException(UnavailableMessage);
+        }
+
+        return response;
     }
 
     private static async Task<T?> ReadJsonAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)
@@ -204,7 +217,7 @@ public sealed class PickupPalOnboardingClient(HttpClient httpClient, IOptions<Pi
             return PickupPalOnboardingFailure.TokenExpired;
         }
 
-        if (Contains(text, "token") || statusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone or HttpStatusCode.Unauthorized)
+        if (Contains(text, "token") || statusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
         {
             return PickupPalOnboardingFailure.TokenInvalid;
         }
@@ -262,6 +275,7 @@ public sealed class PickupPalOnboardingClient(HttpClient httpClient, IOptions<Pi
     }
 
     private static bool IsServerFailure(HttpResponseMessage response) => (int)response.StatusCode >= 500;
+
 
     private static bool Contains(string text, string value) =>
         text.Contains(value, StringComparison.OrdinalIgnoreCase);
