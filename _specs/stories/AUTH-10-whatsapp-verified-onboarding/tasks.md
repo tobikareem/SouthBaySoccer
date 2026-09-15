@@ -16,7 +16,7 @@ fake client.
   page model. Token is held in memory only.
   — Stories: `AUTH-10` · Projects: MAUI client · Depends on: nothing.
 
-- [ ] **M13.2** Backend: `IPickupPalOnboardingClient` in Infrastructure with API-key auth, E.164
+- [x] **M13.2** Backend: `IPickupPalOnboardingClient` in Infrastructure with API-key auth, E.164
   normalization, both error-shape parsing, and the URI-logging ban. Fake implementation for tests
   and Seed mode.
   — Stories: `AUTH-10` · Projects: Infrastructure, Application · Depends on: M13.0.
@@ -28,13 +28,13 @@ fake client.
   match wireframe screens `signup-*`.
   — Stories: `AUTH-10` · Projects: MAUI client · Depends on: M13.1.
 
-- [ ] **M13.4** Backend: registration endpoints. `POST auth/pickuppal/register/validate`,
+- [x] **M13.4** Backend: registration endpoints. `POST auth/pickuppal/register/validate`,
   `POST auth/pickuppal/register`, `GET auth/terms/current`; `RegisterWithWhatsAppCommand` runs
   validate → email check → register → sync → group re-read → token issue. Rate limits per IP and
   phone hash.
   — Stories: `AUTH-10` · Projects: Application, Functions · Depends on: M13.2.
 
-- [ ] **M13.5** Backend: verified sign-in. `BeginPhoneSignInCommand` returns
+- [x] **M13.5** Backend: verified sign-in. `BeginPhoneSignInCommand` returns
   `verificationRequired` with a `PendingPhoneSignIn` record instead of tokens;
   `CompleteWhatsAppLoginCommand` redeems the login token, checks it against the pending record,
   syncs, and issues tokens with a 30-day refresh lifetime when `rememberDevice` is set. Remove the
@@ -48,7 +48,7 @@ fake client.
 
 - [ ] **M13.7** Account deletion. `DELETE profiles/me` (bearer) soft-deletes local records, calls
   Pickup Pal delete through the outbox, revokes refresh tokens; Profile screen gains "Delete
-  account" with confirmation.
+  account" with confirmation. *(Backend done; the Profile screen action is still open.)*
   — Stories: `AUTH-10` · Projects: Application, Functions, MAUI client · Depends on: M13.2.
 
 - [ ] **M13.8** Tests per `design.md` "Test design" across Client, Application, Functions, and

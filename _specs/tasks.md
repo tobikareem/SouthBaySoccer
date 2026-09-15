@@ -193,12 +193,12 @@ In-app sign-up and verified sign-in over the Pickup Pal WhatsApp bot. Task detai
 
 - [ ] **M13.0** Confirm Pickup Pal prerequisites (client argument, login-token redemption, bot API key, deletion endpoint).
 - [ ] **M13.1** Client app links (iOS universal links, Android app links, `IAppLinkRouter`).
-- [ ] **M13.2** `IPickupPalOnboardingClient` with API key, E.164 normalization, error-shape parsing.
+- [x] **M13.2** `IPickupPalOnboardingClient` with API key, E.164 normalization, error-shape parsing.
 - [x] **M13.3** Sign-up screens and shared `WhatsAppHandoffView`.
-- [ ] **M13.4** Registration endpoints and command pipeline.
-- [ ] **M13.5** Verified sign-in (`PendingPhoneSignIn`, login-token completion, remember-device); remove legacy challenge endpoints.
+- [x] **M13.4** Registration endpoints and command pipeline.
+- [x] **M13.5** Verified sign-in (`PendingPhoneSignIn`, login-token completion, remember-device); remove legacy challenge endpoints.
 - [x] **M13.6** Sign-in verification screens.
-- [ ] **M13.7** Account deletion end to end.
+- [ ] **M13.7** Account deletion end to end (backend `DELETE profiles/me` done; Profile screen action open).
 - [ ] **M13.8** Tests. **M13.9** Release prep (review notes, privacy policy).
 
 ---
