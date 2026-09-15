@@ -27,6 +27,15 @@ the local row:
   (`PickupPalUserDeletionRequested`) is written before the Pickup Pal delete is attempted; failure
   leaves it `RetryScheduled` and still returns 204.
 - Sign-out now revokes the presented refresh token's family (`IRefreshTokenRevocationService`).
+- `RegisterWithWhatsAppCommand` records `ExternalCreated` + `PickupPalUserId` with its own save the
+  moment Pickup Pal returns 201, before local sync, so a sync failure never orphans an upstream account.
+- `PendingPhoneSignIn` carries a SQL row version; completion consumes **every** live row for the
+  user, and a row-version conflict (same link opened twice) is reported as a mismatch.
+- `DeleteAccountCommandHandler` looks the deletion outbox row up by idempotency key first, so a
+  double tap after local deletion reuses the row instead of tripping the unique index.
+- Refresh lifetimes: session sign-in (no remember-device) = `Onboarding:SessionRefreshTokenLifetime`
+  (12 h); remember-device = 30 d; rotation keeps the family's own lifetime
+  (`ExpiresAtUtc - CreatedAt` of the presented token), so refreshing never extends a session token.
 
 ## Pickup Pal routes (`PickupPal:Routes:*`, `PickupPalApiOptions`)
 
@@ -59,12 +68,29 @@ the token. Pickup Pal error bodies come in two shapes (`error` string vs `error.
 - `VerificationExemptPhoneNumbers`: comma-separated, normalized to `+digits` like `AdminPhoneNumbers`;
   for the App Review demo accounts, which get tokens straight from phone sign-in.
 - `TermsVersion` (default `20250708`): served by `GET auth/terms/current` and required on register.
-- `PendingSignInLifetime` (15 min), `RememberDeviceRefreshTokenLifetime` (30 days; the non-remembered
-  default in `AuthenticationTokenIssuer.DefaultRefreshTokenLifetime` is also 30 days today).
+- `PendingSignInLifetime` (15 min), `RememberDeviceRefreshTokenLifetime` (30 days),
+  `SessionRefreshTokenLifetime` (12 hours). `AuthenticationTokenIssuer.DefaultRefreshTokenLifetime`
+  (30 days) is only used by the verification-exempt / verification-disabled phone sign-in path.
 
 Rate limits (`AnonymousRateLimits`, in-memory sliding window per Functions instance): 30/5 min per
-IP on every anonymous auth endpoint, 5/15 min per phone on sign-in start, 10/15 min per email on the
-availability check. Keys are SHA-256 hashes; nothing raw is held.
+IP on every anonymous auth endpoint, 5/15 min per phone on sign-in start (keyed on the same
+normalized digits the Pickup Pal lookup uses), 10/15 min per email on the availability check. The
+IP key prefers `X-Azure-ClientIP`, then the **last** `X-Forwarded-For` hop, port stripped. Keys are
+SHA-256 hashes; nothing raw is held.
+
+## Known gaps (documented, not fixed)
+
+- Access tokens stay valid for up to `Authentication:Jwt:AccessTokenLifetime` (15 min) after
+  account deletion or sign-out; only refresh tokens are revoked immediately.
+- Re-signing in while a `PickupPalUserDeletionRequested` outbox row is still unprocessed would let
+  `PickupPalUserSyncService` recreate the local profile from the still-existing Pickup Pal user.
+  Follow-up **M13.10** in the story tasks: block sync while a deletion is pending.
+- `PendingPhoneSignIns` has no retention/purge yet (immutable operational record; grows with every
+  sign-in start). Same purge-service gap as the other operational tables.
+- `DeleteUser` treats a 404 as failure (route unconfirmed), so a genuinely already-deleted user keeps
+  a `RetryScheduled` outbox row until the route is confirmed and the handling revisited.
+- Migration `AddOnboardingRegistrations` drops `WhatsAppSignInChallenges` **with its data** (ephemeral
+  challenge rows from the retired flow); it is not recoverable after deploy.
 
 Legacy `auth/whatsapp/challenges*`, `IWhatsAppChallengeService`, and the `WhatsAppSignInChallenges`
 table are removed (migration `AddOnboardingRegistrations` drops the table). The

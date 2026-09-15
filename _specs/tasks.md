@@ -200,6 +200,7 @@ In-app sign-up and verified sign-in over the Pickup Pal WhatsApp bot. Task detai
 - [x] **M13.6** Sign-in verification screens.
 - [ ] **M13.7** Account deletion end to end (backend `DELETE profiles/me` done; Profile screen action open).
 - [ ] **M13.8** Tests. **M13.9** Release prep (review notes, privacy policy).
+- [ ] **M13.10** Block Pickup Pal sync while an account deletion is pending; purge `PendingPhoneSignIns`.
 
 ---
 

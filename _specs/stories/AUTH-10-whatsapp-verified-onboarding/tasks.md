@@ -55,6 +55,12 @@ fake client.
   Infrastructure test projects. Full suite green.
   — Stories: `AUTH-10` · Depends on: M13.3–M13.7.
 
+- [ ] **M13.10** Backend: block `IPickupPalUserSyncService` (phone sign-in, login completion,
+  registration) for a Pickup Pal user id whose `PickupPalUserDeletionRequested` outbox row is still
+  unprocessed, so a re-sign-in cannot resurrect a deleted account before Pickup Pal deletes it; add
+  a purge policy for `PendingPhoneSignIns`.
+  — Stories: `AUTH-10` · Projects: Application, Infrastructure · Depends on: M13.7.
+
 - [ ] **M13.9** Release prep. Update App Store review notes (sign-up now in-app; deletion path),
   privacy policy (WhatsApp handoff, data sent to Pickup Pal), and re-run the demo-account walkthrough.
   — Stories: `AUTH-10` · Depends on: M13.8.
