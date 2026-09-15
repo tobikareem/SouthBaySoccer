@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.LinkWaitingPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="LinkWaitingPageName"
+    x:DataType="pageModels:LinkWaitingPageModel"
+    NavigationPage.HasNavigationBar="False"
+    Style="{StaticResource BrandPage}"
+    Title="{x:Static pageModels:LinkWaitingPageModel.Title}">
+
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference LinkWaitingPageName}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference LinkWaitingPageName}, x:DataType=ContentPage}"
+            EventName="Disappearing"
+            Command="{Binding DisappearingCommand}" />
+    </ContentPage.Behaviors>
+
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader Title="{x:Static pageModels:LinkWaitingPageModel.Title}"
+                       Subtitle="{Binding StepLabel}"
+                       ShowBack="True"
+                       BackCommand="{Binding GoBackCommand}" />
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="{StaticResource WelcomeContentPadding}"
+                                 Spacing="{StaticResource SpaceMd}">
+                <Border Style="{StaticResource IconTileSurface}"
+                        HeightRequest="{StaticResource HeroTileSize}" WidthRequest="{StaticResource HeroTileSize}"
+                        StrokeShape="{StaticResource ShapePill}"
+                        HorizontalOptions="Center">
+                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
+                           FontFamily="FontAwesomeBrands"
+                           FontSize="{StaticResource HeroGlyphSize}"
+                           TextColor="{StaticResource WhatsApp}"
+                           HorizontalTextAlignment="Center"
+                           VerticalTextAlignment="Center"
+                           SemanticProperties.Description="WhatsApp" />
+                </Border>
+
+                <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                    <Label Text="{x:Static pageModels:LinkWaitingPageModel.Heading}"
+                           Style="{StaticResource TextH1}"
+                           HorizontalTextAlignment="Center"
+                           SemanticProperties.HeadingLevel="Level1" />
+                    <Label Text="{Binding Description}"
+                           Style="{StaticResource TextCaption}"
+                           HorizontalTextAlignment="Center"
+                           LineHeight="1.5" />
+                </VerticalStackLayout>
+
+                <c:LinkExpiryCard RemainingText="{Binding RemainingText}"
+                                  RemainingPercent="{Binding RemainingPercent}"
+                                  Note="{Binding ExpiryNote}" />
+
+                <Grid>
+                    <Button Text="Open WhatsApp again"
+                            Command="{Binding OpenWhatsAppAgainCommand}"
+                            Style="{StaticResource WhatsAppButton}"
+                            SemanticProperties.Description="Open WhatsApp again" />
+                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
+                           FontFamily="FontAwesomeBrands"
+                           FontSize="{StaticResource IconMd}"
+                           TextColor="{StaticResource BrandWhite}"
+                           HorizontalOptions="Start"
+                           Margin="{StaticResource WelcomeButtonIconMargin}"
+                           VerticalTextAlignment="Center"
+                           InputTransparent="True" />
+                </Grid>
+
+                <Button Text="Paste the link instead"
+                        Command="{Binding PasteLinkCommand}"
+                        Style="{StaticResource GhostButton}"
+                        SemanticProperties.Description="Paste the link from the bot" />
+
+                <Label Text="{Binding StatusMessage}"
+                       Style="{StaticResource TextCaption}"
+                       TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                       HorizontalTextAlignment="Center"
+                       IsVisible="{Binding HasStatusMessage}" />
+
+                <Label Text="{Binding NoReplyHint}"
+                       Style="{StaticResource TextCaption}"
+                       HorizontalTextAlignment="Center"
+                       LineHeight="1.5" />
+
+                <Button Text="Link expired?"
+                        Command="{Binding LinkExpiredCommand}"
+                        Style="{StaticResource LinkButton}"
+                        HorizontalOptions="Center"
+                        IsVisible="{Binding IsRegister}"
+                        SemanticProperties.Description="The link expired, get a new one" />
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

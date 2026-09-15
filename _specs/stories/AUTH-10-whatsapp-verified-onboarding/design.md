@@ -90,10 +90,16 @@ milestone.
   `SignUpDetailsPage`, `SignUpWelcomePage`, `SignInVerifyPage`, `SignInWaitingPage`. Shared
   `WhatsAppHandoffView` control for the prefilled-message card, countdown pill, and the two
   buttons, so the two waiting screens and the two handoff screens do not diverge.
-- `IAppLinkRouter`: receives `register` and `login` links from platform entry points
-  (`SceneDelegate`/`AppDelegate` on iOS, `MainActivity` intent filter on Android), extracts the
-  token, and dispatches to the right page model. Token lives in memory only.
-- `IExternalLauncher.OpenWhatsAppAsync(number, text)` using `https://wa.me/<digits>?text=<encoded>`.
+- `IOnboardingFlow` (singleton) owns the in-progress state (pending link kind, request time,
+  matched account, remember-device) and routes `register`/`login` links: `App.OnAppLinkRequestReceived`
+  calls `HandleAppLinkAsync` first and falls back to the legacy challenge callback. Links are
+  accepted on the custom scheme (`southbaysoccer://auth/register|login?token=`) today and on the
+  `AppLinkBaseUri` host once universal/app links land (M13.1). Token lives in memory only.
+- `IOnboardingNavigator` pushes the onboarding pages on the Welcome Back `NavigationPage` stack
+  (Shell does not exist before sign-in). `LinkWaitingPage` is shared by both flows.
+- Debug builds honour `N9JABAY_ONBOARDING_SCREEN=<screen>` at launch to open any onboarding screen
+  against Seed data without a WhatsApp round-trip.
+- `IExternalLauncher.OpenWhatsAppMessageAsync(text)` using `https://wa.me/<digits>?text=<encoded>` (`PickupPalOptions.CreateWhatsAppMessageUri`).
 - `IOnboardingClient` (validate, check email, register) and `IAuthenticationClient.CompleteLoginAsync`.
 - Countdown is local presentation only; server expiry is authoritative.
 - Typed configuration: bot number, app-link host, `termsVersion` (served by the Function App, not

@@ -20,5 +20,5 @@ namespace SouthBaySoccer;
     Categories = [Intent.CategoryDefault, Intent.CategoryBrowsable],
     DataScheme = "southbaysoccer",
     DataHost = "auth",
-    DataPathPrefix = "/whatsapp")]
+    DataPathPrefixes = ["/whatsapp", "/register", "/login"])]
 public class MainActivity : MauiAppCompatActivity;

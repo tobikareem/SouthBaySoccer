@@ -9,7 +9,8 @@ using SouthBaySoccer.Services.Authentication;
 namespace SouthBaySoccer.PageModels;
 
 public partial class WelcomeBackPageModel(
-    IAuthenticationClient authenticationClient,
+    IOnboardingClient onboardingClient,
+    IOnboardingFlow onboardingFlow,
     IAuthenticationCoordinator authenticationCoordinator,
     IExternalLauncher externalLauncher,
     IUserDialogService dialogService,
@@ -23,8 +24,10 @@ public partial class WelcomeBackPageModel(
     public const string SecurityMessage =
         "Pickup Pal verifies your account. N9ja Bay stores only app session tokens on this device.";
     public const string BotHelpMessage = "Need help? Open the Pickup Pal bot for account support.";
+    public const string NewPlayerDivider = "new to n9ja bay?";
     public const string SignupHelpMessage =
-        "Create your account on the web, then come back and sign in with your phone number.";
+        "Takes about a minute. You'll confirm your number on WhatsApp, then finish here.";
+    public const string HelpLabel = "Need help?";
     public const string PickupPalNotFoundTitle = "Pickup Pal account not found";
     public const string PickupPalNotFoundMessage =
         "We couldn't find that phone number on Pickup Pal. Sign up on Pickup Pal, then come back and sign in.";
@@ -64,10 +67,19 @@ public partial class WelcomeBackPageModel(
         try
         {
             IsBusy = true;
-            var tokens = await authenticationClient.SignInByPhoneAsync(
+            var start = await onboardingClient.BeginPhoneSignInAsync(
                 normalizedPhoneNumber,
                 cancellationToken);
 
+            if (start.VerificationRequired)
+            {
+                // Fresh device: prove possession over WhatsApp before any token is issued.
+                await onboardingFlow.BeginSignInVerificationAsync(start, cancellationToken);
+                return;
+            }
+
+            var tokens = start.Tokens
+                ?? throw new InvalidOperationException("The sign-in service returned neither tokens nor a verification request.");
             await authenticationCoordinator.CompleteSignInAsync(tokens, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -96,6 +108,10 @@ public partial class WelcomeBackPageModel(
             IsBusy = false;
         }
     }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task StartSignUpAsync(CancellationToken cancellationToken) =>
+        onboardingFlow.ShowSignUpAsync(cancellationToken);
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private Task OpenPickupPalBotAsync(CancellationToken cancellationToken) =>

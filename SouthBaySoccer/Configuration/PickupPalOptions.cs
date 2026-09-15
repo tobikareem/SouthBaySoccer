@@ -14,12 +14,22 @@ public sealed class PickupPalOptions
     public const string DefaultBotUri = "https://www.pickuppal.xyz/bot-setup";
     public const string DefaultSignupUri = "https://www.pickuppal.xyz/auth/signup";
     public const string DefaultCallbackUri = "southbaysoccer://auth/whatsapp";
+    /// <summary>Host the Pickup Pal bot links back to for register/login (universal / app links, M13.1).</summary>
+    public const string DefaultAppLinkBaseUri = "https://n9jabay.app/";
 
     public Uri ApiBaseUri { get; init; } = new(DefaultApiBaseUrl);
     public string BotDisplayNumber { get; init; } = DefaultBotDisplayNumber;
     public Uri BotUri { get; init; } = new(DefaultBotUri);
     public Uri SignupUri { get; init; } = new(DefaultSignupUri);
     public Uri CallbackUri { get; init; } = new(DefaultCallbackUri);
+    public Uri AppLinkBaseUri { get; init; } = new(DefaultAppLinkBaseUri);
+
+    /// <summary>Digits-only bot number for wa.me links, derived from the display number.</summary>
+    public string BotWhatsAppDigits => new(BotDisplayNumber.Where(char.IsDigit).ToArray());
+
+    /// <summary>Builds the wa.me deep link that opens WhatsApp with <paramref name="message"/> prefilled.</summary>
+    public Uri CreateWhatsAppMessageUri(string message) =>
+        new($"https://wa.me/{BotWhatsAppDigits}?text={Uri.EscapeDataString(message)}");
 
     public static PickupPalOptions FromConfiguration(
         IConfiguration configuration,
@@ -62,6 +72,11 @@ public sealed class PickupPalOptions
                 FirstNonBlank(configuration["CallbackUri"], configuration["PickupPal:CallbackUri"])
                     ?? DefaultCallbackUri,
                 nameof(CallbackUri)
+            ),
+            AppLinkBaseUri = CreateUri(
+                FirstNonBlank(configuration["AppLinkBaseUri"], configuration["PickupPal:AppLinkBaseUri"])
+                    ?? DefaultAppLinkBaseUri,
+                nameof(AppLinkBaseUri)
             ),
         };
     }

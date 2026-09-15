@@ -21,10 +21,10 @@ fake client.
   and Seed mode.
   — Stories: `AUTH-10` · Projects: Infrastructure, Application · Depends on: M13.0.
 
-- [ ] **M13.3** Client: sign-up screens. `SignUpStartPage`, `SignUpWaitingPage`,
+- [x] **M13.3** Client: sign-up screens. `SignUpStartPage`, `SignUpWaitingPage`,
   `SignUpExpiredPage`, `SignUpDetailsPage`, `SignUpWelcomePage`, the shared `WhatsAppHandoffView`
   control, `IExternalLauncher.OpenWhatsAppAsync`, and `IOnboardingClient` with a Seed
-  implementation. Welcome Back gains "Create your account" and drops the web sign-up copy. Must
+  implementation (custom-scheme links routed by `IOnboardingFlow`; universal links remain M13.1). Welcome Back gains "Create your account" and drops the web sign-up copy. Must
   match wireframe screens `signup-*`.
   — Stories: `AUTH-10` · Projects: MAUI client · Depends on: M13.1.
 
@@ -41,7 +41,7 @@ fake client.
   legacy `auth/whatsapp/challenges*` endpoints and `IWhatsAppChallengeService`.
   — Stories: `AUTH-10` · Projects: Application, Infrastructure, Functions · Depends on: M13.2.
 
-- [ ] **M13.6** Client: sign-in verification screens. `SignInVerifyPage`, `SignInWaitingPage`,
+- [x] **M13.6** Client: sign-in verification screens. `SignInVerifyPage`, `SignInWaitingPage`,
   `IAuthenticationClient.CompleteLoginAsync`, remember-device toggle, and Welcome Back routing on
   `verificationRequired`. Rename `RequestWhatsAppChallengeCommand` to `SignInCommand`.
   — Stories: `AUTH-10` · Projects: MAUI client · Depends on: M13.1, M13.5.

@@ -25,6 +25,9 @@
     <x:Double x:Key="AvatarLg">54</x:Double>
     <x:Double x:Key="BarHeight">8</x:Double>
     <x:Double x:Key="IconMd">20</x:Double>
+    <x:Double x:Key="IconLg">22</x:Double>
+    <x:Double x:Key="HeroTileSize">74</x:Double>
+    <x:Double x:Key="HeroGlyphSize">38</x:Double>
     <x:Double x:Key="HeaderStripeWidth">6</x:Double>
     <x:Double x:Key="StepperValueWidth">22</x:Double>
     <x:Double x:Key="LineThickness">1</x:Double>
