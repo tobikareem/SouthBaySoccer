@@ -16,7 +16,11 @@ public sealed class BeginPhoneSignInCommandValidator : AbstractValidator<BeginPh
             .WithMessage("Phone number is invalid.");
     }
 
-    internal static string NormalizeDigits(string value)
+    /// <summary>
+    /// Normalizes user-typed phone input to the digits Pickup Pal keys on. Public so the Functions
+    /// rate limiter can key per phone on the same value the lookup uses.
+    /// </summary>
+    public static string NormalizeDigits(string value)
     {
         var digits = new string(value.Where(char.IsDigit).ToArray());
 

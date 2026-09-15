@@ -25,7 +25,7 @@ public sealed class AuthenticationFunctions(
     {
         LimitByIp(request);
         var body = await ReadRequiredJsonAsync<SignInByPhoneRequest>(request, cancellationToken);
-        rateLimiter.EnsureAllowed(AnonymousRateLimits.PerPhone, AnonymousRateLimits.InputKey(body.PhoneNumber ?? string.Empty));
+        rateLimiter.EnsureAllowed(AnonymousRateLimits.PerPhone, AnonymousRateLimits.PhoneKey(body.PhoneNumber ?? string.Empty));
 
         var result = await authenticationWorkflow.BeginPhoneSignInAsync(body, cancellationToken);
         // 202: the sign-in is accepted but not complete until the WhatsApp login link comes back.

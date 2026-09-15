@@ -85,15 +85,54 @@ public sealed class InMemorySlidingWindowRateLimiterTests
         act.Should().NotThrow();
     }
 
-    [Theory]
-    [InlineData(" Andre@Example.com ", "andre@example.com")]
-    [InlineData("+1 (510) 694-9421", "+1 (510) 694-9421")]
-    public void InputKey_WhenInputVariesByCaseOrWhitespace_ProducesSameHashAsNormalizedValue(string input, string normalized)
+    [Fact]
+    public void InputKey_WhenEmailVariesByCaseOrWhitespace_ProducesSameHashAsNormalizedValue()
     {
-        var key = AnonymousRateLimits.InputKey(input);
+        var key = AnonymousRateLimits.InputKey(" Andre@Example.com ");
 
-        key.Should().Be(AnonymousRateLimits.InputKey(normalized));
+        key.Should().Be(AnonymousRateLimits.InputKey("andre@example.com"));
         key.Should().HaveLength(64).And.NotContainEquivalentOf("example");
+    }
+
+    [Theory]
+    [InlineData("(510) 694-9421")]
+    [InlineData("+1 510 694 9421")]
+    [InlineData("15106949421")]
+    [InlineData("5106949421")]
+    public void PhoneKey_WhenSameNumberIsTypedDifferently_ProducesTheKeyOfTheNormalizedDigits(string input)
+    {
+        // The per-phone limit must follow the number Pickup Pal is asked about, not the raw text,
+        // or a caller could dodge it by re-formatting the same number.
+        var key = AnonymousRateLimits.PhoneKey(input);
+
+        key.Should().Be(AnonymousRateLimits.PhoneKey("+15106949421"));
+        key.Should().HaveLength(64).And.NotContain("9421");
+    }
+
+    [Theory]
+    [InlineData("203.0.113.9", null, "203.0.113.9")]
+    [InlineData("203.0.113.9", "198.51.100.1, 10.0.0.1", "203.0.113.9")]
+    [InlineData(null, "198.51.100.1, 10.0.0.2, 10.0.0.3", "10.0.0.3")]
+    [InlineData(null, "198.51.100.1:5123", "198.51.100.1")]
+    [InlineData(null, "spoofed, 198.51.100.1:5123", "198.51.100.1")]
+    [InlineData(null, "[2001:db8::1]:5123", "2001:db8::1")]
+    [InlineData("[2001:db8::2]:443", null, "2001:db8::2")]
+    [InlineData(null, "2001:db8::3", "2001:db8::3")]
+    public void ClientIpKey_WhenProxyHeadersVary_PrefersAzureClientIpThenLastForwardedHopWithoutPort(
+        string? azureClientIp,
+        string? forwardedFor,
+        string expectedAddress)
+    {
+        var key = AnonymousRateLimits.ClientIpKey(azureClientIp, forwardedFor);
+
+        key.Should().Be(AnonymousRateLimits.ClientIpKey(expectedAddress, null));
+        key.Should().HaveLength(64);
+    }
+
+    [Fact]
+    public void ClientIpKey_WhenNoHeaders_SharesTheUnknownBucket()
+    {
+        AnonymousRateLimits.ClientIpKey(null, null).Should().Be(AnonymousRateLimits.ClientIpKey("", " "));
     }
 
     private static (InMemorySlidingWindowRateLimiter Limiter, Mock<IClock> Clock) CreateLimiter()
