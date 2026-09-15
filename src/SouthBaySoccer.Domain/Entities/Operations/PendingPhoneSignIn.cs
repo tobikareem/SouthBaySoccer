@@ -25,6 +25,12 @@ public class PendingPhoneSignIn : BaseEntity
     /// <summary>Gets or sets whether the player asked to remember the device at completion.</summary>
     public bool? RememberDevice { get; set; }
 
+    /// <summary>
+    /// Gets or sets the SQL row version. Consumption is a read-then-write; the version turns two
+    /// concurrent completions of the same login token into one winner and one concurrency failure.
+    /// </summary>
+    public byte[] RowVersion { get; set; } = [];
+
     /// <summary>Determines whether the pending sign-in can still be completed at the given instant.</summary>
     /// <param name="nowUtc">The current UTC time.</param>
     /// <returns><see langword="true"/> when unconsumed and unexpired.</returns>

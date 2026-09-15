@@ -12,7 +12,7 @@ using SouthBaySoccer.Infrastructure.Persistence;
 namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(SouthBaySoccerDbContext))]
-    [Migration("20260915042912_AddOnboardingRegistrations")]
+    [Migration("20260915050708_AddOnboardingRegistrations")]
     partial class AddOnboardingRegistrations
     {
         /// <inheritdoc />
@@ -1375,6 +1375,12 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                     b.Property<bool?>("RememberDevice")
                         .HasColumnType("bit");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");

@@ -12,12 +12,12 @@ internal sealed class PendingPhoneSignInRepository(SouthBaySoccerDbContext dbCon
 
     public void Update(PendingPhoneSignIn pendingSignIn) => dbContext.PendingPhoneSignIns.Update(pendingSignIn);
 
-    public Task<PendingPhoneSignIn?> FindActiveByPickupPalUserIdAsync(
+    public async Task<IReadOnlyList<PendingPhoneSignIn>> ListActiveByPickupPalUserIdAsync(
         string pickupPalUserId,
         DateTime nowUtc,
         CancellationToken cancellationToken = default) =>
-        dbContext.PendingPhoneSignIns
+        await dbContext.PendingPhoneSignIns
             .Where(x => x.PickupPalUserId == pickupPalUserId && x.ConsumedAtUtc == null && x.ExpiresAtUtc > nowUtc)
             .OrderByDescending(x => x.CreatedAt)
-            .FirstOrDefaultAsync(cancellationToken);
+            .ToArrayAsync(cancellationToken);
 }

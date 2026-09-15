@@ -220,6 +220,7 @@ internal static class SouthBaySoccerModelConfiguration
             ConfigureBase(b, "PendingPhoneSignIns", false);
             b.Property(x => x.PickupPalUserId).HasMaxLength(128).IsRequired();
             b.Property(x => x.PhoneNumberHash).HasMaxLength(128).IsRequired();
+            b.Property(x => x.RowVersion).IsRowVersion();
             b.HasIndex(x => new { x.PickupPalUserId, x.ExpiresAtUtc });
             b.HasIndex(x => x.PhoneNumberHash);
         });

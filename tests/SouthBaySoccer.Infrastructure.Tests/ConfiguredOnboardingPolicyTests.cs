@@ -31,6 +31,9 @@ public sealed class ConfiguredOnboardingPolicyTests
         policy.TermsVersion.Should().Be("20250708");
         policy.PendingSignInLifetime.Should().Be(TimeSpan.FromMinutes(15));
         policy.RememberDeviceRefreshTokenLifetime.Should().Be(TimeSpan.FromDays(30));
+        policy.SessionRefreshTokenLifetime.Should().Be(TimeSpan.FromHours(12));
+        // Remember-device is only meaningful when the session lifetime is materially shorter.
+        policy.SessionRefreshTokenLifetime.Should().BeLessThan(policy.RememberDeviceRefreshTokenLifetime);
         policy.IsVerificationExempt("+15550001234").Should().BeFalse();
     }
 

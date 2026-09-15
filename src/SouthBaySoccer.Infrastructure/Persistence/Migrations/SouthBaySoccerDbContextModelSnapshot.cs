@@ -1373,6 +1373,12 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.Property<bool?>("RememberDevice")
                         .HasColumnType("bit");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 

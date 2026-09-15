@@ -1,5 +1,6 @@
 using FluentValidation;
 using SouthBaySoccer.Application.Abstractions.Time;
+using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Onboarding;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 
@@ -60,22 +61,40 @@ public sealed class CompleteWhatsAppLoginCommandHandler(
         var now = clock.UtcNow;
         // The client does not carry a pending-sign-in id, so the binding is the redeemed user: a
         // token for anyone without a live pending sign-in is a mismatch, and the response never says
-        // whether that user exists.
-        var pendingSignIn = await pendingSignInRepository.FindActiveByPickupPalUserIdAsync(user.Id, now, cancellationToken);
-        if (pendingSignIn is null || !pendingSignIn.IsActiveAt(now))
+        // whether that user exists. Every live row is consumed so nothing is left to replay against.
+        var pendingSignIns = (await pendingSignInRepository.ListActiveByPickupPalUserIdAsync(user.Id, now, cancellationToken))
+            .Where(pending => pending.IsActiveAt(now))
+            .ToArray();
+        if (pendingSignIns.Length == 0)
         {
             throw new OnboardingTokenException(OnboardingTokenFailure.Mismatch);
         }
 
-        pendingSignIn.ConsumedAtUtc = now;
-        pendingSignIn.RememberDevice = command.RememberDevice;
-        pendingSignInRepository.Update(pendingSignIn);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        foreach (var pendingSignIn in pendingSignIns)
+        {
+            pendingSignIn.ConsumedAtUtc = now;
+            pendingSignIn.RememberDevice = command.RememberDevice;
+            pendingSignInRepository.Update(pendingSignIn);
+        }
+
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (ApplicationConflictException)
+        {
+            // The row version changed under us: a concurrent completion already consumed this
+            // sign-in (the same link opened twice). Only the first caller gets tokens.
+            throw new OnboardingTokenException(OnboardingTokenFailure.Mismatch);
+        }
 
         var subject = await pickupPalUserSyncService.SyncAsync(user, cancellationToken);
 
-        return command.RememberDevice
-            ? await tokenIssuer.IssueTokensAsync(subject, onboardingPolicy.RememberDeviceRefreshTokenLifetime, cancellationToken)
-            : await tokenIssuer.IssueTokensAsync(subject, cancellationToken);
+        // Both paths pass an explicit lifetime: a session sign-in must expire well before the
+        // remembered one, otherwise "remember this device" would change nothing.
+        var refreshTokenLifetime = command.RememberDevice
+            ? onboardingPolicy.RememberDeviceRefreshTokenLifetime
+            : onboardingPolicy.SessionRefreshTokenLifetime;
+        return await tokenIssuer.IssueTokensAsync(subject, refreshTokenLifetime, cancellationToken);
     }
 }

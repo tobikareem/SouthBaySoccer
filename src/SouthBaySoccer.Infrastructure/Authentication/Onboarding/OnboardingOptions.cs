@@ -25,4 +25,7 @@ public sealed class OnboardingOptions
 
     /// <summary>Gets or sets the refresh-token lifetime issued when the player remembers the device.</summary>
     public TimeSpan RememberDeviceRefreshTokenLifetime { get; set; } = TimeSpan.FromDays(30);
+
+    /// <summary>Gets or sets the refresh-token lifetime for a verified sign-in without remember-device.</summary>
+    public TimeSpan SessionRefreshTokenLifetime { get; set; } = TimeSpan.FromHours(12);
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using SouthBaySoccer.Domain.Entities.Operations;
@@ -18,14 +19,15 @@ public interface IPendingPhoneSignInRepository
     void Update(PendingPhoneSignIn pendingSignIn);
 
     /// <summary>
-    /// Finds the newest pending sign-in for a Pickup Pal user that is unconsumed and unexpired at
-    /// <paramref name="nowUtc"/>.
+    /// Lists every pending sign-in for a Pickup Pal user that is unconsumed and unexpired at
+    /// <paramref name="nowUtc"/>, newest first. Completion consumes all of them so a login token
+    /// cannot be replayed against an older row.
     /// </summary>
     /// <param name="pickupPalUserId">The Pickup Pal user id the login token resolved to.</param>
     /// <param name="nowUtc">The current UTC time.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
-    /// <returns>The active pending sign-in, or <see langword="null"/> when none exists.</returns>
-    Task<PendingPhoneSignIn?> FindActiveByPickupPalUserIdAsync(
+    /// <returns>The active pending sign-ins, empty when none exist.</returns>
+    Task<IReadOnlyList<PendingPhoneSignIn>> ListActiveByPickupPalUserIdAsync(
         string pickupPalUserId,
         DateTime nowUtc,
         CancellationToken cancellationToken = default);

@@ -24,6 +24,7 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     ExpiresAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
                     ConsumedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
                     RememberDevice = table.Column<bool>(type: "bit", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CreatedBy = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),

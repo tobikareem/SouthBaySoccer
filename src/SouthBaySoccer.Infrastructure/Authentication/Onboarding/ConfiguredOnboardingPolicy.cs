@@ -35,6 +35,9 @@ public sealed class ConfiguredOnboardingPolicy : IOnboardingPolicy
     public TimeSpan RememberDeviceRefreshTokenLifetime => options.RememberDeviceRefreshTokenLifetime;
 
     /// <inheritdoc />
+    public TimeSpan SessionRefreshTokenLifetime => options.SessionRefreshTokenLifetime;
+
+    /// <inheritdoc />
     public string TermsVersion => options.TermsVersion;
 
     /// <inheritdoc />
