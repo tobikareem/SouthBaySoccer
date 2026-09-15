@@ -158,6 +158,14 @@ public sealed class RegisterWithWhatsAppCommandHandler(
             throw;
         }
 
+        // The Pickup Pal account now exists: record its id before anything else can fail, so a
+        // sync failure never leaves an external account our database does not know about.
+        registration.Status = PlayerRegistrationStatus.ExternalCreated;
+        registration.PickupPalUserId = createdUser.Id;
+        registration.LastExternalError = null;
+        registrationRepository.Update(registration);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
         var user = createdUser with
         {
             PreferredPositions = string.IsNullOrWhiteSpace(registration.PreferredPosition)
@@ -168,9 +176,7 @@ public sealed class RegisterWithWhatsAppCommandHandler(
         var subject = await pickupPalUserSyncService.SyncAsync(user, cancellationToken);
 
         registration.Status = PlayerRegistrationStatus.Completed;
-        registration.PickupPalUserId = user.Id;
         registration.CompletedAtUtc = clock.UtcNow;
-        registration.LastExternalError = null;
         registrationRepository.Update(registration);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

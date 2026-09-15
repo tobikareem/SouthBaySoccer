@@ -18,6 +18,13 @@ public interface IOnboardingPolicy
     /// <summary>Gets the refresh-token lifetime used when the player asks to remember the device.</summary>
     TimeSpan RememberDeviceRefreshTokenLifetime { get; }
 
+    /// <summary>
+    /// Gets the refresh-token lifetime for a verified sign-in that did not ask to remember the
+    /// device: long enough to survive an evening of use, short enough that the next day's launch
+    /// goes through WhatsApp verification again.
+    /// </summary>
+    TimeSpan SessionRefreshTokenLifetime { get; }
+
     /// <summary>Gets the current terms version every registration must accept.</summary>
     string TermsVersion { get; }
 

@@ -83,6 +83,51 @@ public sealed class DeleteAccountCommandHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenDeletionOutboxRowAlreadyExists_ReusesItInsteadOfInsertingAgain()
+    {
+        // Double tap / retried request after local deletion: the unique idempotency key would make a
+        // second insert fail, so the existing row is reused and the upstream call retried.
+        var existing = new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            MessageType = OnboardingOutboxMessages.PickupPalUserDeletionRequested,
+            Status = OutboxMessageStatus.RetryScheduled,
+            AttemptCount = 1,
+            IdempotencyKey = $"{OnboardingOutboxMessages.PickupPalUserDeletionRequested}:{IdentityUserId:D}",
+        };
+        outbox
+            .Setup(x => x.FindByIdempotencyKeyAsync(existing.IdempotencyKey!, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+
+        await CreateHandler().HandleAsync();
+
+        enqueued.Should().BeEmpty();
+        existing.Status.Should().Be(OutboxMessageStatus.Processed);
+        existing.AttemptCount.Should().Be(2);
+        outbox.Verify(x => x.Update(existing), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenDeletionAlreadyProcessedUpstream_DoesNotCallPickupPalAgain()
+    {
+        var processed = new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            MessageType = OnboardingOutboxMessages.PickupPalUserDeletionRequested,
+            Status = OutboxMessageStatus.Processed,
+            IdempotencyKey = $"{OnboardingOutboxMessages.PickupPalUserDeletionRequested}:{IdentityUserId:D}",
+        };
+        outbox
+            .Setup(x => x.FindByIdempotencyKeyAsync(processed.IdempotencyKey!, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(processed);
+
+        await CreateHandler().HandleAsync();
+
+        onboardingClient.Verify(x => x.DeleteUserAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        enqueued.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenAccountNotLinkedToPickupPal_DeletesLocallyWithoutOutbox()
     {
         localDeletion

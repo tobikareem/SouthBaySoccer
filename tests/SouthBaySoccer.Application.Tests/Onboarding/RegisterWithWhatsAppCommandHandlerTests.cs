@@ -161,6 +161,34 @@ public sealed class RegisterWithWhatsAppCommandHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenSyncThrowsAfterExternalCreate_KeepsPickupPalUserIdAndExternalCreatedStatus()
+    {
+        // The Pickup Pal account exists at this point; the local row must already say so before
+        // sync runs, otherwise a sync failure would orphan an upstream account we cannot find again.
+        var statusesAtSync = new List<(PlayerRegistrationStatus Status, string? PickupPalUserId, int Saves)>();
+        var saves = 0;
+        unitOfWork
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => saves++)
+            .ReturnsAsync(1);
+        syncService
+            .Setup(x => x.SyncAsync(It.IsAny<PickupPalUser>(), It.IsAny<CancellationToken>()))
+            .Callback(() => statusesAtSync.Add((added[0].Status, added[0].PickupPalUserId, saves)))
+            .ThrowsAsync(new InvalidOperationException("identity store failed"));
+        var handler = CreateHandler();
+
+        var act = () => handler.HandleAsync(Command);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        statusesAtSync.Should().ContainSingle().Which.Should().Be((PlayerRegistrationStatus.ExternalCreated, CreatedUser.Id, 2));
+        var registration = added.Should().ContainSingle().Subject;
+        registration.Status.Should().Be(PlayerRegistrationStatus.ExternalCreated);
+        registration.PickupPalUserId.Should().Be(CreatedUser.Id);
+        registration.CompletedAtUtc.Should().BeNull();
+        tokenIssuer.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenPickupPalUnavailable_LeavesRegistrationExternalFailedEnqueuesOutboxAndIssuesNoTokens()
     {
         onboardingClient

@@ -39,22 +39,35 @@ public sealed class DeleteAccountCommandHandler(
         }
 
         var now = clock.UtcNow;
-        var message = new OutboxMessage
+        // One outbox row per identity user: a second delete (double tap, retried request) reuses the
+        // existing row instead of tripping the unique idempotency-key index after local deletion.
+        var idempotencyKey = $"{OnboardingOutboxMessages.PickupPalUserDeletionRequested}:{identityUserId:D}";
+        var message = await outboxRepository.FindByIdempotencyKeyAsync(idempotencyKey, cancellationToken);
+        if (message is null)
         {
-            Id = Guid.NewGuid(),
-            MessageType = OnboardingOutboxMessages.PickupPalUserDeletionRequested,
-            PayloadJson = JsonSerializer.Serialize(new
+            message = new OutboxMessage
             {
-                IdentityUserId = identityUserId,
-                deletion.PlayerProfileId,
-                deletion.PickupPalUserId,
-                RequestedAtUtc = now,
-            }),
-            Status = OutboxMessageStatus.Pending,
-            AvailableAtUtc = now,
-            IdempotencyKey = $"{OnboardingOutboxMessages.PickupPalUserDeletionRequested}:{identityUserId:D}",
-        };
-        await outboxRepository.AddAsync(message, cancellationToken);
+                Id = Guid.NewGuid(),
+                MessageType = OnboardingOutboxMessages.PickupPalUserDeletionRequested,
+                PayloadJson = JsonSerializer.Serialize(new
+                {
+                    IdentityUserId = identityUserId,
+                    deletion.PlayerProfileId,
+                    deletion.PickupPalUserId,
+                    RequestedAtUtc = now,
+                }),
+                Status = OutboxMessageStatus.Pending,
+                AvailableAtUtc = now,
+                IdempotencyKey = idempotencyKey,
+            };
+            await outboxRepository.AddAsync(message, cancellationToken);
+        }
+        else if (message.Status == OutboxMessageStatus.Processed)
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         try

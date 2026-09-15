@@ -15,6 +15,11 @@ public interface IOutboxMessageRepository
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task AddAsync(OutboxMessage message, CancellationToken cancellationToken = default);
 
+    /// <summary>Finds the message carrying an idempotency key, if one was already written.</summary>
+    /// <param name="idempotencyKey">The unique idempotency key.</param>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<OutboxMessage?> FindByIdempotencyKeyAsync(string idempotencyKey, CancellationToken cancellationToken = default);
+
     /// <summary>Marks an existing outbox message as modified.</summary>
     /// <param name="message">The message to update.</param>
     void Update(OutboxMessage message);

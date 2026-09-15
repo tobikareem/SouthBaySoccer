@@ -55,13 +55,13 @@ public sealed class ValidateRegistrationTokenCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_WhenTokenValidWithoutPhone_ReturnsGenericMask()
+    public async Task HandleAsync_WhenTokenValidWithoutPhone_ThrowsInvalidLikeTheRegisterStep()
     {
         SetupValidation(new RegistrationTokenValidation(RegistrationTokenStatus.Valid, null));
 
-        var result = await CreateHandler().HandleAsync(new ValidateRegistrationTokenCommand(Token));
+        var act = () => CreateHandler().HandleAsync(new ValidateRegistrationTokenCommand(Token));
 
-        result.PhoneMasked.Should().Be("***");
+        (await act.Should().ThrowAsync<OnboardingTokenException>()).Which.Failure.Should().Be(OnboardingTokenFailure.Invalid);
     }
 
     [Fact]

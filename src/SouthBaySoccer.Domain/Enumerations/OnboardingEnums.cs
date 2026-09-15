@@ -13,6 +13,9 @@ public enum PlayerRegistrationStatus
     /// <summary>The registration is stored locally and the Pickup Pal account has not been created yet.</summary>
     PendingExternal,
 
+    /// <summary>Pickup Pal created the account (id recorded) but local identity sync has not completed.</summary>
+    ExternalCreated,
+
     /// <summary>Pickup Pal created the account and local identity records were synced.</summary>
     Completed,
 

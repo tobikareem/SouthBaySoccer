@@ -53,7 +53,9 @@ public sealed class ValidateRegistrationTokenCommandHandler(
 
         if (string.IsNullOrWhiteSpace(validation.PhoneNumberDigits))
         {
-            return new RegistrationTokenValidated("***");
+            // Registration needs the token's phone (Pickup Pal copies it onto the account); a
+            // token without one cannot complete, so report it the same way the register step would.
+            throw new OnboardingTokenException(OnboardingTokenFailure.Invalid);
         }
 
         // The bot refuses to mint a token for a number that already has an account, but a race

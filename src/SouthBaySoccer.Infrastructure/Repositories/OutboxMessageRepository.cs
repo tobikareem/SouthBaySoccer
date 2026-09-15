@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using SouthBaySoccer.Domain.Entities.Operations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 using SouthBaySoccer.Infrastructure.Persistence;
@@ -8,6 +9,9 @@ internal sealed class OutboxMessageRepository(SouthBaySoccerDbContext dbContext)
 {
     public async Task AddAsync(OutboxMessage message, CancellationToken cancellationToken = default) =>
         await dbContext.OutboxMessages.AddAsync(message, cancellationToken);
+
+    public Task<OutboxMessage?> FindByIdempotencyKeyAsync(string idempotencyKey, CancellationToken cancellationToken = default) =>
+        dbContext.OutboxMessages.SingleOrDefaultAsync(x => x.IdempotencyKey == idempotencyKey, cancellationToken);
 
     public void Update(OutboxMessage message) => dbContext.OutboxMessages.Update(message);
 }

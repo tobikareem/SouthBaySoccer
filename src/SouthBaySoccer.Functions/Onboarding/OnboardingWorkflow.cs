@@ -45,7 +45,7 @@ public sealed class OnboardingWorkflow(
                 request.Password,
                 request.PreferredPosition,
                 request.TermsVersion,
-                request.TermsAcceptedAtUtc),
+                UtcDateTime.Normalize(request.TermsAcceptedAtUtc)),
             cancellationToken);
 
         return new RegistrationCompletedResponse(
