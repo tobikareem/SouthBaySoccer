@@ -5,13 +5,14 @@ using Microsoft.Extensions.Hosting;
 using SouthBaySoccer.Functions.Pipeline;
 using SouthBaySoccer.Infrastructure;
 using SouthBaySoccer.Infrastructure.Authentication;
+using SouthBaySoccer.Infrastructure.Authentication.Onboarding;
 
 var builder = FunctionsApplication.CreateBuilder(args);
 
 builder.ConfigureFunctionsWebApplication();
 builder.AddSouthBaySoccerHttpPipeline();
 builder.Services.Configure<JwtTokenOptions>(builder.Configuration.GetSection("Authentication:Jwt"));
-builder.Services.Configure<WhatsAppChallengeOptions>(builder.Configuration.GetSection("Authentication:WhatsAppChallenge"));
+builder.Services.Configure<OnboardingOptions>(builder.Configuration.GetSection("Onboarding"));
 builder.Services.Configure<PickupPalApiOptions>(builder.Configuration.GetSection("PickupPal"));
 builder.Services.Configure<AdminPhoneNumberOptions>(builder.Configuration);
 

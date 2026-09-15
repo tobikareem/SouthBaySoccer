@@ -2,11 +2,20 @@ using System.Net;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using SouthBaySoccer.Contracts.Authentication;
+using SouthBaySoccer.Functions.Onboarding;
 using SouthBaySoccer.Functions.Pipeline;
+using SouthBaySoccer.Functions.Pipeline.RateLimiting;
 
 namespace SouthBaySoccer.Functions.Authentication;
 
-public sealed class AuthenticationFunctions(IWhatsAppAuthenticationWorkflow workflow)
+/// <summary>
+/// Sign-in, sign-up, and session endpoints. Every anonymous endpoint is rate limited per caller IP
+/// before any request body is read; sign-in and email checks are additionally limited per input.
+/// </summary>
+public sealed class AuthenticationFunctions(
+    IAuthenticationWorkflow authenticationWorkflow,
+    IOnboardingWorkflow onboardingWorkflow,
+    IAnonymousRateLimiter rateLimiter)
 {
     [Function(nameof(SignInByPhone))]
     [AllowAnonymous]
@@ -14,55 +23,78 @@ public sealed class AuthenticationFunctions(IWhatsAppAuthenticationWorkflow work
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/pickuppal/phone/sign-in")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await request.ReadFromJsonAsync<SignInByPhoneRequest>(cancellationToken);
-        if (body is null)
-        {
-            throw new ValidationProblemException(new Dictionary<string, string[]>
-            {
-                ["body"] = ["A request body is required."],
-            });
-        }
+        LimitByIp(request);
+        var body = await ReadRequiredJsonAsync<SignInByPhoneRequest>(request, cancellationToken);
+        rateLimiter.EnsureAllowed(AnonymousRateLimits.PerPhone, AnonymousRateLimits.InputKey(body.PhoneNumber ?? string.Empty));
 
-        var result = await workflow.SignInByPhoneAsync(body, cancellationToken);
+        var result = await authenticationWorkflow.BeginPhoneSignInAsync(body, cancellationToken);
+        // 202: the sign-in is accepted but not complete until the WhatsApp login link comes back.
+        var statusCode = result.VerificationRequired ? HttpStatusCode.Accepted : HttpStatusCode.OK;
+        return await WriteJsonAsync(request, statusCode, result, cancellationToken);
+    }
+
+    [Function(nameof(CompleteWhatsAppLogin))]
+    [AllowAnonymous]
+    public async Task<HttpResponseData> CompleteWhatsAppLogin(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/pickuppal/login/complete")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        LimitByIp(request);
+        var body = await ReadRequiredJsonAsync<CompleteWhatsAppLoginRequest>(request, cancellationToken);
+
+        var result = await authenticationWorkflow.CompleteWhatsAppLoginAsync(body, cancellationToken);
         return await WriteJsonAsync(request, HttpStatusCode.OK, result, cancellationToken);
     }
 
-    [Function(nameof(RequestWhatsAppChallenge))]
+    [Function(nameof(ValidateRegistrationToken))]
     [AllowAnonymous]
-    public async Task<HttpResponseData> RequestWhatsAppChallenge(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/whatsapp/challenges")] HttpRequestData request,
+    public async Task<HttpResponseData> ValidateRegistrationToken(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/pickuppal/register/validate")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await request.ReadFromJsonAsync<RequestWhatsAppChallengeRequest>(cancellationToken);
-        if (body is null)
-        {
-            throw new ValidationProblemException(new Dictionary<string, string[]>
-            {
-                ["body"] = ["A request body is required."],
-            });
-        }
+        LimitByIp(request);
+        var body = await ReadRequiredJsonAsync<ValidateRegistrationTokenRequest>(request, cancellationToken);
 
-        var result = await workflow.RequestWhatsAppChallengeAsync(body, cancellationToken);
-        return await WriteJsonAsync(request, HttpStatusCode.Accepted, result, cancellationToken);
+        var result = await onboardingWorkflow.ValidateRegistrationTokenAsync(body, cancellationToken);
+        return await WriteJsonAsync(request, HttpStatusCode.OK, result, cancellationToken);
     }
 
-    [Function(nameof(VerifyWhatsAppChallenge))]
+    [Function(nameof(CheckEmailAvailability))]
     [AllowAnonymous]
-    public async Task<HttpResponseData> VerifyWhatsAppChallenge(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/whatsapp/challenges/verify")] HttpRequestData request,
+    public async Task<HttpResponseData> CheckEmailAvailability(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/pickuppal/register/email-availability")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await request.ReadFromJsonAsync<VerifyWhatsAppChallengeRequest>(cancellationToken);
-        if (body is null)
-        {
-            throw new ValidationProblemException(new Dictionary<string, string[]>
-            {
-                ["body"] = ["A request body is required."],
-            });
-        }
+        LimitByIp(request);
+        var body = await ReadRequiredJsonAsync<CheckEmailAvailabilityRequest>(request, cancellationToken);
+        rateLimiter.EnsureAllowed(AnonymousRateLimits.PerEmail, AnonymousRateLimits.InputKey(body.Email ?? string.Empty));
 
-        var result = await workflow.VerifyWhatsAppChallengeAsync(body, cancellationToken);
+        var result = await onboardingWorkflow.CheckEmailAvailabilityAsync(body, cancellationToken);
         return await WriteJsonAsync(request, HttpStatusCode.OK, result, cancellationToken);
+    }
+
+    [Function(nameof(RegisterWithWhatsApp))]
+    [AllowAnonymous]
+    public async Task<HttpResponseData> RegisterWithWhatsApp(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/pickuppal/register")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        LimitByIp(request);
+        var body = await ReadRequiredJsonAsync<RegisterWithWhatsAppRequest>(request, cancellationToken);
+
+        var result = await onboardingWorkflow.RegisterWithWhatsAppAsync(body, cancellationToken);
+        return await WriteJsonAsync(request, HttpStatusCode.Created, result, cancellationToken);
+    }
+
+    [Function(nameof(GetCurrentTermsVersion))]
+    [AllowAnonymous]
+    public async Task<HttpResponseData> GetCurrentTermsVersion(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "auth/terms/current")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        LimitByIp(request);
+
+        return await WriteJsonAsync(request, HttpStatusCode.OK, onboardingWorkflow.GetCurrentTermsVersion(), cancellationToken);
     }
 
     [Function(nameof(Refresh))]
@@ -71,16 +103,9 @@ public sealed class AuthenticationFunctions(IWhatsAppAuthenticationWorkflow work
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/refresh")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await request.ReadFromJsonAsync<RefreshTokenRequest>(cancellationToken);
-        if (body is null)
-        {
-            throw new ValidationProblemException(new Dictionary<string, string[]>
-            {
-                ["body"] = ["A request body is required."],
-            });
-        }
+        var body = await ReadRequiredJsonAsync<RefreshTokenRequest>(request, cancellationToken);
 
-        var result = await workflow.RefreshAsync(body, cancellationToken);
+        var result = await authenticationWorkflow.RefreshAsync(body, cancellationToken);
         return await WriteJsonAsync(request, HttpStatusCode.OK, result, cancellationToken);
     }
 
@@ -100,11 +125,28 @@ public sealed class AuthenticationFunctions(IWhatsAppAuthenticationWorkflow work
         var body = await request.ReadFromJsonAsync<SignOutRequest>(cancellationToken)
             ?? SignOutRequest.Empty;
 
-        await workflow.SignOutAsync(
+        await authenticationWorkflow.SignOutAsync(
             new SignOutCommand(currentUser.UserId.Value, body.RefreshToken),
             cancellationToken);
 
         return request.CreateResponse(HttpStatusCode.NoContent);
+    }
+
+    private void LimitByIp(HttpRequestData request) =>
+        rateLimiter.EnsureAllowed(AnonymousRateLimits.PerIp, AnonymousRateLimits.ClientIpKey(request));
+
+    private static async Task<T> ReadRequiredJsonAsync<T>(HttpRequestData request, CancellationToken cancellationToken)
+    {
+        var body = await request.ReadFromJsonAsync<T>(cancellationToken);
+        if (body is null)
+        {
+            throw new ValidationProblemException(new Dictionary<string, string[]>
+            {
+                ["body"] = ["A request body is required."],
+            });
+        }
+
+        return body;
     }
 
     private static async Task<HttpResponseData> WriteJsonAsync<T>(

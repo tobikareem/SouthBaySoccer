@@ -2,6 +2,7 @@ using System.Net;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using SouthBaySoccer.Application.Features.Authentication;
+using SouthBaySoccer.Application.Features.Onboarding;
 using SouthBaySoccer.Application.Common;
 
 namespace SouthBaySoccer.Functions.Pipeline;
@@ -9,6 +10,12 @@ namespace SouthBaySoccer.Functions.Pipeline;
 public sealed class ProblemDetailsMapper : IProblemDetailsMapper
 {
     private const string ProblemBaseUri = "https://api.southbaysoccer.local/problems/";
+
+    /// <summary>
+    /// Absolute prefix for token outcomes. The MAUI client maps onboarding failures by this problem
+    /// type (never by status alone), so it is a stable contract shared with the client.
+    /// </summary>
+    public const string OnboardingTokenProblemTypePrefix = "https://southbaysoccer/problems/onboarding-token-";
 
     public ProblemDetails Map(Exception exception, string correlationId)
     {
@@ -43,6 +50,43 @@ public sealed class ProblemDetailsMapper : IProblemDetailsMapper
                 "Not found",
                 "No Pickup Pal account was found for that phone number.",
                 "pickup-pal-user-not-found"),
+            // Stable onboarding problem types let the client tell a real token outcome apart from a
+            // bare 404/409/403 elsewhere; details are fixed copy and never echo the token. The client
+            // knows exactly four suffixes, so the email-taken case shares "already-registered".
+            OnboardingTokenException onboarding => onboarding.Failure switch
+            {
+                OnboardingTokenFailure.Expired => Create(
+                    HttpStatusCode.Gone,
+                    "Link expired",
+                    "The link has expired. Send the message again to get a new one.",
+                    OnboardingTokenProblemTypePrefix + "expired"),
+                OnboardingTokenFailure.AlreadyRegistered => Create(
+                    HttpStatusCode.Conflict,
+                    "Already registered",
+                    "This phone number already has an account. Sign in instead.",
+                    OnboardingTokenProblemTypePrefix + "already-registered"),
+                OnboardingTokenFailure.EmailAlreadyRegistered => Create(
+                    HttpStatusCode.Conflict,
+                    "Email already registered",
+                    "An account with this email already exists. Sign in instead.",
+                    OnboardingTokenProblemTypePrefix + "already-registered"),
+                OnboardingTokenFailure.Mismatch => Create(
+                    HttpStatusCode.Forbidden,
+                    "Sign-in could not be completed",
+                    "The link does not match this sign-in. Start again from the sign-in screen.",
+                    OnboardingTokenProblemTypePrefix + "mismatch"),
+                _ => Create(
+                    HttpStatusCode.NotFound,
+                    "Link invalid",
+                    "The link is invalid or was already used. Send the message again to get a new one.",
+                    OnboardingTokenProblemTypePrefix + "invalid"),
+            },
+            ApplicationServiceUnavailableException unavailable => Create(
+                HttpStatusCode.ServiceUnavailable,
+                "Service unavailable",
+                // Application-authored, user-safe message; nothing from the upstream response.
+                unavailable.Message,
+                "upstream-unavailable"),
             ApplicationNotFoundException => Create(
                 HttpStatusCode.NotFound,
                 "Not found",
@@ -119,7 +163,9 @@ public sealed class ProblemDetailsMapper : IProblemDetailsMapper
             Status = (int)statusCode,
             Title = title,
             Detail = detail,
-            Type = ProblemBaseUri + type,
+            // Onboarding token types are absolute (shared with the client); everything else is
+            // relative to the API problem base.
+            Type = type.StartsWith("https://", StringComparison.Ordinal) ? type : ProblemBaseUri + type,
         };
 
         if (errors is not null)

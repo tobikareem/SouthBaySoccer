@@ -2,18 +2,15 @@ using SouthBaySoccer.Contracts.Authentication;
 
 namespace SouthBaySoccer.Functions.Authentication;
 
-public interface IWhatsAppAuthenticationWorkflow
+/// <summary>Maps the sign-in, refresh, and sign-out contracts onto Application commands.</summary>
+public interface IAuthenticationWorkflow
 {
-    Task<AuthenticationTokensResponse> SignInByPhoneAsync(
+    Task<PhoneSignInStartResponse> BeginPhoneSignInAsync(
         SignInByPhoneRequest request,
         CancellationToken cancellationToken);
 
-    Task<RequestWhatsAppChallengeResponse> RequestWhatsAppChallengeAsync(
-        RequestWhatsAppChallengeRequest request,
-        CancellationToken cancellationToken);
-
-    Task<AuthenticationTokensResponse> VerifyWhatsAppChallengeAsync(
-        VerifyWhatsAppChallengeRequest request,
+    Task<AuthenticationTokensResponse> CompleteWhatsAppLoginAsync(
+        CompleteWhatsAppLoginRequest request,
         CancellationToken cancellationToken);
 
     Task<AuthenticationTokensResponse> RefreshAsync(
