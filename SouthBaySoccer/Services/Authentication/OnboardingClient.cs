@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using SouthBaySoccer.Contracts.Authentication;
+using SouthBaySoccer.Services.Clients;
 
 namespace SouthBaySoccer.Services.Authentication;
 
@@ -78,8 +79,10 @@ public sealed class OnboardingClient(HttpClient httpClient) : IOnboardingClient
         {
             response = await httpClient.PostAsJsonAsync(route, body, cancellationToken);
         }
-        catch (HttpRequestException ex) when (MapTokenFailure(ex.StatusCode) is { } failure)
+        catch (ApiRequestException ex) when (MapTokenFailure(ex.ProblemType) is { } failure)
         {
+            // Behind ApiExceptionHandler the response is already consumed; the Functions identify
+            // token outcomes by problem type, so a bare 404 for a missing route is NOT a token failure.
             throw new OnboardingTokenException(failure);
         }
 
@@ -96,9 +99,28 @@ public sealed class OnboardingClient(HttpClient httpClient) : IOnboardingClient
         }
     }
 
-    // The Functions map Pickup Pal token outcomes to 410 Gone (expired), 409 Conflict (already
-    // registered / other account), 403 (token for another user), and 404 (unknown token). A 400 is
-    // a validation problem and surfaces as-is so its field message can reach the form.
+    /// <summary>Problem-type prefix the Functions use for every token outcome.</summary>
+    public const string TokenProblemTypePrefix = "https://southbaysoccer/problems/onboarding-token-";
+
+    private static OnboardingTokenFailure? MapTokenFailure(string? problemType)
+    {
+        if (problemType is null || !problemType.StartsWith(TokenProblemTypePrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return problemType[TokenProblemTypePrefix.Length..].ToLowerInvariant() switch
+        {
+            "expired" => OnboardingTokenFailure.Expired,
+            "invalid" => OnboardingTokenFailure.Invalid,
+            "already-registered" => OnboardingTokenFailure.AlreadyRegistered,
+            "mismatch" => OnboardingTokenFailure.Mismatch,
+            _ => null
+        };
+    }
+
+    // Without ApiExceptionHandler in the pipeline (bare client) fall back to the status codes the
+    // Functions use: 410 expired, 409 already registered, 403 another user, 404 unknown token.
     private static OnboardingTokenFailure? MapTokenFailure(HttpStatusCode? statusCode) =>
         statusCode switch
         {

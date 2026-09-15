@@ -12,18 +12,29 @@ namespace SouthBaySoccer.Client.Tests;
 public class OnboardingClientTests
 {
     [Theory]
-    [InlineData(HttpStatusCode.Gone, OnboardingTokenFailure.Expired)]
-    [InlineData(HttpStatusCode.Conflict, OnboardingTokenFailure.AlreadyRegistered)]
-    [InlineData(HttpStatusCode.Forbidden, OnboardingTokenFailure.Mismatch)]
-    [InlineData(HttpStatusCode.NotFound, OnboardingTokenFailure.Invalid)]
-    public async Task ValidateRegistration_TokenFailureBehindApiExceptionHandler_MapsToOnboardingTokenException(
-        HttpStatusCode status, OnboardingTokenFailure expected)
+    [InlineData(HttpStatusCode.Gone, "expired", OnboardingTokenFailure.Expired)]
+    [InlineData(HttpStatusCode.Conflict, "already-registered", OnboardingTokenFailure.AlreadyRegistered)]
+    [InlineData(HttpStatusCode.Forbidden, "mismatch", OnboardingTokenFailure.Mismatch)]
+    [InlineData(HttpStatusCode.NotFound, "invalid", OnboardingTokenFailure.Invalid)]
+    public async Task ValidateRegistration_TokenProblemBehindApiExceptionHandler_MapsByProblemType(
+        HttpStatusCode status, string typeSuffix, OnboardingTokenFailure expected)
     {
-        var client = Create(status, withApiExceptionHandler: true);
+        var client = Create(status, withApiExceptionHandler: true,
+            body: $$"""{"type":"{{OnboardingClient.TokenProblemTypePrefix}}{{typeSuffix}}","title":"Token","status":{{(int)status}}}""");
 
         var act = () => client.ValidateRegistrationAsync("tok", CancellationToken.None);
 
         (await act.Should().ThrowAsync<OnboardingTokenException>()).Which.Failure.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task ValidateRegistration_BareNotFoundBehindHandler_IsNotATokenFailure()
+    {
+        var client = Create(HttpStatusCode.NotFound, withApiExceptionHandler: true);
+
+        var act = () => client.ValidateRegistrationAsync("tok", CancellationToken.None);
+
+        await act.Should().ThrowAsync<ApiRequestException>();
     }
 
     [Fact]

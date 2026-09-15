@@ -119,12 +119,6 @@ public partial class WelcomeBackPageModel(
             () => externalLauncher.OpenPickupPalBotAsync(cancellationToken),
             "WhatsApp could not be opened on this device.");
 
-    [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task OpenPickupPalSignupAsync(CancellationToken cancellationToken) =>
-        OpenExternalAsync(
-            () => externalLauncher.OpenPickupPalSignupAsync(cancellationToken),
-            "The Pickup Pal signup page could not be opened.");
-
     private async Task OpenExternalAsync(Func<Task<bool>> open, string failureMessage)
     {
         StatusMessage = string.Empty;

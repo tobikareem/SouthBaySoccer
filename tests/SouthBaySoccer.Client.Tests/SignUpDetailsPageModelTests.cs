@@ -117,11 +117,29 @@ public class SignUpDetailsPageModelTests
         pageModel.CreateAccountCommand.CanExecute(null).Should().BeTrue();
     }
 
+    [Fact]
+    public void SelectedPosition_WhenChanged_TogglesIsSelectedOnItemsAndClearsOnRetap()
+    {
+        var pageModel = Create(new Mock<IOnboardingClient>(MockBehavior.Strict), new Mock<IOnboardingNavigator>(MockBehavior.Strict));
+
+        pageModel.TogglePositionCommand.Execute(pageModel.Positions[1]);
+        pageModel.Positions[1].IsSelected.Should().BeTrue();
+
+        pageModel.TogglePositionCommand.Execute(pageModel.Positions[2]);
+        pageModel.Positions[1].IsSelected.Should().BeFalse();
+        pageModel.Positions[2].IsSelected.Should().BeTrue();
+
+        pageModel.TogglePositionCommand.Execute(pageModel.Positions[2]);
+        pageModel.SelectedPosition.Should().BeNull();
+        pageModel.Positions[2].IsSelected.Should().BeFalse();
+    }
+
     private static SignUpDetailsPageModel Create(Mock<IOnboardingClient> client, Mock<IOnboardingNavigator> navigator)
     {
         var pageModel = new SignUpDetailsPageModel(
             client.Object,
             navigator.Object,
+            new Mock<IExternalLauncher>(MockBehavior.Strict).Object,
             new FakeTimeProvider(new DateTimeOffset(2026, 9, 14, 12, 0, 0, TimeSpan.Zero)));
         pageModel.Initialize("tok", "+1 (555) ••• 9421");
         return pageModel;

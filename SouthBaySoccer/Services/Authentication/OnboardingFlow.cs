@@ -1,4 +1,3 @@
-using System.Net.Http;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Contracts.Authentication;
 using SouthBaySoccer.Services;
@@ -19,7 +18,9 @@ public sealed class OnboardingFlow(
     public const string VerificationFailedMessage =
         "The link didn't match the sign-in you started. Enter your number again to get a fresh one.";
     public const string RegistrationFailedMessage =
-        "We could not reach the sign-up service. Check your connection and try again.";
+        "We could not reach the sign-up service. Check your connection and tap the bot's link again.";
+    public const string LoginUnavailableMessage =
+        "We could not reach the sign-in service. Check your connection and tap the bot's link again.";
 
     private readonly SemaphoreSlim _linkLock = new(1, 1);
     private (OnboardingLinkKind Kind, string Token)? _lastDispatched;
@@ -68,13 +69,6 @@ public sealed class OnboardingFlow(
             return Task.FromResult(false);
         }
 
-        if (authenticationCoordinator.IsAuthenticated)
-        {
-            // A stale bot link tapped while signed in: nothing to do, and the Welcome Back stack
-            // no longer exists to push onto.
-            return Task.FromResult(true);
-        }
-
         return DispatchAsync(kind, token, cancellationToken);
     }
 
@@ -101,6 +95,8 @@ public sealed class OnboardingFlow(
 
     public async Task HandleRegistrationTokenAsync(string token, CancellationToken cancellationToken)
     {
+        // Only a definitive token outcome (valid or a known failure) changes flow state. Transport
+        // and unexpected errors propagate so the dispatcher can keep the link retryable.
         try
         {
             var validation = await onboardingClient.ValidateRegistrationAsync(token, cancellationToken);
@@ -111,10 +107,6 @@ public sealed class OnboardingFlow(
         {
             PendingKind = null;
             await navigator.ShowSignUpExpiredAsync(ex.Failure, cancellationToken);
-        }
-        catch (HttpRequestException)
-        {
-            await dialogService.ShowAlertAsync("Sign-up unavailable", RegistrationFailedMessage, "OK", cancellationToken);
         }
     }
 
@@ -133,8 +125,9 @@ public sealed class OnboardingFlow(
             Reset();
             await authenticationCoordinator.CompleteSignInAsync(tokens, cancellationToken);
         }
-        catch (Exception ex) when (ex is OnboardingTokenException or HttpRequestException)
+        catch (OnboardingTokenException)
         {
+            // Definitive rejection: the pending sign-in is void, start over from the phone number.
             Reset();
             await dialogService.ShowAlertAsync(VerificationFailedTitle, VerificationFailedMessage, "OK", cancellationToken);
             await navigator.PopToWelcomeAsync(cancellationToken);
@@ -147,7 +140,7 @@ public sealed class OnboardingFlow(
         LinkRequestedAt = null;
         PendingSignIn = null;
         LastHandoffFailed = false;
-        _lastDispatched = null;
+        // _lastDispatched is intentionally kept: a redeemed token stays redeemed across flow resets.
     }
 
     private async Task HandoffAsync(OnboardingLinkKind kind, string message, CancellationToken cancellationToken)
@@ -181,19 +174,40 @@ public sealed class OnboardingFlow(
         await _linkLock.WaitAsync(cancellationToken);
         try
         {
-            if (_lastDispatched == (kind, token))
+            // Checked inside the lock so a duplicate queued behind a successful login sees the
+            // signed-in state instead of re-running with no pending sign-in.
+            if (authenticationCoordinator.IsAuthenticated || _lastDispatched == (kind, token))
             {
                 return true;
             }
 
             _lastDispatched = (kind, token);
-            if (kind == OnboardingLinkKind.Register)
+            try
             {
-                await HandleRegistrationTokenAsync(token, cancellationToken);
+                if (kind == OnboardingLinkKind.Register)
+                {
+                    await HandleRegistrationTokenAsync(token, cancellationToken);
+                }
+                else
+                {
+                    await HandleLoginTokenAsync(token, cancellationToken);
+                }
             }
-            else
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                await HandleLoginTokenAsync(token, cancellationToken);
+                _lastDispatched = null;
+                throw;
+            }
+            catch (Exception)
+            {
+                // Transport, timeout, or unexpected failure: the token was not consumed, so the
+                // same link must work again. Keep the flow state and tell the user to retry.
+                _lastDispatched = null;
+                await dialogService.ShowAlertAsync(
+                    kind == OnboardingLinkKind.Register ? "Sign-up unavailable" : "Sign-in unavailable",
+                    kind == OnboardingLinkKind.Register ? RegistrationFailedMessage : LoginUnavailableMessage,
+                    "OK",
+                    cancellationToken);
             }
 
             return true;

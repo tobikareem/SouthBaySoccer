@@ -19,3 +19,4 @@ One line per lesson. Skim this at the start of a task; read the full entry when 
 - [profile-merge-must-repoint-every-fk](2026-07-30-profile-merge-must-repoint-every-fk.md) - Profile merges must re-point every profile FK (CaptainPlayerProfileId was missed) and workflow buttons must show disabled, not hidden
 - [profile-merge-feedback-final-keys](2026-07-30-profile-merge-feedback-final-keys.md) - Reconcile complete post-merge rating/like keys and soft-delete self-feedback or collisions
 - [onboarding-simulator-verification](onboarding-simulator-verification.md) - Headless iOS simulator review of pre-auth screens via N9JABAY_ONBOARDING_SCREEN; avoid simctl openurl prompts
+- [link-dedupe-before-outcome](link-dedupe-before-outcome.md) - Single-use link dedupe: set on dispatch, clear on transport failure, never in Reset(); map token failures by problem type

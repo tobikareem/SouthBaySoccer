@@ -28,6 +28,8 @@ public partial class LinkWaitingPageModel(
     public const string WhatsAppUnavailableMessage =
         "WhatsApp could not be opened on this device. Install it, or paste the bot's link below.";
     public const string PasteFailedMessage = "That doesn't look like a link from the Pickup Pal bot.";
+    public const string RegisterExpiredHint = "This link has expired. Ask the bot for a fresh one to keep going.";
+    public const string LoginExpiredHint = "This link has expired. Go back and enter your number again for a fresh one.";
 
     private CancellationTokenSource? _countdown;
 
@@ -57,7 +59,12 @@ public partial class LinkWaitingPageModel(
     private string _statusMessage = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNotExpired))]
     private bool _hasExpired;
+
+    public bool HasNotExpired => !HasExpired;
+    public string ExpiredHint => Kind == OnboardingLinkKind.Register ? RegisterExpiredHint : LoginExpiredHint;
+    public string ExpiredActionText => Kind == OnboardingLinkKind.Register ? "Link expired? Get a new one" : "Link expired? Start over";
 
     public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
     public bool IsRegister => Kind == OnboardingLinkKind.Register;
@@ -74,6 +81,8 @@ public partial class LinkWaitingPageModel(
             : $"No reply? Make sure {message} went to the bot from the number you signed in with, not from another phone.";
         StatusMessage = flow.LastHandoffFailed ? WhatsAppUnavailableMessage : string.Empty;
         OnPropertyChanged(nameof(IsRegister));
+        OnPropertyChanged(nameof(ExpiredHint));
+        OnPropertyChanged(nameof(ExpiredActionText));
     }
 
     /// <summary>Advances the countdown by one tick. Public so tests can drive it without a timer.</summary>
@@ -158,9 +167,18 @@ public partial class LinkWaitingPageModel(
         }
     }
 
+    /// <summary>Register: go to the expired screen for a fresh handoff. Login: back to the phone number.</summary>
     [RelayCommand]
-    private Task LinkExpiredAsync(CancellationToken cancellationToken) =>
-        navigator.ShowSignUpExpiredAsync(OnboardingTokenFailure.Expired, cancellationToken);
+    private Task LinkExpiredAsync(CancellationToken cancellationToken)
+    {
+        if (Kind == OnboardingLinkKind.Register)
+        {
+            return navigator.ShowSignUpExpiredAsync(OnboardingTokenFailure.Expired, cancellationToken);
+        }
+
+        flow.Reset();
+        return navigator.PopToWelcomeAsync(cancellationToken);
+    }
 
     [RelayCommand]
     private Task GoBackAsync(CancellationToken cancellationToken) => navigator.PopAsync(cancellationToken);

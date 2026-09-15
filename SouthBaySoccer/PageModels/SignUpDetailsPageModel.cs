@@ -12,6 +12,7 @@ namespace SouthBaySoccer.PageModels;
 public partial class SignUpDetailsPageModel(
     IOnboardingClient onboardingClient,
     IOnboardingNavigator navigator,
+    IExternalLauncher externalLauncher,
     TimeProvider timeProvider) : ObservableObject
 {
     public const string StepLabel = "Step 3 of 3";
@@ -22,6 +23,9 @@ public partial class SignUpDetailsPageModel(
     public const string EmailTakenMessage = "An account already uses this email.";
     public const string ServiceUnavailableMessage =
         "We could not reach the sign-up service. Check your connection and try again.";
+    public const string TermsTitle = "I agree to the terms";
+    public const string TermsSubtitle = "Read them below before you agree.";
+    public const string LinkOpenFailedMessage = "That page could not be opened on this device.";
     public const int MinimumPasswordLength = 6;
 
     private static readonly Regex EmailPattern = new(@"^[^\s@]+@[^\s@]+\.[^\s@]+$", RegexOptions.Compiled);
@@ -87,6 +91,39 @@ public partial class SignUpDetailsPageModel(
     [RelayCommand]
     private void TogglePosition(PositionOption? option) =>
         SelectedPosition = option is null || ReferenceEquals(option, SelectedPosition) ? null : option;
+
+    partial void OnSelectedPositionChanged(PositionOption? oldValue, PositionOption? newValue)
+    {
+        if (oldValue is not null)
+        {
+            oldValue.IsSelected = false;
+        }
+
+        if (newValue is not null)
+        {
+            newValue.IsSelected = true;
+        }
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task OpenTermsAsync(CancellationToken cancellationToken) =>
+        OpenLinkAsync(() => externalLauncher.OpenTermsAsync(cancellationToken));
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task OpenPrivacyPolicyAsync(CancellationToken cancellationToken) =>
+        OpenLinkAsync(() => externalLauncher.OpenPrivacyPolicyAsync(cancellationToken));
+
+    private async Task OpenLinkAsync(Func<Task<bool>> open)
+    {
+        try
+        {
+            FormError = await open() ? string.Empty : LinkOpenFailedMessage;
+        }
+        catch (Exception)
+        {
+            FormError = LinkOpenFailedMessage;
+        }
+    }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task CreateAccountAsync(CancellationToken cancellationToken)
@@ -178,4 +215,12 @@ public partial class SignUpDetailsPageModel(
     }
 }
 
-public sealed record PositionOption(string Code, string Name);
+/// <summary>A selectable position chip; <see cref="IsSelected"/> drives the shared SelectableChip style.</summary>
+public sealed partial class PositionOption(string code, string name) : ObservableObject
+{
+    public string Code { get; } = code;
+    public string Name { get; } = name;
+
+    [ObservableProperty]
+    private bool _isSelected;
+}

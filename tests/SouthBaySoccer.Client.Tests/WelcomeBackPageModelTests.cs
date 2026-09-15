@@ -279,45 +279,53 @@ public class WelcomeBackPageModelTests
     }
 
     [Fact]
-    public async Task OpenPickupPalSignup_LaunchSucceeds_OpensSignupWithoutError()
+    public async Task RequestPhoneSignIn_VerificationRequired_StartsVerificationWithoutTokens()
     {
-        var authenticationClient = new Mock<IOnboardingClient>(MockBehavior.Strict);
+        var start = new PhoneSignInStartResponse(true, "+1 (555) ••• 9421", "Ada Okafor", null);
+        var authenticationClient = new Mock<IOnboardingClient>();
+        authenticationClient
+            .Setup(client => client.BeginPhoneSignInAsync("+15550149421", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(start);
         var authenticationCoordinator = new Mock<IAuthenticationCoordinator>(MockBehavior.Strict);
-        var externalLauncher = new Mock<IExternalLauncher>();
-        externalLauncher
-            .Setup(launcher => launcher.OpenPickupPalSignupAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+        var onboardingFlow = new Mock<IOnboardingFlow>(MockBehavior.Strict);
+        onboardingFlow
+            .Setup(flow => flow.BeginSignInVerificationAsync(start, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         var pageModel = CreatePageModel(
             authenticationClient,
             authenticationCoordinator,
-            externalLauncher);
+            new Mock<IExternalLauncher>(MockBehavior.Strict),
+            onboardingFlow: onboardingFlow);
+        pageModel.PhoneNumber = "+1 (555) 014-9421";
 
-        await pageModel.OpenPickupPalSignupCommand.ExecuteAsync(null);
+        await pageModel.RequestWhatsAppChallengeCommand.ExecuteAsync(null);
 
-        pageModel.HasStatusMessage.Should().BeFalse();
-        externalLauncher.Verify(
-            launcher => launcher.OpenPickupPalSignupAsync(It.IsAny<CancellationToken>()),
-            Times.Once);
+        onboardingFlow.VerifyAll();
+        authenticationCoordinator.VerifyNoOtherCalls();
+        pageModel.IsBusy.Should().BeFalse();
     }
 
     [Fact]
-    public async Task OpenPickupPalSignup_LaunchFailure_ShowsRecoverableMessageAndStays()
+    public async Task RequestPhoneSignIn_NeitherTokensNorVerification_IsRecoverableError()
     {
-        var authenticationClient = new Mock<IOnboardingClient>(MockBehavior.Strict);
+        var authenticationClient = new Mock<IOnboardingClient>();
+        authenticationClient
+            .Setup(client => client.BeginPhoneSignInAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PhoneSignInStartResponse(false, null, null, null));
         var authenticationCoordinator = new Mock<IAuthenticationCoordinator>(MockBehavior.Strict);
-        var externalLauncher = new Mock<IExternalLauncher>();
-        externalLauncher
-            .Setup(launcher => launcher.OpenPickupPalSignupAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false);
+        var onboardingFlow = new Mock<IOnboardingFlow>(MockBehavior.Strict);
         var pageModel = CreatePageModel(
             authenticationClient,
             authenticationCoordinator,
-            externalLauncher);
+            new Mock<IExternalLauncher>(MockBehavior.Strict),
+            onboardingFlow: onboardingFlow);
+        pageModel.PhoneNumber = "+1 (555) 014-9421";
 
-        await pageModel.OpenPickupPalSignupCommand.ExecuteAsync(null);
+        await pageModel.RequestWhatsAppChallengeCommand.ExecuteAsync(null);
 
-        pageModel.StatusMessage.Should().Contain("could not be opened");
-        authenticationClient.VerifyNoOtherCalls();
+        pageModel.HasStatusMessage.Should().BeTrue();
+        onboardingFlow.VerifyNoOtherCalls();
+        authenticationCoordinator.VerifyNoOtherCalls();
     }
 
     [Fact]

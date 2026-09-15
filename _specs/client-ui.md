@@ -128,6 +128,9 @@ Header font Inter Semibold; body Inter Regular (registered in `MauiProgram.cs` f
   also live in `BrandTokens.xaml` — migrated from the deleted sample-template dictionaries; the
   brand system owns them now.
 
+Added for onboarding (M13.3): `IconLg` (22) for row-leading status glyphs, `HeroTileSize` (74) and
+`HeroGlyphSize` (38) for the centred hero tile on waiting/expired screens.
+
 ## 5. Shared styles (`BrandStyles.xaml`)
 
 Keyed styles (and a few implicit) built only from tokens:
@@ -155,6 +158,8 @@ Keyed styles (and a few implicit) built only from tokens:
   `CheckBox` (brand green, `TouchMin` minimums), `Switch` (brand green on-color),
   `ActivityIndicator` (brand green).
 - **Frame/Border**: `CardSurface` (white, 1px `BrandLine`, `RadiusLg`), `TintSurface` (`BrandMist`).
+- **`SelectableChip`** — tap-to-toggle chip whose bound item exposes `IsSelected` (sign-up positions);
+  no `CollectionView` selection involved.
 - **Wireframe surfaces**: `HeroCardSurface` (Pine→Flag Green), `StatTileSurface`
   (Mist/subtle white, fine green-tinted line), `NoticeSurface` (Mist + green-tinted line),
   `IconTileSurface`, `MetadataChip`, and `StepperButton`.
@@ -365,7 +370,7 @@ Scenario: Product UI follows the authoritative wireframe
 | WhatsApp handoff (prefilled `!!register` / `!!login`) | `WhatsAppHandoffCard` |
 | Bot link countdown | `LinkExpiryCard` |
 | Sign-up numbered steps, verify account row | `Avatar` (initials) + `TextBodyStrong`/`TextCaption` |
-| Position chips (sign-up) | horizontal `CollectionView` of `MetadataChip` with `Selected` visual state |
+| Position chips (sign-up) | horizontal `CollectionView` (`SelectionMode=None`) of `SelectableChip` + `TapGestureRecognizer` |
 | Terms / remember-device toggles | `ToggleRow` |
 | Group selection (sign-in) & Stats group filter | `LinkGroupPage` (single-select `CollectionView`) / `Picker` |
 | Admin entry points on Sessions | `SectionHeader` with two actions ("Broadcast", "+ Session"), gated by `CanManageSessions` |

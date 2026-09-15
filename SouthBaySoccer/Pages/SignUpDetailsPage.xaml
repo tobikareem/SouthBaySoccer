@@ -26,7 +26,7 @@
                                FontFamily="FontAwesomeSolid"
                                FontSize="{StaticResource IconMd}"
                                TextColor="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandSpringDark}}"
-                               SemanticProperties.Description="Confirmed" />
+                               AutomationProperties.IsInAccessibleTree="False" />
                         <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
                             <Label Text="{x:Static pageModels:SignUpDetailsPageModel.ConfirmedHeading}" Style="{StaticResource TextBodyStrong}" />
                             <Label Text="{Binding ConfirmedMessage}" Style="{StaticResource TextCaption}" LineHeight="1.4" />
@@ -52,59 +52,42 @@
                     <Entry Text="{Binding Email}" Style="{StaticResource BrandEntry}" Keyboard="Email"
                            Placeholder="you@example.com" ReturnType="Next" IsSpellCheckEnabled="False" IsTextPredictionEnabled="False"
                            SemanticProperties.Description="Email address" />
-                    <HorizontalStackLayout Spacing="{StaticResource SpaceXs}" IsVisible="{Binding HasEmailError}">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceXs}" IsVisible="{Binding HasEmailError}">
                         <Label Text="{Binding EmailError}"
                                Style="{StaticResource TextCaption}"
                                TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
-                               VerticalTextAlignment="Center" />
-                        <Button Text="Sign in instead?" Command="{Binding SignInInsteadCommand}" Style="{StaticResource LinkButton}"
+                               VerticalTextAlignment="Center"
+                               LineBreakMode="WordWrap" />
+                        <Button Grid.Column="1" Text="Sign in instead?" Command="{Binding SignInInsteadCommand}" Style="{StaticResource LinkButton}"
                                 IsVisible="{Binding IsEmailTaken}"
                                 SemanticProperties.Description="Sign in with the existing account instead" />
-                    </HorizontalStackLayout>
+                    </Grid>
                 </VerticalStackLayout>
 
                 <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
                     <Label Text="Password" Style="{StaticResource TextLabel}" />
                     <Entry Text="{Binding Password}" Style="{StaticResource BrandEntry}" IsPassword="True"
-                           ReturnType="Done" SemanticProperties.Description="Password" />
+                           ReturnType="Done" SemanticProperties.Description="Password"
+                           SemanticProperties.Hint="{x:Static pageModels:SignUpDetailsPageModel.PasswordHint}" />
                     <Label Text="{x:Static pageModels:SignUpDetailsPageModel.PasswordHint}" Style="{StaticResource TextCaption}" />
                 </VerticalStackLayout>
 
                 <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
                     <Label Text="Position (optional)" Style="{StaticResource TextLabel}" />
                     <CollectionView ItemsSource="{Binding Positions}"
-                                    SelectionMode="Single"
-                                    SelectedItem="{Binding SelectedPosition, Mode=TwoWay}"
-                                    HeightRequest="{StaticResource TouchMin}">
+                                    SelectionMode="None"
+                                    MinimumHeightRequest="{StaticResource TouchMin}">
                         <CollectionView.ItemsLayout>
                             <LinearItemsLayout Orientation="Horizontal" ItemSpacing="{StaticResource SpaceXs}" />
                         </CollectionView.ItemsLayout>
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="pageModels:PositionOption">
-                                <Border Style="{StaticResource MetadataChip}"
-                                        MinimumHeightRequest="{StaticResource TouchMin}"
-                                        BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}"
-                                        StrokeThickness="1"
-                                        Stroke="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}"
+                                <Border Style="{StaticResource SelectableChip}"
                                         SemanticProperties.Description="{Binding Name, StringFormat='{0}, tap to select or clear'}">
                                     <Border.GestureRecognizers>
-                                        <TapGestureRecognizer Command="{Binding TogglePositionCommand, Source={RelativeSource AncestorType={x:Type pageModels:SignUpDetailsPageModel}}}"
+                                        <TapGestureRecognizer Command="{Binding TogglePositionCommand, Source={RelativeSource Mode=FindAncestorBindingContext, AncestorType={x:Type pageModels:SignUpDetailsPageModel}}}"
                                                               CommandParameter="{Binding .}" />
                                     </Border.GestureRecognizers>
-                                    <VisualStateManager.VisualStateGroups>
-                                        <VisualStateGroup x:Name="CommonStates">
-                                            <VisualState x:Name="Normal" />
-                                            <VisualState x:Name="Selected">
-                                                <VisualState.Setters>
-                                                    <Setter Property="BackgroundColor"
-                                                            Value="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}" />
-                                                    <Setter Property="StrokeThickness" Value="1.5" />
-                                                    <Setter Property="Stroke"
-                                                            Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
-                                                </VisualState.Setters>
-                                            </VisualState>
-                                        </VisualStateGroup>
-                                    </VisualStateManager.VisualStateGroups>
                                     <Label Text="{Binding Code}" Style="{StaticResource TextBodyStrong}"
                                            HorizontalTextAlignment="Center" VerticalTextAlignment="Center" />
                                 </Border>
@@ -115,9 +98,15 @@
 
                 <c:ToggleRow Glyph="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}"
                              GlyphFontFamily="FontAwesomeSolid"
-                             Title="I agree to the terms"
-                             Subtitle="Pickup Pal terms and the N9ja Bay privacy policy."
+                             Title="{x:Static pageModels:SignUpDetailsPageModel.TermsTitle}"
+                             Subtitle="{x:Static pageModels:SignUpDetailsPageModel.TermsSubtitle}"
                              IsToggled="{Binding TermsAccepted, Mode=TwoWay}" />
+                <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
+                    <Button Text="Pickup Pal terms" Command="{Binding OpenTermsCommand}" Style="{StaticResource LinkButton}"
+                            SemanticProperties.Description="Open the Pickup Pal terms" />
+                    <Button Text="N9ja Bay privacy policy" Command="{Binding OpenPrivacyPolicyCommand}" Style="{StaticResource LinkButton}"
+                            SemanticProperties.Description="Open the N9ja Bay privacy policy" />
+                </HorizontalStackLayout>
 
                 <Label Text="{Binding FormError}"
                        Style="{StaticResource TextCaption}"
@@ -130,7 +119,7 @@
                             IsEnabled="{Binding IsNotBusy}"
                             Style="{StaticResource PrimaryButton}"
                             SemanticProperties.Description="Create account" />
-                    <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" Color="White"
+                    <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" Color="{StaticResource BrandWhite}"
                                        HorizontalOptions="End" Margin="{StaticResource WelcomeButtonBusyMargin}" />
                 </Grid>
 

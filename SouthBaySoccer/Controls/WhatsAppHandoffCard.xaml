@@ -16,7 +16,7 @@
                        FontSize="{StaticResource IconMd}"
                        TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
                        VerticalTextAlignment="Center"
-                       SemanticProperties.Description="Message" />
+                       AutomationProperties.IsInAccessibleTree="False" />
                 <Label Grid.Column="1"
                        Text="{Binding MessageText, Source={x:Reference Root}}"
                        Style="{StaticResource TextBodyStrong}"
@@ -26,7 +26,7 @@
         </Border>
         <Label Text="{Binding Hint, Source={x:Reference Root}}"
                Style="{StaticResource TextCaption}" />
-        <Grid Margin="{StaticResource SpaceSm}">
+        <Grid>
             <Button Text="{Binding ButtonText, Source={x:Reference Root}}"
                     Command="{Binding ContinueCommand, Source={x:Reference Root}}"
                     IsEnabled="{Binding IsNotBusy, Source={x:Reference Root}}"
@@ -35,14 +35,14 @@
             <Label Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
                    FontFamily="FontAwesomeBrands"
                    FontSize="{StaticResource IconMd}"
-                   TextColor="White"
+                   TextColor="{StaticResource BrandWhite}"
                    HorizontalOptions="Start"
                    Margin="{StaticResource WelcomeButtonIconMargin}"
                    VerticalTextAlignment="Center"
                    InputTransparent="True" />
             <ActivityIndicator IsRunning="{Binding IsBusy, Source={x:Reference Root}}"
                                IsVisible="{Binding IsBusy, Source={x:Reference Root}}"
-                               Color="White"
+                               Color="{StaticResource BrandWhite}"
                                HorizontalOptions="End"
                                Margin="{StaticResource WelcomeButtonBusyMargin}" />
         </Grid>

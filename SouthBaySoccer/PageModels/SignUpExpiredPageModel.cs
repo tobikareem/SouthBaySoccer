@@ -45,11 +45,29 @@ public partial class SignUpExpiredPageModel(
         };
     }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStatusMessage))]
+    private string _statusMessage = string.Empty;
+
+    public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
+
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task SendAgainAsync(CancellationToken cancellationToken)
+    private async Task SendAgainAsync(CancellationToken cancellationToken)
     {
-        flow.Reset();
-        return flow.StartSignUpHandoffAsync(cancellationToken);
+        StatusMessage = string.Empty;
+        try
+        {
+            flow.Reset();
+            await flow.StartSignUpHandoffAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            StatusMessage = "We could not start the WhatsApp handoff. Please try again.";
+        }
     }
 
     [RelayCommand]

@@ -16,7 +16,8 @@
                 <controls:Badge Grid.Column="1"
                                 Text="{Binding RemainingText, Source={x:Reference Root}}"
                                 Glyph="{x:Static fonts:FontAwesomeGlyphs.Clock}"
-                                Variant="{Binding BadgeVariant, Source={x:Reference Root}}" />
+                                Variant="{Binding BadgeVariant, Source={x:Reference Root}}"
+                                AutomationProperties.IsInAccessibleTree="False" />
             </Grid>
             <ProgressBar Progress="{Binding Progress, Source={x:Reference Root}}"
                          ProgressColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"

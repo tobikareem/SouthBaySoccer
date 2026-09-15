@@ -61,8 +61,11 @@ public partial class App : Application
     private async Task OpenDebugOnboardingScreenAsync()
     {
         var screen = Environment.GetEnvironmentVariable("N9JABAY_ONBOARDING_SCREEN");
-        if (string.IsNullOrWhiteSpace(screen))
+        if (string.IsNullOrWhiteSpace(screen)
+            || _serviceProvider.GetRequiredService<Configuration.ClientDataSourceOptions>().DataSource != Configuration.ClientDataSource.Seed)
         {
+            // Seed only: in Api mode the hook would post a fake token to the real backend and
+            // could persist seed tokens into secure storage.
             return;
         }
 

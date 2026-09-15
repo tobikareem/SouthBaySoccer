@@ -205,6 +205,47 @@ public class OnboardingFlowTests
     }
 
     [Fact]
+    public async Task HandleAppLink_SameLoginLinkDeliveredTwice_CompletesOnce()
+    {
+        var harness = new Harness();
+        var pending = new PhoneSignInStartResponse(true, "+1 (555) ••• 9421", "Ada Okafor", null);
+        harness.Navigator.Setup(n => n.ShowSignInVerifyAsync(pending, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        await harness.Flow.BeginSignInVerificationAsync(pending, CancellationToken.None);
+        harness.Client.Setup(c => c.CompleteLoginAsync("tok", true, It.IsAny<CancellationToken>())).ReturnsAsync(Tokens);
+        harness.Coordinator.Setup(c => c.CompleteSignInAsync(Tokens, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var link = new Uri("southbaysoccer://auth/login?token=tok");
+
+        await harness.Flow.HandleAppLinkAsync(link, CancellationToken.None);
+        await harness.Flow.HandleAppLinkAsync(link, CancellationToken.None);
+
+        harness.Client.Verify(c => c.CompleteLoginAsync("tok", true, It.IsAny<CancellationToken>()), Times.Once);
+        harness.Dialog.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task HandleAppLink_TransportFailure_AlertsAndLeavesLinkRetryable()
+    {
+        var harness = new Harness();
+        harness.Client
+            .SetupSequence(c => c.ValidateRegistrationAsync("abc", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new TaskCanceledException("timeout"))
+            .ReturnsAsync(new RegistrationTokenValidationResponse("+1 (555) ••• 9421"));
+        harness.Dialog
+            .Setup(d => d.ShowAlertAsync("Sign-up unavailable", OnboardingFlow.RegistrationFailedMessage, "OK", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        harness.Navigator
+            .Setup(n => n.ShowSignUpDetailsAsync("abc", It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var link = new Uri("southbaysoccer://auth/register?token=abc");
+
+        await harness.Flow.HandleAppLinkAsync(link, CancellationToken.None);
+        await harness.Flow.HandleAppLinkAsync(link, CancellationToken.None);
+
+        harness.Dialog.VerifyAll();
+        harness.Navigator.Verify(n => n.ShowSignUpDetailsAsync("abc", It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task HandleAppLink_WhileAuthenticated_IsSwallowed()
     {
         var harness = new Harness();

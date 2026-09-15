@@ -61,7 +61,18 @@
                                   RemainingPercent="{Binding RemainingPercent}"
                                   Note="{Binding ExpiryNote}" />
 
-                <Grid>
+                <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding HasExpired}">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}"
+                               FontFamily="FontAwesomeSolid"
+                               FontSize="{StaticResource IconMd}"
+                               TextColor="{AppThemeBinding Light={StaticResource WarningLight}, Dark={StaticResource WarningDark}}"
+                               AutomationProperties.IsInAccessibleTree="False" />
+                        <Label Grid.Column="1" Text="{Binding ExpiredHint}" Style="{StaticResource TextCaption}" LineHeight="1.4" />
+                    </Grid>
+                </Border>
+
+                <Grid IsVisible="{Binding HasNotExpired}">
                     <Button Text="Open WhatsApp again"
                             Command="{Binding OpenWhatsAppAgainCommand}"
                             Style="{StaticResource WhatsAppButton}"
@@ -92,11 +103,10 @@
                        HorizontalTextAlignment="Center"
                        LineHeight="1.5" />
 
-                <Button Text="Link expired?"
+                <Button Text="{Binding ExpiredActionText}"
                         Command="{Binding LinkExpiredCommand}"
                         Style="{StaticResource LinkButton}"
                         HorizontalOptions="Center"
-                        IsVisible="{Binding IsRegister}"
                         SemanticProperties.Description="The link expired, get a new one" />
             </VerticalStackLayout>
         </ScrollView>

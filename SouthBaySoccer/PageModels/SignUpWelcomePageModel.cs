@@ -11,6 +11,7 @@ namespace SouthBaySoccer.PageModels;
 /// </summary>
 public partial class SignUpWelcomePageModel(IAuthenticationCoordinator authenticationCoordinator) : ObservableObject
 {
+    public const string Title = "Welcome";
     public const string Subtitle = "Account created and linked.";
     public const string PhoneLinkedTitle = "Phone linked to WhatsApp";
     public const string HistoryPendingTitle = "Past games still syncing";
@@ -43,7 +44,10 @@ public partial class SignUpWelcomePageModel(IAuthenticationCoordinator authentic
     private string _groupDetail = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNoGroup))]
     private bool _hasGroup;
+
+    public bool HasNoGroup => !HasGroup;
 
     [ObservableProperty]
     private bool _historyPending;

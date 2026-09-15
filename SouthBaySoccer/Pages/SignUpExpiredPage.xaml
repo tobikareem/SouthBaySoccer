@@ -60,6 +60,12 @@
                            InputTransparent="True" />
                 </Grid>
 
+                <Label Text="{Binding StatusMessage}"
+                       Style="{StaticResource TextCaption}"
+                       TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                       HorizontalTextAlignment="Center"
+                       IsVisible="{Binding HasStatusMessage}" />
+
                 <Button Text="Sign in with phone"
                         Command="{Binding SignInCommand}"
                         Style="{StaticResource PrimaryButton}"
@@ -73,7 +79,7 @@
                                FontFamily="FontAwesomeSolid"
                                FontSize="{StaticResource IconMd}"
                                TextColor="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandSpringDark}}"
-                               SemanticProperties.Description="Information" />
+                               AutomationProperties.IsInAccessibleTree="False" />
                         <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
                             <Label Text="{x:Static pageModels:SignUpExpiredPageModel.ExistingAccountHint}"
                                    Style="{StaticResource TextCaption}" LineHeight="1.4" />

@@ -7,8 +7,11 @@ public sealed class ExternalLauncher(PickupPalOptions options) : IExternalLaunch
     public Task<bool> OpenPickupPalBotAsync(CancellationToken cancellationToken) =>
         OpenAsync(options.BotUri, cancellationToken);
 
-    public Task<bool> OpenPickupPalSignupAsync(CancellationToken cancellationToken) =>
-        OpenAsync(options.SignupUri, cancellationToken);
+    public Task<bool> OpenTermsAsync(CancellationToken cancellationToken) =>
+        OpenAsync(options.TermsUri, cancellationToken);
+
+    public Task<bool> OpenPrivacyPolicyAsync(CancellationToken cancellationToken) =>
+        OpenAsync(options.PrivacyPolicyUri, cancellationToken);
 
     public Task<bool> OpenWhatsAppMessageAsync(string message, CancellationToken cancellationToken) =>
         OpenAsync(options.CreateWhatsAppMessageUri(message), cancellationToken);
