@@ -128,6 +128,9 @@ Header font Inter Semibold; body Inter Regular (registered in `MauiProgram.cs` f
   also live in `BrandTokens.xaml` — migrated from the deleted sample-template dictionaries; the
   brand system owns them now.
 
+Added for onboarding (M13.3): `IconLg` (22) for row-leading status glyphs, `HeroTileSize` (74) and
+`HeroGlyphSize` (38) for the centred hero tile on waiting/expired screens.
+
 ## 5. Shared styles (`BrandStyles.xaml`)
 
 Keyed styles (and a few implicit) built only from tokens:
@@ -155,6 +158,8 @@ Keyed styles (and a few implicit) built only from tokens:
   `CheckBox` (brand green, `TouchMin` minimums), `Switch` (brand green on-color),
   `ActivityIndicator` (brand green).
 - **Frame/Border**: `CardSurface` (white, 1px `BrandLine`, `RadiusLg`), `TintSurface` (`BrandMist`).
+- **`SelectableChip`** — tap-to-toggle chip whose bound item exposes `IsSelected` (sign-up positions);
+  no `CollectionView` selection involved.
 - **Wireframe surfaces**: `HeroCardSurface` (Pine→Flag Green), `StatTileSurface`
   (Mist/subtle white, fine green-tinted line), `NoticeSurface` (Mist + green-tinted line),
   `IconTileSurface`, `MetadataChip`, and `StepperButton`.
@@ -255,6 +260,22 @@ White surface container.
   content property — shown when `Content`).
 - Standardizes the loading/empty/populated/error/offline states required by architecture §6.
 
+### WhatsAppHandoffCard
+Prefilled-message card plus `WhatsAppButton` used by every WhatsApp handoff (sign-up start,
+sign-in verify). Shows the exact text the app will place in WhatsApp; nothing sends until the
+player taps inside WhatsApp.
+- `Label` ("Message we'll send to the bot"), `MessageText`, `Hint`, `ButtonText`
+  ("Continue with WhatsApp"), `ContinueCommand`, `IsBusy`.
+- Wireframe: `signup-start`, `signin-verify`.
+
+### LinkExpiryCard
+Countdown card for a bot link's 15-minute lifetime: label, `Badge` (warning → danger at zero), a
+brand-coloured `ProgressBar` for the remaining time (`CapacityBar` is for headcounts; its colour
+and description semantics invert for a countdown), and a note. Presentational only; the page model
+ticks it.
+- `RemainingText` ("14:32"), `RemainingPercent` (0–100), `Note`.
+- Wireframe: `signup-waiting`, `signin-waiting`.
+
 ### (Styles, not controls)
 PrimaryButton / GhostButton / WhatsAppButton are **styles** (§5), applied to MAUI `Button`. Bottom
 navigation uses Shell `TabBar` themed via `BrandStyles`, not a custom control.
@@ -346,6 +367,11 @@ Scenario: Product UI follows the authoritative wireframe
 | Goals/assists +/- entry | `CounterStepper` |
 | RSVP / Submit / WhatsApp buttons | `PrimaryButton` / `GhostButton` / `WhatsAppButton` |
 | Loading / empty / error / offline | `StateView` |
+| WhatsApp handoff (prefilled `!!register` / `!!login`) | `WhatsAppHandoffCard` |
+| Bot link countdown | `LinkExpiryCard` |
+| Sign-up numbered steps, verify account row | `Avatar` (initials) + `TextBodyStrong`/`TextCaption` |
+| Position chips (sign-up) | horizontal `CollectionView` (`SelectionMode=None`) of `SelectableChip` + `TapGestureRecognizer` |
+| Terms / remember-device toggles | `ToggleRow` |
 | Group selection (sign-in) & Stats group filter | `LinkGroupPage` (single-select `CollectionView`) / `Picker` |
 | Admin entry points on Sessions | `SectionHeader` with two actions ("Broadcast", "+ Session"), gated by `CanManageSessions` |
 | Admin broadcast composer | `BrandHeader` + fixed-audience `MetadataChip` + styled `Editor` + `AnnouncementCard` preview + `ToggleRow` + `PushPreview` + docked `PrimaryButton` |

@@ -11,17 +11,22 @@ namespace SouthBaySoccer.Functions.Tests;
 public sealed class AuthenticationEndpointMetadataTests
 {
     [Theory]
-    [InlineData(nameof(AuthenticationFunctions.SignInByPhone), "auth/pickuppal/phone/sign-in")]
-    [InlineData(nameof(AuthenticationFunctions.RequestWhatsAppChallenge), "auth/whatsapp/challenges")]
-    [InlineData(nameof(AuthenticationFunctions.VerifyWhatsAppChallenge), "auth/whatsapp/challenges/verify")]
-    [InlineData(nameof(AuthenticationFunctions.Refresh), "auth/refresh")]
-    public void AuthEndpoint_WhenAnonymousFlow_DeclaresAllowAnonymous(string methodName, string expectedRoute)
+    [InlineData(nameof(AuthenticationFunctions.SignInByPhone), "auth/pickuppal/phone/sign-in", "post")]
+    [InlineData(nameof(AuthenticationFunctions.CompleteWhatsAppLogin), "auth/pickuppal/login/complete", "post")]
+    [InlineData(nameof(AuthenticationFunctions.ValidateRegistrationToken), "auth/pickuppal/register/validate", "post")]
+    [InlineData(nameof(AuthenticationFunctions.CheckEmailAvailability), "auth/pickuppal/register/email-availability", "post")]
+    [InlineData(nameof(AuthenticationFunctions.RegisterWithWhatsApp), "auth/pickuppal/register", "post")]
+    [InlineData(nameof(AuthenticationFunctions.GetCurrentTermsVersion), "auth/terms/current", "get")]
+    [InlineData(nameof(AuthenticationFunctions.Refresh), "auth/refresh", "post")]
+    public void AuthEndpoint_WhenAnonymousFlow_DeclaresAllowAnonymous(string methodName, string expectedRoute, string expectedMethod)
     {
         var method = GetEndpoint(methodName);
 
         method.GetCustomAttribute<AllowAnonymousAttribute>().Should().NotBeNull();
         method.GetCustomAttribute<RequirePolicyAttribute>().Should().BeNull();
-        GetHttpTrigger(method).Route.Should().Be(expectedRoute);
+        var trigger = GetHttpTrigger(method);
+        trigger.Route.Should().Be(expectedRoute);
+        trigger.Methods.Should().Equal(expectedMethod);
     }
 
     [Fact]
@@ -37,19 +42,28 @@ public sealed class AuthenticationEndpointMetadataTests
     [Fact]
     public void AuthEndpoint_WhenHttpTriggerConfigured_UsesAnonymousFunctionAuthorization()
     {
-        var methods = new[]
-        {
-            nameof(AuthenticationFunctions.SignInByPhone),
-            nameof(AuthenticationFunctions.RequestWhatsAppChallenge),
-            nameof(AuthenticationFunctions.VerifyWhatsAppChallenge),
-            nameof(AuthenticationFunctions.Refresh),
-            nameof(AuthenticationFunctions.SignOut),
-        };
+        var methods = typeof(AuthenticationFunctions)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(method => method.GetCustomAttribute<FunctionAttribute>() is not null)
+            .ToArray();
 
-        foreach (var methodName in methods)
+        methods.Should().HaveCount(8);
+        foreach (var method in methods)
         {
-            GetHttpTrigger(GetEndpoint(methodName)).AuthLevel.Should().Be(AuthorizationLevel.Anonymous);
+            GetHttpTrigger(method).AuthLevel.Should().Be(AuthorizationLevel.Anonymous);
         }
+    }
+
+    [Fact]
+    public void AuthEndpoint_WhenLegacyChallengeRoutesRequested_NoLongerExist()
+    {
+        var routes = typeof(AuthenticationFunctions)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(method => method.GetCustomAttribute<FunctionAttribute>() is not null)
+            .Select(method => GetHttpTrigger(method).Route)
+            .ToArray();
+
+        routes.Should().NotContain(route => route!.StartsWith("auth/whatsapp/challenges", StringComparison.Ordinal));
     }
 
     private static MethodInfo GetEndpoint(string methodName) =>

@@ -186,6 +186,24 @@ M5 is intentionally deferred while M6 Seasons, venues, and sessions are implemen
 
 ---
 
+## M13 Account onboarding (AUTH-10)
+
+In-app sign-up and verified sign-in over the Pickup Pal WhatsApp bot. Task detail lives in
+[`stories/AUTH-10-whatsapp-verified-onboarding/tasks.md`](stories/AUTH-10-whatsapp-verified-onboarding/tasks.md).
+
+- [ ] **M13.0** Confirm Pickup Pal prerequisites (client argument, login-token redemption, bot API key, deletion endpoint).
+- [ ] **M13.1** Client app links (iOS universal links, Android app links, `IAppLinkRouter`).
+- [x] **M13.2** `IPickupPalOnboardingClient` with API key, E.164 normalization, error-shape parsing.
+- [x] **M13.3** Sign-up screens and shared `WhatsAppHandoffView`.
+- [x] **M13.4** Registration endpoints and command pipeline.
+- [x] **M13.5** Verified sign-in (`PendingPhoneSignIn`, login-token completion, remember-device); remove legacy challenge endpoints.
+- [x] **M13.6** Sign-in verification screens.
+- [ ] **M13.7** Account deletion end to end (backend `DELETE profiles/me` done; Profile screen action open).
+- [ ] **M13.8** Tests. **M13.9** Release prep (review notes, privacy policy).
+- [ ] **M13.10** Block Pickup Pal sync while an account deletion is pending; purge `PendingPhoneSignIns`.
+
+---
+
 ## Dependency summary
 
 ```
@@ -194,7 +212,7 @@ M0 â†’ M1 â†’ M2 â†’ M3 â†’ M4 â†’ M5 â”
                                 M7 â†’ M8 â†’ M9
                      M4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â†’ M8.6 (profile stat merge)
                      M1 â†’ M10
-M3..M9 â†’ M11 â†’ M12
+M3..M9 â†’ M11 â†’ M12 → M13
 ```
 
 ## Definition of done (per milestone)

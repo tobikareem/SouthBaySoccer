@@ -128,6 +128,23 @@ internal static class SouthBaySoccerModelConfiguration
         });
         modelBuilder.Entity<EmergencyContact>(b => { ConfigureBase(b, "EmergencyContacts", true); b.Property(x => x.Name).HasMaxLength(160).IsRequired(); b.Property(x => x.PhoneNumberHash).HasMaxLength(128).IsRequired(); b.Property(x => x.MaskedPhoneNumber).HasMaxLength(32).IsRequired(); b.Property(x => x.Relationship).HasMaxLength(80); b.HasOne<PlayerProfile>().WithMany().HasForeignKey(x => x.PlayerProfileId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => x.PlayerProfileId).IsUnique().HasFilter("[IsDeleted] = 0"); });
         modelBuilder.Entity<ProfileMerge>(b => { ConfigureBase(b, "ProfileMerges", false); b.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired(); b.Property(x => x.MergedByActorType).HasConversion<string>().HasMaxLength(32).IsRequired(); b.Property(x => x.MergedByActorId).HasMaxLength(128); b.HasOne<PlayerProfile>().WithMany().HasForeignKey(x => x.SourcePlayerProfileId).OnDelete(DeleteBehavior.Restrict); b.HasOne<PlayerProfile>().WithMany().HasForeignKey(x => x.TargetPlayerProfileId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => x.SourcePlayerProfileId).IsUnique().HasFilter("[Status] = 'Completed'"); b.ToTable(t => t.HasCheckConstraint("CK_ProfileMerges_SourceTarget", "[SourcePlayerProfileId] <> [TargetPlayerProfileId]")); });
+        modelBuilder.Entity<PlayerRegistration>(b =>
+        {
+            ConfigureBase(b, "PlayerRegistrations", softDelete: true);
+            b.Property(x => x.FirstName).HasMaxLength(80).IsRequired();
+            b.Property(x => x.LastName).HasMaxLength(80).IsRequired();
+            b.Property(x => x.Email).HasMaxLength(256).IsRequired();
+            b.Property(x => x.PhoneNumberHash).HasMaxLength(128).IsRequired();
+            b.Property(x => x.PhoneMasked).HasMaxLength(32).IsRequired();
+            b.Property(x => x.PreferredPosition).HasMaxLength(64);
+            b.Property(x => x.TermsVersion).HasMaxLength(32).IsRequired();
+            b.Property(x => x.Source).HasConversion<string>().HasMaxLength(32).IsRequired();
+            b.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            b.Property(x => x.PickupPalUserId).HasMaxLength(128);
+            b.Property(x => x.LastExternalError).HasMaxLength(160);
+            b.HasIndex(x => new { x.PhoneNumberHash, x.Status }).HasFilter("[IsDeleted] = 0");
+            b.HasIndex(x => x.PickupPalUserId).HasFilter("[PickupPalUserId] IS NOT NULL AND [IsDeleted] = 0");
+        });
     }
 
     private static void ConfigureCompliance(ModelBuilder modelBuilder)
@@ -198,7 +215,15 @@ internal static class SouthBaySoccerModelConfiguration
                 t.HasCheckConstraint("CK_RefreshTokens_RevocationReasonRequiresRevocation", "[RevocationReason] IS NULL OR [RevokedAtUtc] IS NOT NULL");
             });
         });
-        modelBuilder.Entity<WhatsAppSignInChallenge>(b => { ConfigureBase(b, "WhatsAppSignInChallenges", false); b.Property(x => x.ChallengeId).HasMaxLength(128).IsRequired(); b.Property(x => x.ChallengeTokenHash).HasMaxLength(256).IsRequired(); b.Property(x => x.PhoneNumberHash).HasMaxLength(128); b.Property(x => x.MaskedPhoneNumber).HasMaxLength(32); b.Property(x => x.CallbackUriHash).HasMaxLength(256).IsRequired(); b.HasIndex(x => x.ChallengeTokenHash).IsUnique(); b.HasIndex(x => new { x.PhoneNumberHash, x.ExpiresAtUtc }); });
+        modelBuilder.Entity<PendingPhoneSignIn>(b =>
+        {
+            ConfigureBase(b, "PendingPhoneSignIns", false);
+            b.Property(x => x.PickupPalUserId).HasMaxLength(128).IsRequired();
+            b.Property(x => x.PhoneNumberHash).HasMaxLength(128).IsRequired();
+            b.Property(x => x.RowVersion).IsRowVersion();
+            b.HasIndex(x => new { x.PickupPalUserId, x.ExpiresAtUtc });
+            b.HasIndex(x => x.PhoneNumberHash);
+        });
         modelBuilder.Entity<IdempotencyKey>(b => { ConfigureBase(b, "IdempotencyKeys", false); b.Property(x => x.OperationName).HasMaxLength(128).IsRequired(); b.Property(x => x.Key).HasMaxLength(160).IsRequired(); b.Property(x => x.RequestHash).HasMaxLength(256).IsRequired(); b.Property(x => x.ResponseBodyHash).HasMaxLength(256); b.Property(x => x.ResponseBodyJson).HasMaxLength(4000); b.HasIndex(x => new { x.IdentityUserId, x.OperationName, x.Key }).IsUnique(); });
         modelBuilder.Entity<OutboxMessage>(b => { ConfigureBase(b, "OutboxMessages", false); b.Property(x => x.MessageType).HasMaxLength(160).IsRequired(); b.Property(x => x.PayloadJson).HasMaxLength(4000).IsRequired(); b.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired(); b.Property(x => x.LockToken).HasMaxLength(128); b.Property(x => x.DeadLetterReason).HasMaxLength(1024); b.Property(x => x.CorrelationId).HasMaxLength(128); b.Property(x => x.IdempotencyKey).HasMaxLength(160); b.HasIndex(x => new { x.Status, x.AvailableAtUtc, x.CreatedAt }); b.HasIndex(x => x.IdempotencyKey).IsUnique().HasFilter("[IdempotencyKey] IS NOT NULL"); });
         modelBuilder.Entity<NotificationMessage>(b => { ConfigureBase(b, "NotificationMessages", false); b.Property(x => x.TemplateKey).HasMaxLength(160).IsRequired(); b.Property(x => x.Channel).HasConversion<string>().HasMaxLength(32).IsRequired(); b.Property(x => x.Subject).HasMaxLength(256); b.Property(x => x.PayloadJson).HasMaxLength(4000).IsRequired(); b.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired(); b.Property(x => x.IdempotencyKey).HasMaxLength(160); b.HasIndex(x => new { x.Status, x.ScheduledForUtc, x.Priority }); });

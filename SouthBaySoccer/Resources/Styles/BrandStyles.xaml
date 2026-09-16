@@ -398,6 +398,27 @@
     </Style>
 
     <!-- M11.0c: inline metadata chip (date/time/format/location). Mist surface, sage content. -->
+    <!-- Tap-to-toggle chip (sign-up positions). Bound item exposes IsSelected; no CollectionView selection. -->
+    <Style x:Key="SelectableChip" TargetType="Border">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}" />
+        <Setter Property="Stroke"
+                Value="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="{StaticResource ShapeSegment}" />
+        <Setter Property="Padding" Value="{StaticResource ChipPadding}" />
+        <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
+        <Style.Triggers>
+            <DataTrigger TargetType="Border" Binding="{Binding IsSelected}" Value="True">
+                <Setter Property="BackgroundColor"
+                        Value="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}" />
+                <Setter Property="Stroke"
+                        Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+                <Setter Property="StrokeThickness" Value="1.5" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="MetadataChip" TargetType="Border">
         <Setter Property="BackgroundColor"
                 Value="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}" />
