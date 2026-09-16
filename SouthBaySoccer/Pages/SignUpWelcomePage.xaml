@@ -53,30 +53,6 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <c:SectionHeader Text="{x:Static pageModels:SignUpWelcomePageModel.BeforeFirstRsvpLabel}" />
-
-                <c:BrandCard SemanticProperties.Description="{x:Static pageModels:SignUpWelcomePageModel.WaiverTitle}"
-                             SemanticProperties.Hint="Opens your upcoming sessions; the waiver is presented before your first RSVP">
-                    <c:BrandCard.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding ContinueCommand}" />
-                    </c:BrandCard.GestureRecognizers>
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceMd}">
-                        <Border Style="{StaticResource IconTileSurface}"
-                                BackgroundColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}">
-                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}" FontFamily="FontAwesomeSolid"
-                                   Style="{StaticResource IconLabel}" TextColor="{StaticResource BrandWhite}"
-                                   HorizontalOptions="Center" VerticalOptions="Center" AutomationProperties.IsInAccessibleTree="False" />
-                        </Border>
-                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
-                            <Label Text="{x:Static pageModels:SignUpWelcomePageModel.WaiverTitle}" Style="{StaticResource TextBodyStrong}" />
-                            <Label Text="{x:Static pageModels:SignUpWelcomePageModel.WaiverDetail}" Style="{StaticResource TextCaption}" />
-                        </VerticalStackLayout>
-                        <Label Grid.Column="2" Text="{x:Static fonts:FontAwesomeGlyphs.ChevronRight}" FontFamily="FontAwesomeSolid"
-                               TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
-                               VerticalTextAlignment="Center" AutomationProperties.IsInAccessibleTree="False" />
-                    </Grid>
-                </c:BrandCard>
-
                 <Label Text="{Binding StatusMessage}"
                        Style="{StaticResource TextCaption}"
                        TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"

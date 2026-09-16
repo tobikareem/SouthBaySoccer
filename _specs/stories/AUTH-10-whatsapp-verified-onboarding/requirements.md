@@ -1,8 +1,7 @@
 # AUTH-10 - WhatsApp-verified sign-up and sign-in verification
 
 **Epic:** AUTH - **Milestone:** M13 - **Client + backend + external (Pickup Pal) story**
-**Applies:** `NFR-Security`, `INV-11` (fail-closed), `AUTH-3`/`AUTH-4` (token issue + refresh),
-`WAIV-1`/`WAIV-2` (waiver gate after onboarding) - see [`../../requirements.md`](../../requirements.md).
+**Applies:** `NFR-Security`, `INV-11` (fail-closed), `AUTH-3`/`AUTH-4` (token issue + refresh) - see [`../../requirements.md`](../../requirements.md).
 **Screens:** `documentation/mobile-wireframes.html` screens `signin`, `signin-verify`,
 `signin-waiting`, `signup-start`, `signup-waiting`, `signup-expired`, `signup-details`,
 `signup-welcome`.
@@ -83,11 +82,6 @@ Scenario: Create the linked account
   And the Function App issues N9ja Bay access and refresh tokens
   And the welcome screen is displayed
   And the welcome screen shows group membership only after the Function App re-reads it from Pickup Pal
-
-Scenario: Welcome screen leads to the waiver
-  Given the welcome screen is displayed
-  When I continue
-  Then the waiver and code of conduct step (WAIV-1) is presented before any RSVP is possible
 
 Scenario: Sign-in requires possession on a new device
   Given I am on the Welcome Back screen on a device with no valid refresh token

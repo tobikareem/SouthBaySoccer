@@ -96,7 +96,7 @@ Errors use RFC 7807 `ProblemDetails` per the architecture §7 status table.
 
 **Auth + token refresh (AUTH-3/4):** client posts credentials → `ITokenService` issues access+refresh → `AuthenticationHandler` attaches bearer, refreshes once on expiry with a single in-flight refresh, replays only idempotent requests; reuse of a consumed refresh token revokes the family atomically.
 
-**RSVP + waitlist (RSVP-1..4, INV-2/3):** `SubmitRsvp` validates waiver + payment eligibility, then a **serializable** transaction scoped to the session checks capacity, inserts `RsvpResponse` or `WaitlistEntry` (unique active-RSVP constraint + `rowversion`), with bounded retry → 409. Cancellation runs `PromoteWaitlist` in the same transactional pattern and raises `PlayerWaitlistPromoted` via outbox.
+**RSVP + waitlist (RSVP-1..4, INV-2/3):** `SubmitRsvp` validates payment eligibility (the waiver check was removed 2026-09-16), then a **serializable** transaction scoped to the session checks capacity, inserts `RsvpResponse` or `WaitlistEntry` (unique active-RSVP constraint + `rowversion`), with bounded retry → 409. Cancellation runs `PromoteWaitlist` in the same transactional pattern and raises `PlayerWaitlistPromoted` via outbox.
 
 **Stripe (PAY-1/2, INV-1):** client requests checkout → Function creates Checkout server-side → returns short-lived URL → user pays on Stripe → signed webhook → verify signature on raw body → insert event ID (unique) + update ledger/membership atomically → 2xx; duplicate = 2xx no-op; older event does not overwrite newer state.
 

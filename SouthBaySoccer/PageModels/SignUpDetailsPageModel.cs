@@ -19,7 +19,7 @@ public partial class SignUpDetailsPageModel(
     public const string Title = "About you";
     public const string ConfirmedHeading = "Number confirmed";
     public const string PasswordHint = "At least 6 characters. Used only on the Pickup Pal website.";
-    public const string NextStepHint = "Your waiver and code of conduct come next, before your first RSVP.";
+    public const string NextStepHint = "You'll land on your upcoming sessions right after this.";
     public const string EmailTakenMessage = "An account already uses this email.";
     public const string ServiceUnavailableMessage =
         "We could not reach the sign-up service. Check your connection and try again.";

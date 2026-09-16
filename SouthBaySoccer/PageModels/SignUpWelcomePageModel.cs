@@ -16,9 +16,6 @@ public partial class SignUpWelcomePageModel(IAuthenticationCoordinator authentic
     public const string PhoneLinkedTitle = "Phone linked to WhatsApp";
     public const string HistoryPendingTitle = "Past games still syncing";
     public const string HistoryPendingDetail = "Any games you played before today show up in a moment.";
-    public const string BeforeFirstRsvpLabel = "Before your first RSVP";
-    public const string WaiverTitle = "Sign the waiver and code of conduct";
-    public const string WaiverDetail = "Two minutes. Required once a season.";
     public const string NoGroupHint = "Not in a group yet? Ask an organizer for the group link code, or find one under Profile.";
 
     public const string ContinueFailedMessage = "We could not open your sessions. Tap again to retry.";
