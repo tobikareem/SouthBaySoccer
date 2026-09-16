@@ -5,6 +5,14 @@ Realizes [`requirements.md`](requirements.md). Token issue/refresh mechanics are
 [`documentation/pickuppal-account-creation-api.md`](../../../documentation/pickuppal-account-creation-api.md).
 Distilled rules: `.ai/memory/pickuppal-account-creation.md`.
 
+## Status of the external prerequisites (updated 2026-09-16)
+
+Pickup Pal shipped the register redirect: `!!register source=n9jabay` replies with our app link
+(`documentation/pickuppal-mobile-signup-guide.md`). `DELETE api/users/{id}` is confirmed. There is
+**no** `!!login` command and no login-token redemption endpoint; the verified sign-in flow below is
+implemented but dormant (`Onboarding:RequireWhatsAppVerification=false`). Account deletion removes
+N9ja Bay data only by default; Pickup Pal deletion is an explicit opt-in on the confirmation sheet.
+
 ## External prerequisites (Pickup Pal bot)
 
 These must exist before the backend slice can be integration-tested. Until they land, the Function
@@ -34,7 +42,7 @@ Registration reuses the existing `GET /api/users/register/whatsapp/validate` and
 WelcomeBackPageModel.StartSignUpCommand
   -> navigate signup-start (no network)
 SignUpStartPageModel.ContinueWithWhatsAppCommand
-  -> IExternalLauncher.OpenWhatsAppAsync(botNumber, "!!register n9jabay")
+  -> IExternalLauncher.OpenWhatsAppAsync(botNumber, "!!register source=n9jabay")
   -> navigate signup-waiting; start local 15:00 countdown
 App link https://<host>/register?token=T  (iOS universal link / Android app link)
   -> IAppLinkRouter routes to SignUpDetailsPageModel with T held in memory only
@@ -66,7 +74,7 @@ WelcomeBackPageModel.SignInCommand
          the device presents no valid refresh token; tokens are NOT issued here any more
   -> navigate signin-verify
 SignInVerifyPageModel.ContinueWithWhatsAppCommand
-  -> IExternalLauncher.OpenWhatsAppAsync(botNumber, "!!login n9jabay")
+  -> IExternalLauncher.OpenWhatsAppAsync(botNumber, "!!login source=n9jabay")
   -> navigate signin-waiting; countdown
 App link https://<host>/login?token=T
   -> IAuthenticationClient.CompleteLoginAsync(T, rememberDevice)

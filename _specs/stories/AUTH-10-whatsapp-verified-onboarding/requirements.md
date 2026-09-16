@@ -23,8 +23,8 @@ Two commands, one mechanism:
 
 | Command the app prefills | Who sends it | Bot mints | Bot replies with | N9ja Bay then |
 |---|---|---|---|---|
-| `!!register n9jabay` | a player with no Pickup Pal account | pre-registration token bound to the sender's JID + phone | `https://<app-link-host>/register?token=<uuid>` | collects details and creates the linked account |
-| `!!login n9jabay` | a player whose number matched an existing account | login token bound to the sender's JID + existing user | `https://<app-link-host>/login?token=<uuid>` | redeems the token and issues app tokens |
+| `!!register source=n9jabay` | a player with no Pickup Pal account | pre-registration token bound to the sender's JID + phone | `https://<app-link-host>/register?token=<uuid>` | collects details and creates the linked account |
+| `!!login source=n9jabay` | a player whose number matched an existing account | login token bound to the sender's JID + existing user | `https://<app-link-host>/login?token=<uuid>` | redeems the token and issues app tokens |
 
 ## Story A - sign up from the app
 
@@ -45,13 +45,13 @@ Scenario: Start sign-up from the Welcome Back screen
   Given I am on the Welcome Back screen
   When I select "Create your account"
   Then the sign-up explainer (Step 1 of 3) is displayed
-  And it shows the exact message "!!register n9jabay" and the Pickup Pal bot number from typed configuration
+  And it shows the exact message "!!register source=n9jabay" and the Pickup Pal bot number from typed configuration
   And no network request has been made
 
 Scenario: Hand off to WhatsApp with the register command prefilled
   Given the sign-up explainer is displayed
   When I select "Continue with WhatsApp"
-  Then the app opens WhatsApp with "!!register n9jabay" prefilled to the configured bot number
+  Then the app opens WhatsApp with "!!register source=n9jabay" prefilled to the configured bot number
   And the app shows the waiting screen (Step 2 of 3) with a 15-minute countdown
   And returning from WhatsApp without a link does not authenticate or create anything
 
@@ -93,7 +93,7 @@ Scenario: Sign-in requires possession on a new device
   Given I am on the Welcome Back screen on a device with no valid refresh token
   And I enter a phone number that matches a Pickup Pal account
   When I select "Sign in with phone"
-  Then the verify screen shows the matched account's masked number and "!!login n9jabay"
+  Then the verify screen shows the matched account's masked number and "!!login source=n9jabay"
   And no N9ja Bay tokens are issued yet
 
 Scenario: Login link completes sign-in
@@ -116,12 +116,19 @@ Scenario: Remembered device skips verification
   Then I am signed in without a WhatsApp round-trip
   And signing out revokes the refresh token so the next sign-in requires verification again
 
-Scenario: Account deletion is available in-app
+Scenario: Account deletion removes N9ja Bay data by default
   Given I am signed in
-  When I choose to delete my account from Profile and confirm
-  Then the Function App soft-deletes my local records and calls the Pickup Pal deletion endpoint
+  When I choose to delete my account from Profile and confirm without opting to remove my Pickup Pal account
+  Then the Function App soft-deletes my local records and writes an audit record
+  And my Pickup Pal account is left intact
   And my session tokens are revoked
   And the app returns to the Welcome Back screen
+
+Scenario: Account deletion can also remove the Pickup Pal account on request
+  Given I am signed in
+  When I confirm deletion with "Also remove my Pickup Pal account" switched on
+  Then the Function App additionally calls the Pickup Pal deletion endpoint through the outbox
+  And a failed upstream call is retried without restoring my N9ja Bay data
 ```
 
 ## Out of scope

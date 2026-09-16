@@ -224,6 +224,7 @@ public sealed class PickupPalOnboardingClientTests
     [Theory]
     [InlineData(HttpStatusCode.OK)]
     [InlineData(HttpStatusCode.NoContent)]
+    [InlineData(HttpStatusCode.NotFound)]
     public async Task DeleteUserAsync_WhenDeleted_Completes(HttpStatusCode statusCode)
     {
         HttpRequestMessage? sent = null;
@@ -246,9 +247,9 @@ public sealed class PickupPalOnboardingClientTests
     [InlineData(HttpStatusCode.Unauthorized)]
     [InlineData(HttpStatusCode.Forbidden)]
     [InlineData(HttpStatusCode.InternalServerError)]
-    // While DeleteUser is an unconfirmed placeholder route, a 404 means "no such route", not
+    // Route confirmed: a 404 is an already-deleted user (success). Auth failures and 5xx retry.
+    // (was: 404 treated as a missing placeholder route) — a 404 means "no such route", not
     // "already gone": it must stay retryable rather than be recorded as a completed deletion.
-    [InlineData(HttpStatusCode.NotFound)]
     public async Task DeleteUserAsync_WhenRefusedMissingOrFailing_ThrowsUnavailableSoOutboxRetries(HttpStatusCode statusCode)
     {
         var client = CreateClient(_ => new HttpResponseMessage(statusCode));

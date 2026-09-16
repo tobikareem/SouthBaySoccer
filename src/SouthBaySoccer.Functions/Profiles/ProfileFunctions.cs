@@ -82,7 +82,13 @@ public sealed class ProfileFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "profiles/me")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        await onboardingWorkflow.DeleteMyAccountAsync(cancellationToken);
+        // Default deletes only N9ja Bay data. `?alsoDeletePickupPal=true` is the explicit opt-in the
+        // confirmation sheet exposes; anything else is treated as false.
+        var alsoDeletePickupPal = string.Equals(
+            System.Web.HttpUtility.ParseQueryString(request.Url.Query)["alsoDeletePickupPal"],
+            "true",
+            StringComparison.OrdinalIgnoreCase);
+        await onboardingWorkflow.DeleteMyAccountAsync(alsoDeletePickupPal, cancellationToken);
         return request.CreateResponse(HttpStatusCode.NoContent);
     }
 

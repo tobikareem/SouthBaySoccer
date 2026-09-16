@@ -9,7 +9,9 @@ public sealed class OnboardingOptions
     /// Gets or sets a value indicating whether phone sign-in requires the <c>!!login</c> WhatsApp
     /// round-trip before tokens are issued. Defaults to <see langword="true"/>.
     /// </summary>
-    public bool RequireWhatsAppVerification { get; set; } = true;
+    // Option A (2026-09-16): the !!login command and its redemption endpoint do not exist on the
+    // Pickup Pal side yet, so verification stays off until they ship. Turn on per environment.
+    public bool RequireWhatsAppVerification { get; set; } = false;
 
     /// <summary>
     /// Gets or sets a comma-separated list of phone numbers exempt from WhatsApp verification, for

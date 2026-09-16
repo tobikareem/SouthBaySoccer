@@ -44,8 +44,8 @@ the local row:
 | `RegisterValidate` | `api/users/register/whatsapp/validate` (`?token=`) | confirmed |
 | `RegisterWithToken` | `api/users/register/whatsapp` | confirmed |
 | `EmailLookup` | `api/users/email/{email}` (404 = available) | confirmed |
-| `LoginRedeem` | `api/users/login/whatsapp` (`POST { token }`) | **UNCONFIRMED placeholder (M13.0)** |
-| `DeleteUser` | `api/users/{id}` (`DELETE`; 404 = already gone) | **UNCONFIRMED placeholder (M13.0)** |
+| `LoginRedeem` | `api/users/login/whatsapp` (`POST { token }`) | **Does not exist** (2026-09-16 contract). Verification flow dormant; `Onboarding:RequireWhatsAppVerification` default **false** |
+| `DeleteUser` | `api/users/{id}` (`DELETE`; 404 = already gone) | confirmed (Postman contract). Called **only** when the player opts in via `DELETE profiles/me?alsoDeletePickupPal=true`; default deletes N9ja Bay data only and writes an `N9jaBayAccountDeleted` audit outbox row |
 
 `PickupPal:ApiKey` is sent as `X-Api-Key` (header name configurable) when present; absent until the
 bot API has one. **URI-logging ban** (same as `PickupPalUserClient`): the validate route carries the

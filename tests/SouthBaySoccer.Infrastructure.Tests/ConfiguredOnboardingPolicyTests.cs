@@ -27,7 +27,7 @@ public sealed class ConfiguredOnboardingPolicyTests
     {
         var policy = CreatePolicy(new OnboardingOptions());
 
-        policy.RequireWhatsAppVerification.Should().BeTrue();
+        policy.RequireWhatsAppVerification.Should().BeFalse();
         policy.TermsVersion.Should().Be("20250708");
         policy.PendingSignInLifetime.Should().Be(TimeSpan.FromMinutes(15));
         policy.RememberDeviceRefreshTokenLifetime.Should().Be(TimeSpan.FromDays(30));

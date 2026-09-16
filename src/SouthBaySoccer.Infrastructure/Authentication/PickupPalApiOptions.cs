@@ -41,12 +41,15 @@ public sealed class PickupPalRouteOptions
     /// </summary>
     public string EmailLookup { get; set; } = "api/users/email/{email}";
 
-    /// <summary>Gets or sets the login-token redemption route. UNCONFIRMED placeholder pending M13.0.</summary>
+    /// <summary>
+    /// Gets or sets the login-token redemption route. Does NOT exist on Pickup Pal as of the
+    /// 2026-09-16 contract; kept so the dormant verification flow can be switched on once it ships.
+    /// </summary>
     public string LoginRedeem { get; set; } = "api/users/login/whatsapp";
 
     /// <summary>
-    /// Gets or sets the user deletion route. UNCONFIRMED placeholder pending M13.0; <c>{id}</c> is
-    /// replaced with the escaped Pickup Pal user id.
+    /// Gets or sets the user deletion route (confirmed in the Pickup Pal Postman contract,
+    /// documentation/pickuppal-api.postman.json); <c>{id}</c> is replaced with the escaped user id.
     /// </summary>
     public string DeleteUser { get; set; } = "api/users/{id}";
 }

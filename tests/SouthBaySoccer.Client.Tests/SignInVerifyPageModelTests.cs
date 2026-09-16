@@ -13,7 +13,7 @@ public class SignInVerifyPageModelTests
     public void Initialize_WithPendingSignIn_ShowsAccountAndReadsRememberDeviceFromFlow()
     {
         var flow = new Mock<IOnboardingFlow>();
-        flow.SetupGet(f => f.LoginMessage).Returns("!!login n9jabay");
+        flow.SetupGet(f => f.LoginMessage).Returns("!!login source=n9jabay");
         flow.SetupProperty(f => f.RememberDevice, false);
         var pageModel = new SignInVerifyPageModel(flow.Object, new Mock<IOnboardingNavigator>().Object, new PickupPalOptions());
 
@@ -21,7 +21,7 @@ public class SignInVerifyPageModelTests
 
         pageModel.Initials.Should().Be("AO");
         pageModel.AccountLine.Should().Contain("9421");
-        pageModel.MessageText.Should().Be("!!login n9jabay");
+        pageModel.MessageText.Should().Be("!!login source=n9jabay");
         pageModel.RememberDevice.Should().BeFalse();
     }
 

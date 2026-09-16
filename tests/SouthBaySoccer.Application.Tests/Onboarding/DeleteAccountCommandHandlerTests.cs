@@ -50,7 +50,7 @@ public sealed class DeleteAccountCommandHandlerTests
     [Fact]
     public async Task HandleAsync_WhenPickupPalDeleteSucceeds_DeletesLocallyFirstThenMarksOutboxProcessed()
     {
-        await CreateHandler().HandleAsync();
+        await CreateHandler().HandleAsync(alsoDeletePickupPalAccount: true);
 
         calls.Should().Equal("local-delete", "outbox", "pickuppal-delete");
         var message = enqueued.Should().ContainSingle().Subject;
@@ -69,7 +69,7 @@ public sealed class DeleteAccountCommandHandlerTests
             .Setup(x => x.DeleteUserAsync(PickupPalUserId, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new ApplicationServiceUnavailableException("Pickup Pal is unavailable right now. Try again later."));
 
-        var act = () => CreateHandler().HandleAsync();
+        var act = () => CreateHandler().HandleAsync(alsoDeletePickupPalAccount: true);
 
         await act.Should().NotThrowAsync();
         localDeletion.Verify(x => x.DeleteAsync(IdentityUserId, It.IsAny<CancellationToken>()), Times.Once);
@@ -99,7 +99,7 @@ public sealed class DeleteAccountCommandHandlerTests
             .Setup(x => x.FindByIdempotencyKeyAsync(existing.IdempotencyKey!, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existing);
 
-        await CreateHandler().HandleAsync();
+        await CreateHandler().HandleAsync(alsoDeletePickupPalAccount: true);
 
         enqueued.Should().BeEmpty();
         existing.Status.Should().Be(OutboxMessageStatus.Processed);
@@ -121,24 +121,40 @@ public sealed class DeleteAccountCommandHandlerTests
             .Setup(x => x.FindByIdempotencyKeyAsync(processed.IdempotencyKey!, It.IsAny<CancellationToken>()))
             .ReturnsAsync(processed);
 
-        await CreateHandler().HandleAsync();
+        await CreateHandler().HandleAsync(alsoDeletePickupPalAccount: true);
 
         onboardingClient.Verify(x => x.DeleteUserAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         enqueued.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task HandleAsync_WhenAccountNotLinkedToPickupPal_DeletesLocallyWithoutOutbox()
+    public async Task HandleAsync_WhenAccountNotLinkedToPickupPal_DeletesLocallyAndWritesAuditOnly()
     {
         localDeletion
             .Setup(x => x.DeleteAsync(IdentityUserId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new LocalAccountDeletion(PlayerProfileId, null));
 
-        await CreateHandler().HandleAsync();
+        await CreateHandler().HandleAsync(alsoDeletePickupPalAccount: true);
 
-        enqueued.Should().BeEmpty();
+        enqueued.Should().ContainSingle()
+            .Which.Should().Match<OutboxMessage>(m =>
+                m.MessageType == OnboardingOutboxMessages.N9jaBayAccountDeleted && m.Status == OutboxMessageStatus.Processed);
         onboardingClient.Verify(x => x.DeleteUserAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_DefaultRetainsPickupPal_DeletesLocallyWritesAuditAndNeverCallsPickupPal()
+    {
+        await CreateHandler().HandleAsync();
+
+        enqueued.Should().ContainSingle()
+            .Which.Should().Match<OutboxMessage>(m =>
+                m.MessageType == OnboardingOutboxMessages.N9jaBayAccountDeleted
+                && m.Status == OutboxMessageStatus.Processed
+                && m.PayloadJson.Contains("\"PickupPalAccountRetained\":true"));
+        onboardingClient.Verify(x => x.DeleteUserAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        localDeletion.Verify(x => x.DeleteAsync(IdentityUserId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -146,7 +162,7 @@ public sealed class DeleteAccountCommandHandlerTests
     {
         currentUser.SetupGet(x => x.UserId).Returns((Guid?)null);
 
-        var act = () => CreateHandler().HandleAsync();
+        var act = () => CreateHandler().HandleAsync(alsoDeletePickupPalAccount: true);
 
         await act.Should().ThrowAsync<ApplicationUnauthenticatedException>();
         localDeletion.Verify(x => x.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);

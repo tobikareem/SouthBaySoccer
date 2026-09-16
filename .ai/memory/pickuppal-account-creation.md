@@ -39,16 +39,24 @@ Spec: `_specs/stories/AUTH-10-whatsapp-verified-onboarding/`. Wireframes: screen
 - **The bot cannot message first (WhatsApp rule, confirmed by the Pickup Pal developer).** Every
   proof of phone ownership starts with the player sending the bot a message that N9ja Bay prefills
   through a `wa.me` link. Bot-initiated one-time codes are not an option; do not propose them again.
-- **Sign-up:** app prefills `!!register n9jabay`; bot mints the existing pre-reg token and replies
+- **Sign-up:** app prefills `!!register source=n9jabay`; bot mints the existing pre-reg token and replies
   with an N9ja Bay app link (`/register?token=`) instead of the web URL; app link opens the details
   form; Functions call validate, email check, then `register/whatsapp`, then the normal sync and
   token issue. Account arrives linked. Phone is verified before anything is created.
 - **Sign-in:** phone lookup no longer issues tokens on a fresh device. It returns
-  `verificationRequired`; app prefills `!!login n9jabay`; bot replies with `/login?token=`; Functions
+  `verificationRequired`; app prefills `!!login source=n9jabay`; bot replies with `/login?token=`; Functions
   redeem it, check it against a server-side `PendingPhoneSignIn`, then issue tokens. "Remember this
   device" is a 30-day refresh token, revoked on sign-out.
-- **Pickup Pal work still pending:** client argument on `!!register`/`!!login`, login-token
-  redemption endpoint, bot API key, account deletion endpoint, app-link host. Track in M13.0.
+- **Pickup Pal has shipped (2026-09-16, `documentation/pickuppal-mobile-signup-guide.md`):**
+  `!!register source=n9jabay` replies with `https://n9jabay.app/register?token=`; they need us to
+  confirm the domain so they can set `CLIENT_REGISTER_URLS`. Full endpoint catalogue is
+  `documentation/pickuppal-api.postman.json` (129 endpoints). `DELETE api/users/{id}` is confirmed.
+- **Still missing on Pickup Pal:** any `!!login` command or login-token redemption endpoint. Their
+  position is that returning users sign in with `POST api/users/auth { login: email-or-phone,
+  password }`. Decision (Option A): keep our verified sign-in code dormant behind
+  `Onboarding:RequireWhatsAppVerification=false`; phone lookup stays the production sign-in.
+- **Deletion decision:** `DELETE profiles/me` removes N9ja Bay data only by default; the Pickup Pal
+  account is deleted only when the player opts in (`?alsoDeletePickupPal=true`).
 - **Apple:** in-app sign-up triggers the 5.1.1(v) account-deletion requirement; it is part of the
   same milestone, not a follow-up.
 

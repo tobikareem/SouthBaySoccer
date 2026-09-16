@@ -4,7 +4,7 @@ AUTH-10 is milestone **M13** (roadmap: [`../../tasks.md`](../../tasks.md)). Do n
 later until M13.0 is confirmed by the Pickup Pal developer; M13.1 and M13.3 can proceed against a
 fake client.
 
-- [ ] **M13.0** External: confirm with Pickup Pal the five prerequisites in `design.md` (client
+- [~] **M13.0** External: confirm with Pickup Pal the five prerequisites in `design.md` (2026-09-16: register redirect shipped, deletion route confirmed, app-link domain to confirm back to them; `!!login` not available) (client
   argument on `!!register`/`!!login`, login-token redemption endpoint, bot API key, deletion
   endpoint, reply-link host). Record the agreed paths in
   `documentation/pickuppal-account-creation-api.md` and `.ai/memory/pickuppal-account-creation.md`.

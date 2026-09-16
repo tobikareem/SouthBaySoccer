@@ -15,7 +15,7 @@ public class LinkWaitingPageModelTests
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 9, 14, 12, 0, 0, TimeSpan.Zero));
         var flow = new Mock<IOnboardingFlow>();
         flow.SetupGet(f => f.LinkRequestedAt).Returns(time.GetUtcNow());
-        flow.SetupGet(f => f.RegisterMessage).Returns("!!register n9jabay");
+        flow.SetupGet(f => f.RegisterMessage).Returns("!!register source=n9jabay");
         var pageModel = Create(flow, time);
         pageModel.Initialize(OnboardingLinkKind.Register);
 
@@ -37,14 +37,14 @@ public class LinkWaitingPageModelTests
     {
         var flow = new Mock<IOnboardingFlow>();
         flow.SetupGet(f => f.LastHandoffFailed).Returns(true);
-        flow.SetupGet(f => f.LoginMessage).Returns("!!login n9jabay");
+        flow.SetupGet(f => f.LoginMessage).Returns("!!login source=n9jabay");
         var pageModel = Create(flow, new FakeTimeProvider());
 
         pageModel.Initialize(OnboardingLinkKind.Login);
 
         pageModel.StatusMessage.Should().Be(LinkWaitingPageModel.WhatsAppUnavailableMessage);
         pageModel.IsRegister.Should().BeFalse();
-        pageModel.NoReplyHint.Should().Contain("!!login n9jabay");
+        pageModel.NoReplyHint.Should().Contain("!!login source=n9jabay");
     }
 
     [Fact]

@@ -18,7 +18,7 @@ public class OnboardingFlowTests
     {
         var harness = new Harness();
         harness.Launcher
-            .Setup(l => l.OpenWhatsAppMessageAsync("!!register n9jabay", It.IsAny<CancellationToken>()))
+            .Setup(l => l.OpenWhatsAppMessageAsync("!!register source=n9jabay", It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         harness.Navigator
             .Setup(n => n.ShowLinkWaitingAsync(OnboardingLinkKind.Register, It.IsAny<CancellationToken>()))

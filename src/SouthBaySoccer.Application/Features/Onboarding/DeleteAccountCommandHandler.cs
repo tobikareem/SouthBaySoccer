@@ -27,18 +27,46 @@ public sealed class DeleteAccountCommandHandler(
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMinutes(15);
 
     /// <summary>Deletes the current user's account locally and requests deletion on Pickup Pal.</summary>
-    public async Task HandleAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Deletes the caller's N9ja Bay account. The Pickup Pal account is left intact unless
+    /// <paramref name="alsoDeletePickupPalAccount"/> is true, because Pickup Pal accounts are used
+    /// independently on their website and WhatsApp bot; Apple 5.1.1(v) only requires our data gone.
+    /// Either way an audit row is written.
+    /// </summary>
+    public async Task HandleAsync(bool alsoDeletePickupPalAccount = false, CancellationToken cancellationToken = default)
     {
         var identityUserId = currentUser.UserId ?? throw new ApplicationUnauthenticatedException();
 
         var deletion = await localAccountDeletionService.DeleteAsync(identityUserId, cancellationToken);
-        if (deletion.PickupPalUserId is null)
+        var now = clock.UtcNow;
+        if (deletion.PickupPalUserId is null || !alsoDeletePickupPalAccount)
         {
+            var auditKey = $"{OnboardingOutboxMessages.N9jaBayAccountDeleted}:{identityUserId:D}";
+            if (await outboxRepository.FindByIdempotencyKeyAsync(auditKey, cancellationToken) is null)
+            {
+                await outboxRepository.AddAsync(new OutboxMessage
+                {
+                    Id = Guid.NewGuid(),
+                    MessageType = OnboardingOutboxMessages.N9jaBayAccountDeleted,
+                    PayloadJson = JsonSerializer.Serialize(new
+                    {
+                        IdentityUserId = identityUserId,
+                        deletion.PlayerProfileId,
+                        deletion.PickupPalUserId,
+                        PickupPalAccountRetained = true,
+                        DeletedAtUtc = now,
+                    }),
+                    Status = OutboxMessageStatus.Processed,
+                    AvailableAtUtc = now,
+                    ProcessedAtUtc = now,
+                    IdempotencyKey = auditKey,
+                }, cancellationToken);
+            }
+
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return;
         }
 
-        var now = clock.UtcNow;
         // One outbox row per identity user: a second delete (double tap, retried request) reuses the
         // existing row instead of tripping the unique idempotency-key index after local deletion.
         var idempotencyKey = $"{OnboardingOutboxMessages.PickupPalUserDeletionRequested}:{identityUserId:D}";

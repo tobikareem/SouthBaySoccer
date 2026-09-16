@@ -19,5 +19,6 @@ public interface IOnboardingWorkflow
 
     TermsVersionResponse GetCurrentTermsVersion();
 
-    Task DeleteMyAccountAsync(CancellationToken cancellationToken);
+    /// <param name="alsoDeletePickupPalAccount">When true the player explicitly opted to remove their Pickup Pal account too.</param>
+    Task DeleteMyAccountAsync(bool alsoDeletePickupPalAccount, CancellationToken cancellationToken);
 }

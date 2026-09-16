@@ -20,8 +20,8 @@ public class PickupPalOptionsTests
         options.PrivacyPolicyUri.AbsolutePath.Should().EndWith("privacy.html");
         options.AppLinkBaseUri.Host.Should().Be("n9jabay.app");
         options.BotWhatsAppDigits.Should().Be("16502205416");
-        options.CreateWhatsAppMessageUri("!!register n9jabay").AbsoluteUri
-            .Should().Be("https://wa.me/16502205416?text=%21%21register%20n9jabay");
+        options.CreateWhatsAppMessageUri("!!register source=n9jabay").AbsoluteUri
+            .Should().Be("https://wa.me/16502205416?text=%21%21register%20source%3Dn9jabay");
         options.BotUri.Host.Should().Be("www.pickuppal.xyz");
         options.BotUri.AbsolutePath.Should().Be("/bot-setup");
         options.CallbackUri.Scheme.Should().Be("southbaysoccer");

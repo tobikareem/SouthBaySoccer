@@ -10,6 +10,9 @@ public static class OnboardingOutboxMessages
     /// <summary>Pickup Pal could not be reached while creating the account; the local registration is <c>ExternalFailed</c>.</summary>
     public const string PlayerRegistrationExternalFailed = "PlayerRegistrationExternalFailed";
 
-    /// <summary>A player deleted their account and the Pickup Pal user must be deleted too.</summary>
+    /// <summary>A player deleted their account and explicitly asked for the Pickup Pal user to be deleted too.</summary>
     public const string PickupPalUserDeletionRequested = "PickupPalUserDeletionRequested";
+
+    /// <summary>Audit record: a player deleted their N9ja Bay account; the Pickup Pal account was left intact (default).</summary>
+    public const string N9jaBayAccountDeleted = "N9jaBayAccountDeleted";
 }

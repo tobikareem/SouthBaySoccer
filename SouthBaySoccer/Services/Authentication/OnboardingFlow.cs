@@ -13,7 +13,8 @@ public sealed class OnboardingFlow(
     PickupPalOptions options,
     TimeProvider timeProvider) : IOnboardingFlow
 {
-    public const string ClientArgument = "n9jabay";
+    /// <summary>Pickup Pal routes the reply link per <c>source</c>; see documentation/pickuppal-mobile-signup-guide.md.</summary>
+    public const string ClientArgument = "source=n9jabay";
     public const string VerificationFailedTitle = "We couldn't verify that link";
     public const string VerificationFailedMessage =
         "The link didn't match the sign-in you started. Enter your number again to get a fresh one.";

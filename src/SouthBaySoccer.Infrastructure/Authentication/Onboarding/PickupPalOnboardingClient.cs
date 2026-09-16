@@ -128,14 +128,13 @@ public sealed class PickupPalOnboardingClient(HttpClient httpClient, IOptions<Pi
             StringComparison.Ordinal);
 
         using var response = await SendAsync(HttpMethod.Delete, route, content: null, cancellationToken);
-        if (response.IsSuccessStatusCode)
+        if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound)
         {
+            // The route is confirmed, so 404 means the user is already gone: idempotent success.
             return;
         }
 
-        // While DeleteUser is an unconfirmed placeholder route a 404 most likely means "no such
-        // route", not "user already gone", so it is not success: the outbox row stays scheduled for
-        // retry. Missing API key, unexpected 4xx, and 5xx are retryable for the same reason.
+        // Missing API key, unexpected 4xx, and 5xx are retryable: the outbox row stays scheduled.
         throw new ApplicationServiceUnavailableException(UnavailableMessage);
     }
 
