@@ -70,6 +70,19 @@ public interface IRsvpRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Finds the player's most recent RSVP row for a session <b>including soft-deleted rows</b>, so
+    /// the Pickup Pal sync outcome of a cancellation (which soft-deletes the row) can still be
+    /// recorded on it. Returns null when the player never had an RSVP row for the session.
+    /// </summary>
+    Task<RsvpResponse?> FindRsvpForPickupPalSyncAsync(
+        Guid sessionId,
+        Guid playerProfileId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Marks an RSVP row as modified (used to persist its Pickup Pal sync columns).</summary>
+    void UpdateRsvp(RsvpResponse rsvp);
+
+    /// <summary>
     /// Lists the session's confirmed (Going) players with their profile display data.
     /// </summary>
     Task<IReadOnlyList<RosterMemberRecord>> ListGoingRosterAsync(
@@ -136,7 +149,8 @@ public sealed record RsvpMutationResult(
     Guid? RsvpResponseId = null,
     Guid? WaitlistEntryId = null,
     int? WaitlistPosition = null,
-    Guid? PromotedPlayerProfileId = null);
+    Guid? PromotedPlayerProfileId = null,
+    PickupPalSyncStatus PickupPalSyncStatus = PickupPalSyncStatus.NotApplicable);
 
 /// <summary>
 /// Represents a check-in write and optional admin override audit row.

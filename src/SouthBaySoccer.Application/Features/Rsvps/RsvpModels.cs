@@ -9,7 +9,8 @@ public sealed record RsvpResultModel(
     Guid? RsvpResponseId,
     Guid? WaitlistEntryId,
     int? WaitlistPosition,
-    Guid? PromotedPlayerProfileId);
+    Guid? PromotedPlayerProfileId,
+    PickupPalSyncStatus PickupPalSync = PickupPalSyncStatus.NotApplicable);
 
 public sealed record SubmitRsvpCommand(
     Guid SessionId,

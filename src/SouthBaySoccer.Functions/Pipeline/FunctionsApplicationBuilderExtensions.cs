@@ -2,6 +2,7 @@ using SouthBaySoccer.Application.Features.Authentication;
 using SouthBaySoccer.Application.Features.Announcements;
 using SouthBaySoccer.Application.Features.Groups;
 using SouthBaySoccer.Application.Features.Onboarding;
+using SouthBaySoccer.Application.Features.Outbox;
 using SouthBaySoccer.Application.Features.Payments;
 using SouthBaySoccer.Application.Features.Players;
 using SouthBaySoccer.Application.Features.Rsvps;
@@ -15,6 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Functions.Authentication;
 using SouthBaySoccer.Functions.Onboarding;
+using SouthBaySoccer.Functions.Outbox;
 using SouthBaySoccer.Functions.Pipeline.RateLimiting;
 using SouthBaySoccer.Functions.Sessions;
 
@@ -67,6 +69,7 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<CreateRecurrenceRuleCommandHandler>();
         builder.Services.AddScoped<CreateSessionOccurrenceCommandHandler>();
         builder.Services.AddScoped<GetCreateSessionAdminDefaultsQueryHandler>();
+        builder.Services.AddScoped<IPickupPalGameImportService, PickupPalGameImportService>();
         builder.Services.AddScoped<ImportPickupPalGamesCommandHandler>();
         builder.Services.AddScoped<GetTodayGameDayContextQueryHandler>();
         builder.Services.AddScoped<ILastGameSummaryQueryHandler, GetLastGameSummaryQueryHandler>();
@@ -115,6 +118,13 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<CancelRsvpCommandHandler>();
         builder.Services.AddScoped<GetMyRsvpQueryHandler>();
         builder.Services.AddScoped<AdminOverrideRsvpCommandHandler>();
+        // RSVP-9: Pickup Pal roster sync after the local RSVP commit, plus the outbox processor
+        // (timer) that retries it and drains Pickup Pal account deletions.
+        builder.Services.AddSingleton<RsvpPickupPalSyncGate>();
+        builder.Services.AddScoped<IRsvpPickupPalSyncService, RsvpPickupPalSyncService>();
+        builder.Services.AddScoped<IOutboxMessageHandler, RsvpPickupPalSyncOutboxHandler>();
+        builder.Services.AddScoped<IOutboxMessageHandler, PickupPalUserDeletionOutboxHandler>();
+        builder.Services.AddSingleton<OutboxProcessor>();
         builder.Services.AddScoped<CheckInPlayerCommandHandler>();
         builder.Services.AddScoped<SelfCheckInCommandHandler>();
         builder.Services.AddScoped<RecordNoShowsCommandHandler>();

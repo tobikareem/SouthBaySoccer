@@ -28,7 +28,19 @@ public class Session : BaseEntity
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 /// <summary>Represents explicit attendance intent for a session.</summary>
-public class RsvpResponse : BaseEntity { public Guid SessionId { get; set; } public Guid PlayerProfileId { get; set; } public RsvpStatus Status { get; set; } public byte[] RowVersion { get; set; } = Array.Empty<byte>(); }
+public class RsvpResponse : BaseEntity
+{
+    public Guid SessionId { get; set; }
+    public Guid PlayerProfileId { get; set; }
+    public RsvpStatus Status { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+    /// <summary>Gets or sets whether this RSVP has been mirrored onto the Pickup Pal roster of an imported game.</summary>
+    public PickupPalSyncStatus PickupPalSyncStatus { get; set; } = PickupPalSyncStatus.NotApplicable;
+    /// <summary>Gets or sets when the Pickup Pal roster last matched this RSVP (UTC).</summary>
+    public DateTime? PickupPalSyncedAtUtc { get; set; }
+    /// <summary>Gets or sets the safe error code of the last failed or pending push. Never a Pickup Pal payload.</summary>
+    public string? PickupPalSyncError { get; set; }
+}
 /// <summary>Represents ordered waitlist state for a full session.</summary>
 public class WaitlistEntry : BaseEntity { public Guid SessionId { get; set; } public Guid PlayerProfileId { get; set; } public int Position { get; set; } public WaitlistEntryStatus Status { get; set; } }
 /// <summary>Represents actual session check-in.</summary>

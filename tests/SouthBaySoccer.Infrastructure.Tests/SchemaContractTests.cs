@@ -33,6 +33,26 @@ public sealed class SchemaContractTests
     }
 
     [Fact]
+    public async Task RsvpResponses_WhenSchemaCreated_CarryPickupPalSyncColumns()
+    {
+        using var db = CreateDbContext();
+        var columns = await GetColumnsAsync(db, "RsvpResponses");
+
+        columns.Should().Contain("PickupPalSyncStatus")
+            .And.Contain("PickupPalSyncedAtUtc")
+            .And.Contain("PickupPalSyncError");
+    }
+
+    [Fact]
+    public async Task OutboxMessages_WhenSchemaCreated_UseRowVersionForWriterRaces()
+    {
+        using var db = CreateDbContext();
+        var rowVersionColumns = await GetRowVersionColumnsAsync(db);
+
+        rowVersionColumns.Should().Contain(("OutboxMessages", "RowVersion"));
+    }
+
+    [Fact]
     public async Task WaitlistEntries_WhenSchemaCreated_HasActiveFilteredUniqueness()
     {
         using var db = CreateDbContext();

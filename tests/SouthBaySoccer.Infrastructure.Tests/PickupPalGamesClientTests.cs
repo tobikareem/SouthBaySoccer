@@ -1,8 +1,16 @@
 using System.Net;
 using System.Text;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SouthBaySoccer.Application.Common;
+using SouthBaySoccer.Application.Features.Authentication;
+using SouthBaySoccer.Application.Features.Onboarding;
+using SouthBaySoccer.Application.Features.Scheduling;
 using SouthBaySoccer.Infrastructure.Authentication;
+using SouthBaySoccer.Infrastructure.Groups;
 using SouthBaySoccer.Infrastructure.Scheduling;
 
 namespace SouthBaySoccer.Infrastructure.Tests;
@@ -56,6 +64,30 @@ public sealed class PickupPalGamesClientTests
               }
             }
           ]
+        }
+        """;
+
+    private const string SingleGameJson =
+        """
+        {
+          "id": "cmrti8zc400fh75unavs2vrgi",
+          "groupId": "14082428927-1520565400@g.us",
+          "location": "969 e caribbean dr, sunnyvale, ca 94089",
+          "maxPlayers": 10,
+          "dateTime": "2026-07-24T04:30:00.000Z",
+          "status": "active",
+          "participants": [
+            {
+              "id": "cmrti951l00fm75un3agopbyl",
+              "userId": "cmrmarkuser0001",
+              "whatsappJid": "217973935587425@lid",
+              "displayName": "Mark A",
+              "isGuest": false,
+              "joinedAt": "2026-07-20T17:35:11.817Z",
+              "isWaitlist": false
+            }
+          ],
+          "group": { "groupName": "Fire FC" }
         }
         """;
 
@@ -131,13 +163,288 @@ public sealed class PickupPalGamesClientTests
         games.Should().BeEmpty();
     }
 
-    private static PickupPalGamesClient CreateClient(Func<HttpRequestMessage, HttpResponseMessage> send) =>
-        new(
-            new HttpClient(new StubHttpMessageHandler(send)),
-            Options.Create(new PickupPalApiOptions { BaseUrl = "https://pickuppal.test" }));
+    // ---- RSVP-9: single game, roster add/remove, API key, error shapes ----
 
-    private static HttpResponseMessage JsonResponse(string json) =>
-        new(HttpStatusCode.OK)
+    [Fact]
+    public async Task GetGameAsync_WhenGameExists_ParsesTheSingleGameShape()
+    {
+        HttpRequestMessage? observed = null;
+        var client = CreateClient(request =>
+        {
+            observed = request;
+            return JsonResponse(SingleGameJson);
+        });
+
+        var game = await client.GetGameAsync("cmrti8zc400fh75unavs2vrgi");
+
+        observed!.Method.Should().Be(HttpMethod.Get);
+        observed.RequestUri!.AbsolutePath.Should().Be("/api/games/cmrti8zc400fh75unavs2vrgi");
+        game.Should().NotBeNull();
+        game!.Id.Should().Be("cmrti8zc400fh75unavs2vrgi");
+        game.Participants.Should().ContainSingle().Which.UserId.Should().Be("cmrmarkuser0001");
+    }
+
+    [Fact]
+    public async Task GetGameAsync_WhenWrappedInGameEnvelope_StillParses()
+    {
+        var client = CreateClient(_ => JsonResponse($$"""{ "game": {{SingleGameJson}} }"""));
+
+        var game = await client.GetGameAsync("cmrti8zc400fh75unavs2vrgi");
+
+        game.Should().NotBeNull();
+        game!.MaxPlayers.Should().Be(10);
+    }
+
+    [Fact]
+    public async Task GetGameAsync_WhenGameIsGone_ReturnsNull()
+    {
+        var client = CreateClient(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        var game = await client.GetGameAsync("gone");
+
+        game.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task GetGameAsync_WhenServerOrAuthFails_ThrowsUnavailable(HttpStatusCode statusCode)
+    {
+        var client = CreateClient(_ => new HttpResponseMessage(statusCode));
+
+        var act = () => client.GetGameAsync("game-1");
+
+        await act.Should().ThrowAsync<ApplicationServiceUnavailableException>();
+    }
+
+    [Fact]
+    public async Task AddPlayerAsync_WhenAccepted_PostsIdAndNameOnlyAndReturnsApplied()
+    {
+        HttpRequestMessage? observed = null;
+        string? body = null;
+        var client = CreateClient(request =>
+        {
+            observed = request;
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse("""{ "id": "participant-1" }""", HttpStatusCode.Created);
+        });
+
+        var result = await client.AddPlayerAsync("game-1", "pp-user-1", "Ada Lovelace");
+
+        result.Should().Be(PickupPalRosterPushResult.Applied);
+        observed!.Method.Should().Be(HttpMethod.Post);
+        observed.RequestUri!.AbsolutePath.Should().Be("/api/games/game-1/players");
+        body.Should().Contain("\"playerId\":\"pp-user-1\"").And.Contain("\"playerName\":\"Ada Lovelace\"");
+        body.Should().NotContain("playerNumber", "a phone number must never be put on the wire");
+    }
+
+    [Theory]
+    [InlineData("""{ "error": "Player already in game" }""", HttpStatusCode.BadRequest, PickupPalRosterPushResult.AlreadyApplied)]
+    [InlineData("""{ "error": "Player is already on the waitlist" }""", HttpStatusCode.Conflict, PickupPalRosterPushResult.AlreadyApplied)]
+    [InlineData("""{ "error": "Game is full" }""", HttpStatusCode.BadRequest, PickupPalRosterPushResult.GameFull)]
+    [InlineData("""{ "error": { "message": "Game is full", "status": 400 } }""", HttpStatusCode.BadRequest, PickupPalRosterPushResult.GameFull)]
+    [InlineData("""{ "error": "Game not found" }""", HttpStatusCode.NotFound, PickupPalRosterPushResult.GameNotFound)]
+    [InlineData("""{ "error": "Game not found" }""", HttpStatusCode.BadRequest, PickupPalRosterPushResult.GameNotFound)]
+    [InlineData("", HttpStatusCode.NotFound, PickupPalRosterPushResult.GameNotFound)]
+    [InlineData("""{ "error": "User not found" }""", HttpStatusCode.NotFound, PickupPalRosterPushResult.Rejected)]
+    [InlineData("""{ "error": "Missing required fields" }""", HttpStatusCode.BadRequest, PickupPalRosterPushResult.Rejected)]
+    [InlineData("not json", HttpStatusCode.BadRequest, PickupPalRosterPushResult.Rejected)]
+    public async Task AddPlayerAsync_WhenRejected_ClassifiesBothErrorShapes(
+        string body,
+        HttpStatusCode statusCode,
+        PickupPalRosterPushResult expected)
+    {
+        var client = CreateClient(_ => JsonResponse(body, statusCode));
+
+        var result = await client.AddPlayerAsync("game-1", "pp-user-1", "Ada");
+
+        result.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task AddPlayerAsync_WhenServerOrAuthFails_ThrowsUnavailable(HttpStatusCode statusCode)
+    {
+        var client = CreateClient(_ => JsonResponse("""{ "error": { "message": "Internal Server Error", "status": 500 } }""", statusCode));
+
+        var act = () => client.AddPlayerAsync("game-1", "pp-user-1", "Ada");
+
+        await act.Should().ThrowAsync<ApplicationServiceUnavailableException>();
+    }
+
+    [Fact]
+    public async Task AddPlayerAsync_WhenNetworkFails_ThrowsUnavailable()
+    {
+        var client = CreateClient(_ => throw new HttpRequestException("connection refused"));
+
+        var act = () => client.AddPlayerAsync("game-1", "pp-user-1", "Ada");
+
+        await act.Should().ThrowAsync<ApplicationServiceUnavailableException>();
+    }
+
+    [Fact]
+    public async Task AddPlayerAsync_WhenTimedOut_ThrowsUnavailable()
+    {
+        var client = CreateClient(_ => throw new TaskCanceledException("timeout"));
+
+        var act = () => client.AddPlayerAsync("game-1", "pp-user-1", "Ada");
+
+        await act.Should().ThrowAsync<ApplicationServiceUnavailableException>();
+    }
+
+    [Fact]
+    public async Task RemovePlayerAsync_WhenAccepted_DeletesByPlayerIdAndReturnsApplied()
+    {
+        HttpRequestMessage? observed = null;
+        var client = CreateClient(request =>
+        {
+            observed = request;
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        });
+
+        var result = await client.RemovePlayerAsync("game-1", "pp-user-1");
+
+        result.Should().Be(PickupPalRosterPushResult.Applied);
+        observed!.Method.Should().Be(HttpMethod.Delete);
+        observed.RequestUri!.AbsolutePath.Should().Be("/api/games/game-1/players/pp-user-1");
+    }
+
+    [Theory]
+    [InlineData("", HttpStatusCode.NotFound, PickupPalRosterPushResult.AlreadyApplied)]
+    [InlineData("""{ "error": "Player not found in game" }""", HttpStatusCode.NotFound, PickupPalRosterPushResult.AlreadyApplied)]
+    [InlineData("""{ "error": "Player is not in this game" }""", HttpStatusCode.BadRequest, PickupPalRosterPushResult.AlreadyApplied)]
+    [InlineData("""{ "error": "User not found" }""", HttpStatusCode.BadRequest, PickupPalRosterPushResult.AlreadyApplied)]
+    [InlineData("""{ "error": "Game not found" }""", HttpStatusCode.NotFound, PickupPalRosterPushResult.GameNotFound)]
+    [InlineData("""{ "error": { "message": "Game not found", "status": 404 } }""", HttpStatusCode.NotFound, PickupPalRosterPushResult.GameNotFound)]
+    [InlineData("""{ "error": "Cannot remove the creator" }""", HttpStatusCode.BadRequest, PickupPalRosterPushResult.Rejected)]
+    public async Task RemovePlayerAsync_WhenRejected_ClassifiesBothErrorShapes(
+        string body,
+        HttpStatusCode statusCode,
+        PickupPalRosterPushResult expected)
+    {
+        var client = CreateClient(_ => JsonResponse(body, statusCode));
+
+        var result = await client.RemovePlayerAsync("game-1", "pp-user-1");
+
+        result.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task RemovePlayerAsync_WhenServerFails_ThrowsUnavailable()
+    {
+        var client = CreateClient(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+
+        var act = () => client.RemovePlayerAsync("game-1", "pp-user-1");
+
+        await act.Should().ThrowAsync<ApplicationServiceUnavailableException>();
+    }
+
+    [Fact]
+    public async Task SendAsync_WhenApiKeyConfigured_SendsItInTheConfiguredHeaderOnEveryCall()
+    {
+        var observed = new List<HttpRequestMessage>();
+        var client = CreateClient(
+            request =>
+            {
+                observed.Add(request);
+                return request.Method == HttpMethod.Get
+                    ? JsonResponse(ActiveGamesJson)
+                    : new HttpResponseMessage(HttpStatusCode.OK);
+            },
+            options =>
+            {
+                options.ApiKey = "secret-key";
+                options.ApiKeyHeaderName = "X-Bot-Key";
+            });
+
+        await client.GetActiveGamesAsync();
+        await client.AddPlayerAsync("game-1", "pp-user-1", "Ada");
+        await client.RemovePlayerAsync("game-1", "pp-user-1");
+
+        observed.Should().HaveCount(3);
+        observed.Should().OnlyContain(request =>
+            request.Headers.Contains("X-Bot-Key")
+            && request.Headers.GetValues("X-Bot-Key").Single() == "secret-key");
+    }
+
+    [Fact]
+    public async Task SendAsync_WhenApiKeyMissing_SendsNoApiKeyHeader()
+    {
+        HttpRequestMessage? observed = null;
+        var client = CreateClient(request =>
+        {
+            observed = request;
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+
+        await client.AddPlayerAsync("game-1", "pp-user-1", "Ada");
+
+        observed!.Headers.Contains("X-Api-Key").Should().BeFalse();
+    }
+
+    [Fact]
+    public void PickupPalGamesClient_WhenConstructed_TakesNoLoggerSoRequestUrisAreNeverLogged()
+    {
+        // Game and player ids travel in request URIs; the URI-logging ban is enforced structurally
+        // the same way as for the user and onboarding clients: no ILogger can reach this type.
+        var constructorParameters = typeof(PickupPalGamesClient)
+            .GetConstructors()
+            .SelectMany(constructor => constructor.GetParameters())
+            .Select(parameter => parameter.ParameterType);
+
+        constructorParameters.Should().NotContain(type =>
+            typeof(ILogger).IsAssignableFrom(type) || typeof(ILoggerFactory).IsAssignableFrom(type));
+        typeof(PickupPalGamesClient).Assembly.GetReferencedAssemblies()
+            .Select(assembly => assembly.Name)
+            .Should().NotContain("Microsoft.Extensions.Logging");
+    }
+
+    [Theory]
+    [InlineData(nameof(IPickupPalGamesClient))]
+    [InlineData(nameof(IPickupPalUserClient))]
+    [InlineData(nameof(IPickupPalOnboardingClient))]
+    [InlineData(nameof(PickupPalGroupClient))]
+    public void AddInfrastructure_WhenPickupPalClientRegistered_BuildsAPipelineWithNoLoggingOrCustomHandlers(string clientName)
+    {
+        // The factory's default LoggingHttpMessageHandler/LoggingScopeHttpMessageHandler log the
+        // outbound request URI at Information; every Pickup Pal client carries phone digits,
+        // tokens, emails, or ids in its URIs, so the built pipeline must contain neither them nor
+        // any custom DelegatingHandler.
+        var services = new ServiceCollection();
+        services.AddOptions();
+        services.AddLogging();
+        services.AddInfrastructure("Server=localhost;Database=Test;Trusted_Connection=True;");
+        using var provider = services.BuildServiceProvider();
+        var factoryOptions = provider.GetRequiredService<IOptionsMonitor<HttpClientFactoryOptions>>().Get(clientName);
+        var handler = provider.GetRequiredService<IHttpMessageHandlerFactory>().CreateHandler(clientName);
+
+        factoryOptions.HttpMessageHandlerBuilderActions.Should().BeEmpty(
+            "a DelegatingHandler on this client could log the request URI");
+        var chain = new List<string>();
+        for (var current = handler; current is not null; current = (current as DelegatingHandler)?.InnerHandler)
+        {
+            chain.Add(current.GetType().Name);
+        }
+
+        chain.Should().NotContain(name => name.Contains("Logging", StringComparison.Ordinal));
+        chain.Should().HaveCount(2, "only the factory's lifetime tracker and the primary handler may remain: {0}", string.Join(" -> ", chain));
+    }
+
+    private static PickupPalGamesClient CreateClient(
+        Func<HttpRequestMessage, HttpResponseMessage> send,
+        Action<PickupPalApiOptions>? configure = null)
+    {
+        var options = new PickupPalApiOptions { BaseUrl = "https://pickuppal.test" };
+        configure?.Invoke(options);
+        return new PickupPalGamesClient(new HttpClient(new StubHttpMessageHandler(send)), Options.Create(options));
+    }
+
+    private static HttpResponseMessage JsonResponse(string json, HttpStatusCode statusCode = HttpStatusCode.OK) =>
+        new(statusCode)
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json"),
         };

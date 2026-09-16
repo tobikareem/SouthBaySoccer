@@ -3,7 +3,8 @@
   "logging": {
     "logLevel": {
       "default": "Information",
-      "Microsoft.EntityFrameworkCore": "Warning"
+      "Microsoft.EntityFrameworkCore": "Warning",
+      "System.Net.Http.HttpClient": "Warning"
     },
     "applicationInsights": {
       "samplingSettings": { "isEnabled": true, "excludedTypes": "Request" }

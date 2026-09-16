@@ -775,14 +775,15 @@ public sealed class ImportPickupPalGamesHandlerTests
         }
 
         public ImportPickupPalGamesCommandHandler CreateHandler() =>
+            new(GamesClient.Object, CreateImportService(), UnitOfWork.Object);
+
+        public PickupPalGameImportService CreateImportService() =>
             new(
-                GamesClient.Object,
                 GameRepository.Object,
                 SessionRepository.Object,
                 _seasonRepository.Object,
                 _venueRepository.Object,
                 PlayerProfileRepository.Object,
-                UnitOfWork.Object,
                 _clock.Object);
     }
 }

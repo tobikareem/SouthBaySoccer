@@ -482,13 +482,14 @@ public sealed class SessionAdminWorkflowHandlerTests
             .ReturnsAsync(Array.Empty<PickupPalGame>());
         return new ImportPickupPalGamesCommandHandler(
             gamesClient.Object,
-            Mock.Of<IPickupPalGameRepository>(),
-            Mock.Of<ISessionRepository>(),
-            Mock.Of<ISeasonRepository>(),
-            EmptyVenueRepository(),
-            Mock.Of<IPlayerProfileRepository>(),
-            SavingUnitOfWork().Object,
-            Mock.Of<IClock>());
+            new PickupPalGameImportService(
+                Mock.Of<IPickupPalGameRepository>(),
+                Mock.Of<ISessionRepository>(),
+                Mock.Of<ISeasonRepository>(),
+                EmptyVenueRepository(),
+                Mock.Of<IPlayerProfileRepository>(),
+                Mock.Of<IClock>()),
+            SavingUnitOfWork().Object);
     }
 
     private static CreateSessionDraftCommand ValidDraftCommand() =>
