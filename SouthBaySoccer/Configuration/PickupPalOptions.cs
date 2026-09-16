@@ -17,7 +17,7 @@ public sealed class PickupPalOptions
     public const string DefaultPrivacyPolicyUri = "https://tobikareem.github.io/SouthBaySoccer/privacy.html";
     public const string DefaultCallbackUri = "southbaysoccer://auth/whatsapp";
     /// <summary>Host the Pickup Pal bot links back to for register/login (universal / app links, M13.1).</summary>
-    public const string DefaultAppLinkBaseUri = "https://n9jabay.app/";
+    public const string DefaultAppLinkBaseUri = "https://n9jabay.desolatravels.com/";
 
     public Uri ApiBaseUri { get; init; } = new(DefaultApiBaseUrl);
     public string BotDisplayNumber { get; init; } = DefaultBotDisplayNumber;

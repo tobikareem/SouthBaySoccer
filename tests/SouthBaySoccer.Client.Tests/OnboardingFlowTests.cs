@@ -51,8 +51,8 @@ public class OnboardingFlowTests
 
     [Theory]
     [InlineData("southbaysoccer://auth/register?token=abc")]
-    [InlineData("https://n9jabay.app/register?token=abc")]
-    [InlineData("https://N9JABAY.app/register/?token=abc&x=1")]
+    [InlineData("https://n9jabay.desolatravels.com/register?token=abc")]
+    [InlineData("https://N9JABAY.desolatravels.com/register/?token=abc&x=1")]
     public async Task HandleAppLink_RegisterLink_ValidatesTokenAndShowsDetails(string link)
     {
         var harness = new Harness();
@@ -176,7 +176,7 @@ public class OnboardingFlowTests
             .Returns(Task.CompletedTask);
 
         var handled = await harness.Flow.HandlePastedLinkAsync(
-            "Welcome! Finish here: https://n9jabay.app/register?token=abc (expires in 15 min)",
+            "Welcome! Finish here: https://n9jabay.desolatravels.com/register?token=abc (expires in 15 min)",
             CancellationToken.None);
 
         handled.Should().BeTrue();

@@ -55,6 +55,11 @@ Spec: `_specs/stories/AUTH-10-whatsapp-verified-onboarding/`. Wireframes: screen
   position is that returning users sign in with `POST api/users/auth { login: email-or-phone,
   password }`. Decision (Option A): keep our verified sign-in code dormant behind
   `Onboarding:RequireWhatsAppVerification=false`; phone lookup stays the production sign-in.
+- **App-link host decision (2026-09-16):** `https://n9jabay.desolatravels.com` (subdomain of the
+  owner's existing Azure App Service Domain; a dedicated `n9jabay.app` was declined for now). GitHub
+  Pages serves `documentation/CNAME` + `.well-known/` from `main`; DNS is a CNAME `n9jabay` →
+  `tobikareem.github.io` in the Azure DNS zone. `assetlinks.json` still needs the Play app-signing
+  SHA-256; the Apple App ID needs the Associated Domains capability before release signing.
 - **Deletion decision:** `DELETE profiles/me` removes N9ja Bay data only by default; the Pickup Pal
   account is deleted only when the player opts in (`?alsoDeletePickupPal=true`).
 - **Apple:** in-app sign-up triggers the 5.1.1(v) account-deletion requirement; it is part of the

@@ -10,7 +10,7 @@ fake client.
   `documentation/pickuppal-account-creation-api.md` and `.ai/memory/pickuppal-account-creation.md`.
   — Stories: `AUTH-10` · Projects: none · Depends on: nothing.
 
-- [ ] **M13.1** Client: app links. Register the app-link host on iOS (associated domains +
+- [~] **M13.1** Client: app links (host `n9jabay.desolatravels.com`; entitlement, intent filter, CNAME and association files added 2026-09-16; pending: Play app-signing SHA-256, Apple capability + profile, DNS CNAME, merge to main). Register the app-link host on iOS (associated domains +
   `apple-app-site-association`) and Android (intent filter + `assetlinks.json`). Add
   `IAppLinkRouter` that extracts `token` from `/register` and `/login` links and dispatches to a
   page model. Token is held in memory only.

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Universal links for the Pickup Pal bot's register/login reply links (AUTH-10 M13.1).
+	     The App ID in the Apple Developer portal must have the Associated Domains capability
+	     enabled and the distribution profile regenerated, or release signing will fail. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:n9jabay.desolatravels.com</string>
+	</array>
+</dict>
+</plist>
