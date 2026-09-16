@@ -204,6 +204,25 @@ In-app sign-up and verified sign-in over the Pickup Pal WhatsApp bot. Task detai
 
 ---
 
+## M14 Pickup Pal roster sync (RSVP-9)
+
+An RSVP made in the app on a session imported from Pickup Pal (occurrence key `pickuppal:*`) is
+pushed to that game's Pickup Pal roster (add on Going, remove on cancel / NotGoing / Maybe), the
+game is re-read and upserted through the import path, and failures are retried from the outbox by a
+timer trigger. Task detail lives in
+[`stories/RSVP-9-pickup-pal-roster-sync/tasks.md`](stories/RSVP-9-pickup-pal-roster-sync/tasks.md).
+
+- [x] **M14.1** Domain: `PickupPalSyncStatus`, `RsvpResponse` sync columns, repository ports.
+- [x] **M14.2** Application: `PickupPalGameImportService` extraction, games-client port extension, `RsvpPickupPalSyncService`, outbox handlers, handler wiring.
+- [x] **M14.3** Infrastructure: games client add/remove/get with API key + error shapes, repository methods, migration `AddRsvpPickupPalSync`.
+- [x] **M14.4** Functions + Contracts: `pickupPalSync` on the RSVP response, `OutboxFunctions` timer (5 min, `Outbox:Enabled`).
+- [x] **M14.5** Tests (Application, Infrastructure non-LocalDB, Functions; Client unchanged and green).
+- [x] **M14.6** Knowledge base and spec index.
+- [ ] **M14.7** Confirm the Pickup Pal Games error strings and auto-waitlist behaviour; correct the mapping if needed.
+- [ ] **M14.8** Deploy: apply the migration through the release pipeline; configure `PickupPal:ApiKey`; verify the timer runs.
+
+---
+
 ## Dependency summary
 
 ```

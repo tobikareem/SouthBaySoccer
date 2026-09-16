@@ -1313,6 +1313,12 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("ProcessedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -2045,6 +2051,20 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
+
+                    b.Property<string>("PickupPalSyncError")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("PickupPalSyncStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasDefaultValue("NotApplicable");
+
+                    b.Property<DateTime?>("PickupPalSyncedAtUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<Guid>("PlayerProfileId")
                         .HasColumnType("uniqueidentifier");

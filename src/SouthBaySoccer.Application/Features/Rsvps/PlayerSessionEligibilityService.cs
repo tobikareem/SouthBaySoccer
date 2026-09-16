@@ -1,9 +1,12 @@
-using SouthBaySoccer.Domain.Interfaces.Repositories;
-
 namespace SouthBaySoccer.Application.Features.Rsvps;
 
+/// <summary>
+/// Decides whether a player may RSVP, be promoted from the waitlist, or check in for a session.
+/// Product decision (2026-09-16): there is no waiver requirement any more, so eligibility is the
+/// payment verdict alone. The Compliance entities and the <c>waivers/*</c> endpoints stay in place
+/// (dormant) and are no longer consulted here.
+/// </summary>
 public sealed class PlayerSessionEligibilityService(
-    IWaiverRepository waiverRepository,
     IPaymentEligibilityService paymentEligibilityService) : IPlayerSessionEligibilityService
 {
     public async Task<PlayerSessionEligibilityResult> CheckAsync(
@@ -11,11 +14,6 @@ public sealed class PlayerSessionEligibilityService(
         Guid sessionId,
         CancellationToken cancellationToken = default)
     {
-        if (!await waiverRepository.HasCurrentAcceptanceAsync(playerProfileId, cancellationToken))
-        {
-            return new PlayerSessionEligibilityResult(false, "Waiver required.");
-        }
-
         var payment = await paymentEligibilityService.CheckAsync(playerProfileId, sessionId, cancellationToken);
         return payment.IsEligible
             ? new PlayerSessionEligibilityResult(true, null)
@@ -28,20 +26,10 @@ public sealed class PlayerSessionEligibilityService(
         CancellationToken cancellationToken = default)
     {
         var results = new Dictionary<Guid, bool>(playerProfileIds.Count);
-        if (playerProfileIds.Count == 0)
-        {
-            return results;
-        }
-
-        var acceptedIds = (await waiverRepository.ListPlayerIdsWithCurrentAcceptanceAsync(
-                playerProfileIds,
-                cancellationToken))
-            .ToHashSet();
-
         foreach (var playerProfileId in playerProfileIds.Distinct())
         {
-            results[playerProfileId] = acceptedIds.Contains(playerProfileId)
-                && (await paymentEligibilityService.CheckAsync(playerProfileId, sessionId, cancellationToken)).IsEligible;
+            results[playerProfileId] =
+                (await paymentEligibilityService.CheckAsync(playerProfileId, sessionId, cancellationToken)).IsEligible;
         }
 
         return results;

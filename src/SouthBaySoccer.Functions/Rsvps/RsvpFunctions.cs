@@ -210,7 +210,8 @@ public sealed class RsvpFunctions(
             result.RsvpResponseId,
             result.WaitlistEntryId,
             result.WaitlistPosition,
-            result.PromotedPlayerProfileId);
+            result.PromotedPlayerProfileId,
+            result.PickupPalSync.ToString());
 
     private static CheckInResponseDto ToResponse(CheckInResultModel result) =>
         new(

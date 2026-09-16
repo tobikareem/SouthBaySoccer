@@ -252,8 +252,29 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
             _ => throw new InvalidOperationException("Unsupported RSVP status.")
         };
 
-        return new RsvpMutationResult(sessionId, playerProfileId, state, rsvp.Id);
+        return new RsvpMutationResult(
+            sessionId,
+            playerProfileId,
+            state,
+            rsvp.Id,
+            PickupPalSyncStatus: rsvp.PickupPalSyncStatus);
     }
+
+    public Task<RsvpResponse?> FindRsvpForPickupPalSyncAsync(
+        Guid sessionId,
+        Guid playerProfileId,
+        CancellationToken cancellationToken = default) =>
+        // Cancel soft-deletes the row, so the global filter is bypassed on purpose; the live row
+        // (if any) sorts first, then the most recently written one.
+        dbContext.RsvpResponses
+            .IgnoreQueryFilters()
+            .Where(x => x.SessionId == sessionId && x.PlayerProfileId == playerProfileId)
+            .OrderBy(x => x.IsDeleted)
+            .ThenByDescending(x => x.UpdatedAt ?? x.CreatedAt)
+            .ThenByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public void UpdateRsvp(RsvpResponse rsvp) => dbContext.RsvpResponses.Update(rsvp);
 
     // Ordering happens on an anonymous projection before the record is constructed: EF Core cannot
     // translate member access on a positional-record projection, so OrderBy-after-construct throws

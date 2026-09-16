@@ -4,7 +4,25 @@ using SouthBaySoccer.Domain.Enumerations;
 namespace SouthBaySoccer.Domain.Entities.Operations;
 
 /// <summary>Represents a durable transactional outbox message.</summary>
-public class OutboxMessage : BaseEntity { public string MessageType { get; set; } = string.Empty; public string PayloadJson { get; set; } = string.Empty; public OutboxMessageStatus Status { get; set; } public DateTime AvailableAtUtc { get; set; } public int AttemptCount { get; set; } public string? LockToken { get; set; } public DateTime? LockedUntilUtc { get; set; } public DateTime? ProcessedAtUtc { get; set; } public string? DeadLetterReason { get; set; } public string? CorrelationId { get; set; } public string? IdempotencyKey { get; set; } }
+public class OutboxMessage : BaseEntity
+{
+    public string MessageType { get; set; } = string.Empty;
+    public string PayloadJson { get; set; } = string.Empty;
+    public OutboxMessageStatus Status { get; set; }
+    public DateTime AvailableAtUtc { get; set; }
+    public int AttemptCount { get; set; }
+    public string? LockToken { get; set; }
+    public DateTime? LockedUntilUtc { get; set; }
+    public DateTime? ProcessedAtUtc { get; set; }
+    public string? DeadLetterReason { get; set; }
+    public string? CorrelationId { get; set; }
+    public string? IdempotencyKey { get; set; }
+    /// <summary>
+    /// Gets or sets the SQL row version. The immediate RSVP path and the timer processor can both
+    /// touch a row; a stale write fails as a concurrency conflict and the loser skips its settle.
+    /// </summary>
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+}
 /// <summary>Represents a logical notification message.</summary>
 public class NotificationMessage : BaseEntity { public Guid? OutboxMessageId { get; set; } public Guid? AlertInstanceId { get; set; } public Guid? SessionId { get; set; } public string TemplateKey { get; set; } = string.Empty; public NotificationChannel Channel { get; set; } public string? Subject { get; set; } public string PayloadJson { get; set; } = string.Empty; public NotificationStatus Status { get; set; } public DateTime? ScheduledForUtc { get; set; } public int Priority { get; set; } public string? IdempotencyKey { get; set; } }
 /// <summary>Represents a snapshotted notification recipient.</summary>

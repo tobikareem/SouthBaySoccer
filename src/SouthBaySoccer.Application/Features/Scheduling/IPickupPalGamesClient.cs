@@ -8,6 +8,47 @@ public interface IPickupPalGamesClient
 {
     /// <summary>Gets the currently active Pickup Pal games with their participants.</summary>
     Task<IReadOnlyList<PickupPalGame>> GetActiveGamesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Gets one game (same shape as an active-feed item), or null when Pickup Pal no longer has it.</summary>
+    /// <exception cref="Common.ApplicationServiceUnavailableException">Pickup Pal could not be reached or refused the call.</exception>
+    Task<PickupPalGame?> GetGameAsync(string gameId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Adds a registered Pickup Pal user to a game's roster (Pickup Pal decides whether they land
+    /// on the going list or its waitlist). Terminal outcomes are returned; transient failures throw.
+    /// </summary>
+    /// <exception cref="Common.ApplicationServiceUnavailableException">Pickup Pal could not be reached or refused the call.</exception>
+    Task<PickupPalRosterPushResult> AddPlayerAsync(
+        string gameId,
+        string playerId,
+        string playerName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Removes a registered Pickup Pal user from a game's roster. A player who is not on it counts as removed.</summary>
+    /// <exception cref="Common.ApplicationServiceUnavailableException">Pickup Pal could not be reached or refused the call.</exception>
+    Task<PickupPalRosterPushResult> RemovePlayerAsync(
+        string gameId,
+        string playerId,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>Terminal outcome of a roster add or remove on Pickup Pal.</summary>
+public enum PickupPalRosterPushResult
+{
+    /// <summary>Pickup Pal applied the change.</summary>
+    Applied,
+
+    /// <summary>Pickup Pal reported the roster already in the requested state.</summary>
+    AlreadyApplied,
+
+    /// <summary>Pickup Pal refused the add because the game is full.</summary>
+    GameFull,
+
+    /// <summary>Pickup Pal no longer has the game.</summary>
+    GameNotFound,
+
+    /// <summary>Pickup Pal rejected the request for another non-retryable reason.</summary>
+    Rejected,
 }
 
 /// <summary>One sanitized Pickup Pal active game.</summary>

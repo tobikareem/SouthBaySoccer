@@ -15,7 +15,8 @@ public sealed class SubmitRsvpCommandHandler(
     IPlayerProfileRepository playerProfileRepository,
     ISessionRepository sessionRepository,
     IPlayerSessionEligibilityService eligibilityService,
-    IRsvpRepository rsvpRepository)
+    IRsvpRepository rsvpRepository,
+    IRsvpPickupPalSyncService pickupPalSyncService)
 {
     public async Task<RsvpResultModel> HandleAsync(SubmitRsvpCommand command, CancellationToken cancellationToken = default)
     {
@@ -30,7 +31,9 @@ public sealed class SubmitRsvpCommandHandler(
         }
 
         var result = await rsvpRepository.SubmitRsvpAsync(session.Id, profile.Id, command.Status, cancellationToken);
-        return RsvpMapper.ToModel(result);
+        // Runs after the local transaction committed and never fails the RSVP (RSVP-9).
+        var pickupPalSync = await pickupPalSyncService.SyncAfterLocalWriteAsync(session.Id, profile.Id, cancellationToken);
+        return RsvpMapper.ToModel(result, pickupPalSync);
     }
 
     internal static async Task<SouthBaySoccer.Domain.Entities.Identity.PlayerProfile> GetCurrentProfileAsync(
@@ -72,7 +75,8 @@ public sealed class CancelRsvpCommandHandler(
     IPlayerProfileRepository playerProfileRepository,
     ISessionRepository sessionRepository,
     IPlayerSessionEligibilityService eligibilityService,
-    IRsvpRepository rsvpRepository)
+    IRsvpRepository rsvpRepository,
+    IRsvpPickupPalSyncService pickupPalSyncService)
 {
     public async Task<RsvpResultModel> HandleAsync(CancelRsvpCommand command, CancellationToken cancellationToken = default)
     {
@@ -89,7 +93,15 @@ public sealed class CancelRsvpCommandHandler(
                 eligibilityService.CheckManyAsync(candidatePlayerProfileIds, session.Id, token),
             cancellationToken);
 
-        return RsvpMapper.ToModel(result);
+        // Runs after the local transaction committed and never fails the cancel (RSVP-9). The
+        // player promoted from the local waitlist is now Going and is pushed too, best effort.
+        var pickupPalSync = await pickupPalSyncService.SyncAfterLocalWriteAsync(session.Id, profile.Id, cancellationToken);
+        if (result.PromotedPlayerProfileId is { } promotedPlayerProfileId)
+        {
+            await pickupPalSyncService.SyncAfterLocalWriteAsync(session.Id, promotedPlayerProfileId, cancellationToken);
+        }
+
+        return RsvpMapper.ToModel(result, pickupPalSync);
     }
 }
 
@@ -111,7 +123,8 @@ public sealed class AdminOverrideRsvpCommandHandler(
     IValidator<AdminOverrideRsvpCommand> validator,
     IPlayerProfileRepository playerProfileRepository,
     ISessionRepository sessionRepository,
-    IRsvpRepository rsvpRepository)
+    IRsvpRepository rsvpRepository,
+    IRsvpPickupPalSyncService pickupPalSyncService)
 {
     public async Task<RsvpResultModel> HandleAsync(AdminOverrideRsvpCommand command, CancellationToken cancellationToken = default)
     {
@@ -129,7 +142,9 @@ public sealed class AdminOverrideRsvpCommandHandler(
             command.Reason,
             cancellationToken);
 
-        return RsvpMapper.ToModel(result);
+        // Runs after the local transaction committed and never fails the override (RSVP-9).
+        var pickupPalSync = await pickupPalSyncService.SyncAfterLocalWriteAsync(command.SessionId, command.PlayerProfileId, cancellationToken);
+        return RsvpMapper.ToModel(result, pickupPalSync);
     }
 }
 
