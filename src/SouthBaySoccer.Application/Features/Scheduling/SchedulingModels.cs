@@ -39,7 +39,9 @@ public sealed record SessionModel(
     DateTime CheckInClosesAtUtc,
     DateTime RsvpDeadlineUtc,
     string? OccurrenceKey,
-    string Status);
+    string Status,
+    Guid? GroupChatId = null,
+    string? GroupName = null);
 
 public sealed record SessionFeedModel(
     SessionModel Session,
@@ -65,7 +67,8 @@ public sealed record CreateSessionCommand(
     DateTime RsvpDeadlineUtc,
     Guid? RecurrenceRuleId = null,
     string? OccurrenceKey = null,
-    SessionStatus Status = SessionStatus.Published);
+    SessionStatus Status = SessionStatus.Published,
+    Guid? GroupChatId = null);
 
 public sealed record CreateSessionAdminDefaultsModel(
     bool CanManageSessions,
@@ -91,7 +94,9 @@ public sealed record ManagedSessionModel(
     string VenueName,
     string Format,
     int Capacity,
-    string Status);
+    string Status,
+    Guid? GroupChatId = null,
+    string? GroupName = null);
 
 public sealed record ManagedSessionEditModel(
     Guid SessionId,
@@ -104,8 +109,14 @@ public sealed record ManagedSessionEditModel(
     DateTime CheckInOpensAtUtc,
     DateTime CheckInClosesAtUtc,
     DateTime RsvpDeadlineUtc,
-    string Status);
+    string Status,
+    Guid? GroupChatId = null,
+    string? GroupName = null);
 
+/// <param name="GroupChatId">
+/// The WhatsApp group the session belongs to. When null the acting admin's only linked group is
+/// used, if they have exactly one; otherwise the session stays app-only.
+/// </param>
 public sealed record CreateSessionDraftCommand(
     Guid? VenueId,
     string VenueName,
@@ -115,8 +126,14 @@ public sealed record CreateSessionDraftCommand(
     DateTime StartsAtUtc,
     DateTime CheckInOpensAtUtc,
     DateTime CheckInClosesAtUtc,
-    DateTime RsvpDeadlineUtc);
+    DateTime RsvpDeadlineUtc,
+    Guid? GroupChatId = null);
 
+/// <param name="GroupChatId">
+/// The WhatsApp group to associate. When null an existing association is kept (a group can never
+/// be cleared); a session without one falls back to the acting admin's only linked group, if they
+/// have exactly one. Once the session's Pickup Pal game exists the group cannot change.
+/// </param>
 public sealed record UpdateSessionAdminCommand(
     Guid SessionId,
     Guid? VenueId,
@@ -127,7 +144,8 @@ public sealed record UpdateSessionAdminCommand(
     DateTime StartsAtUtc,
     DateTime CheckInOpensAtUtc,
     DateTime CheckInClosesAtUtc,
-    DateTime RsvpDeadlineUtc);
+    DateTime RsvpDeadlineUtc,
+    Guid? GroupChatId = null);
 
 public sealed record CancelSessionCommand(
     Guid SessionId,

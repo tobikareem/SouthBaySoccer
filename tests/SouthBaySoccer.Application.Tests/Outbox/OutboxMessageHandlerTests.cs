@@ -4,6 +4,7 @@ using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Onboarding;
 using SouthBaySoccer.Application.Features.Outbox;
 using SouthBaySoccer.Application.Features.Rsvps;
+using SouthBaySoccer.Application.Features.Scheduling;
 using SouthBaySoccer.Domain.Entities.Operations;
 using SouthBaySoccer.Domain.Enumerations;
 using Xunit;
@@ -12,6 +13,71 @@ namespace SouthBaySoccer.Application.Tests.Outbox;
 
 public sealed class OutboxMessageHandlerTests
 {
+    [Fact]
+    public async Task SessionSyncHandler_WhenPushSucceeds_PassesTheRecordedAdminAndCompletes()
+    {
+        var sessionId = Guid.NewGuid();
+        var adminProfileId = Guid.NewGuid();
+        var syncService = new Mock<ISessionPickupPalSyncService>();
+        syncService
+            .Setup(x => x.PushCurrentStateAsync(sessionId, adminProfileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PickupPalSyncOutcome(PickupPalSyncStatus.Synced, null));
+        var handler = new SessionPickupPalSyncOutboxHandler(syncService.Object);
+
+        var result = await handler.HandleAsync(Message(
+            SessionOutboxMessages.SessionPickupPalSyncRequested,
+            $$"""{"SessionId":"{{sessionId}}","Action":"EnsureCreated","ActingPlayerProfileId":"{{adminProfileId}}"}"""));
+
+        handler.MessageType.Should().Be(SessionOutboxMessages.SessionPickupPalSyncRequested);
+        result.Disposition.Should().Be(OutboxHandlingDisposition.Completed);
+        syncService.Verify(x => x.PushCurrentStateAsync(sessionId, adminProfileId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SessionSyncHandler_WhenNoAdminIsRecorded_PassesNullAdmin()
+    {
+        var sessionId = Guid.NewGuid();
+        var syncService = new Mock<ISessionPickupPalSyncService>();
+        syncService
+            .Setup(x => x.PushCurrentStateAsync(sessionId, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PickupPalSyncOutcome(PickupPalSyncStatus.Failed, SessionPickupPalSyncErrorCodes.MissingCreator));
+        var handler = new SessionPickupPalSyncOutboxHandler(syncService.Object);
+
+        var result = await handler.HandleAsync(Message(
+            SessionOutboxMessages.SessionPickupPalSyncRequested,
+            $$"""{"SessionId":"{{sessionId}}","Action":"EnsureCreated","ActingPlayerProfileId":null}"""));
+
+        result.Disposition.Should().Be(OutboxHandlingDisposition.Completed, "a terminal failure is recorded on the session, not retried");
+    }
+
+    [Fact]
+    public async Task SessionSyncHandler_WhenPushIsRetryable_AsksForRetryWithTheCode()
+    {
+        var syncService = new Mock<ISessionPickupPalSyncService>();
+        syncService
+            .Setup(x => x.PushCurrentStateAsync(It.IsAny<Guid>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PickupPalSyncOutcome(PickupPalSyncStatus.Pending, SessionPickupPalSyncErrorCodes.Unavailable));
+        var handler = new SessionPickupPalSyncOutboxHandler(syncService.Object);
+
+        var result = await handler.HandleAsync(Message(
+            SessionOutboxMessages.SessionPickupPalSyncRequested,
+            $$"""{"SessionId":"{{Guid.NewGuid()}}"}"""));
+
+        result.Disposition.Should().Be(OutboxHandlingDisposition.Retry);
+        result.Code.Should().Be(SessionPickupPalSyncErrorCodes.Unavailable);
+    }
+
+    [Fact]
+    public async Task SessionSyncHandler_WhenPayloadHasNoSessionId_FailsPermanently()
+    {
+        var handler = new SessionPickupPalSyncOutboxHandler(Mock.Of<ISessionPickupPalSyncService>());
+
+        var result = await handler.HandleAsync(Message(SessionOutboxMessages.SessionPickupPalSyncRequested, "{}"));
+
+        result.Disposition.Should().Be(OutboxHandlingDisposition.Fail);
+        result.Code.Should().Be(SessionPickupPalSyncOutboxHandler.InvalidPayloadCode);
+    }
+
     [Fact]
     public async Task RsvpSyncHandler_WhenPushSucceeds_Completes()
     {

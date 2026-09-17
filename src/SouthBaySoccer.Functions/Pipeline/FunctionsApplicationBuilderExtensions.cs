@@ -124,6 +124,12 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<IRsvpPickupPalSyncService, RsvpPickupPalSyncService>();
         builder.Services.AddScoped<IOutboxMessageHandler, RsvpPickupPalSyncOutboxHandler>();
         builder.Services.AddScoped<IOutboxMessageHandler, PickupPalUserDeletionOutboxHandler>();
+        // SES-7: app-published sessions with a group become Pickup Pal games (create / update /
+        // terminate after the local write), retried through the same outbox processor.
+        builder.Services.AddSingleton<SessionPickupPalSyncGate>();
+        builder.Services.AddScoped<SessionGroupResolver>();
+        builder.Services.AddScoped<ISessionPickupPalSyncService, SessionPickupPalSyncService>();
+        builder.Services.AddScoped<IOutboxMessageHandler, SessionPickupPalSyncOutboxHandler>();
         builder.Services.AddSingleton<OutboxProcessor>();
         builder.Services.AddScoped<CheckInPlayerCommandHandler>();
         builder.Services.AddScoped<SelfCheckInCommandHandler>();

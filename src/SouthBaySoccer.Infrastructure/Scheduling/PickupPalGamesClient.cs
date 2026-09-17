@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -10,8 +11,8 @@ using SouthBaySoccer.Infrastructure.Authentication;
 namespace SouthBaySoccer.Infrastructure.Scheduling;
 
 /// <summary>
-/// HTTP client for the Pickup Pal games surface: the active feed, a single game, and roster
-/// add/remove. Mirrors <see cref="PickupPalUserClient"/>: typed HttpClient, lazy base address from
+/// HTTP client for the Pickup Pal games surface: the active feed, a single game, roster
+/// add/remove, and game create/update/terminate for app-published sessions. Mirrors <see cref="PickupPalUserClient"/>: typed HttpClient, lazy base address from
 /// <see cref="PickupPalApiOptions"/>, camelCase mapping via explicit property names. The wire
 /// records include only the fields the import needs — WhatsApp JIDs, group ids, and subscriber ids
 /// are never deserialized, so they cannot leak past this class.
@@ -30,6 +31,8 @@ public sealed class PickupPalGamesClient(HttpClient httpClient, IOptions<PickupP
     : IPickupPalGamesClient
 {
     private const string UnavailableMessage = "Pickup Pal is unavailable right now. Try again later.";
+    private const string WhatsAppGroupGameType = "WHATSAPP_GROUP";
+    private const string SoccerSport = "SOCCER";
 
     public async Task<IReadOnlyList<PickupPalGame>> GetActiveGamesAsync(
         CancellationToken cancellationToken = default)
@@ -109,6 +112,8 @@ public sealed class PickupPalGamesClient(HttpClient httpClient, IOptions<PickupP
 
         if (response.IsSuccessStatusCode)
         {
+            // Pickup Pal confirmed (2026-09-16) that adding a player to a full game places them on
+            // its waitlist and still answers success, so any 2xx is Applied regardless of body.
             return PickupPalRosterPushResult.Applied;
         }
 
@@ -125,6 +130,7 @@ public sealed class PickupPalGamesClient(HttpClient httpClient, IOptions<PickupP
 
         if (Contains(message, "full"))
         {
+            // Fallback only: kept in case an older Pickup Pal build still refuses a full game.
             return PickupPalRosterPushResult.GameFull;
         }
 
@@ -182,6 +188,145 @@ public sealed class PickupPalGamesClient(HttpClient httpClient, IOptions<PickupP
         }
 
         return PickupPalRosterPushResult.Rejected;
+    }
+
+    public async Task<PickupPalGameCreateResult> CreateGameAsync(
+        PickupPalGameCreateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var (date, time) = FormatLocalStart(request.StartsAtUtc, request.TimeZoneId);
+        // lat/lng are omitted on purpose: sessions carry no coordinates.
+        var payload = new CreateGamePayload(
+            WhatsAppGroupGameType,
+            request.GroupId,
+            date,
+            time,
+            request.Location,
+            request.MaxPlayers,
+            request.CreatorId,
+            SoccerSport,
+            request.TimeZoneId);
+
+        using var response = await SendAsync(HttpMethod.Post, "api/games", JsonContent.Create(payload), cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            var gameId = await ReadCreatedGameIdAsync(response, cancellationToken);
+            return gameId is null
+                ? new PickupPalGameCreateResult(PickupPalGameWriteResult.InvalidResponse, null)
+                : new PickupPalGameCreateResult(PickupPalGameWriteResult.Applied, gameId);
+        }
+
+        return new PickupPalGameCreateResult(await ClassifyWriteFailureAsync(response, cancellationToken), null);
+    }
+
+    public async Task<PickupPalGameWriteResult> UpdateGameAsync(
+        string gameId,
+        PickupPalGameUpdateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // The contract example carries only location and maxPlayers; date/time/timezone are sent
+        // when the start changed and Pickup Pal may ignore them.
+        string? date = null;
+        string? time = null;
+        string? timeZone = null;
+        if (request.StartsAtUtc is { } startsAtUtc)
+        {
+            (date, time) = FormatLocalStart(startsAtUtc, request.TimeZoneId);
+            timeZone = request.TimeZoneId;
+        }
+
+        var payload = new UpdateGamePayload(request.Location, request.MaxPlayers, date, time, timeZone);
+        using var response = await SendAsync(
+            HttpMethod.Put,
+            $"api/games/{Uri.EscapeDataString(gameId)}",
+            JsonContent.Create(payload, options: OmitNullsJsonOptions),
+            cancellationToken);
+
+        return response.IsSuccessStatusCode
+            ? PickupPalGameWriteResult.Applied
+            : await ClassifyWriteFailureAsync(response, cancellationToken);
+    }
+
+    public async Task<PickupPalGameWriteResult> TerminateGameAsync(string gameId, CancellationToken cancellationToken = default)
+    {
+        using var response = await SendAsync(
+            HttpMethod.Delete,
+            $"api/games/{Uri.EscapeDataString(gameId)}",
+            content: null,
+            cancellationToken);
+
+        return response.IsSuccessStatusCode
+            ? PickupPalGameWriteResult.Applied
+            : await ClassifyWriteFailureAsync(response, cancellationToken);
+    }
+
+    /// <summary>
+    /// Maps a failed create/update/terminate: 5xx is retryable; 404 or a "game ... not found"
+    /// message is <see cref="PickupPalGameWriteResult.GameNotFound"/>; any other 4xx (a 400 with a
+    /// message included) is a terminal <see cref="PickupPalGameWriteResult.Rejected"/>. Only the
+    /// classification leaves this method, never the message.
+    /// </summary>
+    private static async Task<PickupPalGameWriteResult> ClassifyWriteFailureAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        if (IsServerFailure(response))
+        {
+            throw new ApplicationServiceUnavailableException(UnavailableMessage);
+        }
+
+        var message = await ReadErrorMessageAsync(response, cancellationToken) ?? string.Empty;
+        if (response.StatusCode == HttpStatusCode.NotFound || IsGameNotFound(message))
+        {
+            return PickupPalGameWriteResult.GameNotFound;
+        }
+
+        return PickupPalGameWriteResult.Rejected;
+    }
+
+    /// <summary>
+    /// Reads the created game's id, tolerating a <c>{ "game": {...} }</c> envelope and either
+    /// <c>id</c> or <c>gameId</c> as the property name.
+    /// </summary>
+    private static async Task<string?> ReadCreatedGameIdAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            var element = root.TryGetProperty("game", out var nested) && nested.ValueKind == JsonValueKind.Object
+                ? nested
+                : root;
+            foreach (var propertyName in new[] { "id", "gameId" })
+            {
+                if (element.TryGetProperty(propertyName, out var id)
+                    && id.ValueKind == JsonValueKind.String
+                    && !string.IsNullOrWhiteSpace(id.GetString()))
+                {
+                    return id.GetString()!.Trim(); // non-null: the guard above rejects null and blank values.
+                }
+            }
+
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Formats a UTC start as the group-local <c>yyyy-MM-dd</c> and <c>HH:mm:ss</c> Pickup Pal expects.</summary>
+    private static (string Date, string Time) FormatLocalStart(DateTime startsAtUtc, string timeZoneId)
+    {
+        var local = SessionAdminTimeZone.ToLocal(startsAtUtc, SessionAdminTimeZone.Resolve(timeZoneId));
+        return (
+            local.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            local.ToString("HH:mm:ss", CultureInfo.InvariantCulture));
     }
 
     private async Task<HttpResponseMessage> SendAsync(
@@ -368,4 +513,27 @@ public sealed class PickupPalGamesClient(HttpClient httpClient, IOptions<PickupP
     private sealed record AddPlayerPayload(
         [property: JsonPropertyName("playerId")] string PlayerId,
         [property: JsonPropertyName("playerName")] string PlayerName);
+
+    private sealed record CreateGamePayload(
+        [property: JsonPropertyName("gameType")] string GameType,
+        [property: JsonPropertyName("groupId")] string GroupId,
+        [property: JsonPropertyName("date")] string Date,
+        [property: JsonPropertyName("time")] string Time,
+        [property: JsonPropertyName("location")] string Location,
+        [property: JsonPropertyName("maxPlayers")] int MaxPlayers,
+        [property: JsonPropertyName("creatorId")] string CreatorId,
+        [property: JsonPropertyName("sport")] string Sport,
+        [property: JsonPropertyName("timezone")] string Timezone);
+
+    private sealed record UpdateGamePayload(
+        [property: JsonPropertyName("location")] string Location,
+        [property: JsonPropertyName("maxPlayers")] int MaxPlayers,
+        [property: JsonPropertyName("date")] string? Date,
+        [property: JsonPropertyName("time")] string? Time,
+        [property: JsonPropertyName("timezone")] string? Timezone);
+
+    private static readonly JsonSerializerOptions OmitNullsJsonOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
 }

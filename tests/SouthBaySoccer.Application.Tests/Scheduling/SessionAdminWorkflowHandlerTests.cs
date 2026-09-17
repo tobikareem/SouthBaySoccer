@@ -2,6 +2,7 @@ using FluentAssertions;
 using FluentValidation;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Scheduling;
@@ -27,6 +28,7 @@ public sealed class SessionAdminWorkflowHandlerTests
             SeasonRepository(),
             VenueRepository(),
             sessionRepository.Object,
+            AppOnlyGroupResolver(),
             SavingUnitOfWork().Object);
 
         var result = await handler.HandleAsync(ValidDraftCommand());
@@ -53,6 +55,7 @@ public sealed class SessionAdminWorkflowHandlerTests
             SeasonRepository(),
             VenueRepository(),
             sessionRepository.Object,
+            AppOnlyGroupResolver(),
             SavingUnitOfWork().Object);
 
         var act = () => handler.HandleAsync(ValidDraftCommand());
@@ -72,6 +75,7 @@ public sealed class SessionAdminWorkflowHandlerTests
             SeasonRepository(),
             VenueRepository(),
             sessionRepository.Object,
+            AppOnlyGroupResolver(),
             SavingUnitOfWork().Object);
         // 2026-07-08 19:40 UTC is 12:40 PM Pacific — a Wednesday, not the hardcoded "Saturday".
         var command = ValidDraftCommand() with
@@ -107,6 +111,7 @@ public sealed class SessionAdminWorkflowHandlerTests
             seasonRepository.Object,
             VenueRepository(),
             new Mock<ISessionRepository>().Object,
+            AppOnlyGroupResolver(),
             SavingUnitOfWork().Object);
         // Session start (July) falls outside the only active season (Jan-Mar) — there is no season to
         // silently fall back to.
@@ -126,7 +131,7 @@ public sealed class SessionAdminWorkflowHandlerTests
         sessionRepository
             .Setup(x => x.GetByIdAsync(sessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Session?)null);
-        var handler = new GetSessionForAdminEditQueryHandler(sessionRepository.Object, VenueRepository());
+        var handler = new GetSessionForAdminEditQueryHandler(sessionRepository.Object, VenueRepository(), AppOnlyGroupResolver());
 
         var act = async () => await handler.HandleAsync(sessionId);
 
@@ -145,7 +150,7 @@ public sealed class SessionAdminWorkflowHandlerTests
             .Setup(x => x.GetByIdAsync(sessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(session);
         var unitOfWork = SavingUnitOfWork();
-        var handler = new PublishSessionCommandHandler(sessionRepository.Object, unitOfWork.Object);
+        var handler = new PublishSessionCommandHandler(sessionRepository.Object, AppOnlyGroupResolver(), NoOpSyncService(), unitOfWork.Object);
 
         var result = await handler.HandleAsync(sessionId);
 
@@ -164,7 +169,7 @@ public sealed class SessionAdminWorkflowHandlerTests
             .Setup(x => x.GetByIdAsync(sessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(session);
         var unitOfWork = SavingUnitOfWork();
-        var handler = new PublishSessionCommandHandler(sessionRepository.Object, unitOfWork.Object);
+        var handler = new PublishSessionCommandHandler(sessionRepository.Object, AppOnlyGroupResolver(), NoOpSyncService(), unitOfWork.Object);
 
         var result = await handler.HandleAsync(sessionId);
 
@@ -184,7 +189,7 @@ public sealed class SessionAdminWorkflowHandlerTests
         sessionRepository
             .Setup(x => x.GetByIdAsync(sessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(session);
-        var handler = new PublishSessionCommandHandler(sessionRepository.Object, SavingUnitOfWork().Object);
+        var handler = new PublishSessionCommandHandler(sessionRepository.Object, AppOnlyGroupResolver(), NoOpSyncService(), SavingUnitOfWork().Object);
 
         var act = () => handler.HandleAsync(sessionId);
 
@@ -202,7 +207,7 @@ public sealed class SessionAdminWorkflowHandlerTests
         sessionRepository
             .Setup(x => x.GetByIdAsync(sessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(session);
-        var handler = new PublishSessionCommandHandler(sessionRepository.Object, SavingUnitOfWork().Object);
+        var handler = new PublishSessionCommandHandler(sessionRepository.Object, AppOnlyGroupResolver(), NoOpSyncService(), SavingUnitOfWork().Object);
 
         var act = () => handler.HandleAsync(sessionId);
 
@@ -225,6 +230,8 @@ public sealed class SessionAdminWorkflowHandlerTests
             SeasonRepository(),
             VenueRepository(),
             sessionRepository.Object,
+            AppOnlyGroupResolver(),
+            NoOpSyncService(),
             unitOfWork.Object);
 
         var result = await handler.HandleAsync(ValidUpdateCommand(sessionId) with { Capacity = 24 });
@@ -251,6 +258,8 @@ public sealed class SessionAdminWorkflowHandlerTests
             SeasonRepository(),
             VenueRepository(),
             sessionRepository.Object,
+            AppOnlyGroupResolver(),
+            NoOpSyncService(),
             SavingUnitOfWork().Object);
 
         var act = () => handler.HandleAsync(ValidUpdateCommand(sessionId));
@@ -274,6 +283,8 @@ public sealed class SessionAdminWorkflowHandlerTests
             SeasonRepository(),
             VenueRepository(),
             sessionRepository.Object,
+            AppOnlyGroupResolver(),
+            NoOpSyncService(),
             SavingUnitOfWork().Object);
 
         var act = () => handler.HandleAsync(ValidUpdateCommand(sessionId));
@@ -295,6 +306,8 @@ public sealed class SessionAdminWorkflowHandlerTests
             SeasonRepository(),
             VenueRepository(),
             sessionRepository.Object,
+            AppOnlyGroupResolver(),
+            NoOpSyncService(),
             SavingUnitOfWork().Object);
 
         var act = () => handler.HandleAsync(ValidUpdateCommand(sessionId));
@@ -312,7 +325,7 @@ public sealed class SessionAdminWorkflowHandlerTests
         sessionRepository
             .Setup(x => x.GetByIdAsync(sessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(session);
-        var handler = new GetSessionForAdminEditQueryHandler(sessionRepository.Object, VenueRepository());
+        var handler = new GetSessionForAdminEditQueryHandler(sessionRepository.Object, VenueRepository(), AppOnlyGroupResolver());
 
         var result = await handler.HandleAsync(sessionId);
 
@@ -342,7 +355,7 @@ public sealed class SessionAdminWorkflowHandlerTests
             .ReturnsAsync(Array.Empty<Venue>());
         var clock = new Mock<IClock>();
         clock.SetupGet(x => x.UtcNow).Returns(Utc(2026, 7, 10, 12, 0));
-        var handler = new ListManagedSessionsQueryHandler(clock.Object, sessionRepository.Object, venueRepository.Object);
+        var handler = new ListManagedSessionsQueryHandler(clock.Object, sessionRepository.Object, venueRepository.Object, EmptyGroupChatRepository());
 
         await handler.HandleAsync(take: 500);
 
@@ -364,7 +377,7 @@ public sealed class SessionAdminWorkflowHandlerTests
             .ReturnsAsync(Array.Empty<Venue>());
         var clock = new Mock<IClock>();
         clock.SetupGet(x => x.UtcNow).Returns(Utc(2026, 7, 10, 12, 0));
-        var handler = new ListManagedSessionsQueryHandler(clock.Object, sessionRepository.Object, venueRepository.Object);
+        var handler = new ListManagedSessionsQueryHandler(clock.Object, sessionRepository.Object, venueRepository.Object, EmptyGroupChatRepository());
 
         await handler.HandleAsync(take: -5);
 
@@ -388,7 +401,7 @@ public sealed class SessionAdminWorkflowHandlerTests
             .ReturnsAsync(Array.Empty<Venue>());
         var clock = new Mock<IClock>();
         clock.SetupGet(x => x.UtcNow).Returns(Utc(2026, 7, 10, 12, 0));
-        var handler = new ListManagedSessionsQueryHandler(clock.Object, sessionRepository.Object, venueRepository.Object);
+        var handler = new ListManagedSessionsQueryHandler(clock.Object, sessionRepository.Object, venueRepository.Object, EmptyGroupChatRepository());
 
         var result = await handler.HandleAsync();
 
@@ -549,6 +562,36 @@ public sealed class SessionAdminWorkflowHandlerTests
                 Name = "Marina Field",
                 Locality = "Redondo Beach",
             });
+        return repository.Object;
+    }
+
+    private static SessionGroupResolver AppOnlyGroupResolver()
+    {
+        // Nobody is signed in, so no default group is resolved and every session stays app-only.
+        var currentUser = new Mock<ICurrentUser>();
+        currentUser.SetupGet(x => x.UserId).Returns((Guid?)null);
+        return new SessionGroupResolver(
+            currentUser.Object,
+            new Mock<IPlayerProfileRepository>().Object,
+            new Mock<IPlayerGroupLinkRepository>().Object,
+            new Mock<IGroupChatRepository>().Object);
+    }
+
+    private static ISessionPickupPalSyncService NoOpSyncService()
+    {
+        var service = new Mock<ISessionPickupPalSyncService>();
+        service
+            .Setup(x => x.SyncAfterLocalWriteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(PickupPalSyncStatus.NotApplicable);
+        return service.Object;
+    }
+
+    private static IGroupChatRepository EmptyGroupChatRepository()
+    {
+        var repository = new Mock<IGroupChatRepository>();
+        repository
+            .Setup(x => x.ListByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<SouthBaySoccer.Domain.Entities.Groups.GroupChat>());
         return repository.Object;
     }
 

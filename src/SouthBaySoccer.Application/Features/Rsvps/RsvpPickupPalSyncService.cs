@@ -244,7 +244,16 @@ public sealed class RsvpPickupPalSyncService(
         CancellationToken cancellationToken)
     {
         var session = await sessionRepository.GetByIdAsync(sessionId, cancellationToken);
-        if (session is null || !PickupPalOccurrenceKey.TryGetGameId(session.OccurrenceKey, out var gameId))
+        if (session is null)
+        {
+            return null;
+        }
+
+        // The stored game id is the link (app-created sessions keep their own occurrence key);
+        // the occurrence-key convention remains as the fallback for rows imported before the
+        // column existed.
+        var gameId = session.PickupPalGameId;
+        if (string.IsNullOrWhiteSpace(gameId) && !PickupPalOccurrenceKey.TryGetGameId(session.OccurrenceKey, out gameId))
         {
             return null;
         }
@@ -456,79 +465,9 @@ public sealed class RsvpPickupPalSyncService(
 /// In-process, per-(session, player) async lock for roster pushes. Registered as a singleton; the
 /// scope is one Function instance (see the story design's Limits for the cross-instance case).
 /// </summary>
-public sealed class RsvpPickupPalSyncGate
+public sealed class RsvpPickupPalSyncGate : KeyedAsyncGate<(Guid SessionId, Guid PlayerProfileId)>
 {
-    private readonly Dictionary<(Guid SessionId, Guid PlayerProfileId), Entry> entries = new();
-    private readonly object sync = new();
-
     /// <summary>Waits for exclusive access to the key; dispose the lease to release it.</summary>
-    public async Task<IDisposable> AcquireAsync(Guid sessionId, Guid playerProfileId, CancellationToken cancellationToken = default)
-    {
-        var key = (sessionId, playerProfileId);
-        Entry entry;
-        lock (sync)
-        {
-            if (!entries.TryGetValue(key, out var existing))
-            {
-                existing = new Entry();
-                entries[key] = existing;
-            }
-
-            entry = existing;
-            entry.Holders++;
-        }
-
-        try
-        {
-            await entry.Semaphore.WaitAsync(cancellationToken);
-        }
-        catch
-        {
-            Release(key, entry, acquired: false);
-            throw;
-        }
-
-        return new Lease(this, key, entry);
-    }
-
-    private void Release((Guid SessionId, Guid PlayerProfileId) key, Entry entry, bool acquired)
-    {
-        if (acquired)
-        {
-            entry.Semaphore.Release();
-        }
-
-        lock (sync)
-        {
-            entry.Holders--;
-            if (entry.Holders == 0)
-            {
-                entries.Remove(key);
-                entry.Semaphore.Dispose();
-            }
-        }
-    }
-
-    private sealed class Entry
-    {
-        public SemaphoreSlim Semaphore { get; } = new(1, 1);
-
-        public int Holders { get; set; }
-    }
-
-    private sealed class Lease(RsvpPickupPalSyncGate gate, (Guid SessionId, Guid PlayerProfileId) key, Entry entry) : IDisposable
-    {
-        private bool released;
-
-        public void Dispose()
-        {
-            if (released)
-            {
-                return;
-            }
-
-            released = true;
-            gate.Release(key, entry, acquired: true);
-        }
-    }
+    public Task<IDisposable> AcquireAsync(Guid sessionId, Guid playerProfileId, CancellationToken cancellationToken = default) =>
+        AcquireAsync((sessionId, playerProfileId), cancellationToken);
 }

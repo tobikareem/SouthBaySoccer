@@ -84,14 +84,17 @@ public sealed class PickupPalGameImportService(
                 warnings.Add(publishWarning);
             }
 
-            await ImportGameAsync(game, season.Id, publish, lookups, profileCache, cancellationToken);
-            imported++;
+            if (await ImportGameAsync(game, season.Id, publish, lookups, profileCache, cancellationToken))
+            {
+                imported++;
+            }
         }
 
         return new PickupPalImportResult(imported, games.Count - imported, warnings);
     }
 
-    private async Task ImportGameAsync(
+    /// <summary>Returns false when the game is deliberately skipped (its app-created session is deleted and awaiting termination).</summary>
+    private async Task<bool> ImportGameAsync(
         PickupPalGame game,
         Guid seasonId,
         bool publish,
@@ -102,24 +105,50 @@ public sealed class PickupPalGameImportService(
         var occurrenceKey = BuildOccurrenceKey(game.Id);
         var snapshot = lookups.SnapshotsByGameId.GetValueOrDefault(game.Id);
 
-        // Only adopt a session this import previously created — matched by its snapshot or its
-        // Pickup Pal occurrence key. A manual session that merely coincides in start time is left
-        // untouched; a new imported session is created for the game instead.
+        // Only adopt a session already linked to this game — matched by its snapshot, its Pickup
+        // Pal occurrence key, or its stored game id (an app-created session keeps its own
+        // occurrence key). A manual session that merely coincides in start time is left untouched;
+        // a new imported session is created for the game instead.
         var session = snapshot is not null
             ? lookups.SessionsById.GetValueOrDefault(snapshot.SessionId)
             : null;
         session ??= lookups.SessionsByOccurrenceKey.GetValueOrDefault(occurrenceKey);
+        session ??= lookups.SessionsByGameId.GetValueOrDefault(game.Id);
 
-        var venue = await ResolveOrCreateVenueAsync(game.Location, lookups, cancellationToken);
+        if (session is { IsDeleted: true })
+        {
+            if (session.PickupPalOrigin == PickupPalOrigin.CreatedByApp)
+            {
+                // The admin deleted the session and the game is being terminated on Pickup Pal
+                // (immediately or from the outbox); importing it again would resurrect it.
+                return false;
+            }
+
+            // A deleted imported session is never resurrected; the game gets a fresh session.
+            session = null;
+        }
 
         if (session is null)
         {
+            var venue = await ResolveOrCreateVenueAsync(game.Location, lookups, cancellationToken);
             session = new Session { Id = Guid.NewGuid(), SeasonId = seasonId };
             ApplyGame(session, game, venue, occurrenceKey, publish);
             await sessionRepository.AddAsync(session, cancellationToken);
         }
+        else if (session.PickupPalOrigin == PickupPalOrigin.CreatedByApp)
+        {
+            // The app created this game from the session, so the session's own fields (title,
+            // venue, capacity, times, status) are the source and flow the other way. Only the game
+            // identity is confirmed here; the venue is not resolved from the game's location
+            // because that string is our own "name, address" and would create a duplicate venue.
+            if (ApplyGameIdentity(session, game, occurrenceKey))
+            {
+                sessionRepository.Update(session);
+            }
+        }
         else
         {
+            var venue = await ResolveOrCreateVenueAsync(game.Location, lookups, cancellationToken);
             ApplyGame(session, game, venue, occurrenceKey, publish);
             sessionRepository.Update(session);
         }
@@ -164,6 +193,7 @@ public sealed class PickupPalGameImportService(
         }
 
         await gameRepository.ReplaceParticipantsAsync(session.Id, participants, cancellationToken);
+        return true;
     }
 
     /// <summary>
@@ -373,6 +403,8 @@ public sealed class PickupPalGameImportService(
         session.CheckInClosesAtUtc = game.StartsAtUtc.AddMinutes(5);
         session.RsvpDeadlineUtc = game.StartsAtUtc.AddHours(-1);
         session.OccurrenceKey = occurrenceKey;
+        session.PickupPalOrigin = PickupPalOrigin.Imported;
+        session.PickupPalGameId = game.Id;
         // Non-destructive: only promote to Published when the game validated as publishable. An
         // unpublishable game leaves a new session at its Draft default and never demotes an
         // already-published one.
@@ -380,6 +412,29 @@ public sealed class PickupPalGameImportService(
         {
             session.Status = SessionStatus.Published;
         }
+    }
+
+    /// <summary>
+    /// Confirms the game identity on an app-created session without touching the fields the app
+    /// owns. The game id is the link; an occurrence key the session already has (for example a
+    /// recurrence key) is never overwritten. Returns whether anything changed.
+    /// </summary>
+    private static bool ApplyGameIdentity(Session session, PickupPalGame game, string occurrenceKey)
+    {
+        var changed = false;
+        if (session.OccurrenceKey is null)
+        {
+            session.OccurrenceKey = occurrenceKey;
+            changed = true;
+        }
+
+        if (!string.Equals(session.PickupPalGameId, game.Id, StringComparison.Ordinal))
+        {
+            session.PickupPalGameId = game.Id;
+            changed = true;
+        }
+
+        return changed;
     }
 
     // Pickup Pal's active-games feed is authoritative for whether an imported game is active.
@@ -470,6 +525,12 @@ public sealed class PickupPalGameImportService(
             await sessionRepository.ListByOccurrenceKeysAsync(occurrenceKeys, cancellationToken),
             session => session.OccurrenceKey,
             lookups.SessionsByOccurrenceKey);
+
+        IndexByRequestedKey(
+            gameIds,
+            await sessionRepository.ListByPickupPalGameIdsAsync(gameIds, cancellationToken),
+            session => session.PickupPalGameId,
+            lookups.SessionsByGameId);
 
         var participants = games.SelectMany(game => game.Participants).ToArray();
 
@@ -632,6 +693,9 @@ public sealed class PickupPalGameImportService(
         public Dictionary<Guid, Session> SessionsById { get; } = [];
 
         public Dictionary<string, Session> SessionsByOccurrenceKey { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>Sessions linked by their stored Pickup Pal game id (app-created sessions keep their own occurrence key).</summary>
+        public Dictionary<string, Session> SessionsByGameId { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<string, PlayerProfile> ProfilesByPickupPalUserId { get; } = new(StringComparer.Ordinal);
 

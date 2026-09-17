@@ -1,5 +1,6 @@
 using SouthBaySoccer.Application.Features.Onboarding;
 using SouthBaySoccer.Application.Features.Rsvps;
+using SouthBaySoccer.Application.Features.Scheduling;
 
 namespace SouthBaySoccer.Application.Features.Outbox;
 
@@ -14,6 +15,7 @@ public static class OutboxMessageTypes
     public static readonly IReadOnlyList<string> Handled =
     [
         RsvpOutboxMessages.RsvpPickupPalSyncRequested,
+        SessionOutboxMessages.SessionPickupPalSyncRequested,
         OnboardingOutboxMessages.PickupPalUserDeletionRequested,
     ];
 }

@@ -2,6 +2,7 @@ using System.Text.Json;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Onboarding;
 using SouthBaySoccer.Application.Features.Rsvps;
+using SouthBaySoccer.Application.Features.Scheduling;
 using SouthBaySoccer.Domain.Entities.Operations;
 
 namespace SouthBaySoccer.Application.Features.Outbox;
@@ -29,6 +30,37 @@ public sealed class RsvpPickupPalSyncOutboxHandler(IRsvpPickupPalSyncService syn
         var outcome = await syncService.PushCurrentStateAsync(sessionId, playerProfileId, cancellationToken);
         return outcome.IsRetryable
             ? OutboxHandlingResult.Retry(outcome.ErrorCode ?? PickupPalSyncErrorCodes.Unexpected)
+            : OutboxHandlingResult.Completed();
+    }
+}
+
+/// <summary>
+/// Retries a session game push (create, update, or terminate). The payload identifies the session
+/// and the admin who acted; the action is re-derived from the session's current local state so the
+/// last local write wins. Terminal outcomes (rejected, missing creator or group) complete the row:
+/// they are recorded on the session and only a new admin write reopens them.
+/// </summary>
+public sealed class SessionPickupPalSyncOutboxHandler(ISessionPickupPalSyncService syncService) : IOutboxMessageHandler
+{
+    /// <summary>Reason code for a payload the handler cannot read.</summary>
+    public const string InvalidPayloadCode = "InvalidPayload";
+
+    public string MessageType => SessionOutboxMessages.SessionPickupPalSyncRequested;
+
+    public async Task<OutboxHandlingResult> HandleAsync(OutboxMessage message, CancellationToken cancellationToken = default)
+    {
+        if (!OutboxPayload.TryReadGuid(message.PayloadJson, "SessionId", out var sessionId))
+        {
+            return OutboxHandlingResult.Fail(InvalidPayloadCode);
+        }
+
+        Guid? actingPlayerProfileId = OutboxPayload.TryReadGuid(message.PayloadJson, "ActingPlayerProfileId", out var actingId)
+            ? actingId
+            : null;
+
+        var outcome = await syncService.PushCurrentStateAsync(sessionId, actingPlayerProfileId, cancellationToken);
+        return outcome.IsRetryable
+            ? OutboxHandlingResult.Retry(outcome.ErrorCode ?? SessionPickupPalSyncErrorCodes.Unexpected)
             : OutboxHandlingResult.Completed();
     }
 }

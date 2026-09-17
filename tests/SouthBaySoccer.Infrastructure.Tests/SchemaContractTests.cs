@@ -44,6 +44,20 @@ public sealed class SchemaContractTests
     }
 
     [Fact]
+    public async Task Sessions_WhenSchemaCreated_CarryGroupAndPickupPalGameColumns()
+    {
+        using var db = CreateDbContext();
+        var columns = await GetColumnsAsync(db, "Sessions");
+
+        columns.Should().Contain("GroupChatId")
+            .And.Contain("PickupPalOrigin")
+            .And.Contain("PickupPalGameId")
+            .And.Contain("PickupPalSyncStatus")
+            .And.Contain("PickupPalSyncedAtUtc")
+            .And.Contain("PickupPalSyncError");
+    }
+
+    [Fact]
     public async Task OutboxMessages_WhenSchemaCreated_UseRowVersionForWriterRaces()
     {
         using var db = CreateDbContext();

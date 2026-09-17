@@ -12,6 +12,8 @@ public sealed class CreateSessionCommandHandler(
     ISeasonRepository seasonRepository,
     IVenueRepository venueRepository,
     ISessionRepository sessionRepository,
+    SessionGroupResolver groupResolver,
+    ISessionPickupPalSyncService pickupPalSyncService,
     IUnitOfWork unitOfWork)
 {
     public async Task<SessionModel> HandleAsync(CreateSessionCommand command, CancellationToken cancellationToken = default)
@@ -31,10 +33,16 @@ public sealed class CreateSessionCommandHandler(
         await EnsureNotDuplicateAsync(
             sessionRepository, command.VenueId, command.Title, command.StartsAtUtc, cancellationToken);
 
+        var group = await groupResolver.ResolveAsync(command.GroupChatId, cancellationToken);
         var session = CreateSession(command);
+        session.GroupChatId = group?.Id;
         await sessionRepository.AddAsync(session, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return SchedulingMappers.ToModel(session);
+
+        // A session created directly as Published with a group is mirrored to Pickup Pal the same
+        // way a publish is; drafts and app-only sessions are NotApplicable inside the service.
+        await pickupPalSyncService.SyncAfterLocalWriteAsync(session.Id, cancellationToken);
+        return SchedulingMappers.ToModel(session, group);
     }
 
     private async Task EnsureParentsExistAsync(Guid seasonId, Guid venueId, CancellationToken cancellationToken)
@@ -128,6 +136,8 @@ public sealed class ListUpcomingSessionsQueryHandler(
 
 public sealed class CancelSessionCommandHandler(
     ISessionRepository sessionRepository,
+    SessionGroupResolver groupResolver,
+    ISessionPickupPalSyncService pickupPalSyncService,
     IUnitOfWork unitOfWork)
 {
     public async Task<SessionModel> HandleAsync(CancelSessionCommand command, CancellationToken cancellationToken = default)
@@ -143,12 +153,18 @@ public sealed class CancelSessionCommandHandler(
         session.Status = SessionStatus.Canceled;
         sessionRepository.Update(session);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return SchedulingMappers.ToModel(session);
+
+        // Local first: the cancellation is committed; a game the app created is terminated on
+        // Pickup Pal afterwards (imported games are Pickup Pal's and are left alone).
+        await pickupPalSyncService.SyncAfterLocalWriteAsync(session.Id, cancellationToken);
+        var group = await groupResolver.FindAsync(session.GroupChatId, cancellationToken);
+        return SchedulingMappers.ToModel(session, group);
     }
 }
 
 public sealed class DeleteSessionCommandHandler(
     ISessionRepository sessionRepository,
+    ISessionPickupPalSyncService pickupPalSyncService,
     IUnitOfWork unitOfWork)
 {
     public async Task HandleAsync(DeleteSessionCommand command, CancellationToken cancellationToken = default)
@@ -158,6 +174,7 @@ public sealed class DeleteSessionCommandHandler(
 
         sessionRepository.SoftDelete(session);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        await pickupPalSyncService.SyncAfterLocalWriteAsync(session.Id, cancellationToken);
     }
 }
 

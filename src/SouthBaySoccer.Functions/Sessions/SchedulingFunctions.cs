@@ -163,7 +163,8 @@ public sealed class SchedulingFunctions(
                 body.CheckInClosesAtUtc,
                 body.RsvpDeadlineUtc,
                 body.RecurrenceRuleId,
-                body.OccurrenceKey),
+                body.OccurrenceKey,
+                GroupChatId: body.GroupChatId),
             cancellationToken);
 
         return await WriteJsonAsync(request, HttpStatusCode.Created, ToResponse(session), cancellationToken);
@@ -319,7 +320,9 @@ public sealed class SchedulingFunctions(
             session.Format,
             session.Capacity,
             session.Status,
-            string.Equals(session.Status, "Canceled", StringComparison.OrdinalIgnoreCase));
+            string.Equals(session.Status, "Canceled", StringComparison.OrdinalIgnoreCase),
+            session.GroupChatId,
+            session.GroupName);
     }
 
     private static ManagedSessionEditDto ToResponse(ManagedSessionEditModel session)
@@ -343,8 +346,10 @@ public sealed class SchedulingFunctions(
                 localRsvpDeadline.TimeOfDay,
                 DayOffset(localCheckInOpen, localStart),
                 DayOffset(localCheckInClose, localStart),
-                DayOffset(localRsvpDeadline, localStart)),
-            string.Equals(session.Status, "Published", StringComparison.OrdinalIgnoreCase));
+                DayOffset(localRsvpDeadline, localStart),
+                session.GroupChatId),
+            string.Equals(session.Status, "Published", StringComparison.OrdinalIgnoreCase),
+            session.GroupName);
     }
 
     /// <summary>
@@ -371,7 +376,9 @@ public sealed class SchedulingFunctions(
             session.CheckInClosesAtUtc,
             session.RsvpDeadlineUtc,
             session.OccurrenceKey,
-            session.Status);
+            session.Status,
+            GroupName: session.GroupName,
+            GroupChatId: session.GroupChatId);
 
     private static SessionAdminResponse ToResponse(SessionFeedModel feed) =>
         new(
@@ -410,7 +417,8 @@ public sealed class SchedulingFunctions(
             SessionAdminTimeZone.ToUtc(command.GameDateLocal.AddDays(command.CheckInCloseDayOffset), command.CheckInCloseLocal),
             SessionAdminTimeZone.ToUtc(
                 command.GameDateLocal.AddDays(command.RsvpDeadlineDayOffset),
-                command.RsvpDeadlineLocal ?? command.StartTimeLocal.Subtract(TimeSpan.FromHours(1))));
+                command.RsvpDeadlineLocal ?? command.StartTimeLocal.Subtract(TimeSpan.FromHours(1))),
+            command.GroupChatId);
 
     private static UpdateSessionAdminCommand ToUpdateCommand(Guid sessionId, ContractCreateSessionCommand command) =>
         new(
@@ -425,7 +433,8 @@ public sealed class SchedulingFunctions(
             SessionAdminTimeZone.ToUtc(command.GameDateLocal.AddDays(command.CheckInCloseDayOffset), command.CheckInCloseLocal),
             SessionAdminTimeZone.ToUtc(
                 command.GameDateLocal.AddDays(command.RsvpDeadlineDayOffset),
-                command.RsvpDeadlineLocal ?? command.StartTimeLocal.Subtract(TimeSpan.FromHours(1))));
+                command.RsvpDeadlineLocal ?? command.StartTimeLocal.Subtract(TimeSpan.FromHours(1))),
+            command.GroupChatId);
 
     private static string? ReadOptionalString(
         IDictionary<string, Microsoft.Extensions.Primitives.StringValues> query,

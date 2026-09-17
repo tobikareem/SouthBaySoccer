@@ -1,6 +1,7 @@
 using FluentAssertions;
 using FluentValidation;
 using Moq;
+using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Scheduling;
 using SouthBaySoccer.Domain.Entities.Scheduling;
@@ -142,7 +143,7 @@ public sealed class SchedulingCommandHandlerTests
             .Setup(x => x.GetByIdAsync(session.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(session);
         var unitOfWork = CreateSavingUnitOfWork();
-        var handler = new DeleteSessionCommandHandler(sessionRepository.Object, unitOfWork.Object);
+        var handler = new DeleteSessionCommandHandler(sessionRepository.Object, NoOpSyncService(), unitOfWork.Object);
 
         await handler.HandleAsync(new DeleteSessionCommand(session.Id));
 
@@ -155,7 +156,7 @@ public sealed class SchedulingCommandHandlerTests
     {
         var sessionRepository = new Mock<ISessionRepository>();
         var unitOfWork = CreateSavingUnitOfWork();
-        var handler = new DeleteSessionCommandHandler(sessionRepository.Object, unitOfWork.Object);
+        var handler = new DeleteSessionCommandHandler(sessionRepository.Object, NoOpSyncService(), unitOfWork.Object);
 
         var act = () => handler.HandleAsync(new DeleteSessionCommand(Guid.NewGuid()));
 
@@ -185,7 +186,30 @@ public sealed class SchedulingCommandHandlerTests
             seasonRepository.Object,
             venueRepository.Object,
             (sessionRepository ?? new Mock<ISessionRepository>()).Object,
+            AppOnlyGroupResolver(),
+            NoOpSyncService(),
             (unitOfWork ?? CreateSavingUnitOfWork()).Object);
+    }
+
+    private static SessionGroupResolver AppOnlyGroupResolver()
+    {
+        // Nobody is signed in, so no default group is resolved and every session stays app-only.
+        var currentUser = new Mock<ICurrentUser>();
+        currentUser.SetupGet(x => x.UserId).Returns((Guid?)null);
+        return new SessionGroupResolver(
+            currentUser.Object,
+            new Mock<IPlayerProfileRepository>().Object,
+            new Mock<IPlayerGroupLinkRepository>().Object,
+            new Mock<IGroupChatRepository>().Object);
+    }
+
+    private static ISessionPickupPalSyncService NoOpSyncService()
+    {
+        var service = new Mock<ISessionPickupPalSyncService>();
+        service
+            .Setup(x => x.SyncAfterLocalWriteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(PickupPalSyncStatus.NotApplicable);
+        return service.Object;
     }
 
     private static Mock<IUnitOfWork> CreateSavingUnitOfWork()

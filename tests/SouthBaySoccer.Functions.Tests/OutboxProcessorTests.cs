@@ -44,6 +44,7 @@ public sealed class OutboxProcessorTests
         OutboxMessageTypes.Handled.Should().BeEquivalentTo(
         [
             new RsvpPickupPalSyncOutboxHandler(Mock.Of<SouthBaySoccer.Application.Features.Rsvps.IRsvpPickupPalSyncService>()).MessageType,
+            new SessionPickupPalSyncOutboxHandler(Mock.Of<SouthBaySoccer.Application.Features.Scheduling.ISessionPickupPalSyncService>()).MessageType,
             new PickupPalUserDeletionOutboxHandler(Mock.Of<SouthBaySoccer.Application.Features.Onboarding.IPickupPalOnboardingClient>()).MessageType,
         ]);
     }

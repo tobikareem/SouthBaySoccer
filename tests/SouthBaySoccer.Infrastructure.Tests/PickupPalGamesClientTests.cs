@@ -434,6 +434,210 @@ public sealed class PickupPalGamesClientTests
         chain.Should().HaveCount(2, "only the factory's lifetime tracker and the primary handler may remain: {0}", string.Join(" -> ", chain));
     }
 
+    // SES-7: game create / update / terminate for app-published sessions.
+    private static readonly DateTime CreateStartUtc = new(2026, 9, 19, 2, 40, 0, DateTimeKind.Utc); // 2026-09-18 19:40 in Los Angeles (PDT)
+
+    private static PickupPalGameCreateRequest CreateRequest(string timeZoneId = "America/Los_Angeles") =>
+        new("1408-1520@g.us", CreateStartUtc, timeZoneId, "Caribbean Park, 969 E Caribbean Dr", 14, "pp-admin-1");
+
+    [Fact]
+    public async Task CreateGameAsync_SendsTheWhatsAppGroupContractFieldsWithGroupLocalDateAndTime()
+    {
+        HttpRequestMessage? observed = null;
+        string? body = null;
+        var client = CreateClient(request =>
+        {
+            observed = request;
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse("""{ "id": "game-9", "status": "active" }""", HttpStatusCode.Created);
+        }, options => options.ApiKey = "secret-key");
+
+        var result = await client.CreateGameAsync(CreateRequest());
+
+        result.Result.Should().Be(PickupPalGameWriteResult.Applied);
+        result.GameId.Should().Be("game-9");
+        observed!.Method.Should().Be(HttpMethod.Post);
+        observed.RequestUri!.AbsolutePath.Should().Be("/api/games");
+        observed.Headers.GetValues("X-Api-Key").Single().Should().Be("secret-key");
+        using var json = System.Text.Json.JsonDocument.Parse(body!);
+        var root = json.RootElement;
+        root.GetProperty("gameType").GetString().Should().Be("WHATSAPP_GROUP");
+        root.GetProperty("groupId").GetString().Should().Be("1408-1520@g.us");
+        root.GetProperty("date").GetString().Should().Be("2026-09-18");
+        root.GetProperty("time").GetString().Should().Be("19:40:00");
+        root.GetProperty("location").GetString().Should().Be("Caribbean Park, 969 E Caribbean Dr");
+        root.GetProperty("maxPlayers").GetInt32().Should().Be(14);
+        root.GetProperty("creatorId").GetString().Should().Be("pp-admin-1");
+        root.GetProperty("sport").GetString().Should().Be("SOCCER");
+        root.GetProperty("timezone").GetString().Should().Be("America/Los_Angeles");
+        root.TryGetProperty("lat", out _).Should().BeFalse();
+        root.TryGetProperty("lng", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task CreateGameAsync_WhenGroupZoneDiffers_FormatsTheStartInThatZone()
+    {
+        string? body = null;
+        var client = CreateClient(request =>
+        {
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse("""{ "id": "game-9" }""");
+        });
+
+        await client.CreateGameAsync(CreateRequest("America/New_York"));
+
+        using var json = System.Text.Json.JsonDocument.Parse(body!);
+        json.RootElement.GetProperty("date").GetString().Should().Be("2026-09-18");
+        json.RootElement.GetProperty("time").GetString().Should().Be("22:40:00");
+        json.RootElement.GetProperty("timezone").GetString().Should().Be("America/New_York");
+    }
+
+    [Theory]
+    [InlineData("""{ "game": { "id": "game-9" } }""")]
+    [InlineData("""{ "gameId": "game-9" }""")]
+    [InlineData("""{ "game": { "gameId": "game-9", "id": "" } }""")]
+    public async Task CreateGameAsync_ToleratesEnvelopeAndIdPropertyVariants(string responseJson)
+    {
+        var client = CreateClient(_ => JsonResponse(responseJson));
+
+        var result = await client.CreateGameAsync(CreateRequest());
+
+        result.Result.Should().Be(PickupPalGameWriteResult.Applied);
+        result.GameId.Should().Be("game-9");
+    }
+
+    [Theory]
+    [InlineData("""{ "ok": true }""")]
+    [InlineData("not json")]
+    [InlineData("")]
+    public async Task CreateGameAsync_WhenSuccessCarriesNoGameId_ReportsInvalidResponseInsteadOfRetrying(string responseJson)
+    {
+        var client = CreateClient(_ => JsonResponse(responseJson));
+
+        var result = await client.CreateGameAsync(CreateRequest());
+
+        result.Result.Should().Be(PickupPalGameWriteResult.InvalidResponse);
+        result.GameId.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("""{ "error": "Group not found" }""")]
+    [InlineData("""{ "error": { "message": "Invalid date", "status": 400 } }""")]
+    [InlineData("")]
+    public async Task CreateGameAsync_WhenPickupPalAnswers400_IsTerminallyRejected(string body)
+    {
+        var client = CreateClient(_ => JsonResponse(body, HttpStatusCode.BadRequest));
+
+        var result = await client.CreateGameAsync(CreateRequest());
+
+        result.Result.Should().Be(PickupPalGameWriteResult.Rejected);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    public async Task GameWrites_WhenPickupPalRefusesOrFails_AreRetryable(HttpStatusCode statusCode)
+    {
+        var client = CreateClient(_ => JsonResponse("""{ "error": { "message": "nope", "status": 500 } }""", statusCode));
+
+        var create = () => client.CreateGameAsync(CreateRequest());
+        var update = () => client.UpdateGameAsync("game-9", new PickupPalGameUpdateRequest("Park", 14, null, "America/Los_Angeles"));
+        var terminate = () => client.TerminateGameAsync("game-9");
+
+        await create.Should().ThrowAsync<ApplicationServiceUnavailableException>();
+        await update.Should().ThrowAsync<ApplicationServiceUnavailableException>();
+        await terminate.Should().ThrowAsync<ApplicationServiceUnavailableException>();
+    }
+
+    [Fact]
+    public async Task GameWrites_WhenPickupPalTimesOut_AreRetryable()
+    {
+        var client = CreateClient(_ => throw new TaskCanceledException("timeout"));
+
+        var create = () => client.CreateGameAsync(CreateRequest());
+
+        await create.Should().ThrowAsync<ApplicationServiceUnavailableException>();
+    }
+
+    [Fact]
+    public async Task UpdateGameAsync_WhenStartUnchanged_SendsOnlyLocationAndMaxPlayers()
+    {
+        HttpRequestMessage? observed = null;
+        string? body = null;
+        var client = CreateClient(request =>
+        {
+            observed = request;
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+
+        var result = await client.UpdateGameAsync("game 9", new PickupPalGameUpdateRequest("New Park", 16, null, "America/Los_Angeles"));
+
+        result.Should().Be(PickupPalGameWriteResult.Applied);
+        observed!.Method.Should().Be(HttpMethod.Put);
+        observed.RequestUri!.AbsolutePath.Should().Be("/api/games/game%209");
+        using var json = System.Text.Json.JsonDocument.Parse(body!);
+        json.RootElement.GetProperty("location").GetString().Should().Be("New Park");
+        json.RootElement.GetProperty("maxPlayers").GetInt32().Should().Be(16);
+        json.RootElement.TryGetProperty("date", out _).Should().BeFalse();
+        json.RootElement.TryGetProperty("time", out _).Should().BeFalse();
+        json.RootElement.TryGetProperty("timezone", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task UpdateGameAsync_WhenStartChanged_AlsoSendsDateTimeAndTimezone()
+    {
+        string? body = null;
+        var client = CreateClient(request =>
+        {
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+
+        await client.UpdateGameAsync("game-9", new PickupPalGameUpdateRequest("New Park", 16, CreateStartUtc, "America/Los_Angeles"));
+
+        using var json = System.Text.Json.JsonDocument.Parse(body!);
+        json.RootElement.GetProperty("date").GetString().Should().Be("2026-09-18");
+        json.RootElement.GetProperty("time").GetString().Should().Be("19:40:00");
+        json.RootElement.GetProperty("timezone").GetString().Should().Be("America/Los_Angeles");
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound, "", PickupPalGameWriteResult.GameNotFound)]
+    [InlineData(HttpStatusCode.BadRequest, """{ "error": "Game not found" }""", PickupPalGameWriteResult.GameNotFound)]
+    [InlineData(HttpStatusCode.BadRequest, """{ "error": "maxPlayers must be positive" }""", PickupPalGameWriteResult.Rejected)]
+    [InlineData(HttpStatusCode.Conflict, """{ "error": { "message": "Game already terminated" } }""", PickupPalGameWriteResult.Rejected)]
+    public async Task UpdateAndTerminate_MapClientFailuresToTerminalOutcomes(HttpStatusCode statusCode, string body, PickupPalGameWriteResult expected)
+    {
+        var client = CreateClient(_ => JsonResponse(body, statusCode));
+
+        var update = await client.UpdateGameAsync("game-9", new PickupPalGameUpdateRequest("Park", 14, null, "America/Los_Angeles"));
+        var terminate = await client.TerminateGameAsync("game-9");
+
+        update.Should().Be(expected);
+        terminate.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task TerminateGameAsync_SendsDeleteToTheGameRoute()
+    {
+        HttpRequestMessage? observed = null;
+        var client = CreateClient(request =>
+        {
+            observed = request;
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+
+        var result = await client.TerminateGameAsync("game-9");
+
+        result.Should().Be(PickupPalGameWriteResult.Applied);
+        observed!.Method.Should().Be(HttpMethod.Delete);
+        observed.RequestUri!.AbsolutePath.Should().Be("/api/games/game-9");
+        observed.Content.Should().BeNull();
+    }
+
     private static PickupPalGamesClient CreateClient(
         Func<HttpRequestMessage, HttpResponseMessage> send,
         Action<PickupPalApiOptions>? configure = null)

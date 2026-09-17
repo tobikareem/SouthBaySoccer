@@ -32,6 +32,23 @@ public sealed class RsvpPickupPalSyncServiceTests
     }
 
     [Fact]
+    public async Task SyncAfterLocalWriteAsync_WhenSessionCarriesAGameIdButAnotherOccurrenceKey_SyncsByGameId()
+    {
+        // An app-created recurrence occurrence keeps its recurrence key; the stored game id is the link.
+        var context = new TestContext(occurrenceKey: $"{Guid.NewGuid():N}:20260916T180000Z", pickupPalGameId: "game-7");
+        context.GamesClient
+            .Setup(x => x.AddPlayerAsync("game-7", "pp-user-1", "Ada Lovelace", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(PickupPalRosterPushResult.Applied);
+        context.GamesClient
+            .Setup(x => x.GetGameAsync("game-7", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SampleGame("game-7"));
+
+        var status = await context.Service.SyncAfterLocalWriteAsync(context.Session.Id, context.Profile.Id);
+
+        status.Should().Be(PickupPalSyncStatus.Synced);
+    }
+
+    [Fact]
     public async Task SyncAfterLocalWriteAsync_WhenProfileHasNoPickupPalUserId_ReturnsNotApplicableWithoutCallingPickupPal()
     {
         var context = new TestContext(pickupPalUserId: null);
@@ -433,9 +450,10 @@ public sealed class RsvpPickupPalSyncServiceTests
         public TestContext(
             string? occurrenceKey = "pickuppal:game-1",
             string? pickupPalUserId = "pp-user-1",
-            RsvpMutationState? localState = RsvpMutationState.Going)
+            RsvpMutationState? localState = RsvpMutationState.Going,
+            string? pickupPalGameId = null)
         {
-            Session = new Session { Id = Guid.NewGuid(), OccurrenceKey = occurrenceKey, Status = SessionStatus.Published };
+            Session = new Session { Id = Guid.NewGuid(), OccurrenceKey = occurrenceKey, PickupPalGameId = pickupPalGameId, Status = SessionStatus.Published };
             Profile = new PlayerProfile { Id = Guid.NewGuid(), DisplayName = "Ada Lovelace", PickupPalUserId = pickupPalUserId };
             Rsvp = new RsvpResponse { Id = Guid.NewGuid(), SessionId = Session.Id, PlayerProfileId = Profile.Id, Status = RsvpStatus.Going };
 
