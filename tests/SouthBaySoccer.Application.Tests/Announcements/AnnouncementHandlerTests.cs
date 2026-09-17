@@ -316,7 +316,7 @@ public sealed class AnnouncementHandlerTests
         var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = identityUserId };
         var links = new Mock<IPlayerGroupLinkRepository>();
         links
-            .Setup(x => x.ListByPlayerAsync(profile.Id, It.IsAny<CancellationToken>()))
+            .Setup(x => x.ListApprovedByPlayerAsync(profile.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         var announcements = new Mock<IAnnouncementRepository>(MockBehavior.Strict);
 
@@ -340,7 +340,7 @@ public sealed class AnnouncementHandlerTests
         var groupChatId = Guid.NewGuid();
         var links = new Mock<IPlayerGroupLinkRepository>();
         links
-            .Setup(x => x.ListByPlayerAsync(profile.Id, It.IsAny<CancellationToken>()))
+            .Setup(x => x.ListApprovedByPlayerAsync(profile.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync([new PlayerGroupLink { PlayerProfileId = profile.Id, GroupChatId = groupChatId }]);
         var announcements = new Mock<IAnnouncementRepository>();
         announcements

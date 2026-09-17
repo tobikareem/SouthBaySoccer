@@ -985,3 +985,63 @@ public class CreateSessionPageModelTests
             Times.Never);
     }
 }
+
+public class CreateSessionGroupChoiceTests
+{
+    private static SouthBaySoccer.Contracts.Groups.GroupMembershipDto Membership(Guid id, string name, string status) =>
+        new(id, name, status, SouthBaySoccer.Contracts.Groups.GroupMemberRoles.Member,
+            SouthBaySoccer.Contracts.Groups.GroupMembershipSources.WhatsApp, DateTime.UtcNow, DateTime.UtcNow);
+
+    private static Mock<IGroupsClient> Groups(params SouthBaySoccer.Contracts.Groups.GroupMembershipDto[] memberships)
+    {
+        var groups = new Mock<IGroupsClient>();
+        groups.Setup(g => g.GetMyMembershipsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SouthBaySoccer.Contracts.Groups.MyGroupMembershipsResponse(false, memberships.Length > 0, memberships));
+        return groups;
+    }
+
+    [Fact]
+    public async Task Load_SingleApprovedGroup_SelectsItAndHidesPicker()
+    {
+        var id = Guid.NewGuid();
+        var pageModel = new CreateSessionPageModel(
+            new SeedSessionAdminClient(new SeedState()), Mock.Of<ISessionsNavigator>(), Mock.Of<IUserDialogService>(),
+            Groups(Membership(id, "Bay Area Soccer", "Approved"), Membership(Guid.NewGuid(), "Morning", "Pending")).Object);
+
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        pageModel.GroupOptions.Should().ContainSingle().Which.Id.Should().Be(id);
+        pageModel.SelectedGroup!.Id.Should().Be(id);
+        pageModel.HasGroupChoice.Should().BeFalse();
+        pageModel.GroupHint.Should().Be(CreateSessionPageModel.GroupHintSingle);
+    }
+
+    [Fact]
+    public async Task Load_TwoApprovedGroups_RequiresAChoice()
+    {
+        var pageModel = new CreateSessionPageModel(
+            new SeedSessionAdminClient(new SeedState()), Mock.Of<ISessionsNavigator>(), Mock.Of<IUserDialogService>(),
+            Groups(Membership(Guid.NewGuid(), "A", "Approved"), Membership(Guid.NewGuid(), "B", "Approved")).Object);
+
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        pageModel.HasGroupChoice.Should().BeTrue();
+        pageModel.SelectedGroup.Should().BeNull();
+        pageModel.GroupHint.Should().Be(CreateSessionPageModel.GroupHintChoose);
+    }
+
+    [Fact]
+    public async Task Load_GroupsClientFails_StaysAppOnlyWithoutBlockingTheForm()
+    {
+        var groups = new Mock<IGroupsClient>();
+        groups.Setup(g => g.GetMyMembershipsAsync(It.IsAny<CancellationToken>())).ThrowsAsync(new HttpRequestException("offline"));
+        var pageModel = new CreateSessionPageModel(
+            new SeedSessionAdminClient(new SeedState()), Mock.Of<ISessionsNavigator>(), Mock.Of<IUserDialogService>(), groups.Object);
+
+        await pageModel.LoadCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.GroupOptions.Should().BeEmpty();
+        pageModel.GroupHint.Should().Be(CreateSessionPageModel.GroupHintNone);
+    }
+}

@@ -85,6 +85,15 @@ public interface IPlayerProfileRepository : IRepository<PlayerProfile>
     Task<IReadOnlyList<PlayerDirectoryReadModel>> ListDirectoryAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Lists up to <paramref name="take"/> profiles whose display name contains the fragment,
+    /// by name. The fragment is a name only; callers must never pass phone numbers or emails.
+    /// </summary>
+    Task<IReadOnlyList<PlayerProfile>> SearchByDisplayNameAsync(
+        string normalizedFragment,
+        int take,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Finds the active emergency contact for a profile.
     /// </summary>
     Task<EmergencyContact?> FindEmergencyContactAsync(Guid playerProfileId, CancellationToken cancellationToken = default);

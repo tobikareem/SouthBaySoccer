@@ -1,6 +1,7 @@
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
+using SouthBaySoccer.Application.Features.Groups;
 using SouthBaySoccer.Application.Features.Rsvps;
 using SouthBaySoccer.Application.Features.Stats;
 using SouthBaySoccer.Domain.Entities.Identity;
@@ -69,7 +70,9 @@ public sealed record GameDayContextModel(
     string? JoinBlockedReason = null,
     int Capacity = 0,
     bool CanShowAllGames = false,
-    bool IsShowingAllGames = false);
+    bool IsShowingAllGames = false,
+    Guid? GroupChatId = null,
+    string? MembershipStatus = null);
 
 /// <summary>
 /// One of today's games the player can act on, used to build the Game Day picker when more than one
@@ -561,7 +564,8 @@ public sealed class GetTodayGameDayContextQueryHandler(
     IPickupPalGameRepository pickupPalGameRepository,
     IPlayerGroupLinkRepository playerGroupLinkRepository,
     IStatsRepository statsRepository,
-    IPlayerSessionEligibilityService eligibilityService)
+    IPlayerSessionEligibilityService eligibilityService,
+    IGroupMembershipGate groupMembershipGate)
 {
     private const string CanCheckInPlayersPolicy = "CanCheckInPlayers";
 
@@ -717,6 +721,9 @@ public sealed class GetTodayGameDayContextQueryHandler(
         // waiver/payment gates still run when the RSVP is actually submitted.
         var canJoin = false;
         string? joinBlockedReason = null;
+        // GRP-1: the session's group and the viewer's standing in it. Joining a group's game is
+        // reserved for approved members; a session without a group is open to everyone.
+        var groupAccess = (await groupMembershipGate.ResolveAccessAsync([session], profile.Id, cancellationToken))[session.Id];
         if (isSpectator)
         {
             canAssignCaptains = false;
@@ -727,8 +734,13 @@ public sealed class GetTodayGameDayContextQueryHandler(
             canManageCheckIns = false;
             canSubmitOwnStats = false;
             canViewTeams = false;
-            canJoin = session.Status == SessionStatus.Published && nowUtc < session.RsvpDeadlineUtc;
-            joinBlockedReason = canJoin ? null : "RSVP is closed for this game.";
+            var isRsvpOpen = session.Status == SessionStatus.Published && nowUtc < session.RsvpDeadlineUtc;
+            canJoin = isRsvpOpen && groupAccess.CanJoin;
+            joinBlockedReason = canJoin
+                ? null
+                : !isRsvpOpen
+                    ? "RSVP is closed for this game."
+                    : $"Only approved members of {groupAccess.GroupName ?? "this group"} can join.";
         }
 
         // The picker lists every game in the pool (ordered by kick-off). Venues load in one batched
@@ -778,13 +790,15 @@ public sealed class GetTodayGameDayContextQueryHandler(
             todaysGames,
             canViewTeams,
             session.Title,
-            groupNamesBySessionId.GetValueOrDefault(session.Id),
+            groupNamesBySessionId.GetValueOrDefault(session.Id) ?? groupAccess.GroupName,
             isSpectator,
             canJoin,
             joinBlockedReason,
             session.Capacity,
             CanShowAllGames: isGameAdmin,
-            IsShowingAllGames: isShowingAll);
+            IsShowingAllGames: isShowingAll,
+            GroupChatId: groupAccess.GroupChatId,
+            MembershipStatus: groupAccess.MembershipStatus?.ToString());
     }
 
     /// <summary>

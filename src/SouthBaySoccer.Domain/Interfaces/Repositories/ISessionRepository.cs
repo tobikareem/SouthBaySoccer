@@ -13,6 +13,12 @@ public interface ISessionRepository : IRepository<Session>
     Task<Session?> FindByOccurrenceKeyAsync(string occurrenceKey, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Finds a session for the Pickup Pal game sync <b>including soft-deleted rows</b>: deleting a
+    /// session must still terminate the game it created, so the global filter is bypassed here.
+    /// </summary>
+    Task<Session?> FindForPickupPalSyncAsync(Guid sessionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Lists the sessions with the given ids in one query.
     /// </summary>
     Task<IReadOnlyList<Session>> ListByIdsAsync(
@@ -20,10 +26,20 @@ public interface ISessionRepository : IRepository<Session>
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Lists the sessions carrying the given occurrence keys in one query.
+    /// Lists the sessions carrying the given occurrence keys in one query, <b>including soft-deleted
+    /// rows</b>: the Pickup Pal import must recognise a deleted app-created session (whose game is
+    /// being terminated) rather than import the game again. Callers decide what a deleted match means.
     /// </summary>
     Task<IReadOnlyList<Session>> ListByOccurrenceKeysAsync(
         IReadOnlyCollection<string> occurrenceKeys,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the sessions linked to the given Pickup Pal game ids in one query, <b>including
+    /// soft-deleted rows</b> (same reason as <see cref="ListByOccurrenceKeysAsync"/>).
+    /// </summary>
+    Task<IReadOnlyList<Session>> ListByPickupPalGameIdsAsync(
+        IReadOnlyCollection<string> gameIds,
         CancellationToken cancellationToken = default);
 
     /// <summary>

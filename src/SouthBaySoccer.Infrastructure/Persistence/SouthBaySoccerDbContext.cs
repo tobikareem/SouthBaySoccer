@@ -26,8 +26,9 @@ public class SouthBaySoccerDbContext : IdentityDbContext<ApplicationIdentityUser
     public DbSet<PlayerProfile> PlayerProfiles => Set<PlayerProfile>();
     public DbSet<EmergencyContact> EmergencyContacts => Set<EmergencyContact>();
     public DbSet<ProfileMerge> ProfileMerges => Set<ProfileMerge>();
+    public DbSet<PlayerRegistration> PlayerRegistrations => Set<PlayerRegistration>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
-    public DbSet<WhatsAppSignInChallenge> WhatsAppSignInChallenges => Set<WhatsAppSignInChallenge>();
+    public DbSet<PendingPhoneSignIn> PendingPhoneSignIns => Set<PendingPhoneSignIn>();
     public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
     public DbSet<WaiverDocument> WaiverDocuments => Set<WaiverDocument>();
     public DbSet<WaiverAcceptance> WaiverAcceptances => Set<WaiverAcceptance>();

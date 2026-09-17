@@ -144,6 +144,12 @@
                                 SemanticProperties.Description="Join this game - the full game puts you on the waitlist" />
                             <Label Text="If the game is full you'll be added to the waitlist." Style="{StaticResource TextCaption}" Opacity="0.7" IsVisible="{Binding CanJoin}" />
                             <Label Text="{Binding JoinBlockedReason}" Style="{StaticResource TextCaption}" IsVisible="{Binding HasJoinBlockedReason}" />
+                            <Button
+                                Text="Join the group"
+                                Command="{Binding JoinGroupCommand}"
+                                Style="{StaticResource GhostButton}"
+                                IsVisible="{Binding ShowJoinGroup}"
+                                SemanticProperties.Description="Open My groups to request to join this game's group" />
                         </VerticalStackLayout>
                     </c:BrandCard>
                 </VerticalStackLayout>

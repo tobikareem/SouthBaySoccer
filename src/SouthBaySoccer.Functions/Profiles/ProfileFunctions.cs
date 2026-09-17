@@ -4,6 +4,7 @@ using Microsoft.Azure.Functions.Worker.Http;
 using SouthBaySoccer.Application.Features.Players;
 using SouthBaySoccer.Contracts.Profiles;
 using SouthBaySoccer.Functions.Authentication;
+using SouthBaySoccer.Functions.Onboarding;
 using SouthBaySoccer.Functions.Pipeline;
 
 namespace SouthBaySoccer.Functions.Profiles;
@@ -13,7 +14,8 @@ public sealed class ProfileFunctions(
     GetPlayerProfileQueryHandler getPlayerProfileHandler,
     UpdateMyProfileCommandHandler updateMyProfileHandler,
     CreateGuestProfileCommandHandler createGuestProfileHandler,
-    CreateProfileMergeCommandHandler createProfileMergeHandler)
+    CreateProfileMergeCommandHandler createProfileMergeHandler,
+    IOnboardingWorkflow onboardingWorkflow)
 {
     [Function(nameof(GetMyProfile))]
     [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
@@ -68,6 +70,26 @@ public sealed class ProfileFunctions(
             cancellationToken);
 
         return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(result), cancellationToken);
+    }
+
+    /// <summary>
+    /// Deletes the signed-in player's account (App Store 5.1.1(v)). Local records are soft-deleted
+    /// and every session revoked before the Pickup Pal deletion is requested through the outbox.
+    /// </summary>
+    [Function(nameof(DeleteMyProfile))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> DeleteMyProfile(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "profiles/me")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        // Default deletes only N9ja Bay data. `?alsoDeletePickupPal=true` is the explicit opt-in the
+        // confirmation sheet exposes; anything else is treated as false.
+        var alsoDeletePickupPal = string.Equals(
+            System.Web.HttpUtility.ParseQueryString(request.Url.Query)["alsoDeletePickupPal"],
+            "true",
+            StringComparison.OrdinalIgnoreCase);
+        await onboardingWorkflow.DeleteMyAccountAsync(alsoDeletePickupPal, cancellationToken);
+        return request.CreateResponse(HttpStatusCode.NoContent);
     }
 
     [Function(nameof(CreateGuestProfile))]

@@ -22,7 +22,7 @@ public sealed class RsvpCommandHandlerTests
         var eligibilityService = new Mock<IPlayerSessionEligibilityService>();
         eligibilityService
             .Setup(x => x.CheckAsync(profile.Id, session.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new PlayerSessionEligibilityResult(false, "Waiver required."));
+            .ReturnsAsync(new PlayerSessionEligibilityResult(false, "Payment required."));
         var rsvpRepository = new Mock<IRsvpRepository>();
         var handler = CreateSubmitHandler(profile, session, eligibilityService.Object, rsvpRepository.Object);
 
@@ -414,7 +414,9 @@ public sealed class RsvpCommandHandlerTests
             playerProfileRepository.Object,
             sessionRepository.Object,
             playerSessionEligibilityService,
-            rsvpRepository);
+            rsvpRepository,
+            Mock.Of<IRsvpPickupPalSyncService>(),
+            new TestSupport.OpenGroupMembershipGate());
     }
 
     private static CancelRsvpCommandHandler CreateCancelHandler(
@@ -442,7 +444,8 @@ public sealed class RsvpCommandHandlerTests
             playerProfileRepository.Object,
             sessionRepository.Object,
             playerSessionEligibilityService ?? Mock.Of<IPlayerSessionEligibilityService>(),
-            rsvpRepository);
+            rsvpRepository,
+            Mock.Of<IRsvpPickupPalSyncService>());
     }
 
 
@@ -500,7 +503,8 @@ public sealed class RsvpCommandHandlerTests
             playerProfileRepository.Object,
             sessionRepository.Object,
             eligibilityService,
-            rsvpRepository);
+            rsvpRepository,
+            new TestSupport.OpenGroupMembershipGate());
     }
 
     private static IPlayerSessionEligibilityService EligibleService()

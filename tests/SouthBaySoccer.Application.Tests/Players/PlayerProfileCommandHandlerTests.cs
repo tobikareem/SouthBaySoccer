@@ -108,6 +108,49 @@ public sealed class PlayerProfileCommandHandlerTests
         repository.Verify(x => x.Update(profile), Times.Once);
         unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Theory]
+    [InlineData(PlayerRole.Player, true, false, PlayerRole.Owner)]     // owner number promotes
+    [InlineData(PlayerRole.GameAdmin, true, true, PlayerRole.Owner)]   // a number in both lists is an owner
+    [InlineData(PlayerRole.Owner, true, false, null)]                  // already an owner: no write
+    [InlineData(PlayerRole.Owner, false, true, PlayerRole.GameAdmin)]  // owner number removed, admin number stays
+    [InlineData(PlayerRole.Owner, false, false, PlayerRole.Player)]    // owner number removed entirely
+    [InlineData(PlayerRole.Admin, false, false, null)]                 // local roles are untouched
+    public async Task HandleAsync_OwnerPromotionFollowsConfiguration_AndIsReversible(
+        PlayerRole currentRole,
+        bool isOwnerNumber,
+        bool isAdminNumber,
+        PlayerRole? expectedPersistedRole)
+    {
+        var identityUserId = Guid.NewGuid();
+        var profile = new PlayerProfile
+        {
+            Id = Guid.NewGuid(),
+            IdentityUserId = identityUserId,
+            DisplayName = "Tobi",
+            NormalizedDisplayName = "TOBI",
+            PreferredPosition = "Forward",
+            PhoneNumberHash = "hash",
+            Role = currentRole,
+        };
+        var repository = new Mock<IPlayerProfileRepository>();
+        repository.Setup(x => x.FindByIdentityUserIdAsync(identityUserId, It.IsAny<CancellationToken>())).ReturnsAsync(profile);
+        repository.Setup(x => x.FindEmergencyContactAsync(profile.Id, It.IsAny<CancellationToken>())).ReturnsAsync((EmergencyContact?)null);
+        var configured = new Mock<IConfiguredAdminPhoneNumberService>();
+        configured.Setup(x => x.IsConfiguredOwnerPhoneNumberHash("hash")).Returns(isOwnerNumber);
+        configured.Setup(x => x.IsConfiguredAdminPhoneNumberHash("hash")).Returns(isAdminNumber);
+        var unitOfWork = new Mock<IUnitOfWork>();
+        var handler = new GetMyProfileQueryHandler(CreateCurrentUser(identityUserId).Object, repository.Object, configured.Object, unitOfWork.Object);
+
+        var result = await handler.HandleAsync();
+
+        var expectedRole = expectedPersistedRole ?? currentRole;
+        profile.Role.Should().Be(expectedRole);
+        result.Role.Should().Be(expectedRole.ToString());
+        repository.Verify(x => x.Update(profile), expectedPersistedRole is null ? Times.Never() : Times.Once());
+        unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), expectedPersistedRole is null ? Times.Never() : Times.Once());
+    }
+
     [Fact]
     public async Task HandleAsync_WhenCreatingGuestProfile_CreatesGuestWithoutIdentityUser()
     {

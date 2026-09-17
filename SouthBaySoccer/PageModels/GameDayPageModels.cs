@@ -25,6 +25,9 @@ public interface IGameDayNavigator
 
     Task OpenMatchStatsAsync(Guid matchId);
 
+    /// <summary>Opens My groups so a non-member can request to join the game's group.</summary>
+    Task OpenMyGroupsAsync();
+
     Task OpenRateTeammatesAsync(Guid matchId);
 
     Task OpenRecentGamesAsync();
@@ -202,9 +205,27 @@ public partial class GameDayPageModel(
 
     public bool ShowTodayContent => !IsNoGame && !IsShowingRecentGames;
 
-    public string SpectatorBannerText => string.IsNullOrWhiteSpace(GroupName)
-        ? "You're not on this game's list. You can see who's playing, or join below."
-        : $"You're a member of {GroupName} — you're not on this game's list. You can see who's playing, or join below.";
+    public string SpectatorBannerText => MembershipStatus switch
+    {
+        "Pending" => $"Your request to join {GroupNameOrDefault} is waiting for a group admin. You can watch this game until then.",
+        "Approved" or null when string.IsNullOrWhiteSpace(GroupName) => "You're not on this game's list. You can see who's playing, or join below.",
+        "Approved" => $"You're a member of {GroupName} — you're not on this game's list. You can see who's playing, or join below.",
+        _ => $"This is a {GroupNameOrDefault} game. Join the group to play.",
+    };
+
+    private string GroupNameOrDefault => string.IsNullOrWhiteSpace(GroupName) ? "the group" : GroupName;
+
+    /// <summary>Membership status for the game's group as reported by the server ("Approved", "Pending", ...).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SpectatorBannerText))]
+    [NotifyPropertyChangedFor(nameof(ShowJoinGroup))]
+    private string? _membershipStatus;
+
+    /// <summary>Offer "Join the group" when the player is a spectator with no live membership.</summary>
+    public bool ShowJoinGroup => IsSpectator && !CanJoin && MembershipStatus is not ("Approved" or "Pending") && !string.IsNullOrWhiteSpace(GroupName);
+
+    [RelayCommand]
+    private Task JoinGroup() => navigator.OpenMyGroupsAsync();
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(JoinCommand))]
@@ -1063,6 +1084,7 @@ public partial class GameDayPageModel(
         LastGame = null;
         Title = string.IsNullOrWhiteSpace(context.Title) ? "Game Day" : context.Title;
         GroupName = context.GroupName;
+        MembershipStatus = context.MembershipStatus;
         IsSpectator = context.IsSpectator;
         CanJoin = context.CanJoin;
         JoinBlockedReason = context.JoinBlockedReason;
@@ -2831,6 +2853,8 @@ public sealed class ShellGameDayNavigator : IGameDayNavigator
 {
     public Task OpenCaptainAssignmentAsync(Guid sessionId) =>
         Shell.Current.GoToAsync(BuildRoute("captains", sessionId));
+
+    public Task OpenMyGroupsAsync() => Shell.Current.GoToAsync("my-groups");
 
     public Task OpenTeamDraftAsync(Guid sessionId) =>
         Shell.Current.GoToAsync(BuildRoute("draft", sessionId));

@@ -110,6 +110,24 @@
                             </DataTemplate>
                         </BindableLayout.ItemTemplate>
                     </VerticalStackLayout>
+                    <!-- Group: which WhatsApp group's game this is (drives Pickup Pal game creation and who can RSVP). -->
+                    <Label Text="GROUP" Style="{StaticResource TextLabel}" />
+                    <c:BrandCard>
+                        <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                            <Picker Title="Choose a group"
+                                    ItemsSource="{Binding GroupOptions}"
+                                    ItemDisplayBinding="{Binding Name, x:DataType=pageModels:SessionGroupOption}"
+                                    SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
+                                    Style="{StaticResource BrandPicker}"
+                                    IsVisible="{Binding HasGroupChoice}"
+                                    SemanticProperties.Description="Group this session belongs to" />
+                            <Label Text="{Binding SelectedGroup.Name, FallbackValue='No group'}"
+                                   Style="{StaticResource TextBodyStrong}"
+                                   IsVisible="{Binding HasGroupChoice, Converter={StaticResource InvertedBool}}" />
+                            <Label Text="{Binding GroupHint}" Style="{StaticResource TextCaption}" LineHeight="1.4" />
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+
                     <!-- Game date and time -->
                     <Label Text="GAME DATE AND TIME" Style="{StaticResource TextLabel}" />
                     <c:BrandCard>

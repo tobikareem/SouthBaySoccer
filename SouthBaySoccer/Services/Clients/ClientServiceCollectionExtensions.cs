@@ -149,6 +149,9 @@ public static class ClientServiceCollectionExtensions
             new AuthenticationClient(
                 provider.GetRequiredService<IHttpClientFactory>().CreateClient("SouthBaySoccer.Anonymous"),
                 pickupPalOptions));
+        services.AddSingleton<IOnboardingClient>(provider =>
+            new OnboardingClient(
+                provider.GetRequiredService<IHttpClientFactory>().CreateClient("SouthBaySoccer.Anonymous")));
 
 #if RELEASE
         return services;
@@ -166,6 +169,7 @@ public static class ClientServiceCollectionExtensions
         services.AddSingleton<SeedState>();
         services.AddSingleton<SeedGameDayState>();
         services.AddSingleton<IAuthenticationClient, SeedAuthenticationClient>();
+        services.AddSingleton<IOnboardingClient, SeedOnboardingClient>();
         services.AddSingleton<IProfileClient, SeedProfileClient>();
         return AddSeedClientsExceptProfileAndAuthentication(services);
 #endif

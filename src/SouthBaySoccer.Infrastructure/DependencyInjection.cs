@@ -13,9 +13,11 @@ using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Features.Authentication;
 using SouthBaySoccer.Application.Features.Groups;
 using SouthBaySoccer.Application.Features.Idempotency;
+using SouthBaySoccer.Application.Features.Onboarding;
 using SouthBaySoccer.Application.Features.Scheduling;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 using SouthBaySoccer.Infrastructure.Authentication;
+using SouthBaySoccer.Infrastructure.Authentication.Onboarding;
 using SouthBaySoccer.Infrastructure.Groups;
 using SouthBaySoccer.Infrastructure.Identity;
 using SouthBaySoccer.Infrastructure.Idempotency;
@@ -80,22 +82,35 @@ public static class DependencyInjection
         services.AddScoped<IIdempotencyStore, EfIdempotencyStore>();
         services.TryAddSingleton<IMapsService, UnavailableMapsService>();
         services.AddScoped<IIdentityService, IdentityService>();
-        services.AddScoped<IWhatsAppChallengeService, WhatsAppChallengeService>();
-        services.AddSingleton<IWhatsAppChallengeTokenGenerator, WhatsAppChallengeTokenGenerator>();
-        services.AddSingleton<IWhatsAppChallengeDeliverySender, UnavailableWhatsAppChallengeDeliverySender>();
         services.AddScoped<IWhatsAppIdentityResolver, WhatsAppIdentityResolver>();
+        services.AddScoped<IPlayerRegistrationRepository, PlayerRegistrationRepository>();
+        services.AddScoped<IPendingPhoneSignInRepository, PendingPhoneSignInRepository>();
+        services.AddScoped<IOutboxMessageRepository, OutboxMessageRepository>();
+        services.AddSingleton<IOnboardingPolicy, ConfiguredOnboardingPolicy>();
+        services.AddScoped<ILocalAccountDeletionService, LocalAccountDeletionService>();
+        services.AddScoped<IRefreshTokenRevocationService, RefreshTokenRevocationService>();
         // Caps replace HttpClient's 100-second default so a slow Pickup Pal cannot hang requests.
         // The games client stays inside the import path's 5s budget; the user and group clients sit
         // on interactive sign-in/link flows, where 10s leaves headroom for the provider's own cold
         // starts while staying well under the mobile client's 30s timeout.
+        // URI-logging ban on every Pickup Pal client: the factory's default LoggingHttpMessageHandler
+        // records the outbound request URI (phone digits, registration tokens, emails, user and
+        // game ids) at Information level, so it is removed here (RemoveAllLoggers) and no other
+        // message handlers are ever attached. Tests guard both.
         services.AddHttpClient<IPickupPalUserClient, PickupPalUserClient>(client =>
-            client.Timeout = TimeSpan.FromSeconds(10));
+                client.Timeout = TimeSpan.FromSeconds(10))
+            .RemoveAllLoggers();
+        services.AddHttpClient<IPickupPalOnboardingClient, PickupPalOnboardingClient>(client =>
+                client.Timeout = TimeSpan.FromSeconds(10))
+            .RemoveAllLoggers();
         services.AddHttpClient<IPickupPalGamesClient, PickupPalGamesClient>(client =>
-            client.Timeout = TimeSpan.FromSeconds(5));
+                client.Timeout = TimeSpan.FromSeconds(5))
+            .RemoveAllLoggers();
         // Registered by concrete type so the caching decorator below owns the IPickupPalGroupClient
         // registration; the typed HttpClient plumbing is unchanged.
         services.AddHttpClient<PickupPalGroupClient>(client =>
-            client.Timeout = TimeSpan.FromSeconds(10));
+                client.Timeout = TimeSpan.FromSeconds(10))
+            .RemoveAllLoggers();
         services.AddScoped<IPickupPalGroupClient>(provider => new CachedPickupPalGroupClient(
             provider.GetRequiredService<PickupPalGroupClient>(),
             provider.GetRequiredService<IMemoryCache>(),
