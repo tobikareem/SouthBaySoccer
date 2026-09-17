@@ -2,6 +2,7 @@ using System.Net;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using SouthBaySoccer.Application.Features.Authentication;
+using SouthBaySoccer.Application.Features.Groups;
 using SouthBaySoccer.Application.Features.Onboarding;
 using SouthBaySoccer.Application.Common;
 
@@ -17,10 +18,22 @@ public sealed class ProblemDetailsMapper : IProblemDetailsMapper
     /// </summary>
     public const string OnboardingTokenProblemTypePrefix = "https://southbaysoccer/problems/onboarding-token-";
 
+    /// <summary>
+    /// Absolute type for a group-scoped action (RSVP, waitlist, self check-in, claim) attempted
+    /// without an approved membership in the session's group; the client renders view-only from it.
+    /// </summary>
+    public const string GroupMembershipRequiredProblemType = "https://southbaysoccer/problems/group-membership-required";
+
     public ProblemDetails Map(Exception exception, string correlationId)
     {
         var problem = exception switch
         {
+            // The detail carries only the group's display name (public within the app).
+            GroupMembershipRequiredException membership => Create(
+                HttpStatusCode.Forbidden,
+                "Group membership required",
+                membership.Message,
+                GroupMembershipRequiredProblemType),
             ValidationException fluentValidation => Create(
                 HttpStatusCode.BadRequest,
                 "Validation failed",

@@ -170,6 +170,21 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<GetAvailableGroupsQueryHandler>();
         builder.Services.AddScoped<GetMyGroupsQueryHandler>();
         builder.Services.AddScoped<LinkPlayerToGroupCommandHandler>();
+        // GRP-1: group membership with approval. The gate is what RSVP / self check-in / claim and
+        // the feed projections consult; the service is the single membership state machine.
+        builder.Services.AddScoped<IValidator<RequestGroupMembershipsCommand>, RequestGroupMembershipsCommandValidator>();
+        builder.Services.AddScoped<IValidator<SearchPlayersQuery>, SearchPlayersQueryValidator>();
+        builder.Services.AddScoped<GroupMembershipService>();
+        builder.Services.AddScoped<IGroupMembershipGate, GroupMembershipGate>();
+        builder.Services.AddScoped<GetGroupCatalogQueryHandler>();
+        builder.Services.AddScoped<GetMyGroupMembershipsQueryHandler>();
+        builder.Services.AddScoped<RequestGroupMembershipsCommandHandler>();
+        builder.Services.AddScoped<LeaveGroupCommandHandler>();
+        builder.Services.AddScoped<GetGroupMembersQueryHandler>();
+        builder.Services.AddScoped<ReviewGroupMemberCommandHandler>();
+        builder.Services.AddScoped<AddGroupMemberCommandHandler>();
+        builder.Services.AddScoped<SetGroupAdminCommandHandler>();
+        builder.Services.AddScoped<SearchPlayersQueryHandler>();
         builder.Services.AddScoped<IValidator<PostAnnouncementCommand>, PostAnnouncementCommandValidator>();
         builder.Services.AddScoped<IValidator<GetGroupAnnouncementsQuery>, GetGroupAnnouncementsQueryValidator>();
         builder.Services.AddScoped<IValidator<GetSentAnnouncementsQuery>, GetSentAnnouncementsQueryValidator>();
