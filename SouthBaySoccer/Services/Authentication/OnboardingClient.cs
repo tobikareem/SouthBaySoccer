@@ -16,19 +16,18 @@ public sealed class OnboardingClient(HttpClient httpClient) : IOnboardingClient
             cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        // Until the backend ships verificationRequired (M13.5) this endpoint returns a bare token
-        // set. Accept both shapes so the client can ship first.
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-        var root = document.RootElement;
-        if (root.TryGetProperty("verificationRequired", out _))
-        {
-            return root.Deserialize<PhoneSignInStartResponse>(JsonOptions)
-                   ?? throw new InvalidOperationException("The sign-in service returned an empty response.");
-        }
-
-        var tokens = root.Deserialize<AuthenticationTokensResponse>(JsonOptions)
-                     ?? throw new InvalidOperationException("The sign-in service returned an empty response.");
-        return new PhoneSignInStartResponse(false, null, null, tokens);
+        // M13.5 shipped: the endpoint always returns the full PhoneSignInStartResponse shape now
+        // (verified against the live backend). A previous version of this method also accepted a
+        // bare token-set body via a hand-rolled, CASE-SENSITIVE JsonElement.TryGetProperty check —
+        // that broke in production because the Functions host serializes PascalCase property
+        // names ("VerificationRequired", not "verificationRequired"), so the probe always missed
+        // and every sign-in fell through to the legacy branch, which then deserialized the whole
+        // envelope as a bare AuthenticationTokensResponse and produced a null access token. Every
+        // other client in this app relies on ReadFromJsonAsync/Deserialize's built-in
+        // case-insensitive matching (JsonOptions below does the same) rather than a raw, exact
+        // string check, and that is the only safe way to read this backend's JSON.
+        return await response.Content.ReadFromJsonAsync<PhoneSignInStartResponse>(JsonOptions, cancellationToken)
+               ?? throw new InvalidOperationException("The sign-in service returned an empty response.");
     }
 
     public Task<AuthenticationTokensResponse> CompleteLoginAsync(string token, bool rememberDevice, CancellationToken cancellationToken) =>
