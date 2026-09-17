@@ -61,19 +61,7 @@ public class OnboardingClientTests
     }
 
     [Fact]
-    public async Task BeginPhoneSignIn_LegacyTokenBody_IsTreatedAsNoVerificationRequired()
-    {
-        var client = Create(HttpStatusCode.OK, withApiExceptionHandler: true,
-            body: """{"accessToken":"a","refreshToken":"r","accessTokenExpiresAtUtc":"2099-01-01T00:00:00Z"}""");
-
-        var start = await client.BeginPhoneSignInAsync("+15550001234", CancellationToken.None);
-
-        start.VerificationRequired.Should().BeFalse();
-        start.Tokens!.AccessToken.Should().Be("a");
-    }
-
-    [Fact]
-    public async Task BeginPhoneSignIn_VerificationBody_IsParsed()
+    public async Task BeginPhoneSignIn_CamelCaseBody_IsParsed()
     {
         var client = Create(HttpStatusCode.Accepted, withApiExceptionHandler: true,
             body: """{"verificationRequired":true,"phoneMasked":"+1 (555) ••• 1234","displayName":"Ada","tokens":null}""");
@@ -83,6 +71,29 @@ public class OnboardingClientTests
         start.VerificationRequired.Should().BeTrue();
         start.DisplayName.Should().Be("Ada");
         start.Tokens.Should().BeNull();
+    }
+
+    // Regression test for a production incident: the Functions host serializes PascalCase
+    // ("VerificationRequired", "Tokens", "AccessToken", ...), not camelCase. A prior version of
+    // BeginPhoneSignInAsync probed the shape with a case-sensitive JsonElement.TryGetProperty
+    // check that only ever matched camelCase, so every real sign-in fell through to a legacy
+    // bare-token branch and produced a null access token, surfacing to the player as
+    // "We could not start sign-in." This must keep working against the exact casing the live
+    // backend actually sends.
+    [Fact]
+    public async Task BeginPhoneSignIn_PascalCaseBody_IsParsed()
+    {
+        var client = Create(HttpStatusCode.OK, withApiExceptionHandler: true,
+            body: """
+                {"VerificationRequired":false,"PhoneMasked":null,"DisplayName":null,"Tokens":{"AccessToken":"a","RefreshToken":"r","AccessTokenExpiresAtUtc":"2099-01-01T00:00:00Z"}}
+                """);
+
+        var start = await client.BeginPhoneSignInAsync("+15550001234", CancellationToken.None);
+
+        start.VerificationRequired.Should().BeFalse();
+        start.Tokens.Should().NotBeNull();
+        start.Tokens!.AccessToken.Should().Be("a");
+        start.Tokens.RefreshToken.Should().Be("r");
     }
 
     private static OnboardingClient Create(HttpStatusCode status, bool withApiExceptionHandler, string? body = null)

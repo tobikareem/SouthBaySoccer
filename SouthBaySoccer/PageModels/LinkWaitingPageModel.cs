@@ -28,10 +28,19 @@ public partial class LinkWaitingPageModel(
     public const string WhatsAppUnavailableMessage =
         "WhatsApp could not be opened on this device. Install it, or paste the bot's link below.";
     public const string PasteFailedMessage = "That doesn't look like a link from the Pickup Pal bot.";
+    public const string PasteLinkPlaceholder = "Paste the bot's link here";
     public const string RegisterExpiredHint = "This link has expired. Ask the bot for a fresh one to keep going.";
     public const string LoginExpiredHint = "This link has expired. Go back and enter your number again for a fresh one.";
 
     private CancellationTokenSource? _countdown;
+
+    /// <summary>
+    /// The visible text field the player can type or OS-paste a link into. Submitting with this
+    /// empty falls back to reading the OS clipboard directly, preserving the original one-tap
+    /// convenience for anyone who already has the link copied.
+    /// </summary>
+    [ObservableProperty]
+    private string _pastedLinkText = string.Empty;
 
     [ObservableProperty]
     private OnboardingLinkKind _kind;
@@ -151,10 +160,19 @@ public partial class LinkWaitingPageModel(
         StatusMessage = string.Empty;
         try
         {
-            var text = await clipboardReader.GetTextAsync(cancellationToken);
+            // Prefer whatever the player typed or OS-pasted into the visible field; only fall
+            // back to reading the clipboard directly when they left it empty and tapped the
+            // button as a one-tap shortcut.
+            var text = string.IsNullOrWhiteSpace(PastedLinkText)
+                ? await clipboardReader.GetTextAsync(cancellationToken)
+                : PastedLinkText;
             if (!await flow.HandlePastedLinkAsync(text, cancellationToken))
             {
                 StatusMessage = PasteFailedMessage;
+            }
+            else
+            {
+                PastedLinkText = string.Empty;
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
