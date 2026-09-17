@@ -1,5 +1,6 @@
 using System.Text.Json;
 using SouthBaySoccer.Application.Abstractions.Time;
+using SouthBaySoccer.Domain.Entities.Groups;
 using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Enumerations;
@@ -38,6 +39,7 @@ public sealed class PickupPalGameImportService(
     ISeasonRepository seasonRepository,
     IVenueRepository venueRepository,
     IPlayerProfileRepository playerProfileRepository,
+    IGroupChatRepository groupChatRepository,
     IClock clock) : IPickupPalGameImportService
 {
     private const string ImportedVenueLocality = "Imported from Pickup Pal";
@@ -128,10 +130,16 @@ public sealed class PickupPalGameImportService(
             session = null;
         }
 
+        // GRP-1: the game's group id matches the persisted catalogue (GroupChat.ExternalId); an
+        // unmatched or absent id leaves the session's group as it is. Nothing is created here.
+        var groupChatId = game.GroupExternalId is { } externalId
+            ? lookups.GroupsByExternalId.GetValueOrDefault(externalId)?.Id
+            : null;
+
         if (session is null)
         {
             var venue = await ResolveOrCreateVenueAsync(game.Location, lookups, cancellationToken);
-            session = new Session { Id = Guid.NewGuid(), SeasonId = seasonId };
+            session = new Session { Id = Guid.NewGuid(), SeasonId = seasonId, GroupChatId = groupChatId };
             ApplyGame(session, game, venue, occurrenceKey, publish);
             await sessionRepository.AddAsync(session, cancellationToken);
         }
@@ -150,6 +158,7 @@ public sealed class PickupPalGameImportService(
         {
             var venue = await ResolveOrCreateVenueAsync(game.Location, lookups, cancellationToken);
             ApplyGame(session, game, venue, occurrenceKey, publish);
+            session.GroupChatId = groupChatId ?? session.GroupChatId;
             sessionRepository.Update(session);
         }
 
@@ -505,6 +514,19 @@ public sealed class PickupPalGameImportService(
             lookups.VenuesByName.TryAdd(venue.Name, venue);
         }
 
+        var groupExternalIds = games
+            .Where(game => !string.IsNullOrWhiteSpace(game.GroupExternalId))
+            .Select(game => game.GroupExternalId!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (groupExternalIds.Length > 0)
+        {
+            foreach (var group in await groupChatRepository.ListByExternalIdsAsync(groupExternalIds, cancellationToken))
+            {
+                lookups.GroupsByExternalId.TryAdd(group.ExternalId, group);
+            }
+        }
+
         var gameIds = games.Select(game => game.Id).Distinct(StringComparer.Ordinal).ToArray();
         var snapshots = await gameRepository.ListSnapshotsByGameIdsAsync(gameIds, cancellationToken);
         IndexByRequestedKey(
@@ -687,6 +709,9 @@ public sealed class PickupPalGameImportService(
     private sealed class ImportLookups
     {
         public Dictionary<string, Venue> VenuesByName { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Persisted WhatsApp groups keyed by external id, so a game's group can be attached without creating anything.</summary>
+        public Dictionary<string, GroupChat> GroupsByExternalId { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<string, PickupPalGameSnapshot> SnapshotsByGameId { get; } = new(StringComparer.Ordinal);
 

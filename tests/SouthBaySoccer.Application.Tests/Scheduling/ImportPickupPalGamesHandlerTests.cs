@@ -3,6 +3,7 @@ using FluentAssertions;
 using Moq;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Features.Scheduling;
+using SouthBaySoccer.Domain.Entities.Groups;
 using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Enumerations;
@@ -41,6 +42,43 @@ public sealed class ImportPickupPalGamesHandlerTests
         context.ReplacedParticipants![0].DisplayName.Should().Be("Mark A");
         context.ReplacedParticipants[1].IsWaitlist.Should().BeTrue();
         context.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenGameGroupMatchesTheCatalogue_AttachesSessionToGroupWithoutPersistingTheId()
+    {
+        var context = new TestContext();
+        var group = new GroupChat { Id = Guid.NewGuid(), ExternalId = "fire-fc@g.us", GroupName = "Fire FC" };
+        context.GroupChatRepository
+            .Setup(x => x.ListByExternalIdsAsync(
+                It.Is<IReadOnlyCollection<string>>(ids => ids.Contains("fire-fc@g.us")),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([group]);
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame() with { GroupExternalId = "fire-fc@g.us" }]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedSession!.GroupChatId.Should().Be(group.Id);
+        context.AddedSnapshot!.SanitizedGameJson.Should().NotContain("fire-fc@g.us", "the group id never lands on the snapshot");
+        context.GroupChatRepository.Verify(x => x.AddAsync(It.IsAny<GroupChat>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenGameGroupIsUnknown_LeavesSessionWithoutGroup()
+    {
+        var context = new TestContext();
+        context.GroupChatRepository
+            .Setup(x => x.ListByExternalIdsAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame() with { GroupExternalId = "unknown@g.us" }]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedSession!.GroupChatId.Should().BeNull();
     }
 
     [Fact]
@@ -788,6 +826,8 @@ public sealed class ImportPickupPalGamesHandlerTests
 
         public IReadOnlyList<PickupPalGameParticipant>? ReplacedParticipants { get; private set; }
 
+        public Mock<IGroupChatRepository> GroupChatRepository { get; } = new();
+
         private readonly Mock<ISeasonRepository> _seasonRepository = new();
         private readonly Mock<IVenueRepository> _venueRepository = new();
         private readonly Mock<IClock> _clock = new();
@@ -940,6 +980,7 @@ public sealed class ImportPickupPalGamesHandlerTests
                 _seasonRepository.Object,
                 _venueRepository.Object,
                 PlayerProfileRepository.Object,
+                GroupChatRepository.Object,
                 _clock.Object);
     }
 }

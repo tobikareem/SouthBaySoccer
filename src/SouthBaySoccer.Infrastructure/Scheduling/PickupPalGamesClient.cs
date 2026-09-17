@@ -432,7 +432,10 @@ public sealed class PickupPalGamesClient(HttpClient httpClient, IOptions<PickupP
             (game.Participants ?? [])
                 .Where(participant => !string.IsNullOrWhiteSpace(participant.Id))
                 .Select(ToSanitizedParticipant)
-                .ToArray());
+                .ToArray(),
+            // The group id is only carried so the import can match GroupChat.ExternalId; it is
+            // JsonIgnore'd on the record and never logged.
+            string.IsNullOrWhiteSpace(game.Group?.GroupId) ? null : game.Group.GroupId.Trim());
 
     private static PickupPalGameParticipantInfo ToSanitizedParticipant(ParticipantResponse participant)
     {
@@ -508,7 +511,8 @@ public sealed class PickupPalGamesClient(HttpClient httpClient, IOptions<PickupP
         [property: JsonPropertyName("whatsappJid")] string? WhatsAppJid);
 
     private sealed record GroupResponse(
-        [property: JsonPropertyName("groupName")] string? GroupName);
+        [property: JsonPropertyName("groupName")] string? GroupName,
+        [property: JsonPropertyName("groupId")] string? GroupId = null);
 
     private sealed record AddPlayerPayload(
         [property: JsonPropertyName("playerId")] string PlayerId,

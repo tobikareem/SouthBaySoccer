@@ -130,7 +130,12 @@ public enum PickupPalRosterPushResult
     Rejected,
 }
 
-/// <summary>One sanitized Pickup Pal active game.</summary>
+/// <summary>
+/// One sanitized Pickup Pal active game. <paramref name="GroupExternalId"/> is the game's WhatsApp
+/// group id - the same value the group catalogue already persists as <c>GroupChat.ExternalId</c> -
+/// exposed only so the import can attach the session to its group. It is excluded from
+/// serialization (never on the snapshot) and must never be logged.
+/// </summary>
 public sealed record PickupPalGame(
     string Id,
     DateTime StartsAtUtc,
@@ -138,7 +143,8 @@ public sealed record PickupPalGame(
     int MaxPlayers,
     string Status,
     string GroupName,
-    IReadOnlyList<PickupPalGameParticipantInfo> Participants);
+    IReadOnlyList<PickupPalGameParticipantInfo> Participants,
+    [property: System.Text.Json.Serialization.JsonIgnore] string? GroupExternalId = null);
 
 /// <summary>
 /// One sanitized participant on a Pickup Pal game. Phone and WhatsApp identities arrive pre-hashed
