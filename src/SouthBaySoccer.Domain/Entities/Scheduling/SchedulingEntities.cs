@@ -26,6 +26,27 @@ public class Session : BaseEntity
     public string? OccurrenceKey { get; set; }
     public SessionStatus Status { get; set; }
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
+    /// <summary>Gets or sets the WhatsApp group chat this session belongs to, or null for an app-only session.</summary>
+    public Guid? GroupChatId { get; set; }
+
+    /// <summary>Gets or sets who created the Pickup Pal game this session mirrors, if any.</summary>
+    public PickupPalOrigin PickupPalOrigin { get; set; } = PickupPalOrigin.None;
+
+    /// <summary>
+    /// Gets or sets the Pickup Pal game id. This is the game link; <see cref="OccurrenceKey"/> only
+    /// mirrors it (<c>pickuppal:{gameId}</c>) when the session has no other occurrence key.
+    /// </summary>
+    public string? PickupPalGameId { get; set; }
+
+    /// <summary>Gets or sets whether the Pickup Pal game reflects the local session (create, update, or terminate).</summary>
+    public PickupPalSyncStatus PickupPalSyncStatus { get; set; } = PickupPalSyncStatus.NotApplicable;
+
+    /// <summary>Gets or sets when the Pickup Pal game last matched the local session (UTC).</summary>
+    public DateTime? PickupPalSyncedAtUtc { get; set; }
+
+    /// <summary>Gets or sets the safe error code of the last failed or pending push. Never a Pickup Pal payload.</summary>
+    public string? PickupPalSyncError { get; set; }
 }
 /// <summary>Represents explicit attendance intent for a session.</summary>
 public class RsvpResponse : BaseEntity
