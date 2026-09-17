@@ -87,10 +87,19 @@
                            InputTransparent="True" />
                 </Grid>
 
-                <Button Text="Paste the link instead"
-                        Command="{Binding PasteLinkCommand}"
-                        Style="{StaticResource GhostButton}"
-                        SemanticProperties.Description="Paste the link from the bot" />
+                <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                    <Entry Text="{Binding PastedLinkText}"
+                           Placeholder="{x:Static pageModels:LinkWaitingPageModel.PasteLinkPlaceholder}"
+                           Keyboard="Url"
+                           ReturnType="Go"
+                           ReturnCommand="{Binding PasteLinkCommand}"
+                           Style="{StaticResource BrandEntry}"
+                           SemanticProperties.Description="Paste the link from the bot" />
+                    <Button Text="Use this link"
+                            Command="{Binding PasteLinkCommand}"
+                            Style="{StaticResource GhostButton}"
+                            SemanticProperties.Description="Continue with the pasted link" />
+                </VerticalStackLayout>
 
                 <Label Text="{Binding StatusMessage}"
                        Style="{StaticResource TextCaption}"
