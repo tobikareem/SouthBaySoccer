@@ -46,7 +46,9 @@ public sealed record SessionAdminResponse(
     bool IsCurrentPlayerWaitlisted = false,
     bool CanJoinWaitlist = false,
     string? GroupName = null,
-    Guid? GroupChatId = null);
+    Guid? GroupChatId = null,
+    string? MembershipStatus = null,
+    bool CanJoin = true);
 
 public sealed record CreateSessionAdminRequest(
     Guid SeasonId,

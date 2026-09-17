@@ -415,7 +415,8 @@ public sealed class RsvpCommandHandlerTests
             sessionRepository.Object,
             playerSessionEligibilityService,
             rsvpRepository,
-            Mock.Of<IRsvpPickupPalSyncService>());
+            Mock.Of<IRsvpPickupPalSyncService>(),
+            new TestSupport.OpenGroupMembershipGate());
     }
 
     private static CancelRsvpCommandHandler CreateCancelHandler(
@@ -502,7 +503,8 @@ public sealed class RsvpCommandHandlerTests
             playerProfileRepository.Object,
             sessionRepository.Object,
             eligibilityService,
-            rsvpRepository);
+            rsvpRepository,
+            new TestSupport.OpenGroupMembershipGate());
     }
 
     private static IPlayerSessionEligibilityService EligibleService()

@@ -2,6 +2,7 @@ using FluentValidation;
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
+using SouthBaySoccer.Application.Features.Groups;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
@@ -16,13 +17,18 @@ public sealed class SubmitRsvpCommandHandler(
     ISessionRepository sessionRepository,
     IPlayerSessionEligibilityService eligibilityService,
     IRsvpRepository rsvpRepository,
-    IRsvpPickupPalSyncService pickupPalSyncService)
+    IRsvpPickupPalSyncService pickupPalSyncService,
+    IGroupMembershipGate groupMembershipGate)
 {
     public async Task<RsvpResultModel> HandleAsync(SubmitRsvpCommand command, CancellationToken cancellationToken = default)
     {
         await validator.ValidateAndThrowAsync(command, cancellationToken);
         var profile = await GetCurrentProfileAsync(currentUser, playerProfileRepository, cancellationToken);
         var session = await GetOpenSessionAsync(sessionRepository, command.SessionId, clock.UtcNow, cancellationToken);
+
+        // GRP-1: Going (and the waitlist it may land on) is reserved for approved members of the
+        // session's group; a session without a group is open as before. Cancel is never gated.
+        await groupMembershipGate.EnsureCanJoinAsync(session, profile.Id, cancellationToken);
 
         var eligibility = await eligibilityService.CheckAsync(profile.Id, session.Id, cancellationToken);
         if (!eligibility.IsEligible)
@@ -209,7 +215,8 @@ public sealed class SelfCheckInCommandHandler(
     IPlayerProfileRepository playerProfileRepository,
     ISessionRepository sessionRepository,
     IPlayerSessionEligibilityService eligibilityService,
-    IRsvpRepository rsvpRepository)
+    IRsvpRepository rsvpRepository,
+    IGroupMembershipGate groupMembershipGate)
 {
     public async Task<CheckInResultModel> HandleAsync(
         SelfCheckInCommand command,
@@ -225,6 +232,9 @@ public sealed class SelfCheckInCommandHandler(
         {
             throw new ApplicationConflictException("Check-in is not available for this session.");
         }
+
+        // GRP-1: self check-in is a group-scoped action (admin check-in is not gated).
+        await groupMembershipGate.EnsureCanJoinAsync(session, profile.Id, cancellationToken);
 
         var nowUtc = clock.UtcNow;
         if (nowUtc < session.CheckInOpensAtUtc || nowUtc > session.CheckInClosesAtUtc)

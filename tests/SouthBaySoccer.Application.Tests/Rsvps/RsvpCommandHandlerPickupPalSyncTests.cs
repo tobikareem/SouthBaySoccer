@@ -224,7 +224,8 @@ public sealed class RsvpCommandHandlerPickupPalSyncTests
                 sessionRepository.Object,
                 eligibilityService.Object,
                 RsvpRepository.Object,
-                SyncService.Object);
+                SyncService.Object,
+                new TestSupport.OpenGroupMembershipGate());
 
         public CancelRsvpCommandHandler CancelHandler() =>
             new(
