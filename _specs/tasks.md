@@ -242,6 +242,27 @@ timer. Imported games stay Pickup Pal's; app-only sessions stay app-only. Task d
 - [ ] **M15.8** Confirm the create response shape and `PUT` start-field handling with Pickup Pal.
 - [ ] **M15.9** Deploy: apply the migration through the release pipeline; verify a publish reaches the group.
 
+## M16 Group membership and roles (GRP-1)
+
+A player belongs to many WhatsApp groups; joining is a request a group admin approves, except a
+player Pickup Pal already lists in that group is approved at once. Every group's games stay visible
+to every signed-in player, but only approved members of a game's group can RSVP, join the waitlist,
+self check-in, or claim (403 `group-membership-required`). Group admins approve / decline / remove
+their members; only the configured owners (`OwnerPhoneNumbers`, `PlayerRole.Owner`) appoint group
+admins or add a known player directly. Membership lives in our database and is never written to
+Pickup Pal. Task detail lives in
+[`stories/GRP-1-group-membership-approval/tasks.md`](stories/GRP-1-group-membership-approval/tasks.md).
+
+- [x] **M16.1** Domain: membership enums, `PlayerGroupLink` lifecycle fields, approved-only vs any-status repository reads, catalogue / search ports.
+- [x] **M16.2** Application: `GroupMembershipService` state machine, `IGroupMembershipGate`, membership handlers, gate in RSVP / self check-in / claim, access projection in feed and Game Day, import group attach.
+- [x] **M16.3** Infrastructure: `OwnerPhoneNumbers` Owner promotion, `IsSuperAdmin` policy, repository reads, approved filters, EF configuration, migration `AddGroupMembershipApproval` (with Approved/WhatsApp backfill).
+- [x] **M16.4** Functions + Contracts: `GroupMembershipFunctions`, `group-membership-required` problem type, DI, additive `MembershipStatus` / `CanJoin` on session and Game Day DTOs.
+- [x] **M16.5** Tests (Application, Functions, Infrastructure non-LocalDB; schema contract and Owner promotion in CI; Domain and Client unchanged and green).
+- [x] **M16.6** Knowledge base and spec index.
+- [ ] **M16.7** MAUI join-groups picker, view-only rendering, members screen, owner tools.
+- [ ] **M16.8** Configure `OwnerPhoneNumbers` per environment (never committed).
+- [ ] **M16.9** Deploy: apply the migration through the release pipeline; verify backfilled memberships and imported-game groups.
+
 ---
 
 ## Dependency summary
@@ -252,7 +273,7 @@ M0 â†’ M1 â†’ M2 â†’ M3 â†’ M4 â†’ M5 â”
                                 M7 â†’ M8 â†’ M9
                      M4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â†’ M8.6 (profile stat merge)
                      M1 â†’ M10
-M3..M9 â†’ M11 â†’ M12 → M13 → M14 → M15
+M3..M9 â†’ M11 â†’ M12 → M13 → M14 → M15 → M16
 ```
 
 ## Definition of done (per milestone)

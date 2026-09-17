@@ -48,4 +48,5 @@ One line per memory. Skim this at the start of a task; read the full entry when 
 - [Game Day draft revision and adaptive polling](game-day-draft-revision.md)
 - [m15-pickuppal-game-creation](m15-pickuppal-game-creation.md) - M15 / SES-7: app-published sessions with a group become Pickup Pal games (create / update / terminate, outbox retry); imported games stay Pickup Pal's
 - [pickuppal-account-creation](pickuppal-account-creation.md) - PickupPal account-creation contract, the agreed !!register / !!login flows, and pending Pickup Pal work (spec AUTH-10)
+- [m16-group-membership](m16-group-membership.md) - M16 / GRP-1: one membership row per player+group (Pending/Approved/Declined/Removed), WhatsApp auto-approve, approved-only RSVP/waitlist/check-in/claim gate, group admins vs OwnerPhoneNumbers super admins, nothing written to Pickup Pal
 - [m14-pickuppal-roster-sync](m14-pickuppal-roster-sync.md) - M14/RSVP-9: app RSVPs on imported sessions add/remove the player on the Pickup Pal roster, refresh via the import path, retry from the outbox timer; matched error strings; waiver gate removed from RSVP eligibility
