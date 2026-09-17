@@ -174,7 +174,7 @@ public sealed class GetSentAnnouncementsQueryHandler(
 
         // Scoped to the admin's current groups as well as their authorship, so leaving a group also
         // ends visibility of what they sent to it.
-        var links = await playerGroupLinkRepository.ListByPlayerAsync(playerProfileId, cancellationToken);
+        var links = await playerGroupLinkRepository.ListApprovedByPlayerAsync(playerProfileId, cancellationToken);
         var groupChatIds = links.Select(link => link.GroupChatId).ToArray();
         if (groupChatIds.Length == 0)
         {

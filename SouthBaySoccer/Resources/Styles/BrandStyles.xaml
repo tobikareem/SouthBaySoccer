@@ -290,6 +290,35 @@
         </Setter>
     </Style>
 
+    <!-- GRP-1: destructive glyph-only action (decline a request, remove a member). Same 44dp tile
+         as IconButton; the danger surface/text pair says "this takes something away" without a
+         full-width DangerButton inside a list row. -->
+    <Style x:Key="IconButtonDanger" TargetType="Button" BasedOn="{StaticResource IconButton}">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource DangerSurfaceLight}, Dark={StaticResource DangerSurfaceDark}}" />
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor"
+                                    Value="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}" />
+                            <Setter Property="TextColor" Value="White" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="Opacity" Value="0.55" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
     <!-- M11.0c: glyph-only toggle (like/MVP). On/off is the bound RadioButton IsChecked state,
          never decided in code-behind. The glyph stays constant; the CheckedStates group recolors it.
          Per the MAUI "Redefine RadioButton appearance" guidance the visual states live inside the

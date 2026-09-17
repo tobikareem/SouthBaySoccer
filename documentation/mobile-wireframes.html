@@ -195,7 +195,7 @@
     <div>
       <div class="eyebrow">Product design benchmark</div>
       <h1>N9ja Bay mobile experience</h1>
-      <p class="sub">Clickable wireframes for sign-in, WhatsApp-verified sign-up, session RSVP, the upcoming-session schedule, game-day check-in, captain team selection, admin broadcasts, player notifications, self-claiming a spot on a recent game, player stats, confirmation, ratings, and leaderboards. The design follows the reusable MAUI control system and the green-and-white Pickup Soccer brand.</p>
+      <p class="sub">Clickable wireframes for sign-in, WhatsApp-verified sign-up, session RSVP, the upcoming-session schedule, game-day check-in, captain team selection, admin broadcasts, player notifications, self-claiming a spot on a recent game, group membership with admin approval, player stats, confirmation, ratings, and leaderboards. The design follows the reusable MAUI control system and the green-and-white Pickup Soccer brand.</p>
     </div>
     <div class="controls" aria-label="Wireframe view">
       <button class="ctl active" id="c-flow" aria-pressed="true" onclick="setView('flow')"><i class="ti ti-device-mobile"></i> Interactive</button>
@@ -345,7 +345,7 @@
           <div class="row" style="gap:6px;margin-top:7px;flex-wrap:wrap"><span class="pill ok">ST</span><span class="pill" style="background:var(--surface-alt);color:var(--sage);border:1px solid var(--line)">RW</span><span class="pill" style="background:var(--surface-alt);color:var(--sage);border:1px solid var(--line)">CM</span><span class="pill" style="background:var(--surface-alt);color:var(--sage);border:1px solid var(--line)">CB</span><span class="pill" style="background:var(--surface-alt);color:var(--sage);border:1px solid var(--line)">GK</span></div></div>
         <div class="toggle-row" onclick="this.querySelector('.switch').classList.toggle('on')"><span class="switch on"></span><div style="flex:1;font-size:13px;line-height:1.4">I agree to the <span class="link" style="font-size:13px">Pickup Pal terms</span> and the <span class="link" style="font-size:13px">N9ja Bay privacy policy</span>.</div></div>
         <button class="btn primary" style="margin-top:14px" onclick="show('signup-welcome')"><i class="ti ti-user-check"></i> Create account</button>
-        <p class="muted" style="text-align:center;margin-top:12px;line-height:1.5">Your waiver and code of conduct come next, before your first RSVP.</p>
+        <p class="muted" style="text-align:center;margin-top:12px;line-height:1.5">You'll land on your upcoming sessions right after this.</p>
       </div>
     </section>
 
@@ -361,12 +361,40 @@
           <div class="listrow"><i class="ti ti-circle-check" style="color:var(--g);font-size:22px"></i><div style="flex:1"><div style="font-weight:600">Joined Saturday crew</div><div class="muted">Found from your WhatsApp groups. 48 members.</div></div></div>
           <div class="listrow" style="border:0"><i class="ti ti-clock-hour-4" style="color:var(--amber);font-size:22px"></i><div style="flex:1"><div style="font-weight:600">Past games still syncing</div><div class="muted">Any games you played before today show up in a moment.</div></div></div>
         </div>
-        <div class="label" style="margin-top:8px">Before your first RSVP</div>
-        <div class="card interactive" style="cursor:pointer;padding:12px 14px" onclick="show('home')">
-          <div class="row"><span class="mini-action" style="background:var(--g);color:#fff"><i class="ti ti-file-text"></i></span><div style="flex:1"><div style="font-size:14px;font-weight:700">Sign the waiver and code of conduct</div><div class="muted">Two minutes. Required once a season.</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div>
+        <button class="btn primary" style="margin-top:6px" onclick="show('groups-choose')"><i class="ti ti-users-plus"></i> Choose your groups</button>
+        <p class="muted" style="text-align:center;margin-top:12px;line-height:1.5">Not in a group yet? Pick the groups you play with next; an admin approves the ones WhatsApp doesn't already list you in.</p>
+      </div>
+    </section>
+
+    <!-- GROUPS CHOOSE — multi-select join at first sign-in (replaces the single-select "Join your group") -->
+    <section class="screen" data-s="groups-choose">
+      <div class="scroll" style="padding-top:14px">
+        <div class="label">Step 2 of 2</div>
+        <div class="h">Join your groups</div>
+        <p class="muted" style="margin:2px 0 8px;line-height:1.5">Pick every WhatsApp group you play with. Groups that already list you on WhatsApp are approved instantly; the rest wait for a group admin.</p>
+        <div class="card groups-choose-list" style="padding:6px 14px">
+          <label class="checkrow"><input type="checkbox" checked onchange="groupPick(this)"><div style="flex:1"><div style="font-weight:600">Bay Area Soccer</div><div class="muted">349 members</div></div></label>
+          <label class="checkrow"><input type="checkbox" checked onchange="groupPick(this)"><div style="flex:1"><div style="font-weight:600">Morning Pick Up Soccer</div><div class="muted">67 members</div></div></label>
+          <label class="checkrow" style="border:none"><input type="checkbox" onchange="groupPick(this)"><div style="flex:1"><div style="font-weight:600">Saturday Soccer</div><div class="muted">58 members</div></div></label>
+        </div>
+        <div class="muted" style="text-align:center;margin:-2px 0 10px"><span class="groups-pick-count">2</span> selected</div>
+        <button class="btn primary groups-pick-btn" onclick="show('groups-result')"><i class="ti ti-users-plus"></i> Continue</button>
+      </div>
+    </section>
+
+    <!-- GROUPS RESULT — what the server decided for each requested group -->
+    <section class="screen" data-s="groups-result">
+      <div class="ghdr" style="padding:34px 16px 30px"><span class="flag"></span>
+        <div class="row" style="gap:9px"><div class="avatar" style="width:42px;height:42px;background:rgba(255,255,255,.16);color:#fff"><i class="ti ti-users-group" style="font-size:23px"></i></div>
+          <div><div style="font-size:17px;font-weight:500">Requests sent</div><div style="font-size:12px;opacity:.85">1 joined · 1 awaiting approval</div></div></div>
+      </div>
+      <div class="scroll" style="padding-top:18px">
+        <div class="card" style="padding:13px 14px">
+          <div class="listrow"><i class="ti ti-circle-check" style="color:var(--g);font-size:22px"></i><div style="flex:1"><div style="font-weight:600">Bay Area Soccer</div><div class="muted">Found in your WhatsApp groups · 349 members.</div></div><span class="pill ok">Approved</span></div>
+          <div class="listrow" style="border:0"><i class="ti ti-clock-hour-4" style="color:var(--amber);font-size:22px"></i><div style="flex:1"><div style="font-weight:600">Morning Pick Up Soccer</div><div class="muted">A group admin will review your request.</div></div><span class="pill warn">Pending</span></div>
         </div>
         <button class="btn primary" style="margin-top:6px" onclick="show('home')"><i class="ti ti-calendar-event"></i> See upcoming sessions</button>
-        <p class="muted" style="text-align:center;margin-top:12px;line-height:1.5">Not in a group yet? Ask an organizer for the group link code, or find one under Profile.</p>
+        <p class="muted" style="text-align:center;margin-top:12px;line-height:1.5">You can join more groups or leave one any time from Profile → My groups.</p>
       </div>
     </section>
 
@@ -567,6 +595,11 @@
           <div class="listrow" style="border:none"><span class="mini-action"><i class="ti ti-calendar-event"></i></span><div style="flex:1"><div style="font-weight:700">Stanford Turf - 5v5</div><div class="muted">Wed Jun 24 - 7:00 PM - Full</div></div><span class="link"><i class="ti ti-pencil"></i> Edit</span></div>
         </div>
         <div class="notice" style="margin-top:8px"><i class="ti ti-edit"></i><div>Tap Edit to load a created session into the form below. Saving updates the player-facing session without creating a duplicate.</div></div>
+        <div class="label" style="margin-top:14px">Group</div>
+        <div class="card">
+          <div class="input" style="display:flex;align-items:center;justify-content:space-between;background:#fbfcfb"><span>Bay Area Soccer</span><i class="ti ti-chevron-down" style="color:var(--sage)"></i></div>
+          <p class="muted" style="margin:8px 0 0">Choose which group's WhatsApp game this is. Only that group's approved members can RSVP.</p>
+        </div>
         <div class="label" style="margin-top:14px">Game date and time</div>
         <div class="card">
           <div class="row" style="gap:10px"><span class="mini-action"><i class="ti ti-calendar"></i></span><div style="flex:1"><div class="label">Game date</div><div class="input" style="margin-top:5px">Sat Jun 27, 2026</div></div></div>
@@ -833,9 +866,72 @@
           <div class="row" data-profile="form" style="gap:6px;margin-top:10px"><span class="pill ok">W</span><span class="pill ok">W</span><span class="pill warn">D</span><span class="pill ok">W</span><span class="pill full">L</span></div>
         </div>
         <div class="muted" data-profile-note style="margin:2px 0 10px"><i class="ti ti-clock-hour-4" style="color:var(--amber)"></i> 2 goals from Sat awaiting confirmation</div>
+                <div class="label" style="margin-top:14px">My groups</div>
+        <div class="card" style="margin-top:9px;padding:11px 13px">
+          <div class="row" style="justify-content:space-between"><div><div style="font-weight:600">Bay Area Soccer, Morning Pick Up Soccer</div><div class="muted">1 approved · 1 pending</div></div><span class="link" onclick="show('groups-mine')">Manage</span></div>
+        </div>
+        <!-- Group admins only: one row per group they administer. -->
+        <div class="label" style="margin-top:14px">Manage members</div>
+        <div class="card interactive" style="padding:11px 13px;cursor:pointer" onclick="show('group-members')"><div class="row"><span class="avatar" style="width:34px;height:34px;font-size:12px"><i class="ti ti-users"></i></span><div style="flex:1"><div style="font-weight:600">Bay Area Soccer</div><div class="muted">Approve requests · manage members</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
+        <!-- Owners only (IsSuperAdmin from the server). -->
+        <div class="card hero-card" style="cursor:pointer" onclick="show('super-admin-groups')"><div class="hero-kicker">Super admin</div><div class="hero-title">Groups &amp; admins</div><div style="font-size:12px;opacity:.85">Manage any group, add players directly, appoint admins.</div></div>
         <button class="btn ghost" onclick="show('leaderboard')">View season leaderboard</button>
       </div>
       <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a onclick="show('gameday')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a class="active" onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
+    </section>
+
+    <!-- MY GROUPS — Profile → memberships with status, leave, and join more -->
+    <section class="screen" data-s="groups-mine">
+      <div class="ghdr"><span class="flag"></span><div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Profile</div><div style="font-size:17px;font-weight:500">My groups</div></div></div></div>
+      <div class="scroll">
+        <div class="label" style="margin-top:12px">Your memberships</div>
+        <div class="card" style="padding:6px 14px">
+          <div class="listrow"><span class="avatar" style="width:34px;height:34px;font-size:12px"><i class="ti ti-users"></i></span><div style="flex:1"><div style="font-weight:600">Bay Area Soccer</div><div class="muted">Admin · 349 members</div></div><span class="pill ok">Approved</span><span class="link" onclick="leaveGroup(this)">Leave</span></div>
+          <div class="listrow" style="border:0"><span class="avatar" style="width:34px;height:34px;font-size:12px"><i class="ti ti-users"></i></span><div style="flex:1"><div style="font-weight:600">Morning Pick Up Soccer</div><div class="muted">Requested Jun 3 · 67 members</div></div><span class="pill warn">Pending</span><span class="link" onclick="leaveGroup(this)">Cancel</span></div>
+        </div>
+        <div class="label" style="margin-top:14px">Join another group</div>
+        <div class="card" style="padding:6px 14px">
+          <div class="listrow" style="border:0"><span class="avatar" style="width:34px;height:34px;font-size:12px"><i class="ti ti-users"></i></span><div style="flex:1"><div style="font-weight:600">Saturday Soccer</div><div class="muted">58 members</div></div><button class="btn ghost btn-link-sm" onclick="requestGroup(this)"><i class="ti ti-user-plus"></i> Request</button></div>
+        </div>
+        <p class="muted" style="text-align:center;margin-top:12px;line-height:1.5">A group admin approves requests. Games of groups you are not in are view-only.</p>
+      </div>
+    </section>
+
+    <!-- GROUP MEMBERS — group admin: approve / decline requests, remove members. Super admin extras: add member by search, make / remove admin. -->
+    <section class="screen" data-s="group-members">
+      <div class="ghdr"><span class="flag"></span><div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Group admin</div><div style="font-size:17px;font-weight:500">Bay Area Soccer</div></div></div></div>
+      <div class="scroll">
+        <div class="row" style="justify-content:space-between;margin:10px 0 2px"><span class="pill ok"><i class="ti ti-users"></i> 349 members</span><span class="pill warn"><i class="ti ti-clock-hour-4"></i> 2 pending</span></div>
+        <div class="label" style="margin-top:12px">Pending requests</div>
+        <div class="card" style="padding:6px 14px">
+          <div class="listrow"><span class="avatar" style="width:34px;height:34px;font-size:12px">AN</span><div style="flex:1"><div style="font-weight:600">Ayo N.</div><div class="muted">Requested Jun 3</div></div><span class="mini-action" role="button" aria-label="Approve Ayo N." onclick="approveMember(this)"><i class="ti ti-check"></i></span><span class="mini-action" role="button" aria-label="Decline Ayo N." style="background:var(--danger-bg);color:var(--danger)" onclick="declineMember(this)"><i class="ti ti-x"></i></span></div>
+          <div class="listrow" style="border:0"><span class="avatar" style="width:34px;height:34px;font-size:12px">MR</span><div style="flex:1"><div style="font-weight:600">Maya R.</div><div class="muted">Requested Jun 4</div></div><span class="mini-action" role="button" aria-label="Approve Maya R." onclick="approveMember(this)"><i class="ti ti-check"></i></span><span class="mini-action" role="button" aria-label="Decline Maya R." style="background:var(--danger-bg);color:var(--danger)" onclick="declineMember(this)"><i class="ti ti-x"></i></span></div>
+        </div>
+        <!-- Super admin only: add a known player straight in. Name fragment search, never phone. -->
+        <div class="label" style="margin-top:14px">Add member <span class="pill ok" style="margin-left:6px">Super admin</span></div>
+        <div class="input" style="display:flex;align-items:center;gap:8px;margin:8px 0;background:#fbfcfb"><i class="ti ti-search" style="color:var(--sage)"></i><input aria-label="Search players by name" placeholder="Search players by name (2+ letters)" style="border:0;outline:0;background:transparent;width:100%;font-size:15px;color:var(--ink)" /></div>
+        <div class="card" style="padding:6px 14px">
+          <div class="listrow" style="border:0"><span class="avatar" style="width:34px;height:34px;font-size:12px">DO</span><div style="flex:1"><div style="font-weight:600">Deji O.</div><div class="muted">+1 (555) ••• 0412</div></div><button class="btn ghost btn-link-sm" onclick="addMember(this)"><i class="ti ti-user-plus"></i> Add</button></div>
+        </div>
+        <div class="label" style="margin-top:14px">Members</div>
+        <div class="card" style="padding:6px 14px">
+          <div class="listrow"><span class="avatar" style="width:34px;height:34px;font-size:12px">TK</span><div style="flex:1"><div style="font-weight:600">Tobi Kareem</div><div class="muted">Admin · via WhatsApp</div></div><span class="pill ok"><i class="ti ti-crown"></i> Admin</span></div>
+          <div class="listrow"><span class="avatar" style="width:34px;height:34px;font-size:12px">KT</span><div style="flex:1"><div style="font-weight:600">Kola T.</div><div class="muted">Member · via WhatsApp</div></div><button class="btn ghost btn-link-sm" onclick="toggleAdmin(this)">Make admin</button><span class="mini-action" role="button" aria-label="Remove Kola T." style="background:var(--danger-bg);color:var(--danger)" onclick="removeMember(this)"><i class="ti ti-user-minus"></i></span></div>
+          <div class="listrow" style="border:0"><span class="avatar" style="width:34px;height:34px;font-size:12px">JD</span><div style="flex:1"><div style="font-weight:600">Jide D.</div><div class="muted">Member · requested</div></div><button class="btn ghost btn-link-sm" onclick="toggleAdmin(this)">Make admin</button><span class="mini-action" role="button" aria-label="Remove Jide D." style="background:var(--danger-bg);color:var(--danger)" onclick="removeMember(this)"><i class="ti ti-user-minus"></i></span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SUPER ADMIN GROUPS — the two owners pick any group to manage -->
+    <section class="screen" data-s="super-admin-groups">
+      <div class="ghdr"><span class="flag"></span><div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Super admin</div><div style="font-size:17px;font-weight:500">Groups &amp; admins</div></div></div></div>
+      <div class="scroll">
+        <p class="muted" style="margin:10px 0 4px;line-height:1.5">Open any group to approve requests, add players directly, and make or unmake group admins.</p>
+        <div class="label" style="margin-top:10px">All groups</div>
+        <div class="card interactive" style="padding:11px 13px;cursor:pointer" onclick="show('group-members')"><div class="row"><span class="avatar" style="width:38px;height:38px;font-size:14px"><i class="ti ti-users"></i></span><div style="flex:1"><div style="font-weight:700">Bay Area Soccer</div><div class="muted">349 members · 2 pending</div></div><span class="pill warn">2</span><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
+        <div class="card interactive" style="padding:11px 13px;cursor:pointer" onclick="show('group-members')"><div class="row"><span class="avatar" style="width:38px;height:38px;font-size:14px"><i class="ti ti-users"></i></span><div style="flex:1"><div style="font-weight:700">Morning Pick Up Soccer</div><div class="muted">67 members · 1 pending</div></div><span class="pill warn">1</span><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
+        <div class="card interactive" style="padding:11px 13px;cursor:pointer" onclick="show('group-members')"><div class="row"><span class="avatar" style="width:38px;height:38px;font-size:14px"><i class="ti ti-users"></i></span><div style="flex:1"><div style="font-weight:700">Saturday Soccer</div><div class="muted">58 members</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
+      </div>
     </section>
 
     <!-- LEADERBOARD — clickable, data-driven segments -->
@@ -1160,7 +1256,17 @@
   function matchLink(el){ var s=activeScreen(); var player=el.querySelector('[style*="font-weight:600"]').textContent; if(matchPending){ var btn=matchPending.querySelector('button'); if(btn){ var done=document.createElement('span'); done.style.cssText='display:inline-flex;align-items:center;gap:5px;color:var(--g);font-size:13px;font-weight:700'; done.innerHTML="<i class='ti ti-circle-check'></i> "+player; btn.replaceWith(done); } matchPending.querySelector('.muted').textContent='linked to '+player; } s.querySelector('.match-pick').style.display='none'; s.querySelector('.match-list').style.display='block'; matchPending=null; }
   function adminMatchBack(){ var s=activeScreen(); if(s.querySelector('.match-pick').style.display!=='none'){ s.querySelector('.match-pick').style.display='none'; s.querySelector('.match-list').style.display='block'; matchPending=null; } else { back(); } }
 
-  var order=['signin','signin-verify','signin-waiting','signup-start','signup-waiting','signup-expired','signup-details','signup-welcome','home','adminbroadcast','notifications','session','schedule','adminsession','gameday','gameday-spectator','gameday-empty','captains','draft','postgame','claim','claimpick','adminmatch','leaderboard','players','profile','matchstats','rate'];
+  // --- Group membership (GRP-1) ---------------------------------------------------------------
+  function groupPick(input){ var s=input.closest('.screen'); var n=s.querySelectorAll('.groups-choose-list input:checked').length; s.querySelector('.groups-pick-count').textContent=n; s.querySelector('.groups-pick-btn').disabled=n===0; }
+  function requestGroup(btn){ var pill=document.createElement('span'); pill.className='pill warn'; pill.textContent='Pending'; btn.replaceWith(pill); }
+  function leaveGroup(el){ el.closest('.listrow').remove(); }
+  function approveMember(el){ var row=el.closest('.listrow'); row.querySelectorAll('.mini-action').forEach(function(m){ m.remove(); }); var pill=document.createElement('span'); pill.className='pill ok'; pill.textContent='Approved'; row.appendChild(pill); }
+  function declineMember(el){ var row=el.closest('.listrow'); row.querySelectorAll('.mini-action').forEach(function(m){ m.remove(); }); var pill=document.createElement('span'); pill.className='pill full'; pill.textContent='Declined'; row.appendChild(pill); }
+  function removeMember(el){ el.closest('.listrow').remove(); }
+  function addMember(btn){ var pill=document.createElement('span'); pill.className='pill ok'; pill.textContent='Added'; btn.replaceWith(pill); }
+  function toggleAdmin(btn){ var on=btn.textContent.trim()==='Make admin'; btn.textContent=on?'Remove admin':'Make admin'; }
+
+  var order=['signin','signin-verify','signin-waiting','signup-start','signup-waiting','signup-expired','signup-details','signup-welcome','groups-choose','groups-result','home','adminbroadcast','notifications','session','schedule','adminsession','gameday','gameday-spectator','gameday-empty','captains','draft','postgame','claim','claimpick','adminmatch','leaderboard','players','profile','groups-mine','group-members','super-admin-groups','matchstats','rate'];
   function setView(v){
     var stage=document.getElementById('stage'); stage.dataset.view=v; hist=[];
     document.getElementById('c-flow').classList.toggle('active', v==='flow');

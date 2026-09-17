@@ -204,6 +204,67 @@ In-app sign-up and verified sign-in over the Pickup Pal WhatsApp bot. Task detai
 
 ---
 
+## M14 Pickup Pal roster sync (RSVP-9)
+
+An RSVP made in the app on a session imported from Pickup Pal (occurrence key `pickuppal:*`) is
+pushed to that game's Pickup Pal roster (add on Going, remove on cancel / NotGoing / Maybe), the
+game is re-read and upserted through the import path, and failures are retried from the outbox by a
+timer trigger. Task detail lives in
+[`stories/RSVP-9-pickup-pal-roster-sync/tasks.md`](stories/RSVP-9-pickup-pal-roster-sync/tasks.md).
+
+- [x] **M14.1** Domain: `PickupPalSyncStatus`, `RsvpResponse` sync columns, repository ports.
+- [x] **M14.2** Application: `PickupPalGameImportService` extraction, games-client port extension, `RsvpPickupPalSyncService`, outbox handlers, handler wiring.
+- [x] **M14.3** Infrastructure: games client add/remove/get with API key + error shapes, repository methods, migration `AddRsvpPickupPalSync`.
+- [x] **M14.4** Functions + Contracts: `pickupPalSync` on the RSVP response, `OutboxFunctions` timer (5 min, `Outbox:Enabled`).
+- [x] **M14.5** Tests (Application, Infrastructure non-LocalDB, Functions; Client unchanged and green).
+- [x] **M14.6** Knowledge base and spec index.
+- [ ] **M14.7** Confirm the Pickup Pal Games error strings and auto-waitlist behaviour; correct the mapping if needed.
+- [ ] **M14.8** Deploy: apply the migration through the release pipeline; configure `PickupPal:ApiKey`; verify the timer runs.
+
+---
+
+## M15 Pickup Pal game creation (SES-7)
+
+A session an admin publishes in the app with a WhatsApp group is created as a game on Pickup Pal
+(`POST api/games`, `gameType WHATSAPP_GROUP`), the game id is kept on the session
+(`PickupPalOrigin = CreatedByApp`, occurrence key `pickuppal:{gameId}`), and later updates and
+cancellations propagate (`PUT` / `DELETE api/games/{gameId}`), retried from the same outbox by the
+timer. Imported games stay Pickup Pal's; app-only sessions stay app-only. Task detail lives in
+[`stories/SES-7-pickup-pal-game-creation/tasks.md`](stories/SES-7-pickup-pal-game-creation/tasks.md).
+
+- [x] **M15.1** Domain: `PickupPalOrigin`, `Session.GroupChatId` + Pickup Pal game / sync columns, repository ports.
+- [x] **M15.2** Application: `SessionGroupResolver`, games-client create / update / terminate port, `SessionPickupPalSyncService` + gate, outbox handler, import ownership rule, handler wiring.
+- [x] **M15.3** Infrastructure: games client create / update / terminate, repository reads, EF configuration, migration `AddSessionPickupPalGame` (with occurrence-key backfill).
+- [x] **M15.4** Functions + Contracts: DI registrations; `groupChatId` in, `groupChatId` / `groupName` out on the admin session DTOs.
+- [x] **M15.5** Tests (Application, Infrastructure non-LocalDB, Functions; Client unchanged and green).
+- [x] **M15.6** Knowledge base and spec index.
+- [ ] **M15.7** MAUI group picker on Create Session bound to `groupChatId`.
+- [ ] **M15.8** Confirm the create response shape and `PUT` start-field handling with Pickup Pal.
+- [ ] **M15.9** Deploy: apply the migration through the release pipeline; verify a publish reaches the group.
+
+## M16 Group membership and roles (GRP-1)
+
+A player belongs to many WhatsApp groups; joining is a request a group admin approves, except a
+player Pickup Pal already lists in that group is approved at once. Every group's games stay visible
+to every signed-in player, but only approved members of a game's group can RSVP, join the waitlist,
+self check-in, or claim (403 `group-membership-required`). Group admins approve / decline / remove
+their members; only the configured owners (`OwnerPhoneNumbers`, `PlayerRole.Owner`) appoint group
+admins or add a known player directly. Membership lives in our database and is never written to
+Pickup Pal. Task detail lives in
+[`stories/GRP-1-group-membership-approval/tasks.md`](stories/GRP-1-group-membership-approval/tasks.md).
+
+- [x] **M16.1** Domain: membership enums, `PlayerGroupLink` lifecycle fields, approved-only vs any-status repository reads, catalogue / search ports.
+- [x] **M16.2** Application: `GroupMembershipService` state machine, `IGroupMembershipGate`, membership handlers, gate in RSVP / self check-in / claim, access projection in feed and Game Day, import group attach.
+- [x] **M16.3** Infrastructure: `OwnerPhoneNumbers` Owner promotion, `IsSuperAdmin` policy, repository reads, approved filters, EF configuration, migration `AddGroupMembershipApproval` (with Approved/WhatsApp backfill).
+- [x] **M16.4** Functions + Contracts: `GroupMembershipFunctions`, `group-membership-required` problem type, DI, additive `MembershipStatus` / `CanJoin` on session and Game Day DTOs.
+- [x] **M16.5** Tests (Application, Functions, Infrastructure non-LocalDB; schema contract and Owner promotion in CI; Domain and Client unchanged and green).
+- [x] **M16.6** Knowledge base and spec index.
+- [ ] **M16.7** MAUI join-groups picker, view-only rendering, members screen, owner tools.
+- [ ] **M16.8** Configure `OwnerPhoneNumbers` per environment (never committed).
+- [ ] **M16.9** Deploy: apply the migration through the release pipeline; verify backfilled memberships and imported-game groups.
+
+---
+
 ## Dependency summary
 
 ```
@@ -212,7 +273,7 @@ M0 â†’ M1 â†’ M2 â†’ M3 â†’ M4 â†’ M5 â”
                                 M7 â†’ M8 â†’ M9
                      M4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â†’ M8.6 (profile stat merge)
                      M1 â†’ M10
-M3..M9 â†’ M11 â†’ M12 → M13
+M3..M9 â†’ M11 â†’ M12 → M13 → M14 → M15 → M16
 ```
 
 ## Definition of done (per milestone)

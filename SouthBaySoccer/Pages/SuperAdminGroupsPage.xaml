@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.SuperAdminGroupsPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="SuperAdminGroupsPageName"
+    x:DataType="pageModels:SuperAdminGroupsPageModel"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Groups &amp; admins">
+
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference SuperAdminGroupsPageName}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader
+            Title="Groups &amp; admins"
+            Subtitle="Super admin"
+            ShowBack="True"
+            BackCommand="{Binding BackCommand}" />
+
+        <c:StateView
+            Grid.Row="1"
+            State="{Binding State}"
+            Title="{Binding StateTitle}"
+            Message="{Binding StateMessage}"
+            Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
+            GlyphFontFamily="FontAwesomeSolid"
+            RetryCommand="{Binding RefreshCommand}">
+            <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing, Mode=TwoWay}">
+                <ScrollView>
+                    <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">
+                        <Label
+                            Text="Open any group to approve requests, add players directly, and make or unmake group admins."
+                            Style="{StaticResource TextCaption}" />
+
+                        <c:SectionHeader Text="All groups" />
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding Groups}" Spacing="{StaticResource SpaceSm}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="pageModels:AdminGroupItem">
+                                    <Border Style="{StaticResource CardSurface}" Padding="0" MinimumHeightRequest="{StaticResource TouchMin}">
+                                        <c:PlayerRow
+                                            Name="{Binding Name}"
+                                            Detail="{Binding Detail}"
+                                            Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
+                                            SemanticDescription="{Binding SemanticDescription}"
+                                            TapCommand="{Binding BindingContext.OpenGroupCommand, Source={x:Reference SuperAdminGroupsPageName}}"
+                                            TapCommandParameter="{Binding .}">
+                                            <c:PlayerRow.TrailingContent>
+                                                <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                                    <c:Badge Text="{Binding PendingCountText}" Variant="Warning" IsVisible="{Binding HasPending}" VerticalOptions="Center"
+                                                             SemanticProperties.Description="{Binding PendingDescription}" />
+                                                    <Label
+                                                        Text="{x:Static fonts:FontAwesomeGlyphs.ChevronRight}"
+                                                        FontFamily="FontAwesomeSolid"
+                                                        Style="{StaticResource TextCaption}"
+                                                        VerticalTextAlignment="Center"
+                                                        TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+                                                        AutomationProperties.IsInAccessibleTree="False" />
+                                                </HorizontalStackLayout>
+                                            </c:PlayerRow.TrailingContent>
+                                        </c:PlayerRow>
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </ScrollView>
+            </RefreshView>
+        </c:StateView>
+    </Grid>
+</ContentPage>

@@ -116,6 +116,18 @@ internal sealed class PlayerProfileRepository(SouthBaySoccerDbContext dbContext)
             .ThenBy(x => x.Id)
             .ToArrayAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<PlayerProfile>> SearchByDisplayNameAsync(
+        string normalizedFragment,
+        int take,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.PlayerProfiles
+            .AsNoTracking()
+            .Where(x => x.NormalizedDisplayName.Contains(normalizedFragment))
+            .OrderBy(x => x.NormalizedDisplayName)
+            .ThenBy(x => x.Id)
+            .Take(take)
+            .ToArrayAsync(cancellationToken);
+
     // Two flat queries instead of a per-profile correlated count: the subquery ran once per row, so
     // its cost grew with the square of the directory. Matches played are grouped once and merged.
     public async Task<IReadOnlyList<PlayerDirectoryReadModel>> ListDirectoryAsync(CancellationToken cancellationToken = default)

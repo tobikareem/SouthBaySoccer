@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.GroupMembersPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="GroupMembersPageName"
+    x:DataType="pageModels:GroupMembersPageModel"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="Members">
+
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference GroupMembersPageName}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader
+            Title="{Binding GroupName}"
+            Subtitle="Group admin"
+            ShowBack="True"
+            BackCommand="{Binding BackCommand}" />
+
+        <c:StateView
+            Grid.Row="1"
+            State="{Binding State}"
+            Title="{Binding StateTitle}"
+            Message="{Binding StateMessage}"
+            Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
+            GlyphFontFamily="FontAwesomeSolid"
+            RetryCommand="{Binding RefreshCommand}">
+            <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing, Mode=TwoWay}">
+                <ScrollView>
+                    <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">
+
+                        <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
+                            <c:Badge Text="{Binding MemberCountText}" Variant="Success" Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}" />
+                            <c:Badge Text="{Binding PendingCountText}" Variant="Warning" Glyph="{x:Static fonts:FontAwesomeGlyphs.Clock}" IsVisible="{Binding HasPending}" />
+                        </HorizontalStackLayout>
+
+                        <!-- Action/search failures sit above the lists so they are visible however long the group is. -->
+                        <Label
+                            Text="{Binding ActionMessage}"
+                            Style="{StaticResource TextCaption}"
+                            TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                            IsVisible="{Binding HasActionMessage}"
+                            SemanticProperties.Description="{Binding ActionMessage}" />
+
+                        <!-- Pending requests: approve / decline. -->
+                        <c:SectionHeader Text="Pending requests" IsVisible="{Binding HasPending}" />
+                        <c:BrandCard IsVisible="{Binding HasPending}">
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Pending}" Spacing="{StaticResource SpaceXs}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="pageModels:GroupMemberItem">
+                                        <c:PlayerRow
+                                            Initials="{Binding Initials}"
+                                            Name="{Binding Name}"
+                                            Detail="{Binding Detail}"
+                                            SemanticDescription="{Binding SemanticDescription}">
+                                            <c:PlayerRow.TrailingContent>
+                                                <HorizontalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding BindingContext.CanManageMembers, Source={x:Reference GroupMembersPageName}}">
+                                                    <Button
+                                                        Text="{x:Static fonts:FontAwesomeGlyphs.Check}"
+                                                        Style="{StaticResource IconButton}"
+                                                        Command="{Binding BindingContext.ApproveCommand, Source={x:Reference GroupMembersPageName}}"
+                                                        CommandParameter="{Binding .}"
+                                                        SemanticProperties.Description="{Binding ApproveDescription}" />
+                                                    <Button
+                                                        Text="{x:Static fonts:FontAwesomeGlyphs.Xmark}"
+                                                        Style="{StaticResource IconButtonDanger}"
+                                                        Command="{Binding BindingContext.DeclineCommand, Source={x:Reference GroupMembersPageName}}"
+                                                        CommandParameter="{Binding .}"
+                                                        SemanticProperties.Description="{Binding DeclineDescription}" />
+                                                </HorizontalStackLayout>
+                                            </c:PlayerRow.TrailingContent>
+                                        </c:PlayerRow>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </c:BrandCard>
+
+                        <!-- Super admin only: add a known player straight in. Name fragment search, never phone. -->
+                        <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding CanAppointAdmins}">
+                            <c:SectionHeader Text="Add member" />
+                            <Border
+                                Style="{StaticResource CardSurface}"
+                                Padding="{StaticResource SearchInputPadding}"
+                                BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}" MinimumHeightRequest="{StaticResource TouchMin}">
+                                    <Label
+                                        Text="{x:Static fonts:FontAwesomeGlyphs.MagnifyingGlass}"
+                                        FontFamily="FontAwesomeSolid"
+                                        FontSize="{StaticResource IconMd}"
+                                        TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+                                        VerticalTextAlignment="Center"
+                                        SemanticProperties.Description="Search" />
+                                    <Entry
+                                        Grid.Column="1"
+                                        Text="{Binding SearchQuery}"
+                                        Placeholder="Search players by name (2+ letters)"
+                                        Style="{StaticResource BrandEntry}"
+                                        BackgroundColor="Transparent"
+                                        ClearButtonVisibility="WhileEditing"
+                                        SemanticProperties.Description="Search players by name" />
+                                </Grid>
+                            </Border>
+                            <c:BrandCard IsVisible="{Binding HasSearchResults}">
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding SearchResults}" Spacing="{StaticResource SpaceXs}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="pageModels:PlayerSearchItem">
+                                            <c:PlayerRow
+                                                Initials="{Binding Initials}"
+                                                Name="{Binding Name}"
+                                                Detail="{Binding MaskedPhone}"
+                                                SemanticDescription="{Binding SemanticDescription}">
+                                                <c:PlayerRow.TrailingContent>
+                                                    <Button
+                                                        Text="Add"
+                                                        Style="{StaticResource GhostButton}"
+                                                        Command="{Binding BindingContext.AddMemberCommand, Source={x:Reference GroupMembersPageName}}"
+                                                        CommandParameter="{Binding .}"
+                                                        SemanticProperties.Description="{Binding SemanticDescription}" />
+                                                </c:PlayerRow.TrailingContent>
+                                            </c:PlayerRow>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
+                            </c:BrandCard>
+                        </VerticalStackLayout>
+
+                        <!-- Current members: remove; super admins also make / remove admins. -->
+                        <c:SectionHeader Text="Members" IsVisible="{Binding HasMembers}" />
+                        <c:BrandCard IsVisible="{Binding HasMembers}">
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding CurrentMembers}" Spacing="{StaticResource SpaceXs}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="pageModels:GroupMemberItem">
+                                        <c:PlayerRow
+                                            Initials="{Binding Initials}"
+                                            Name="{Binding Name}"
+                                            Detail="{Binding Detail}"
+                                            SemanticDescription="{Binding SemanticDescription}">
+                                            <c:PlayerRow.TrailingContent>
+                                                <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
+                                                    <!-- Group admins see the role as a pill; super admins get the crown toggle instead, so the
+                                                         name column keeps its width on a 360dp screen. -->
+                                                    <ContentView IsVisible="{Binding BindingContext.ShowsAdminBadge, Source={x:Reference GroupMembersPageName}}" VerticalOptions="Center">
+                                                        <c:Badge Text="Admin" Variant="Success" Glyph="{x:Static fonts:FontAwesomeGlyphs.Crown}" IsVisible="{Binding IsAdmin}" />
+                                                    </ContentView>
+                                                    <Button
+                                                        Text="{x:Static fonts:FontAwesomeGlyphs.Crown}"
+                                                        Style="{StaticResource IconButton}"
+                                                        IsVisible="{Binding BindingContext.CanAppointAdmins, Source={x:Reference GroupMembersPageName}}"
+                                                        Command="{Binding BindingContext.ToggleAdminCommand, Source={x:Reference GroupMembersPageName}}"
+                                                        CommandParameter="{Binding .}"
+                                                        SemanticProperties.Description="{Binding AdminActionDescription}">
+                                                        <Button.Triggers>
+                                                            <!-- A current admin's crown reads as "remove admin": the destructive tile. -->
+                                                            <DataTrigger TargetType="Button" Binding="{Binding IsAdmin}" Value="True">
+                                                                <Setter Property="Style" Value="{StaticResource IconButtonDanger}" />
+                                                            </DataTrigger>
+                                                        </Button.Triggers>
+                                                    </Button>
+                                                    <Button
+                                                        Text="{x:Static fonts:FontAwesomeGlyphs.UserMinus}"
+                                                        Style="{StaticResource IconButtonDanger}"
+                                                        IsVisible="{Binding BindingContext.CanManageMembers, Source={x:Reference GroupMembersPageName}}"
+                                                        Command="{Binding BindingContext.RemoveCommand, Source={x:Reference GroupMembersPageName}}"
+                                                        CommandParameter="{Binding .}"
+                                                        SemanticProperties.Description="{Binding RemoveDescription}" />
+                                                </HorizontalStackLayout>
+                                            </c:PlayerRow.TrailingContent>
+                                        </c:PlayerRow>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </c:BrandCard>
+                    </VerticalStackLayout>
+                </ScrollView>
+            </RefreshView>
+        </c:StateView>
+    </Grid>
+</ContentPage>

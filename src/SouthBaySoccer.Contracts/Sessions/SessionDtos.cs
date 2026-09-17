@@ -41,7 +41,10 @@ public sealed record SessionSummaryDto(
     bool IsWaitlisted = false,
     bool CanJoinWaitlist = false,
     bool IsRsvpClosed = false,
-    string? GroupChatName = null)
+    string? GroupChatName = null,
+    Guid? GroupChatId = null,
+    string? MembershipStatus = null,
+    bool CanJoin = true)
 {
     /// <summary>
     /// Whether this session carries a WhatsApp group chat name. Sessions an organizer created by
@@ -90,4 +93,8 @@ public sealed record SessionDetailDto(
     bool IsFull,
     bool IsRsvpAvailable,
     bool IsGoing,
-    bool IsCanceled = false);
+    bool IsCanceled = false,
+    Guid? GroupChatId = null,
+    string? GroupName = null,
+    string? MembershipStatus = null,
+    bool CanJoin = true);

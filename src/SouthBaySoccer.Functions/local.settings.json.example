@@ -9,6 +9,7 @@
     "PickupPal:Routes:DeleteUser": "api/users/{id}",
     "Onboarding:RequireWhatsAppVerification": "true",
     "Onboarding:VerificationExemptPhoneNumbers": "",
-    "Onboarding:TermsVersion": "20250708"
+    "Onboarding:TermsVersion": "20250708",
+    "Outbox:Enabled": "true"
   }
 }

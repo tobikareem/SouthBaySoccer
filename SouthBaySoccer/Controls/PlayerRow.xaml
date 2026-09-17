@@ -45,7 +45,8 @@
                    Style="{StaticResource TextBodyStrong}"
                    LineBreakMode="TailTruncation" />
             <Label Text="{Binding Detail, Source={x:Reference Root}}"
-                   Style="{StaticResource TextCaption}" />
+                   Style="{StaticResource TextCaption}"
+                   LineBreakMode="TailTruncation" />
         </VerticalStackLayout>
         <Grid Grid.Column="2" VerticalOptions="Center">
             <Label Text="{Binding TrailingText, Source={x:Reference Root}}"

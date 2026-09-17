@@ -93,18 +93,24 @@ public static class DependencyInjection
         // The games client stays inside the import path's 5s budget; the user and group clients sit
         // on interactive sign-in/link flows, where 10s leaves headroom for the provider's own cold
         // starts while staying well under the mobile client's 30s timeout.
+        // URI-logging ban on every Pickup Pal client: the factory's default LoggingHttpMessageHandler
+        // records the outbound request URI (phone digits, registration tokens, emails, user and
+        // game ids) at Information level, so it is removed here (RemoveAllLoggers) and no other
+        // message handlers are ever attached. Tests guard both.
         services.AddHttpClient<IPickupPalUserClient, PickupPalUserClient>(client =>
-            client.Timeout = TimeSpan.FromSeconds(10));
-        // No message handlers on this client either: its request URIs carry the registration token
-        // and the email under the Pickup Pal contract and must never be logged.
+                client.Timeout = TimeSpan.FromSeconds(10))
+            .RemoveAllLoggers();
         services.AddHttpClient<IPickupPalOnboardingClient, PickupPalOnboardingClient>(client =>
-            client.Timeout = TimeSpan.FromSeconds(10));
+                client.Timeout = TimeSpan.FromSeconds(10))
+            .RemoveAllLoggers();
         services.AddHttpClient<IPickupPalGamesClient, PickupPalGamesClient>(client =>
-            client.Timeout = TimeSpan.FromSeconds(5));
+                client.Timeout = TimeSpan.FromSeconds(5))
+            .RemoveAllLoggers();
         // Registered by concrete type so the caching decorator below owns the IPickupPalGroupClient
         // registration; the typed HttpClient plumbing is unchanged.
         services.AddHttpClient<PickupPalGroupClient>(client =>
-            client.Timeout = TimeSpan.FromSeconds(10));
+                client.Timeout = TimeSpan.FromSeconds(10))
+            .RemoveAllLoggers();
         services.AddScoped<IPickupPalGroupClient>(provider => new CachedPickupPalGroupClient(
             provider.GetRequiredService<PickupPalGroupClient>(),
             provider.GetRequiredService<IMemoryCache>(),

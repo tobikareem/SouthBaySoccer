@@ -32,7 +32,7 @@ protected operation is authorized server-side; client-side hiding is UX only.
 ## Global invariants (apply to all stories)
 
 - **INV-1** Stripe verified webhooks are the source of truth for payment/membership state; a client redirect is never proof of payment.
-- **INV-2** A player must be payment-eligible **and** have a current waiver before RSVP, unless an authorized admin records an explicit override.
+- **INV-2** A player must be payment-eligible before RSVP, unless an authorized admin records an explicit override. *(The waiver half of this invariant was removed on 2026-09-16; see Epic WAIV.)*
 - **INV-3** Session capacity and waitlist order are enforced in a single serializable transaction.
 - **INV-4** RSVP deadline locks normal player changes.
 - **INV-5** A `Season` is explicit, never inferred only from dates.
@@ -315,7 +315,7 @@ Scenario: Merge transfers career stats with an audit trail
 
 ---
 
-## Epic WAIV — Waivers & Compliance
+## Epic WAIV — Waivers & Compliance *(deferred 2026-09-16: no waiver requirement; WAIV-1..3 are not enforced and no screen references a waiver)*
 
 ### WAIV-1 — Accept waiver and code of conduct
 ```gherkin

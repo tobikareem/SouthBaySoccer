@@ -105,7 +105,8 @@ public sealed class ClaimParticipantHandlerTests
         var stats = new Mock<IStatsRepository>();
         var handler = new ClaimParticipantCommandHandler(
             CurrentUser().Object, Clock().Object, profileRepo.Object, SessionRepo().Object,
-            RsvpRepo().Object, repo.Object, stats.Object, Mock.Of<IAuditLogRepository>(), Mock.Of<IUnitOfWork>());
+            RsvpRepo().Object, repo.Object, stats.Object, Mock.Of<IAuditLogRepository>(), Mock.Of<IUnitOfWork>(),
+            new TestSupport.OpenGroupMembershipGate());
 
         await handler.HandleAsync(new ClaimParticipantCommand(SessionId, participant.Id));
 
@@ -325,7 +326,8 @@ public sealed class ClaimParticipantHandlerTests
             repo.Object,
             (statsRepo ?? new Mock<IStatsRepository>()).Object,
             Mock.Of<IAuditLogRepository>(),
-            Mock.Of<IUnitOfWork>());
+            Mock.Of<IUnitOfWork>(),
+            new TestSupport.OpenGroupMembershipGate());
 
     private static Mock<IClock> Clock()
     {

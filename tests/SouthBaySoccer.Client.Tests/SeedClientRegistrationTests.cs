@@ -44,6 +44,9 @@ public class SeedClientRegistrationTests
             .Should().BeOfType<SeedLeaderboardClient>();
         provider.GetRequiredService<IPlayersClient>().Should().BeOfType<SeedPlayersClient>();
         provider.GetRequiredService<IProfileClient>().Should().BeOfType<SeedProfileClient>();
+        provider.GetRequiredService<IGroupsClient>().Should().BeOfType<SeedGroupsClient>();
+        provider.GetRequiredService<IGroupsClient>()
+            .Should().BeSameAs(provider.GetRequiredService<IGroupsClient>(), "seed membership writes must be visible to every screen");
         provider.GetRequiredService<SeedState>()
             .Should().BeSameAs(provider.GetRequiredService<SeedState>());
     }
@@ -87,6 +90,8 @@ public class SeedClientRegistrationTests
             .Should().BeOfType<ApiLeaderboardClient>();
         provider.GetRequiredService<IGameDayClient>()
             .Should().BeOfType<ApiGameDayClient>();
+        provider.GetRequiredService<IGroupsClient>()
+            .Should().BeOfType<CachedGroupsClient>();
     }
 
     [Fact]
