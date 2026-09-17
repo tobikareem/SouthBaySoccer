@@ -122,6 +122,40 @@ public sealed class GroupHandlerTests
     }
 
     [Fact]
+    public async Task GetMyGroups_WhenRequestIsPendingAndWhatsAppListsThePlayer_ApprovesIt()
+    {
+        var identityUserId = Guid.NewGuid();
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = identityUserId, PickupPalUserId = PickupPalUserId };
+        var groupId = Guid.NewGuid();
+        var stored = new GroupChat { Id = groupId, ExternalId = ExternalId, GroupName = "Bay Area Soccer", LinkageCode = "D98ACL", WhatsAppMemberCount = 349, Status = "SUBSCRIBED", Timezone = "America/Los_Angeles" };
+        var groupClient = new Mock<IPickupPalGroupClient>();
+        groupClient.Setup(x => x.GetLinkedGroupsAsync(PickupPalUserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PickupPalGroupChat(ExternalId, "Bay Area Soccer", "D98ACL", "SUBSCRIBED", 349, "America/Los_Angeles")]);
+        var groupChats = new Mock<IGroupChatRepository>();
+        groupChats.Setup(x => x.FindByExternalIdAsync(ExternalId, It.IsAny<CancellationToken>())).ReturnsAsync(stored);
+        var pending = new PlayerGroupLink { PlayerProfileId = profile.Id, GroupChatId = groupId, Status = GroupMembershipStatus.Pending, Source = GroupMembershipSource.Request };
+        var links = new Mock<IPlayerGroupLinkRepository>();
+        links.Setup(x => x.ListByPlayerAsync(profile.Id, It.IsAny<CancellationToken>())).ReturnsAsync([pending]);
+        links.Setup(x => x.ListPlayerGroupsAsync(profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PlayerGroupReadModel(groupId, ExternalId, "Bay Area Soccer", 349, true)]);
+        var unitOfWork = new Mock<IUnitOfWork>();
+
+        var handler = new GetMyGroupsQueryHandler(
+            CurrentUser(identityUserId).Object, Profiles(identityUserId, profile).Object, groupClient.Object,
+            groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object);
+
+        var result = await handler.HandleAsync(new GetMyGroupsQuery());
+
+        result.IsLinked.Should().BeTrue();
+        pending.Status.Should().Be(GroupMembershipStatus.Approved);
+        pending.Source.Should().Be(GroupMembershipSource.WhatsApp);
+        pending.IsPrimary.Should().BeTrue();
+        links.Verify(x => x.Update(pending), Times.Once);
+        links.Verify(x => x.AddAsync(It.IsAny<PlayerGroupLink>(), It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task GetMyGroups_WhenGroupMetadataChangedButAlreadyLinked_PersistsRefresh()
     {
         var identityUserId = Guid.NewGuid();

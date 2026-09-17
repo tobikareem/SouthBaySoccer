@@ -117,6 +117,37 @@ public sealed class GroupMembershipGateTests
         await act.Should().ThrowAsync<GroupMembershipRequiredException>();
     }
 
+    [Theory]
+    [InlineData(RsvpStatus.Maybe)]
+    [InlineData(RsvpStatus.NotGoing)]
+    public async Task SubmitRsvp_WhenSteppingBack_NeverConsultsTheGate(RsvpStatus status)
+    {
+        var fixture = new ActorFixture();
+        // A strict gate with no setups: any call would throw, proving Maybe / NotGoing are not gated.
+        var gate = new Mock<IGroupMembershipGate>(MockBehavior.Strict);
+        var eligibility = new Mock<IPlayerSessionEligibilityService>();
+        eligibility
+            .Setup(x => x.CheckAsync(fixture.Profile.Id, fixture.Session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlayerSessionEligibilityResult(false, "Payment required."));
+        var handler = new SubmitRsvpCommandHandler(
+            fixture.CurrentUser.Object,
+            fixture.Clock.Object,
+            new SubmitRsvpCommandValidator(),
+            fixture.Profiles.Object,
+            fixture.Sessions.Object,
+            eligibility.Object,
+            Mock.Of<IRsvpRepository>(),
+            Mock.Of<IRsvpPickupPalSyncService>(),
+            gate.Object);
+
+        var act = async () => await handler.HandleAsync(new SubmitRsvpCommand(fixture.Session.Id, status));
+
+        // The flow reached the eligibility step (past where the gate would have run) untouched.
+        await act.Should().ThrowAsync<SouthBaySoccer.Application.Common.ApplicationConflictException>()
+            .WithMessage("Payment required.");
+        gate.VerifyNoOtherCalls();
+    }
+
     [Fact]
     public async Task SelfCheckIn_WhenNotApprovedMember_RejectsBeforeReadingAttendance()
     {

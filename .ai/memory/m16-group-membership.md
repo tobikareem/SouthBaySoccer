@@ -16,13 +16,15 @@ lives in our database and is never written to Pickup Pal** (the `/linked` read i
 ## Rules
 
 - **Record:** `PlayerGroupLink` (table `PlayerGroupLinks`, name kept) with `Status`
-  (`GroupMembershipStatus` Pending | Approved | Declined | Removed), `Role` (`GroupMemberRole`
+  (`GroupMembershipStatus` Pending | Approved | Declined | Removed | Withdrawn - Withdrawn is
+  the player pulling their own pending request, so it never reads as an admin decline), `Role` (`GroupMemberRole`
   Member | Admin), `Source` (`GroupMembershipSource` WhatsApp | Request | SuperAdmin),
   `RequestedAtUtc`, `ApprovedAtUtc` / `ApprovedByPlayerProfileId`, `RemovedAtUtc` /
   `RemovedByPlayerProfileId`. **One row per (player, group)**: a later request *reactivates* a
   Declined / Removed row (stamps reset, `RequestedAtUtc` = now); the existing unique filtered index
   on `(PlayerProfileId, GroupChatId)` is the "unique active row" guarantee. Ending a membership
-  clears `Role` and `IsPrimary`; the first approved membership becomes primary.
+  clears `Role` and `IsPrimary`; the first approved membership becomes primary, and removing /
+  leaving the primary group promotes the oldest remaining approved membership in the same save.
 - **Approved is the only membership.** Repository reads that mean "member" are approved-only
   (`ListApprovedByPlayerAsync`, `ExistsApprovedAsync`, `FindLinkAsync`, `ListPlayerGroupsAsync`,
   `CountMembersAsync`, and the raw `PlayerGroupLinks` joins in `AnnouncementRepository` /
@@ -31,15 +33,19 @@ lives in our database and is never written to Pickup Pal** (the `/linked` read i
   group leaderboards, the Game Day spectator pool, `SessionGroupResolver` (admin session default
   group), and the legacy `IsLinked` all mean Approved now.
 - **State machine** lives only in `GroupMembershipService` (Application): `RequestAsync`
-  (WhatsApp-listed -> Approved/WhatsApp, else Pending/Request; idempotent for Pending / Approved
-  rows; a Pickup Pal read failure just means "not listed"), `SeedFromWhatsAppAsync` (legacy
-  `players/me/groups` read; only pairs with **no row at all** - an admin removal is never undone by
-  a sign-in read), `AddDirectlyAsync` (owner; Approved/SuperAdmin, also approves a pending row),
-  `ApproveAsync` / `DeclineAsync` (Pending only), `RemoveAsync` (Approved only; leave = self),
-  `SetRoleAsync` (Approved only). Withdrawing a pending request via DELETE = Declined by self.
+  (WhatsApp-listed -> Approved/WhatsApp, else Pending/Request; a Pending row is approved when
+  WhatsApp now lists the player; otherwise idempotent for Pending / Approved rows; a Pickup Pal
+  read failure just means "not listed"), `SeedFromWhatsAppAsync` (legacy `players/me/groups`
+  read; only pairs with no row or a Pending row - an ended row (Declined / Removed / Withdrawn) is
+  never touched, so an admin removal is never undone by a sign-in read), `AddDirectlyAsync` (owner;
+  Approved/SuperAdmin, also approves a pending row and re-admits an ended one), `ApproveAsync` /
+  `DeclineAsync` (Pending only), `WithdrawAsync` (self, Pending only), `RemoveAsync` (Approved
+  only; leave = self), `SetRoleAsync` (Approved only). `DELETE players/me/memberships/{id}` is
+  idempotent: Pending -> Withdrawn, Approved -> Removed, anything else is a no-op.
 - **Gate:** `IGroupMembershipGate.EnsureCanJoinAsync(session, player)` runs in `SubmitRsvp`
-  (Going and the waitlist it may land on), `SelfCheckIn`, and `ClaimParticipant`; `CancelRsvp`,
-  admin check-in, admin RSVP override, and participant linking are not gated. A session with no
+  **only for `Going`** (and the waitlist it may land on), `SelfCheckIn`, and `ClaimParticipant`;
+  Maybe / NotGoing, `CancelRsvp`, admin check-in, admin RSVP override, and participant linking are
+  not gated, so a removed member can always step back. A session with no
   `GroupChatId` is open. Failure -> `GroupMembershipRequiredException(groupName)` -> **403** with
   type `https://southbaysoccer/problems/group-membership-required`
   (`ProblemDetailsMapper.GroupMembershipRequiredProblemType`), detail names only the group.
@@ -51,9 +57,12 @@ lives in our database and is never written to Pickup Pal** (the `/linked` read i
 - **Super admin = `PlayerRole.Owner`,** promoted at sign-in (`PickupPalUserSyncService`) and on
   `profiles/me` from the root Functions setting **`OwnerPhoneNumbers`** (comma-separated; same
   `+digits` normalization and hash comparison as `AdminPhoneNumbers`; a number in both lists is an
-  owner; an owner number always wins over an existing role). The numbers live only in
-  configuration. Token policies for Owner: `IsSuperAdmin`, `CanManageGroupMembers`
-  (`AuthenticationPolicies` constants).
+  owner; an owner number always wins over an existing role, and the promotion is **reversible**:
+  an Owner whose number is no longer configured drops to GameAdmin (admin number) or Player at
+  the next sign-in / `profiles/me`). The numbers live only in configuration. Token policies for
+  Owner: `IsSuperAdmin`, `CanManageGroupMembers` (`AuthenticationPolicies` constants). **Role
+  claims come from the token**, so a newly promoted (or demoted) owner needs a fresh sign-in
+  before `IsInRole("Owner")` / `IsSuperAdmin` reflect it.
 - **Authorization:** group-admin rights are per group, so `GET groups/{id}/members` and the
   approve / decline / remove routes declare `AuthenticatedPlayer` and the handler requires Owner or
   an Approved row with role Admin **for that group** (removing an admin needs Owner). Owner-only

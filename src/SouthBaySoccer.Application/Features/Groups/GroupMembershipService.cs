@@ -9,10 +9,10 @@ namespace SouthBaySoccer.Application.Features.Groups;
 
 /// <summary>
 /// The membership state machine shared by every writer: one <see cref="PlayerGroupLink"/> row per
-/// (player, group) pair that moves between Pending, Approved, Declined, and Removed. A declined
-/// or removed row is reactivated by a later request rather than duplicated, so the unique active
-/// index holds and the audit stamps show the last decision. Pickup Pal is only ever read (the
-/// <c>/linked</c> cross-check); nothing here writes to it.
+/// (player, group) pair that moves between Pending, Approved, Declined, Removed, and Withdrawn. An
+/// ended row (Declined / Removed / Withdrawn) is reactivated by a later request rather than
+/// duplicated, so the unique active index holds and the audit stamps show the last decision.
+/// Pickup Pal is only ever read (the <c>/linked</c> cross-check); nothing here writes to it.
 /// </summary>
 public sealed class GroupMembershipService(
     IClock clock,
@@ -21,9 +21,10 @@ public sealed class GroupMembershipService(
     IUnitOfWork unitOfWork)
 {
     /// <summary>
-    /// Requests membership in each group. A group Pickup Pal already lists the player in is
-    /// approved at once (source WhatsApp); any other becomes Pending (source Request). Rows that
-    /// are already Pending or Approved are left untouched, so the call is idempotent.
+    /// Requests membership in each group. A group Pickup Pal lists the player in is approved at
+    /// once (source WhatsApp) - including a request that was Pending until now; any other becomes
+    /// Pending (source Request). Rows that are already Approved, or Pending and still unlisted,
+    /// are left untouched, so the call is idempotent.
     /// </summary>
     public async Task RequestAsync(
         PlayerProfile profile,
@@ -47,12 +48,26 @@ public sealed class GroupMembershipService(
             var listedOnWhatsApp = whatsAppExternalIds.Contains(group.ExternalId);
             if (rowsByGroupId.TryGetValue(group.Id, out var row))
             {
-                if (row.Status is GroupMembershipStatus.Approved or GroupMembershipStatus.Pending)
+                if (row.Status == GroupMembershipStatus.Approved)
                 {
                     continue;
                 }
 
-                // Declined / Removed: the player asks again. Reactivate the same row.
+                if (row.Status == GroupMembershipStatus.Pending)
+                {
+                    if (!listedOnWhatsApp)
+                    {
+                        continue;
+                    }
+
+                    // The WhatsApp group caught up with the request: approve it now.
+                    Approve(row, nowUtc, approvedBy: null, GroupMembershipSource.WhatsApp, ref hasPrimary);
+                    playerGroupLinkRepository.Update(row);
+                    changed = true;
+                    continue;
+                }
+
+                // Declined / Removed / Withdrawn: the player asks again. Reactivate the same row.
                 Reset(row, nowUtc);
                 if (listedOnWhatsApp)
                 {
@@ -95,8 +110,9 @@ public sealed class GroupMembershipService(
 
     /// <summary>
     /// Mirrors the WhatsApp groups Pickup Pal lists the player in as approved memberships, for
-    /// pairs that have no row at all. A row in any other status (including Removed by an admin)
-    /// is never touched here: a removal must not be undone by the next sign-in read.
+    /// pairs that have no row yet or whose request is still Pending. An ended row (Declined,
+    /// Removed, Withdrawn) is never touched here: an admin removal must not be undone by the next
+    /// sign-in read.
     /// </summary>
     public async Task SeedFromWhatsAppAsync(
         PlayerProfile profile,
@@ -109,13 +125,26 @@ public sealed class GroupMembershipService(
         }
 
         var rows = await playerGroupLinkRepository.ListByPlayerAsync(profile.Id, cancellationToken);
-        var knownGroupIds = rows.Select(row => row.GroupChatId).ToHashSet();
+        var rowsByGroupId = rows.ToDictionary(row => row.GroupChatId);
         var hasPrimary = rows.Any(row => row.IsPrimary);
         var nowUtc = clock.UtcNow;
         var changed = false;
 
-        foreach (var group in whatsAppGroups.Where(group => !knownGroupIds.Contains(group.Id)))
+        foreach (var group in whatsAppGroups)
         {
+            if (rowsByGroupId.TryGetValue(group.Id, out var row))
+            {
+                if (row.Status != GroupMembershipStatus.Pending)
+                {
+                    continue;
+                }
+
+                Approve(row, nowUtc, approvedBy: null, GroupMembershipSource.WhatsApp, ref hasPrimary);
+                playerGroupLinkRepository.Update(row);
+                changed = true;
+                continue;
+            }
+
             var created = new PlayerGroupLink
             {
                 PlayerProfileId = profile.Id,
@@ -124,7 +153,7 @@ public sealed class GroupMembershipService(
             };
             Approve(created, nowUtc, approvedBy: null, GroupMembershipSource.WhatsApp, ref hasPrimary);
             await playerGroupLinkRepository.AddAsync(created, cancellationToken);
-            knownGroupIds.Add(group.Id);
+            rowsByGroupId[group.Id] = created;
             changed = true;
         }
 
@@ -134,7 +163,7 @@ public sealed class GroupMembershipService(
         }
     }
 
-    /// <summary>A super admin adds a known player straight in as an approved member (or approves a pending / re-admits a removed one).</summary>
+    /// <summary>A super admin adds a known player straight in as an approved member (or approves a pending / re-admits an ended row).</summary>
     public async Task AddDirectlyAsync(
         Guid playerProfileId,
         Guid groupChatId,
@@ -185,7 +214,7 @@ public sealed class GroupMembershipService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>Declines a pending request.</summary>
+    /// <summary>A group admin declines a pending request.</summary>
     public async Task DeclineAsync(PlayerGroupLink row, Guid actingPlayerProfileId, CancellationToken cancellationToken)
     {
         if (row.Status == GroupMembershipStatus.Declined)
@@ -203,7 +232,24 @@ public sealed class GroupMembershipService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>Removes an approved member (an admin removing them, or the player leaving). Idempotent.</summary>
+    /// <summary>The player withdraws their own pending request (distinct from an admin decline).</summary>
+    public async Task WithdrawAsync(PlayerGroupLink row, CancellationToken cancellationToken)
+    {
+        if (row.Status != GroupMembershipStatus.Pending)
+        {
+            throw new ApplicationConflictException("Only a pending request can be withdrawn.");
+        }
+
+        End(row, GroupMembershipStatus.Withdrawn, row.PlayerProfileId);
+        playerGroupLinkRepository.Update(row);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Removes an approved member (an admin removing them, or the player leaving). When the row was
+    /// the player's primary group, the first remaining approved membership becomes primary in the
+    /// same save. Idempotent for rows already removed.
+    /// </summary>
     public async Task RemoveAsync(PlayerGroupLink row, Guid actingPlayerProfileId, CancellationToken cancellationToken)
     {
         if (row.Status == GroupMembershipStatus.Removed)
@@ -216,8 +262,24 @@ public sealed class GroupMembershipService(
             throw new ApplicationConflictException("Only an approved member can be removed.");
         }
 
+        var wasPrimary = row.IsPrimary;
         End(row, GroupMembershipStatus.Removed, actingPlayerProfileId);
         playerGroupLinkRepository.Update(row);
+
+        if (wasPrimary)
+        {
+            var successor = (await playerGroupLinkRepository.ListApprovedByPlayerAsync(row.PlayerProfileId, cancellationToken))
+                .Where(candidate => candidate.Id != row.Id)
+                .OrderBy(candidate => candidate.ApprovedAtUtc)
+                .ThenBy(candidate => candidate.Id)
+                .FirstOrDefault();
+            if (successor is not null)
+            {
+                successor.IsPrimary = true;
+                playerGroupLinkRepository.Update(successor);
+            }
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

@@ -174,6 +174,10 @@ public static class FunctionsApplicationBuilderExtensions
         // the feed projections consult; the service is the single membership state machine.
         builder.Services.AddScoped<IValidator<RequestGroupMembershipsCommand>, RequestGroupMembershipsCommandValidator>();
         builder.Services.AddScoped<IValidator<SearchPlayersQuery>, SearchPlayersQueryValidator>();
+        builder.Services.AddScoped<IValidator<LeaveGroupCommand>, LeaveGroupCommandValidator>();
+        builder.Services.AddScoped<IValidator<ReviewGroupMemberCommand>, ReviewGroupMemberCommandValidator>();
+        builder.Services.AddScoped<IValidator<AddGroupMemberCommand>, AddGroupMemberCommandValidator>();
+        builder.Services.AddScoped<IValidator<SetGroupAdminCommand>, SetGroupAdminCommandValidator>();
         builder.Services.AddScoped<GroupMembershipService>();
         builder.Services.AddScoped<IGroupMembershipGate, GroupMembershipGate>();
         builder.Services.AddScoped<GetGroupCatalogQueryHandler>();

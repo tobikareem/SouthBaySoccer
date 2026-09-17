@@ -23,6 +23,42 @@ public sealed class RequestGroupMembershipsCommandValidator : AbstractValidator<
     }
 }
 
+public sealed class LeaveGroupCommandValidator : AbstractValidator<LeaveGroupCommand>
+{
+    public LeaveGroupCommandValidator()
+    {
+        RuleFor(x => x.GroupChatId).NotEmpty();
+    }
+}
+
+public sealed class ReviewGroupMemberCommandValidator : AbstractValidator<ReviewGroupMemberCommand>
+{
+    public ReviewGroupMemberCommandValidator()
+    {
+        RuleFor(x => x.GroupChatId).NotEmpty();
+        RuleFor(x => x.PlayerProfileId).NotEmpty();
+        RuleFor(x => x.Review).IsInEnum();
+    }
+}
+
+public sealed class AddGroupMemberCommandValidator : AbstractValidator<AddGroupMemberCommand>
+{
+    public AddGroupMemberCommandValidator()
+    {
+        RuleFor(x => x.GroupChatId).NotEmpty();
+        RuleFor(x => x.PlayerProfileId).NotEmpty();
+    }
+}
+
+public sealed class SetGroupAdminCommandValidator : AbstractValidator<SetGroupAdminCommand>
+{
+    public SetGroupAdminCommandValidator()
+    {
+        RuleFor(x => x.GroupChatId).NotEmpty();
+        RuleFor(x => x.PlayerProfileId).NotEmpty();
+    }
+}
+
 /// <summary>
 /// The search term is a display-name fragment only. Anything that looks like a phone number or an
 /// email is refused so personal identifiers never travel in a query string (they would otherwise

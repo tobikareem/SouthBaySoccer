@@ -18,6 +18,9 @@ public enum GroupMembershipStatus
 
     /// <summary>The player left, or a group admin removed them; the player may ask again later.</summary>
     Removed,
+
+    /// <summary>The player withdrew their own pending request; the player may ask again later.</summary>
+    Withdrawn,
 }
 
 /// <summary>Role a member holds inside one group. Group admins approve, decline, and remove members.</summary>

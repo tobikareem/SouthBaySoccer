@@ -192,7 +192,13 @@ public sealed class RequestGroupMembershipsCommandHandler(
     }
 }
 
+/// <summary>
+/// The player leaves a group (Approved -> Removed by themselves) or withdraws their own pending
+/// request (Pending -> Withdrawn). Rows that already ended are left alone, so repeating the call
+/// simply returns the current memberships.
+/// </summary>
 public sealed class LeaveGroupCommandHandler(
+    IValidator<LeaveGroupCommand> validator,
     ICurrentUser currentUser,
     IPlayerProfileRepository playerProfileRepository,
     IPlayerGroupLinkRepository playerGroupLinkRepository,
@@ -200,17 +206,21 @@ public sealed class LeaveGroupCommandHandler(
 {
     public async Task<MyGroupMembershipsModel> HandleAsync(LeaveGroupCommand command, CancellationToken cancellationToken = default)
     {
+        await validator.ValidateAndThrowAsync(command, cancellationToken);
         var profile = await GroupMembershipAccess.RequireProfileAsync(currentUser, playerProfileRepository, cancellationToken);
         var row = await playerGroupLinkRepository.FindMembershipAsync(profile.Id, command.GroupChatId, cancellationToken)
             ?? throw new ApplicationNotFoundException("You are not a member of that group.");
-        if (row.Status == GroupMembershipStatus.Pending)
+        switch (row.Status)
         {
-            // Withdrawing a request reads as a self-decline; the row can be requested again later.
-            await membershipService.DeclineAsync(row, profile.Id, cancellationToken);
-        }
-        else
-        {
-            await membershipService.RemoveAsync(row, profile.Id, cancellationToken);
+            case GroupMembershipStatus.Pending:
+                await membershipService.WithdrawAsync(row, cancellationToken);
+                break;
+            case GroupMembershipStatus.Approved:
+                await membershipService.RemoveAsync(row, profile.Id, cancellationToken);
+                break;
+            default:
+                // Declined / Removed / Withdrawn: nothing left to leave.
+                break;
         }
 
         return await GroupMembershipAccess.BuildMyMembershipsAsync(currentUser, playerGroupLinkRepository, profile.Id, cancellationToken);
@@ -234,6 +244,7 @@ public sealed class GetGroupMembersQueryHandler(
 
 /// <summary>Approve, decline, or remove a member of a group the caller administers (or any group for a super admin).</summary>
 public sealed class ReviewGroupMemberCommandHandler(
+    IValidator<ReviewGroupMemberCommand> validator,
     ICurrentUser currentUser,
     IPlayerProfileRepository playerProfileRepository,
     IGroupChatRepository groupChatRepository,
@@ -242,6 +253,7 @@ public sealed class ReviewGroupMemberCommandHandler(
 {
     public async Task<GroupMembersModel> HandleAsync(ReviewGroupMemberCommand command, CancellationToken cancellationToken = default)
     {
+        await validator.ValidateAndThrowAsync(command, cancellationToken);
         var actor = await GroupMembershipAccess.RequireProfileAsync(currentUser, playerProfileRepository, cancellationToken);
         var group = await GroupMembershipAccess.RequireGroupAsync(groupChatRepository, command.GroupChatId, cancellationToken);
         await GroupMembershipAccess.EnsureCanManageGroupAsync(currentUser, playerGroupLinkRepository, actor.Id, group.Id, cancellationToken);
@@ -273,6 +285,7 @@ public sealed class ReviewGroupMemberCommandHandler(
 }
 
 public sealed class AddGroupMemberCommandHandler(
+    IValidator<AddGroupMemberCommand> validator,
     ICurrentUser currentUser,
     IPlayerProfileRepository playerProfileRepository,
     IGroupChatRepository groupChatRepository,
@@ -281,6 +294,7 @@ public sealed class AddGroupMemberCommandHandler(
 {
     public async Task<GroupMembersModel> HandleAsync(AddGroupMemberCommand command, CancellationToken cancellationToken = default)
     {
+        await validator.ValidateAndThrowAsync(command, cancellationToken);
         GroupMembershipAccess.EnsureSuperAdmin(currentUser);
         var actor = await GroupMembershipAccess.RequireProfileAsync(currentUser, playerProfileRepository, cancellationToken);
         var group = await GroupMembershipAccess.RequireGroupAsync(groupChatRepository, command.GroupChatId, cancellationToken);
@@ -293,6 +307,7 @@ public sealed class AddGroupMemberCommandHandler(
 }
 
 public sealed class SetGroupAdminCommandHandler(
+    IValidator<SetGroupAdminCommand> validator,
     ICurrentUser currentUser,
     IPlayerProfileRepository playerProfileRepository,
     IGroupChatRepository groupChatRepository,
@@ -301,6 +316,7 @@ public sealed class SetGroupAdminCommandHandler(
 {
     public async Task<GroupMembersModel> HandleAsync(SetGroupAdminCommand command, CancellationToken cancellationToken = default)
     {
+        await validator.ValidateAndThrowAsync(command, cancellationToken);
         GroupMembershipAccess.EnsureSuperAdmin(currentUser);
         _ = await GroupMembershipAccess.RequireProfileAsync(currentUser, playerProfileRepository, cancellationToken);
         var group = await GroupMembershipAccess.RequireGroupAsync(groupChatRepository, command.GroupChatId, cancellationToken);

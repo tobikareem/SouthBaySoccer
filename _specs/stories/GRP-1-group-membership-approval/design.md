@@ -79,16 +79,23 @@ Problem: `403` with type `https://southbaysoccer/problems/group-membership-requi
 ## State machine
 
 ```text
-(no row) --request, not on WhatsApp--> Pending --approve--> Approved
+(no row) --request, not on WhatsApp--> Pending --approve (admin) / request or seed when now on WhatsApp--> Approved
 (no row) --request, on WhatsApp / seed / owner add--> Approved
-Pending  --decline (admin) / leave (self)--> Declined
+Pending  --decline (admin)--> Declined
+Pending  --leave (self)--> Withdrawn
 Approved --remove (admin) / leave (self)--> Removed
-Declined | Removed --request again--> Pending (or Approved when on WhatsApp / owner add)
+Declined | Removed | Withdrawn --request again / owner add--> Pending (or Approved when on WhatsApp / owner add)
 Approved --set admin / revoke--> Approved (Role Admin | Member)
 ```
 
-Ending a membership (Declined / Removed) also resets `Role` to Member and `IsPrimary` to false;
-reactivating resets the approval / removal stamps and sets `RequestedAtUtc` to now.
+Ending a membership (Declined / Removed / Withdrawn) also resets `Role` to Member and `IsPrimary`
+to false, and removing the primary group promotes the oldest remaining approved membership in the
+same save; reactivating resets the approval / removal stamps and sets `RequestedAtUtc` to now.
+`Withdrawn` is a distinct status (rather than reading `RemovedByPlayerProfileId == self`) so the
+members view and the player's own list never show a self-withdrawal as an admin decline. The RSVP
+gate applies to `Going` only: Maybe / NotGoing and cancel always succeed for a removed member.
+Owner promotion is reversible (an Owner whose number is no longer configured drops to GameAdmin
+or Player); role claims come from the token, so a promotion takes effect at the next sign-in.
 
 ## Persistence
 

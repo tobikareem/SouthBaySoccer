@@ -27,8 +27,12 @@ public sealed class SubmitRsvpCommandHandler(
         var session = await GetOpenSessionAsync(sessionRepository, command.SessionId, clock.UtcNow, cancellationToken);
 
         // GRP-1: Going (and the waitlist it may land on) is reserved for approved members of the
-        // session's group; a session without a group is open as before. Cancel is never gated.
-        await groupMembershipGate.EnsureCanJoinAsync(session, profile.Id, cancellationToken);
+        // session's group; a session without a group is open as before. Maybe / NotGoing and
+        // cancel are never gated, so a removed member can always step back.
+        if (command.Status == RsvpStatus.Going)
+        {
+            await groupMembershipGate.EnsureCanJoinAsync(session, profile.Id, cancellationToken);
+        }
 
         var eligibility = await eligibilityService.CheckAsync(profile.Id, session.Id, cancellationToken);
         if (!eligibility.IsEligible)

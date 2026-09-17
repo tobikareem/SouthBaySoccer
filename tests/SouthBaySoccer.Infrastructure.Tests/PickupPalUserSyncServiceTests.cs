@@ -106,6 +106,26 @@ public sealed class PickupPalUserSyncServiceTests
     }
 
     [Fact]
+    public async Task SyncAsync_WhenOwnerNumberIsRemovedFromConfiguration_DemotesOwnerOnNextSignIn()
+    {
+        using (var promoted = CreateServiceProvider(ownerPhoneNumbers: "15106949421"))
+        {
+            await promoted.GetRequiredService<IPickupPalUserSyncService>()
+                .SyncAsync(CreatePickupPalUser("pickuppal-user-demote", "demote@example.test"));
+        }
+
+        using var provider = CreateServiceProvider(adminPhoneNumbers: "15106949421");
+        var service = provider.GetRequiredService<IPickupPalUserSyncService>();
+        var db = provider.GetRequiredService<SouthBaySoccerDbContext>();
+
+        var subject = await service.SyncAsync(CreatePickupPalUser("pickuppal-user-demote", "demote@example.test"));
+
+        var profile = await db.PlayerProfiles.FindAsync(subject.PlayerProfileId);
+        profile!.Role.Should().Be(PlayerRole.GameAdmin, "the owner promotion is reversible; the admin number still applies");
+        subject.Roles.Should().ContainSingle().Which.Should().Be(PlayerRole.GameAdmin.ToString());
+    }
+
+    [Fact]
     public async Task SyncAsync_WhenUnclaimedImportedProfileMatchesByPhoneHash_ClaimsItAndPromotesToPlayer()
     {
         using var provider = CreateServiceProvider();

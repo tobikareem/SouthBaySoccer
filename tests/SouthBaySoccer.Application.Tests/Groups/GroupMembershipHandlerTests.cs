@@ -84,6 +84,40 @@ public sealed class GroupMembershipHandlerTests
     }
 
     [Fact]
+    public async Task RequestMemberships_WhenPreviouslyRemovedAndNowOnWhatsApp_ReactivatesAsApproved()
+    {
+        var fixture = new Fixture();
+        var group = fixture.AddGroup("Bay Area Soccer");
+        var removed = fixture.ExistingRow(group, GroupMembershipStatus.Removed);
+        fixture.PickupPalLists(group);
+
+        await fixture.RequestHandler().HandleAsync(new RequestGroupMembershipsCommand([group.Id]));
+
+        fixture.Added.Should().BeEmpty();
+        removed.Status.Should().Be(GroupMembershipStatus.Approved);
+        removed.Source.Should().Be(GroupMembershipSource.WhatsApp);
+        removed.ApprovedAtUtc.Should().Be(NowUtc);
+        removed.ApprovedByPlayerProfileId.Should().BeNull();
+        removed.IsPrimary.Should().BeTrue("it is the player's only approved membership");
+    }
+
+    [Fact]
+    public async Task RequestMemberships_WhenPendingAndNowOnWhatsApp_ApprovesThePendingRow()
+    {
+        var fixture = new Fixture();
+        var group = fixture.AddGroup("Bay Area Soccer");
+        var pending = fixture.ExistingRow(group, GroupMembershipStatus.Pending);
+        fixture.PickupPalLists(group);
+
+        await fixture.RequestHandler().HandleAsync(new RequestGroupMembershipsCommand([group.Id]));
+
+        pending.Status.Should().Be(GroupMembershipStatus.Approved);
+        pending.Source.Should().Be(GroupMembershipSource.WhatsApp);
+        pending.RequestedAtUtc.Should().Be(NowUtc.AddDays(-1), "the original request time is kept");
+        fixture.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task RequestMemberships_WhenPickupPalReadFails_LeavesRequestPending()
     {
         var fixture = new Fixture();
@@ -134,6 +168,69 @@ public sealed class GroupMembershipHandlerTests
         row.Role.Should().Be(GroupMemberRole.Member, "leaving also gives up the admin role");
         row.IsPrimary.Should().BeFalse();
         fixture.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task LeaveGroup_WhenLeavingThePrimaryGroup_PromotesTheOldestRemainingApprovedMembership()
+    {
+        var fixture = new Fixture();
+        var primary = fixture.AddGroup("Bay Area Soccer");
+        var older = fixture.AddGroup("Sunday League");
+        var newer = fixture.AddGroup("Friday Five");
+        var primaryRow = fixture.ExistingRow(primary, GroupMembershipStatus.Approved, primary: true);
+        var olderRow = fixture.ExistingRow(older, GroupMembershipStatus.Approved);
+        olderRow.ApprovedAtUtc = NowUtc.AddDays(-10);
+        var newerRow = fixture.ExistingRow(newer, GroupMembershipStatus.Approved);
+        newerRow.ApprovedAtUtc = NowUtc.AddDays(-2);
+
+        await fixture.LeaveHandler().HandleAsync(new LeaveGroupCommand(primary.Id));
+
+        primaryRow.IsPrimary.Should().BeFalse();
+        olderRow.IsPrimary.Should().BeTrue();
+        newerRow.IsPrimary.Should().BeFalse();
+        fixture.Links.Verify(x => x.Update(olderRow), Times.Once);
+        fixture.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once, "the successor is promoted in the same save");
+    }
+
+    [Fact]
+    public async Task LeaveGroup_WhenPending_WithdrawsWithoutReadingAsAdminDecline()
+    {
+        var fixture = new Fixture();
+        var group = fixture.AddGroup("Bay Area Soccer");
+        var row = fixture.ExistingRow(group, GroupMembershipStatus.Pending);
+
+        var result = await fixture.LeaveHandler().HandleAsync(new LeaveGroupCommand(group.Id));
+
+        row.Status.Should().Be(GroupMembershipStatus.Withdrawn);
+        row.RemovedByPlayerProfileId.Should().Be(fixture.Profile.Id);
+        result.Memberships.Single().Status.Should().Be(GroupMembershipStatus.Withdrawn);
+    }
+
+    [Theory]
+    [InlineData(GroupMembershipStatus.Declined)]
+    [InlineData(GroupMembershipStatus.Removed)]
+    [InlineData(GroupMembershipStatus.Withdrawn)]
+    public async Task LeaveGroup_WhenRowAlreadyEnded_IsIdempotent(GroupMembershipStatus status)
+    {
+        var fixture = new Fixture();
+        var group = fixture.AddGroup("Bay Area Soccer");
+        var row = fixture.ExistingRow(group, status);
+
+        var result = await fixture.LeaveHandler().HandleAsync(new LeaveGroupCommand(group.Id));
+
+        row.Status.Should().Be(status);
+        result.Memberships.Should().ContainSingle();
+        fixture.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LeaveGroup_WhenGroupIdEmpty_FailsValidation()
+    {
+        var fixture = new Fixture();
+
+        var act = async () => await fixture.LeaveHandler().HandleAsync(new LeaveGroupCommand(Guid.Empty));
+
+        await act.Should().ThrowAsync<ValidationException>();
     }
 
     [Fact]
@@ -307,6 +404,30 @@ public sealed class GroupMembershipHandlerTests
     }
 
     [Fact]
+    public async Task SetGroupAdmin_WhenIsAdminFalse_RevokesTheRole()
+    {
+        var fixture = new Fixture(isOwner: true);
+        var group = fixture.AddGroup("Bay Area Soccer");
+        var target = fixture.OtherPlayerRow(group, GroupMembershipStatus.Approved, role: GroupMemberRole.Admin);
+
+        await fixture.SetAdminHandler().HandleAsync(new SetGroupAdminCommand(group.Id, target.PlayerProfileId, IsAdmin: false));
+
+        target.Role.Should().Be(GroupMemberRole.Member);
+        target.Status.Should().Be(GroupMembershipStatus.Approved, "revoking admin keeps the membership");
+        fixture.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetGroupAdmin_WhenIdsEmpty_FailsValidation()
+    {
+        var fixture = new Fixture(isOwner: true);
+
+        var act = async () => await fixture.SetAdminHandler().HandleAsync(new SetGroupAdminCommand(Guid.Empty, Guid.NewGuid(), IsAdmin: true));
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
     public async Task SetGroupAdmin_WhenMemberOnlyPending_Conflicts()
     {
         var fixture = new Fixture(isOwner: true);
@@ -362,6 +483,37 @@ public sealed class GroupMembershipHandlerTests
         fixture.Added.Should().BeEmpty();
         target.Status.Should().Be(GroupMembershipStatus.Approved);
         target.Source.Should().Be(GroupMembershipSource.SuperAdmin);
+    }
+
+    [Fact]
+    public async Task AddGroupMember_WhenPlayerWasRemoved_ReadmitsTheSameRow()
+    {
+        var fixture = new Fixture(isOwner: true);
+        var group = fixture.AddGroup("Bay Area Soccer");
+        var removed = fixture.OtherPlayerRow(group, GroupMembershipStatus.Removed);
+        removed.RemovedAtUtc = NowUtc.AddDays(-5);
+        removed.RemovedByPlayerProfileId = Guid.NewGuid();
+        fixture.KnownPlayer("Removed Player", removed.PlayerProfileId);
+
+        await fixture.AddMemberHandler().HandleAsync(new AddGroupMemberCommand(group.Id, removed.PlayerProfileId));
+
+        fixture.Added.Should().BeEmpty("the pair keeps its single row");
+        removed.Status.Should().Be(GroupMembershipStatus.Approved);
+        removed.Source.Should().Be(GroupMembershipSource.SuperAdmin);
+        removed.ApprovedByPlayerProfileId.Should().Be(fixture.Profile.Id);
+        removed.RemovedAtUtc.Should().BeNull();
+        removed.RemovedByPlayerProfileId.Should().BeNull();
+        removed.RequestedAtUtc.Should().Be(NowUtc);
+    }
+
+    [Fact]
+    public async Task AddGroupMember_WhenIdsEmpty_FailsValidation()
+    {
+        var fixture = new Fixture(isOwner: true);
+
+        var act = async () => await fixture.AddMemberHandler().HandleAsync(new AddGroupMemberCommand(Guid.NewGuid(), Guid.Empty));
+
+        await act.Should().ThrowAsync<ValidationException>();
     }
 
     [Fact]
@@ -537,18 +689,19 @@ public sealed class GroupMembershipHandlerTests
         public RequestGroupMembershipsCommandHandler RequestHandler() =>
             new(new RequestGroupMembershipsCommandValidator(), currentUser.Object, Profiles.Object, groupChats.Object, Links.Object, Service());
 
-        public LeaveGroupCommandHandler LeaveHandler() => new(currentUser.Object, Profiles.Object, Links.Object, Service());
+        public LeaveGroupCommandHandler LeaveHandler() =>
+            new(new LeaveGroupCommandValidator(), currentUser.Object, Profiles.Object, Links.Object, Service());
 
         public GetGroupMembersQueryHandler MembersHandler() => new(currentUser.Object, Profiles.Object, groupChats.Object, Links.Object);
 
         public ReviewGroupMemberCommandHandler ReviewHandler() =>
-            new(currentUser.Object, Profiles.Object, groupChats.Object, Links.Object, Service());
+            new(new ReviewGroupMemberCommandValidator(), currentUser.Object, Profiles.Object, groupChats.Object, Links.Object, Service());
 
         public AddGroupMemberCommandHandler AddMemberHandler() =>
-            new(currentUser.Object, Profiles.Object, groupChats.Object, Links.Object, Service());
+            new(new AddGroupMemberCommandValidator(), currentUser.Object, Profiles.Object, groupChats.Object, Links.Object, Service());
 
         public SetGroupAdminCommandHandler SetAdminHandler() =>
-            new(currentUser.Object, Profiles.Object, groupChats.Object, Links.Object, Service());
+            new(new SetGroupAdminCommandValidator(), currentUser.Object, Profiles.Object, groupChats.Object, Links.Object, Service());
 
         public GetGroupCatalogQueryHandler CatalogHandler() => new(currentUser.Object, Profiles.Object, groupChats.Object, Links.Object);
 

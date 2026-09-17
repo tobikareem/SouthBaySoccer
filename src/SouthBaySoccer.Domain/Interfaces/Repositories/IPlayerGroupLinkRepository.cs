@@ -10,8 +10,8 @@ namespace SouthBaySoccer.Domain.Interfaces.Repositories;
 /// <summary>
 /// Repository for <see cref="PlayerGroupLink"/> membership records tying player profiles to group
 /// chats. Unless a member says otherwise, "member" and "linked" mean an
-/// <see cref="GroupMembershipStatus.Approved"/> row: pending, declined, and removed rows never
-/// count as membership for group-scoped reads.
+/// <see cref="GroupMembershipStatus.Approved"/> row: pending, declined, removed, and withdrawn
+/// rows never count as membership for group-scoped reads.
 /// </summary>
 public interface IPlayerGroupLinkRepository : IRepository<PlayerGroupLink>
 {
@@ -74,7 +74,7 @@ public interface IPlayerGroupLinkRepository : IRepository<PlayerGroupLink>
 
     /// <summary>
     /// Lists every membership row of a group (any status) joined to the member's display fields,
-    /// pending requests first and then members by name.
+    /// ordered by display name. Callers split pending requests from members.
     /// </summary>
     Task<IReadOnlyList<GroupMemberReadModel>> ListGroupMembersAsync(
         Guid groupChatId,

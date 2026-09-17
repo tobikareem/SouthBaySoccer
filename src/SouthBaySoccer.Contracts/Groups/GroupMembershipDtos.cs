@@ -11,6 +11,8 @@ public static class GroupMembershipStatuses
     public const string Approved = "Approved";
     public const string Declined = "Declined";
     public const string Removed = "Removed";
+    /// <summary>The player withdrew their own pending request (additive; not an admin decline).</summary>
+    public const string Withdrawn = "Withdrawn";
 }
 
 /// <summary>Membership role values used on the wire.</summary>

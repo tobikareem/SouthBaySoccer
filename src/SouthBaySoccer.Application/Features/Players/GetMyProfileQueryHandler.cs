@@ -31,17 +31,24 @@ public sealed class GetMyProfileQueryHandler(
         return PlayerProfileMapper.ToModel(profile, emergencyContact);
     }
 
-    // Mirrors PickupPalUserSyncService: a configured owner number always means Owner; a configured
-    // admin number promotes to GameAdmin unless an administrative role is already held.
+    // Mirrors PickupPalUserSyncService: a configured owner number always means Owner, and the
+    // promotion is reversible (an Owner whose number was removed drops to GameAdmin or Player); a
+    // configured admin number promotes to GameAdmin unless an administrative role is already held.
+    // Returns the role to persist, or null when nothing changes.
     private PlayerRole? ResolvePromotedRole(PlayerProfile profile)
     {
+        var isConfiguredAdmin = configuredAdminPhoneNumberService.IsConfiguredAdminPhoneNumberHash(profile.PhoneNumberHash);
         if (configuredAdminPhoneNumberService.IsConfiguredOwnerPhoneNumberHash(profile.PhoneNumberHash))
         {
             return profile.Role == PlayerRole.Owner ? null : PlayerRole.Owner;
         }
 
-        if (configuredAdminPhoneNumberService.IsConfiguredAdminPhoneNumberHash(profile.PhoneNumberHash) &&
-            !IsAdministrativeRole(profile.Role))
+        if (profile.Role == PlayerRole.Owner)
+        {
+            return isConfiguredAdmin ? PlayerRole.GameAdmin : PlayerRole.Player;
+        }
+
+        if (isConfiguredAdmin && !IsAdministrativeRole(profile.Role))
         {
             return PlayerRole.GameAdmin;
         }
