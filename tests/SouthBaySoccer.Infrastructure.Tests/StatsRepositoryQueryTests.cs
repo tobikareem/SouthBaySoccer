@@ -69,6 +69,11 @@ public sealed class StatsRepositoryQueryTests
             PlayerProfileId = tunde.Id,
             GroupChatId = group.Id,
             IsPrimary = true,
+            // The leaderboard's group filter only counts approved members (GRP-1); a link left at
+            // its default Pending status would silently exclude this seeded player.
+            Status = GroupMembershipStatus.Approved,
+            RequestedAtUtc = DateTime.UtcNow,
+            ApprovedAtUtc = DateTime.UtcNow,
         });
         await db.SaveChangesAsync();
 
