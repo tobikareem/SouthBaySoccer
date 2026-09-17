@@ -40,6 +40,7 @@ depends on, rather than copying them (so invariants/NFRs never drift).
 | `SES-6` | [`SES-6-sessions-home-screen/`](SES-6-sessions-home-screen/requirements.md) | Sessions (home) — upcoming list, dues status, submit-stats banner. |
 | `RSVP-8` | [`RSVP-8-session-detail-screen/`](RSVP-8-session-detail-screen/requirements.md) | Session detail — going + waitlist lists, capacity, RSVP toggle. |
 | `RSVP-9` | [`RSVP-9-pickup-pal-roster-sync/`](RSVP-9-pickup-pal-roster-sync/requirements.md) | Backend: an RSVP on a Pickup Pal-imported session adds/removes the player on the Pickup Pal roster, with outbox retry. |
+| `SES-7` | [`SES-7-pickup-pal-game-creation/`](SES-7-pickup-pal-game-creation/requirements.md) | Backend: publishing a session with a WhatsApp group creates the Pickup Pal game; updates and cancellations propagate; imported games stay Pickup Pal's. |
 | `PROF-5` | [`PROF-5-player-profile-screen/`](PROF-5-player-profile-screen/requirements.md) | Player profile — career stat tiles, recent form. |
 | `LEAD-4` | [`LEAD-4-leaderboard-screen/`](LEAD-4-leaderboard-screen/requirements.md) | Leaderboard — Goals/Assists/Rating/MVP segments. |
 | `STAT-7` | [`STAT-7-match-stats-screen/`](STAT-7-match-stats-screen/requirements.md) | Match stats — self-submit goals/assists + captain confirm. |

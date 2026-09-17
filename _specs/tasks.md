@@ -223,6 +223,27 @@ timer trigger. Task detail lives in
 
 ---
 
+## M15 Pickup Pal game creation (SES-7)
+
+A session an admin publishes in the app with a WhatsApp group is created as a game on Pickup Pal
+(`POST api/games`, `gameType WHATSAPP_GROUP`), the game id is kept on the session
+(`PickupPalOrigin = CreatedByApp`, occurrence key `pickuppal:{gameId}`), and later updates and
+cancellations propagate (`PUT` / `DELETE api/games/{gameId}`), retried from the same outbox by the
+timer. Imported games stay Pickup Pal's; app-only sessions stay app-only. Task detail lives in
+[`stories/SES-7-pickup-pal-game-creation/tasks.md`](stories/SES-7-pickup-pal-game-creation/tasks.md).
+
+- [x] **M15.1** Domain: `PickupPalOrigin`, `Session.GroupChatId` + Pickup Pal game / sync columns, repository ports.
+- [x] **M15.2** Application: `SessionGroupResolver`, games-client create / update / terminate port, `SessionPickupPalSyncService` + gate, outbox handler, import ownership rule, handler wiring.
+- [x] **M15.3** Infrastructure: games client create / update / terminate, repository reads, EF configuration, migration `AddSessionPickupPalGame` (with occurrence-key backfill).
+- [x] **M15.4** Functions + Contracts: DI registrations; `groupChatId` in, `groupChatId` / `groupName` out on the admin session DTOs.
+- [x] **M15.5** Tests (Application, Infrastructure non-LocalDB, Functions; Client unchanged and green).
+- [x] **M15.6** Knowledge base and spec index.
+- [ ] **M15.7** MAUI group picker on Create Session bound to `groupChatId`.
+- [ ] **M15.8** Confirm the create response shape and `PUT` start-field handling with Pickup Pal.
+- [ ] **M15.9** Deploy: apply the migration through the release pipeline; verify a publish reaches the group.
+
+---
+
 ## Dependency summary
 
 ```
@@ -231,7 +252,7 @@ M0 â†’ M1 â†’ M2 â†’ M3 â†’ M4 â†’ M5 â”
                                 M7 â†’ M8 â†’ M9
                      M4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â†’ M8.6 (profile stat merge)
                      M1 â†’ M10
-M3..M9 â†’ M11 â†’ M12 → M13
+M3..M9 â†’ M11 â†’ M12 → M13 → M14 → M15
 ```
 
 ## Definition of done (per milestone)
