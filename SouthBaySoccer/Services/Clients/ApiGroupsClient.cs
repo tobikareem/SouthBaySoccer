@@ -47,7 +47,9 @@ public sealed class ApiGroupsClient(HttpClient httpClient) : IGroupsClient
 
     public async Task<IReadOnlyList<GroupWithMembershipDto>> GetCatalogAsync(CancellationToken cancellationToken)
     {
-        using var response = await httpClient.GetAsync("groups", cancellationToken);
+        // The legacy GET groups keeps the old shape for older clients; the membership-aware
+        // catalogue lives at groups/catalog.
+        using var response = await httpClient.GetAsync("groups/catalog", cancellationToken);
         response.EnsureSuccessStatusCode();
         var payload = await response.Content.ReadFromJsonAsync<GroupCatalogResponse>(
             cancellationToken: cancellationToken);

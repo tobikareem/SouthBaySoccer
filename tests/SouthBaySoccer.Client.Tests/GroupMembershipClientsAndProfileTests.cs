@@ -36,7 +36,7 @@ public class GroupMembershipClientsAndProfileTests
     public async Task ApiGroupsClient_ReadsAndWrites_HitTheContractRoutes()
     {
         var handler = new CountingHttpMessageHandler();
-        handler.RegisterJson("/groups", CatalogJson);
+        handler.RegisterJson("/groups/catalog", CatalogJson);
         handler.RegisterJson("/players/me/memberships", MembershipsJson);
         handler.RegisterJson($"/groups/{GroupId:D}/members", """{ "groupChatId": "50000000-0000-0000-0000-000000000001", "groupName": "Bay Area Soccer", "canManageMembers": true, "canAppointAdmins": true, "pending": [], "members": [] }""");
         handler.RegisterJson("/players/search", """{ "players": [] }""");
@@ -55,7 +55,7 @@ public class GroupMembershipClientsAndProfileTests
         await client.SearchPlayersAsync("de j", CancellationToken.None);
 
         handler.Requests.Should().Equal(
-            (HttpMethod.Get, "/groups"),
+            (HttpMethod.Get, "/groups/catalog"),
             (HttpMethod.Get, "/players/me/memberships"),
             (HttpMethod.Post, "/players/me/memberships/requests"),
             (HttpMethod.Delete, $"/players/me/memberships/{GroupId:D}"),
@@ -72,7 +72,7 @@ public class GroupMembershipClientsAndProfileTests
     public async Task ApiGroupsClient_GetAvailableGroups_MapsTheCatalogueForLegacyCallers()
     {
         var handler = new CountingHttpMessageHandler();
-        handler.RegisterJson("/groups", CatalogJson);
+        handler.RegisterJson("/groups/catalog", CatalogJson);
         var client = new ApiGroupsClient(CreateHttpClient(handler));
 
         var groups = await client.GetAvailableGroupsAsync(CancellationToken.None);
@@ -84,7 +84,7 @@ public class GroupMembershipClientsAndProfileTests
             MemberCount = 349,
             IsLinked = true,
         });
-        handler.Requests.Should().Equal((HttpMethod.Get, "/groups"));
+        handler.Requests.Should().Equal((HttpMethod.Get, "/groups/catalog"));
     }
 
     // ---- CachedGroupsClient ----------------------------------------------------------------------
@@ -93,7 +93,7 @@ public class GroupMembershipClientsAndProfileTests
     public async Task CachedGroupsClient_ReadsAreCachedUnderGroupsPrefix_AndEveryWriteInvalidatesIt()
     {
         var handler = new CountingHttpMessageHandler();
-        handler.RegisterJson("/groups", CatalogJson);
+        handler.RegisterJson("/groups/catalog", CatalogJson);
         handler.RegisterJson("/players/me/memberships", MembershipsJson);
         var cache = new ClientResponseCache(TimeProvider.System);
         IGroupsClient client = new CachedGroupsClient(new ApiGroupsClient(CreateHttpClient(handler)), cache);
@@ -102,7 +102,7 @@ public class GroupMembershipClientsAndProfileTests
         await client.GetCatalogAsync(CancellationToken.None);
         await client.GetMyMembershipsAsync(CancellationToken.None);
         await client.GetMyMembershipsAsync(CancellationToken.None);
-        handler.Count("/groups").Should().Be(1);
+        handler.Count("/groups/catalog").Should().Be(1);
         handler.Count("/players/me/memberships").Should().Be(1);
 
         await client.ApproveAsync(GroupId, PlayerId, CancellationToken.None);

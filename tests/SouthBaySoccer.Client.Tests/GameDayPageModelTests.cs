@@ -1966,6 +1966,7 @@ public class GameDayPageModelTests
         navigator.Setup(service => service.OpenTeamDraftAsync(It.IsAny<Guid>())).Returns(Task.CompletedTask);
         navigator.Setup(service => service.OpenPostGameApprovalAsync(It.IsAny<Guid>())).Returns(Task.CompletedTask);
         navigator.Setup(service => service.GoBackAsync()).Returns(Task.CompletedTask);
+        navigator.Setup(service => service.OpenMyGroupsAsync()).Returns(Task.CompletedTask);
         return navigator;
     }
 

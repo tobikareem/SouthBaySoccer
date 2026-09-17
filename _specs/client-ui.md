@@ -385,6 +385,8 @@ Scenario: Product UI follows the authoritative wireframe
 | Pending-request approve / decline, member remove | `PlayerRow` (initials avatar) + `IconButton` (check) / `IconButtonDanger` (xmark, user-minus) in `TrailingContent` |
 | Super-admin "Add member" search | `CardSurface` + `MagnifyingGlass` + `BrandEntry` (same block as the Players directory search) + `BrandCard` of `PlayerRow` results with a `GhostButton` "Add" |
 | Profile "Super admin" card | `BrandCard IsHero` with a `TapGestureRecognizer`, shown only when the server sets `IsSuperAdmin` |
+| Create Session group choice | `BrandCard` + `Picker` (`BrandPicker`) over approved memberships; single membership shown as text |
+| View-only game for non-members (session detail, Game Day) | `NoticeSurface` message + `GhostButton` "Join the group" → `my-groups` |
 | Admin entry points on Sessions | `SectionHeader` with two actions ("Broadcast", "+ Session"), gated by `CanManageSessions` |
 | Admin broadcast composer | `BrandHeader` + fixed-audience `MetadataChip` + styled `Editor` + `AnnouncementCard` preview + `ToggleRow` + `PushPreview` + docked `PrimaryButton` |
 | Push notification preview | `PushPreview` (dark surface, app name, group title, 2-line clamped body) |

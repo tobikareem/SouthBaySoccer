@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using SouthBaySoccer.Contracts.Groups;
 using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Services.Clients;
 using SouthBaySoccer.Services;
@@ -26,8 +27,31 @@ namespace SouthBaySoccer.PageModels;
 public partial class CreateSessionPageModel(
     ISessionAdminClient adminClient,
     ISessionsNavigator navigator,
-    IUserDialogService dialogService) : ObservableObject
+    IUserDialogService dialogService,
+    IGroupsClient? groupsClient = null) : ObservableObject
 {
+    public const string GroupHintSingle = "This session is published to your group's WhatsApp game list on Pickup Pal.";
+    public const string GroupHintChoose = "Choose which group's WhatsApp game this is. Only that group's approved members can RSVP.";
+    public const string GroupHintNone = "You're not an approved member of any group yet, so this session stays app-only.";
+
+    /// <summary>Groups the admin is an approved member of; the session's Pickup Pal game is created in the chosen one.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasGroupChoice))]
+    [NotifyPropertyChangedFor(nameof(GroupHint))]
+    private IReadOnlyList<SessionGroupOption> _groupOptions = [];
+
+    [ObservableProperty]
+    private SessionGroupOption? _selectedGroup;
+
+    public bool HasGroupChoice => GroupOptions.Count > 1;
+
+    public string GroupHint => GroupOptions.Count switch
+    {
+        0 => GroupHintNone,
+        1 => GroupHintSingle,
+        _ => GroupHintChoose,
+    };
+
     public const string DeniedTitle = "Admin access required";
     public const string DeniedMessage = "You need session-management permission to create a session.";
     public const string ErrorTitle = "Couldn't open create session";
@@ -289,6 +313,7 @@ public partial class CreateSessionPageModel(
             }
 
             ApplyDefaults(defaults);
+            await LoadGroupOptionsAsync(cancellationToken);
             await RefreshManagedSessionsAsync(cancellationToken);
 
             StateTitle = string.Empty;
@@ -739,6 +764,35 @@ public partial class CreateSessionPageModel(
         }
     }
 
+    // Group membership is a soft dependency: a failure here leaves the session app-only rather
+    // than blocking the whole form.
+    private async Task LoadGroupOptionsAsync(CancellationToken cancellationToken)
+    {
+        if (groupsClient is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var memberships = await groupsClient.GetMyMembershipsAsync(cancellationToken);
+            GroupOptions = memberships.Memberships
+                .Where(membership => membership.Status == GroupMembershipStatuses.Approved)
+                .Select(membership => new SessionGroupOption(membership.GroupChatId, membership.GroupName))
+                .ToList();
+            SelectedGroup = GroupOptions.Count == 1 ? GroupOptions[0] : SelectedGroup;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            GroupOptions = [];
+            SelectedGroup = null;
+        }
+    }
+
     private void ApplySessionForEdit(ManagedSessionEditDto session)
     {
         _isApplyingSession = true;
@@ -770,6 +824,9 @@ public partial class CreateSessionPageModel(
         Capacity = command.Capacity;
         SelectedFormatIndex = Math.Max(0, Formats.ToList().IndexOf(command.Format));
         SelectedTeamIndex = command.TeamCount - 2;
+        SelectedGroup = command.GroupChatId is { } groupId
+            ? GroupOptions.FirstOrDefault(option => option.Id == groupId) ?? SelectedGroup
+            : SelectedGroup;
         SelectVenue(new VenueDto(
             command.VenueId ?? Guid.Empty,
             command.VenueName,
@@ -878,7 +935,8 @@ public partial class CreateSessionPageModel(
             Capacity,
             SelectedTeamCount,
             RsvpDeadline,
-            RsvpDeadlineDayOffset: (RsvpCloseDate.Date - GameDate.Date).Days);
+            RsvpDeadlineDayOffset: (RsvpCloseDate.Date - GameDate.Date).Days,
+            GroupChatId: SelectedGroup?.Id);
 
     private void ApplyState(ViewState state, string title, string message)
     {
@@ -931,3 +989,6 @@ public partial class CreateSessionPageModel(
     private static string FormatTime(TimeSpan time) =>
         (DateTime.MinValue + time).ToString("h:mm tt", CultureInfo.InvariantCulture);
 }
+
+/// <summary>A group the admin can publish a session into.</summary>
+public sealed record SessionGroupOption(Guid Id, string Name);
