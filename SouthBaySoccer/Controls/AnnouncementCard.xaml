@@ -44,7 +44,7 @@
                        VerticalOptions="Center" />
                 <Ellipse Grid.Column="3"
                          WidthRequest="9" HeightRequest="9"
-                         Fill="{StaticResource BrandGreenLight}"
+                         Fill="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
                          VerticalOptions="Center"
                          IsVisible="{Binding IsUnread, Source={x:Reference Root}}" />
             </Grid>

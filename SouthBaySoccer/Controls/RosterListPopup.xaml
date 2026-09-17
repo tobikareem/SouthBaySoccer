@@ -7,7 +7,7 @@
     xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
     x:Name="PopupRoot"
     x:DataType="controls:RosterListContent"
-    WidthRequest="360">
+    MaximumWidthRequest="360">
     <Border Style="{StaticResource CardSurface}" Padding="{StaticResource LayoutPadding}">
         <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
             <Label Text="{Binding Title}" Style="{StaticResource TextH2}" SemanticProperties.HeadingLevel="Level1" />

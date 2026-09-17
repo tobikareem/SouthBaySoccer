@@ -6,7 +6,7 @@
              x:Name="Root"
              x:DataType="controls:PushPreview">
     <Border Padding="{StaticResource SpaceMd}"
-            BackgroundColor="{StaticResource BrandGreenDepthLight}"
+            BackgroundColor="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandGreenDepthDark}}"
             StrokeShape="RoundRectangle 16">
         <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
             <Label Text="N9JA BAY" TextColor="{StaticResource BrandWhite}" Style="{StaticResource TextCaption}" />

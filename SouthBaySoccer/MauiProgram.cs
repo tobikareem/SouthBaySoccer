@@ -12,7 +12,6 @@ using SouthBaySoccer.Services.Players;
 using SouthBaySoccer.Services.GameDay;
 using SouthBaySoccer.Services.Profile;
 using SouthBaySoccer.Services.Sessions;
-using Syncfusion.Maui.Toolkit.Hosting;
 
 namespace SouthBaySoccer;
 
@@ -24,7 +23,6 @@ public static class MauiProgram
         builder
             .UseMauiApp<App>()
             .UseMauiCommunityToolkit()
-            .ConfigureSyncfusionToolkit()
             .ConfigureMauiHandlers(handlers =>
             {
 #if WINDOWS
@@ -33,17 +31,6 @@ public static class MauiProgram
                     (handler, _) =>
                     {
                         handler.PlatformView.SingleSelectionFollowsFocus = false;
-                    });
-
-                Microsoft.Maui.Handlers.ContentViewHandler.Mapper.AppendToMapping(
-                    nameof(Pages.Controls.CategoryChart),
-                    (handler, view) =>
-                    {
-                        if (view is Pages.Controls.CategoryChart
-                            && handler.PlatformView is Microsoft.Maui.Platform.ContentPanel contentPanel)
-                        {
-                            contentPanel.IsTabStop = true;
-                        }
                     });
 #endif
             })
@@ -75,11 +62,6 @@ public static class MauiProgram
         builder.Services.AddLogging(configure => configure.AddDebug());
 #endif
 
-        builder.Services.AddSingleton<ProjectRepository>();
-        builder.Services.AddSingleton<TaskRepository>();
-        builder.Services.AddSingleton<CategoryRepository>();
-        builder.Services.AddSingleton<TagRepository>();
-        builder.Services.AddSingleton<SeedDataService>();
         builder.Services.AddSingleton<ModalErrorHandler>();
         builder.Services.AddSingleton<StartupErrorHandler>();
         builder.Services.AddSingleton<IUserDialogService, UserDialogService>();
@@ -87,13 +69,22 @@ public static class MauiProgram
         builder.Services.AddSingleton<IPollingDelay, JitteredPollingDelay>();
         builder.Services.AddSingleton<AppLifecycleState>();
         builder.Services.AddSingleton<IAppLifecycleState>(services => services.GetRequiredService<AppLifecycleState>());
-        builder.Services.AddSingleton<MainPageModel>();
-        builder.Services.AddSingleton<ProjectListPageModel>();
-        builder.Services.AddSingleton<ManageMetaPageModel>();
 
         builder.Services.AddTransient<AppShell>();
         builder.Services.AddTransient<WelcomeBackPage>();
         builder.Services.AddTransient<WelcomeBackPageModel>();
+        builder.Services.AddTransient<SignUpStartPage>();
+        builder.Services.AddTransient<SignUpStartPageModel>();
+        builder.Services.AddTransient<LinkWaitingPage>();
+        builder.Services.AddTransient<LinkWaitingPageModel>();
+        builder.Services.AddTransient<SignUpExpiredPage>();
+        builder.Services.AddTransient<SignUpExpiredPageModel>();
+        builder.Services.AddTransient<SignUpDetailsPage>();
+        builder.Services.AddTransient<SignUpDetailsPageModel>();
+        builder.Services.AddTransient<SignUpWelcomePage>();
+        builder.Services.AddTransient<SignUpWelcomePageModel>();
+        builder.Services.AddTransient<SignInVerifyPage>();
+        builder.Services.AddTransient<SignInVerifyPageModel>();
         builder.Services.AddTransient<LinkGroupPage>();
         builder.Services.AddTransient<LinkGroupPageModel>();
         builder.Services.AddSingleton<IGroupLinkNavigator, ShellGroupLinkNavigator>();
@@ -162,6 +153,9 @@ public static class MauiProgram
         builder.Services.AddSingleton<IAuthenticationCoordinator, AuthenticationCoordinator>();
         builder.Services.AddSingleton<IAppStartupService, AppStartupService>();
         builder.Services.AddSingleton<IExternalLauncher, ExternalLauncher>();
+        builder.Services.AddSingleton<IClipboardReader, ClipboardReader>();
+        builder.Services.AddSingleton<IOnboardingNavigator, OnboardingNavigator>();
+        builder.Services.AddSingleton<IOnboardingFlow, OnboardingFlow>();
         builder.Services.AddSingleton<IAnnouncementsNavigator, ShellAnnouncementsNavigator>();
 
         builder.Services.AddTransientWithShellRoute<SessionDetailPage, SessionDetailPageModel>("session");
@@ -181,9 +175,10 @@ public static class MauiProgram
         builder.Services.AddTransientWithShellRoute<RateTeammatesPage, RateTeammatesPageModel>("rate-teammates");
         builder.Services.AddTransientWithShellRoute<AnnouncementsPage, AnnouncementsPageModel>("announcements");
         builder.Services.AddTransientWithShellRoute<AdminBroadcastPage, AdminBroadcastPageModel>("admin-broadcast");
-
-        builder.Services.AddTransientWithShellRoute<ProjectDetailPage, ProjectDetailPageModel>("project");
-        builder.Services.AddTransientWithShellRoute<TaskDetailPage, TaskDetailPageModel>("task");
+        // GRP-1 group membership detail routes, pushed from the Profile tab.
+        builder.Services.AddTransientWithShellRoute<GroupsMinePage, GroupsMinePageModel>("my-groups");
+        builder.Services.AddTransientWithShellRoute<GroupMembersPage, GroupMembersPageModel>("group-members");
+        builder.Services.AddTransientWithShellRoute<SuperAdminGroupsPage, SuperAdminGroupsPageModel>("super-admin-groups");
 
         return builder.Build();
     }

@@ -19,23 +19,25 @@
             EventName="Appearing"
             Command="{Binding AppearingCommand}" />
     </ContentPage.Behaviors>
-    <c:StateView
-        State="{Binding State}"
-        Title="{Binding StateTitle}"
-        Message="{Binding StateMessage}"
-        Glyph="{x:Static fonts:FontAwesomeGlyphs.Futbol}"
-        GlyphFontFamily="FontAwesomeSolid"
-        RetryCommand="{Binding RetryCommand}">
+    <!-- Header lives outside the StateView so the back button survives Loading/Empty/Error. -->
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader
+            Title="{Binding Heading}"
+            Subtitle="{Binding Prompt}"
+            ShowBack="True"
+            BackCommand="{Binding BackCommand}" />
+        <c:StateView
+            Grid.Row="1"
+            State="{Binding State}"
+            Title="{Binding StateTitle}"
+            Message="{Binding StateMessage}"
+            Glyph="{x:Static fonts:FontAwesomeGlyphs.Futbol}"
+            GlyphFontFamily="FontAwesomeSolid"
+            RetryCommand="{Binding RetryCommand}">
         <ScrollView>
             <VerticalStackLayout
                 Padding="{StaticResource LayoutPadding}"
                 Spacing="{StaticResource SpaceMd}">
-
-                <c:BrandHeader
-                    Title="{Binding Heading}"
-                    Subtitle="{Binding Prompt}"
-                    ShowBack="True"
-                    BackCommand="{Binding BackCommand}" />
 
                 <!-- Mode A: recent games with unclaimed spots -->
                 <VerticalStackLayout
@@ -46,7 +48,7 @@
                         <DataTemplate x:DataType="contracts:ClaimableSessionDto">
                             <Border Style="{StaticResource CardSurface}">
                                 <c:PlayerRow
-                                    Initials="RG"
+                                    Glyph="{x:Static fonts:FontAwesomeGlyphs.Futbol}"
                                     Name="{Binding Title}"
                                     Detail="{Binding DateLabel}"
                                     TapCommand="{Binding BindingContext.OpenSessionCommand, Source={x:Reference ClaimSpot}}"
@@ -68,6 +70,7 @@
                                     <Label
                                         Text="{Binding DisplayName}"
                                         Style="{StaticResource TextBodyStrong}"
+                                        LineBreakMode="TailTruncation"
                                         VerticalOptions="Center" />
                                     <Button
                                         Grid.Column="1"
@@ -92,5 +95,6 @@
                     SemanticProperties.Hint="Dismisses the submit-stats prompt for this game" />
             </VerticalStackLayout>
         </ScrollView>
-    </c:StateView>
+        </c:StateView>
+    </Grid>
 </ContentPage>

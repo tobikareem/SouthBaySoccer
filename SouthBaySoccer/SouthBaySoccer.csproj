@@ -37,6 +37,8 @@
 
 		<!-- App Identifier -->
 		<ApplicationId>com.pickupsoccer.n9jabay</ApplicationId>
+		<!-- Universal links entitlement (AUTH-10 M13.1); device builds only, simulator stays unsigned. -->
+		<CodesignEntitlements Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios' And !$(RuntimeIdentifier.StartsWith('iossimulator'))">Platforms\iOS\Entitlements.Device.plist</CodesignEntitlements>
 
 		<!-- Versions -->
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
@@ -80,9 +82,6 @@
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
 		<PackageReference Include="CommunityToolkit.Maui" Version="12.3.0" />
-		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="8.0.8" />
-		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
-		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.8" />
 	</ItemGroup>
 
 	<ItemGroup>

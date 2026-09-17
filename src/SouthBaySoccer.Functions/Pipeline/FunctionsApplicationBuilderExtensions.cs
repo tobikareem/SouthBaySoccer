@@ -1,6 +1,8 @@
 using SouthBaySoccer.Application.Features.Authentication;
 using SouthBaySoccer.Application.Features.Announcements;
 using SouthBaySoccer.Application.Features.Groups;
+using SouthBaySoccer.Application.Features.Onboarding;
+using SouthBaySoccer.Application.Features.Outbox;
 using SouthBaySoccer.Application.Features.Payments;
 using SouthBaySoccer.Application.Features.Players;
 using SouthBaySoccer.Application.Features.Rsvps;
@@ -13,6 +15,9 @@ using Microsoft.Azure.Functions.Worker.Middleware;
 using Microsoft.Extensions.DependencyInjection;
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Functions.Authentication;
+using SouthBaySoccer.Functions.Onboarding;
+using SouthBaySoccer.Functions.Outbox;
+using SouthBaySoccer.Functions.Pipeline.RateLimiting;
 using SouthBaySoccer.Functions.Sessions;
 
 namespace SouthBaySoccer.Functions.Pipeline;
@@ -21,13 +26,21 @@ public static class FunctionsApplicationBuilderExtensions
 {
     public static FunctionsApplicationBuilder AddSouthBaySoccerHttpPipeline(this FunctionsApplicationBuilder builder)
     {
-        builder.Services.AddScoped<IValidator<RequestWhatsAppChallengeCommand>, RequestWhatsAppChallengeCommandValidator>();
-        builder.Services.AddScoped<IValidator<VerifyWhatsAppChallengeCommand>, VerifyWhatsAppChallengeCommandValidator>();
-        builder.Services.AddScoped<IValidator<SignInByPhoneCommand>, SignInByPhoneCommandValidator>();
-        builder.Services.AddScoped<RequestWhatsAppChallengeCommandHandler>();
-        builder.Services.AddScoped<VerifyWhatsAppChallengeCommandHandler>();
-        builder.Services.AddScoped<SignInByPhoneCommandHandler>();
-        builder.Services.AddScoped<IWhatsAppAuthenticationWorkflow, WhatsAppAuthenticationWorkflow>();
+        builder.Services.AddScoped<IValidator<BeginPhoneSignInCommand>, BeginPhoneSignInCommandValidator>();
+        builder.Services.AddScoped<IValidator<CompleteWhatsAppLoginCommand>, CompleteWhatsAppLoginCommandValidator>();
+        builder.Services.AddScoped<IValidator<ValidateRegistrationTokenCommand>, ValidateRegistrationTokenCommandValidator>();
+        builder.Services.AddScoped<IValidator<CheckEmailAvailabilityCommand>, CheckEmailAvailabilityCommandValidator>();
+        builder.Services.AddScoped<IValidator<RegisterWithWhatsAppCommand>, RegisterWithWhatsAppCommandValidator>();
+        builder.Services.AddScoped<BeginPhoneSignInCommandHandler>();
+        builder.Services.AddScoped<CompleteWhatsAppLoginCommandHandler>();
+        builder.Services.AddScoped<ValidateRegistrationTokenCommandHandler>();
+        builder.Services.AddScoped<CheckEmailAvailabilityCommandHandler>();
+        builder.Services.AddScoped<RegisterWithWhatsAppCommandHandler>();
+        builder.Services.AddScoped<DeleteAccountCommandHandler>();
+        builder.Services.AddScoped<IAuthenticationWorkflow, AuthenticationWorkflow>();
+        builder.Services.AddScoped<IOnboardingWorkflow, OnboardingWorkflow>();
+        // Process-local sliding window; see InMemorySlidingWindowRateLimiter for the scale-out caveat.
+        builder.Services.AddSingleton<IAnonymousRateLimiter, InMemorySlidingWindowRateLimiter>();
         builder.Services.AddScoped<IValidator<UpdateMyProfileCommand>, UpdateMyProfileCommandValidator>();
         builder.Services.AddScoped<IValidator<CreateGuestProfileCommand>, CreateGuestProfileCommandValidator>();
         builder.Services.AddScoped<IValidator<CreateProfileMergeCommand>, CreateProfileMergeCommandValidator>();
@@ -56,6 +69,7 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<CreateRecurrenceRuleCommandHandler>();
         builder.Services.AddScoped<CreateSessionOccurrenceCommandHandler>();
         builder.Services.AddScoped<GetCreateSessionAdminDefaultsQueryHandler>();
+        builder.Services.AddScoped<IPickupPalGameImportService, PickupPalGameImportService>();
         builder.Services.AddScoped<ImportPickupPalGamesCommandHandler>();
         builder.Services.AddScoped<GetTodayGameDayContextQueryHandler>();
         builder.Services.AddScoped<ILastGameSummaryQueryHandler, GetLastGameSummaryQueryHandler>();
@@ -104,6 +118,19 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<CancelRsvpCommandHandler>();
         builder.Services.AddScoped<GetMyRsvpQueryHandler>();
         builder.Services.AddScoped<AdminOverrideRsvpCommandHandler>();
+        // RSVP-9: Pickup Pal roster sync after the local RSVP commit, plus the outbox processor
+        // (timer) that retries it and drains Pickup Pal account deletions.
+        builder.Services.AddSingleton<RsvpPickupPalSyncGate>();
+        builder.Services.AddScoped<IRsvpPickupPalSyncService, RsvpPickupPalSyncService>();
+        builder.Services.AddScoped<IOutboxMessageHandler, RsvpPickupPalSyncOutboxHandler>();
+        builder.Services.AddScoped<IOutboxMessageHandler, PickupPalUserDeletionOutboxHandler>();
+        // SES-7: app-published sessions with a group become Pickup Pal games (create / update /
+        // terminate after the local write), retried through the same outbox processor.
+        builder.Services.AddSingleton<SessionPickupPalSyncGate>();
+        builder.Services.AddScoped<SessionGroupResolver>();
+        builder.Services.AddScoped<ISessionPickupPalSyncService, SessionPickupPalSyncService>();
+        builder.Services.AddScoped<IOutboxMessageHandler, SessionPickupPalSyncOutboxHandler>();
+        builder.Services.AddSingleton<OutboxProcessor>();
         builder.Services.AddScoped<CheckInPlayerCommandHandler>();
         builder.Services.AddScoped<SelfCheckInCommandHandler>();
         builder.Services.AddScoped<RecordNoShowsCommandHandler>();
@@ -143,6 +170,25 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<GetAvailableGroupsQueryHandler>();
         builder.Services.AddScoped<GetMyGroupsQueryHandler>();
         builder.Services.AddScoped<LinkPlayerToGroupCommandHandler>();
+        // GRP-1: group membership with approval. The gate is what RSVP / self check-in / claim and
+        // the feed projections consult; the service is the single membership state machine.
+        builder.Services.AddScoped<IValidator<RequestGroupMembershipsCommand>, RequestGroupMembershipsCommandValidator>();
+        builder.Services.AddScoped<IValidator<SearchPlayersQuery>, SearchPlayersQueryValidator>();
+        builder.Services.AddScoped<IValidator<LeaveGroupCommand>, LeaveGroupCommandValidator>();
+        builder.Services.AddScoped<IValidator<ReviewGroupMemberCommand>, ReviewGroupMemberCommandValidator>();
+        builder.Services.AddScoped<IValidator<AddGroupMemberCommand>, AddGroupMemberCommandValidator>();
+        builder.Services.AddScoped<IValidator<SetGroupAdminCommand>, SetGroupAdminCommandValidator>();
+        builder.Services.AddScoped<GroupMembershipService>();
+        builder.Services.AddScoped<IGroupMembershipGate, GroupMembershipGate>();
+        builder.Services.AddScoped<GetGroupCatalogQueryHandler>();
+        builder.Services.AddScoped<GetMyGroupMembershipsQueryHandler>();
+        builder.Services.AddScoped<RequestGroupMembershipsCommandHandler>();
+        builder.Services.AddScoped<LeaveGroupCommandHandler>();
+        builder.Services.AddScoped<GetGroupMembersQueryHandler>();
+        builder.Services.AddScoped<ReviewGroupMemberCommandHandler>();
+        builder.Services.AddScoped<AddGroupMemberCommandHandler>();
+        builder.Services.AddScoped<SetGroupAdminCommandHandler>();
+        builder.Services.AddScoped<SearchPlayersQueryHandler>();
         builder.Services.AddScoped<IValidator<PostAnnouncementCommand>, PostAnnouncementCommandValidator>();
         builder.Services.AddScoped<IValidator<GetGroupAnnouncementsQuery>, GetGroupAnnouncementsQueryValidator>();
         builder.Services.AddScoped<IValidator<GetSentAnnouncementsQuery>, GetSentAnnouncementsQueryValidator>();

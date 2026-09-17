@@ -36,7 +36,7 @@
 
                     <Border Padding="{StaticResource CardPadding}"
                             BackgroundColor="{AppThemeBinding Light={StaticResource DangerSurfaceLight}, Dark={StaticResource DangerSurfaceDark}}"
-                            StrokeShape="RoundRectangle 12"
+                            StrokeShape="{StaticResource ShapeInset}"
                             IsVisible="{Binding IsCanceled}">
                         <Label Text="Session has been cancelled"
                                Style="{StaticResource TextH2}"
@@ -135,6 +135,8 @@
                            Style="{StaticResource TextCaption}"
                            TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}"
                            Padding="{StaticResource RowPadding}"
+                           MinimumHeightRequest="{StaticResource TouchMin}"
+                           VerticalTextAlignment="Center"
                            IsVisible="{Binding HasMoreGoing}"
                            SemanticProperties.Description="Show all going players">
                         <Label.GestureRecognizers>
@@ -179,13 +181,29 @@
                         </BindableLayout.ItemTemplate>
                     </VerticalStackLayout>
 
+                    <!-- View-only: the game belongs to a group the player has not been admitted to. -->
+                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding IsViewOnly}">
+                        <Border Style="{StaticResource NoticeSurface}">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleInfo}" FontFamily="FontAwesomeSolid" Style="{StaticResource BrandIconLabel}"
+                                       AutomationProperties.IsInAccessibleTree="False" />
+                                <Label Grid.Column="1" Text="{Binding ViewOnlyMessage}" Style="{StaticResource TextCaption}" LineHeight="1.4" />
+                            </Grid>
+                        </Border>
+                        <Button Text="Join the group"
+                                Command="{Binding JoinGroupCommand}"
+                                Style="{StaticResource GhostButton}"
+                                IsVisible="{Binding ShowJoinGroup}"
+                                SemanticProperties.Description="Open My groups to request to join this group" />
+                    </VerticalStackLayout>
+
                     <!-- Primary RSVP toggle -->
                     <Button Text="{Binding RsvpButtonText}"
                             Command="{Binding ToggleRsvpCommand}"
                             IsEnabled="{Binding CanRsvp}"
                             Style="{StaticResource PrimaryButton}"
                             Margin="{StaticResource WelcomeDividerMargin}"
-                            IsVisible="{Binding IsCanceled, Converter={StaticResource InvertedBool}}"
+                            IsVisible="{Binding CanJoinGroup}"
                             SemanticProperties.Description="{Binding RsvpButtonText}" />
 
                     <HorizontalStackLayout HorizontalOptions="Center"
@@ -194,7 +212,7 @@
                         <Label Text="{x:Static fonts:FontAwesomeGlyphs.Plug}"
                                FontFamily="FontAwesomeSolid"
                                FontSize="{StaticResource FontCaption}"
-                               TextColor="{StaticResource BrandSageLight}"
+                               TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
                                VerticalTextAlignment="Center" />
                         <Label Text="Confirmed via Pickup Pal"
                                Style="{StaticResource TextCaption}"

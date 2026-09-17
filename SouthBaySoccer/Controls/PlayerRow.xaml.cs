@@ -28,6 +28,19 @@ public partial class PlayerRow
         BindableProperty.Create(nameof(TapCommand), typeof(ICommand), typeof(PlayerRow));
     public static readonly BindableProperty TapCommandParameterProperty =
         BindableProperty.Create(nameof(TapCommandParameter), typeof(object), typeof(PlayerRow));
+    public static readonly BindableProperty GlyphProperty =
+        BindableProperty.Create(nameof(Glyph), typeof(string), typeof(PlayerRow), null,
+            propertyChanged: static (bindable, _, value) =>
+            {
+                // Additive: a set glyph turns the row into a menu row (icon tile); unset keeps
+                // the person avatar exactly as before.
+                var row = (PlayerRow)bindable;
+                var hasGlyph = value is string glyph && !string.IsNullOrWhiteSpace(glyph);
+                row.GlyphSlot.IsVisible = hasGlyph;
+                row.AvatarSlot.IsVisible = !hasGlyph;
+            });
+    public static readonly BindableProperty GlyphFontFamilyProperty =
+        BindableProperty.Create(nameof(GlyphFontFamily), typeof(string), typeof(PlayerRow), "FontAwesomeSolid");
 
     public PlayerRow() => InitializeComponent();
 
@@ -41,6 +54,8 @@ public partial class PlayerRow
     public View? TrailingContent { get => (View?)GetValue(TrailingContentProperty); set => SetValue(TrailingContentProperty, value); }
     public ICommand? TapCommand { get => (ICommand?)GetValue(TapCommandProperty); set => SetValue(TapCommandProperty, value); }
     public object? TapCommandParameter { get => GetValue(TapCommandParameterProperty); set => SetValue(TapCommandParameterProperty, value); }
+    public string? Glyph { get => (string?)GetValue(GlyphProperty); set => SetValue(GlyphProperty, value); }
+    public string GlyphFontFamily { get => (string)GetValue(GlyphFontFamilyProperty); set => SetValue(GlyphFontFamilyProperty, value); }
 
     private void UpdateSemanticDescription() =>
         SemanticProperties.SetDescription(

@@ -177,6 +177,7 @@ public class ProfilePageModelTests
         await pageModel.RefreshCommand.ExecuteAsync(null);
 
         pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsRefreshing.Should().BeFalse("the pull spinner must clear when the refresh completes");
         profileClient.Verify(
             client => client.GetCurrentProfileAsync(It.IsAny<CancellationToken>()),
             Times.Exactly(2));
@@ -487,11 +488,21 @@ public class ProfilePageModelTests
         Mock<IUserDialogService>? dialogService = null) =>
         new(
             profileClient.Object,
+            GroupsWithoutMemberships().Object,
             (launcher ?? LauncherReturning(true)).Object,
             (navigator ?? Navigator()).Object,
             (authenticationCoordinator ?? new Mock<IAuthenticationCoordinator>()).Object,
             (dialogService ?? new Mock<IUserDialogService>()).Object,
             new ClientResponseCache(TimeProvider.System));
+
+    private static Mock<IGroupsClient> GroupsWithoutMemberships()
+    {
+        var groups = new Mock<IGroupsClient>();
+        groups
+            .Setup(client => client.GetMyMembershipsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Contracts.Groups.MyGroupMembershipsResponse(false, false, []));
+        return groups;
+    }
 
     private static Mock<IProfileExternalLauncher> LauncherReturning(bool result)
     {

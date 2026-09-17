@@ -25,6 +25,12 @@ them instead of competing with them.
   `PickupPalGamesClient` is the only class that sees raw `phoneNumber`/`whatsappJid`; it emits only
   SHA-256 hashes (+ masked phone), normalized identically to `PickupPalUserSyncService` so hashes
   dedupe across sign-in and import.
+- **Refinement (M16 / GRP-1):** the game's `group.groupId` is the same value the group catalogue
+  already persists as `GroupChat.ExternalId`, so the games client exposes it as
+  `PickupPalGame.GroupExternalId` (`[JsonIgnore]`, so it never lands on the snapshot JSON) and
+  `PickupPalGameImportService` sets `Session.GroupChatId` by matching it to a persisted
+  `GroupChat` (creating nothing; no match leaves the session's group unchanged). It is still never
+  logged and never stored anywhere else. See [[m16-group-membership]].
 - Import also upserts `PlayerProfile`s per participant (resolution order: `PickupPalUserId` →
   `PhoneNumberHash` → `WhatsAppJidHash`; no identity keys → snapshot-only, no profile), links
   `PickupPalGameParticipant.PlayerProfileId`, and backfills missing hash keys on matched profiles.

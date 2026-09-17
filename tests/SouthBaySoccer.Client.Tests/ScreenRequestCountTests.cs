@@ -132,8 +132,13 @@ public sealed class ScreenRequestCountTests
     {
         var handler = new CountingHttpMessageHandler();
         handler.RegisterJson("/profiles/me", ProfileMeJson);
+        // Group membership is a separate client; it is stubbed so the count below is the profile's own.
+        var groupsClient = new Mock<IGroupsClient>();
+        groupsClient.Setup(client => client.GetMyMembershipsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SouthBaySoccer.Contracts.Groups.MyGroupMembershipsResponse(false, false, []));
         var pageModel = new ProfilePageModel(
             new ApiProfileClient(CreateHttpClient(handler)),
+            groupsClient.Object,
             new Mock<IProfileExternalLauncher>(MockBehavior.Strict).Object,
             new Mock<IProfileNavigator>(MockBehavior.Strict).Object,
             new Mock<IAuthenticationCoordinator>(MockBehavior.Strict).Object,

@@ -45,7 +45,10 @@ public sealed record SessionAdminResponse(
     bool IsCurrentPlayerGoing = false,
     bool IsCurrentPlayerWaitlisted = false,
     bool CanJoinWaitlist = false,
-    string? GroupName = null);
+    string? GroupName = null,
+    Guid? GroupChatId = null,
+    string? MembershipStatus = null,
+    bool CanJoin = true);
 
 public sealed record CreateSessionAdminRequest(
     Guid SeasonId,
@@ -59,7 +62,8 @@ public sealed record CreateSessionAdminRequest(
     DateTime CheckInClosesAtUtc,
     DateTime RsvpDeadlineUtc,
     Guid? RecurrenceRuleId = null,
-    string? OccurrenceKey = null);
+    string? OccurrenceKey = null,
+    Guid? GroupChatId = null);
 
 public sealed record CancelSessionRequest(string Reason);
 

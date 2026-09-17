@@ -28,6 +28,9 @@ public partial class LeaderboardPageModel(
     private ViewState _state = ViewState.Loading;
 
     [ObservableProperty]
+    private bool _isRefreshing;
+
+    [ObservableProperty]
     private string _stateTitle = string.Empty;
 
     [ObservableProperty]
@@ -119,7 +122,18 @@ public partial class LeaderboardPageModel(
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task Refresh(CancellationToken cancellationToken) => LoadRankingAsync(cancellationToken);
+    private async Task Refresh(CancellationToken cancellationToken)
+    {
+        IsRefreshing = true;
+        try
+        {
+            await LoadRankingAsync(cancellationToken);
+        }
+        finally
+        {
+            IsRefreshing = false;
+        }
+    }
 
     // Loads the player's linked groups once and seeds the filter with an "All" aggregate plus each
     // group, defaulting to the player's primary group. A failure here is non-fatal — the leaderboard
@@ -171,7 +185,12 @@ public partial class LeaderboardPageModel(
 
     private async Task LoadRankingAsync(CancellationToken cancellationToken)
     {
-        State = ViewState.Loading;
+        // Pull-to-refresh keeps the content on screen (RefreshView shows the spinner);
+        // only non-content states swap to the full-page loading view.
+        if (State != ViewState.Content)
+        {
+            State = ViewState.Loading;
+        }
         IsBusy = true;
 
         try

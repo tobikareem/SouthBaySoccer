@@ -14,6 +14,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="9.9.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -33,6 +34,12 @@
     <Compile Include="..\..\SouthBaySoccer\Configuration\ClientDataSourceOptions.cs" Link="Client\Configuration\ClientDataSourceOptions.cs" />
     <Compile Include="..\..\SouthBaySoccer\Configuration\ClientDataSourceValidator.cs" Link="Client\Configuration\ClientDataSourceValidator.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\WelcomeBackPageModel.cs" Link="Client\PageModels\WelcomeBackPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\SignUpStartPageModel.cs" Link="Client\PageModels\SignUpStartPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\LinkWaitingPageModel.cs" Link="Client\PageModels\LinkWaitingPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\SignUpExpiredPageModel.cs" Link="Client\PageModels\SignUpExpiredPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\SignUpDetailsPageModel.cs" Link="Client\PageModels\SignUpDetailsPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\SignUpWelcomePageModel.cs" Link="Client\PageModels\SignUpWelcomePageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\SignInVerifyPageModel.cs" Link="Client\PageModels\SignInVerifyPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\SessionsHomePageModel.cs" Link="Client\PageModels\SessionsHomePageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\SessionDetailPageModel.cs" Link="Client\PageModels\SessionDetailPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\SchedulePageModel.cs" Link="Client\PageModels\SchedulePageModel.cs" />
@@ -40,6 +47,10 @@
     <Compile Include="..\..\SouthBaySoccer\PageModels\ProfilePageModel.cs" Link="Client\PageModels\ProfilePageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\LeaderboardPageModel.cs" Link="Client\PageModels\LeaderboardPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\LinkGroupPageModel.cs" Link="Client\PageModels\LinkGroupPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\GroupMembershipViewModels.cs" Link="Client\PageModels\GroupMembershipViewModels.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\GroupsMinePageModel.cs" Link="Client\PageModels\GroupsMinePageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\GroupMembersPageModel.cs" Link="Client\PageModels\GroupMembersPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\SuperAdminGroupsPageModel.cs" Link="Client\PageModels\SuperAdminGroupsPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\PlayersPageModel.cs" Link="Client\PageModels\PlayersPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\MatchStatsPageModel.cs" Link="Client\PageModels\MatchStatsPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\RateTeammatesPageModel.cs" Link="Client\PageModels\RateTeammatesPageModel.cs" />
@@ -60,6 +71,13 @@
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IAuthenticationCoordinator.cs" Link="Client\Services\IAuthenticationCoordinator.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IAuthenticationNavigator.cs" Link="Client\Services\IAuthenticationNavigator.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IExternalLauncher.cs" Link="Client\Services\IExternalLauncher.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IOnboardingClient.cs" Link="Client\Services\IOnboardingClient.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\OnboardingClient.cs" Link="Client\Services\OnboardingClient.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\OnboardingTokenException.cs" Link="Client\Services\OnboardingTokenException.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IOnboardingFlow.cs" Link="Client\Services\IOnboardingFlow.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\OnboardingFlow.cs" Link="Client\Services\OnboardingFlow.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IOnboardingNavigator.cs" Link="Client\Services\IOnboardingNavigator.cs" />
+    <Compile Include="..\..\SouthBaySoccer\Services\Authentication\IClipboardReader.cs" Link="Client\Services\IClipboardReader.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\IUserDialogService.cs" Link="Client\Services\IUserDialogService.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\AppLifecycleState.cs" Link="Client\Services\AppLifecycleState.cs" />
     <Compile Include="..\..\SouthBaySoccer\Services\PlayerRoles.cs" Link="Client\Services\PlayerRoles.cs" />
@@ -81,8 +99,9 @@
     <None Include="..\..\SouthBaySoccer\Controls\PlayerRow.xaml" Link="Client\Xaml\PlayerRow.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Controls\StateView.xaml" Link="Client\Xaml\StateView.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Controls\AnnouncementCard.xaml" Link="Client\Xaml\AnnouncementCard.xaml" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\SouthBaySoccer\Controls\GroupChoiceRow.xaml" Link="Client\Xaml\GroupChoiceRow.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Controls\ToggleRow.xaml" Link="Client\Xaml\ToggleRow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Controls\WhatsAppHandoffCard.xaml" Link="Client\Xaml\WhatsAppHandoffCard.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Controls\LinkExpiryCard.xaml" Link="Client\Xaml\LinkExpiryCard.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Controls\PushPreview.xaml" Link="Client\Xaml\PushPreview.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\AppShell.xaml" Link="Client\Xaml\AppShell.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\WelcomeBackPage.xaml" Link="Client\Xaml\WelcomeBackPage.xaml" CopyToOutputDirectory="PreserveNewest" />
@@ -91,7 +110,6 @@
     <None Include="..\..\SouthBaySoccer\Pages\MatchStatsPage.xaml" Link="Client\Xaml\MatchStatsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\RateTeammatesPage.xaml" Link="Client\Xaml\RateTeammatesPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\ProfilePage.xaml" Link="Client\Xaml\ProfilePage.xaml" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\SouthBaySoccer\Resources\Styles\AppStyles.xaml" Link="Client\Xaml\AppStyles.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\SessionsHomePage.xaml" Link="Client\Xaml\SessionsHomePage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\SessionDetailPage.xaml" Link="Client\Xaml\SessionDetailPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\CreateSessionPage.xaml" Link="Client\Xaml\CreateSessionPage.xaml" CopyToOutputDirectory="PreserveNewest" />
@@ -101,6 +119,10 @@
     <None Include="..\..\SouthBaySoccer\Pages\PostGameApprovalPage.xaml" Link="Client\Xaml\PostGameApprovalPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\AnnouncementsPage.xaml" Link="Client\Xaml\AnnouncementsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\AdminBroadcastPage.xaml" Link="Client\Xaml\AdminBroadcastPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\LinkGroupPage.xaml" Link="Client\Xaml\LinkGroupPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\GroupsMinePage.xaml" Link="Client\Xaml\GroupsMinePage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\GroupMembersPage.xaml" Link="Client\Xaml\GroupMembersPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\SuperAdminGroupsPage.xaml" Link="Client\Xaml\SuperAdminGroupsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Every XAML file in the app, mirrored wholesale so StaticResourceKeyTests can prove each

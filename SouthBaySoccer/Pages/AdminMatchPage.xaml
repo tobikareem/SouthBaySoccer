@@ -20,23 +20,25 @@
             EventName="Appearing"
             Command="{Binding AppearingCommand}" />
     </ContentPage.Behaviors>
-    <c:StateView
-        State="{Binding State}"
-        Title="{Binding StateTitle}"
-        Message="{Binding StateMessage}"
-        Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
-        GlyphFontFamily="FontAwesomeSolid"
-        RetryCommand="{Binding RetryCommand}">
+    <!-- Header lives outside the StateView so the back button survives Loading/Empty/Error. -->
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader
+            Title="Match players"
+            Subtitle="Link imported names to real profiles"
+            ShowBack="True"
+            BackCommand="{Binding BackCommand}" />
+        <c:StateView
+            Grid.Row="1"
+            State="{Binding State}"
+            Title="{Binding StateTitle}"
+            Message="{Binding StateMessage}"
+            Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
+            GlyphFontFamily="FontAwesomeSolid"
+            RetryCommand="{Binding RetryCommand}">
         <ScrollView>
             <VerticalStackLayout
                 Padding="{StaticResource LayoutPadding}"
                 Spacing="{StaticResource SpaceMd}">
-
-                <c:BrandHeader
-                    Title="Match players"
-                    Subtitle="Link imported names to real profiles"
-                    ShowBack="True"
-                    BackCommand="{Binding BackCommand}" />
 
                 <!-- Mode A: unlinked entries -->
                 <VerticalStackLayout
@@ -53,7 +55,7 @@
                                 <Border Style="{StaticResource CardSurface}">
                                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
                                         <VerticalStackLayout VerticalOptions="Center" Spacing="{StaticResource SpaceXs}">
-                                            <Label Text="{Binding DisplayName}" Style="{StaticResource TextBodyStrong}" />
+                                            <Label Text="{Binding DisplayName}" Style="{StaticResource TextBodyStrong}" LineBreakMode="TailTruncation" />
                                             <Label Text="unlinked" Style="{StaticResource TextCaption}" />
                                         </VerticalStackLayout>
                                         <Button
@@ -82,6 +84,7 @@
                     </Border>
                     <Entry
                         Text="{Binding SearchText}"
+                        Style="{StaticResource BrandEntry}"
                         Placeholder="Search players"
                         SemanticProperties.Description="Search the player directory" />
                     <VerticalStackLayout
@@ -103,5 +106,6 @@
                 </VerticalStackLayout>
             </VerticalStackLayout>
         </ScrollView>
-    </c:StateView>
+        </c:StateView>
+    </Grid>
 </ContentPage>

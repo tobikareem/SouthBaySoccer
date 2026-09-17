@@ -148,6 +148,46 @@
         <Setter Property="FontSize" Value="{StaticResource FontBody}" />
         <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
     </Style>
+    <Style x:Key="BrandEditor" TargetType="Editor">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}" />
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding Light={StaticResource BrandInkLight}, Dark={StaticResource BrandInkDark}}" />
+        <Setter Property="PlaceholderColor"
+                Value="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}" />
+        <Setter Property="FontFamily" Value="InterRegular" />
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
+    </Style>
+    <Style x:Key="BrandPicker" TargetType="Picker">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}" />
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding Light={StaticResource BrandInkLight}, Dark={StaticResource BrandInkDark}}" />
+        <Setter Property="TitleColor"
+                Value="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}" />
+        <Setter Property="FontFamily" Value="InterRegular" />
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
+    </Style>
+    <Style x:Key="BrandDatePicker" TargetType="DatePicker">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}" />
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding Light={StaticResource BrandInkLight}, Dark={StaticResource BrandInkDark}}" />
+        <Setter Property="FontFamily" Value="InterRegular" />
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
+    </Style>
+    <Style x:Key="BrandTimePicker" TargetType="TimePicker">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}" />
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding Light={StaticResource BrandInkLight}, Dark={StaticResource BrandInkDark}}" />
+        <Setter Property="FontFamily" Value="InterRegular" />
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
+    </Style>
     <Style x:Key="WelcomePhoneEntry" TargetType="Entry" BasedOn="{StaticResource BrandEntry}">
         <Setter Property="BackgroundColor" Value="Transparent" />
         <Setter Property="Margin" Value="0" />
@@ -237,6 +277,35 @@
                         <VisualState.Setters>
                             <Setter Property="BackgroundColor"
                                     Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDepthDark}}" />
+                            <Setter Property="TextColor" Value="White" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="Opacity" Value="0.55" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <!-- GRP-1: destructive glyph-only action (decline a request, remove a member). Same 44dp tile
+         as IconButton; the danger surface/text pair says "this takes something away" without a
+         full-width DangerButton inside a list row. -->
+    <Style x:Key="IconButtonDanger" TargetType="Button" BasedOn="{StaticResource IconButton}">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource DangerSurfaceLight}, Dark={StaticResource DangerSurfaceDark}}" />
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor"
+                                    Value="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}" />
                             <Setter Property="TextColor" Value="White" />
                         </VisualState.Setters>
                     </VisualState>
@@ -358,6 +427,27 @@
     </Style>
 
     <!-- M11.0c: inline metadata chip (date/time/format/location). Mist surface, sage content. -->
+    <!-- Tap-to-toggle chip (sign-up positions). Bound item exposes IsSelected; no CollectionView selection. -->
+    <Style x:Key="SelectableChip" TargetType="Border">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}" />
+        <Setter Property="Stroke"
+                Value="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="{StaticResource ShapeSegment}" />
+        <Setter Property="Padding" Value="{StaticResource ChipPadding}" />
+        <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
+        <Style.Triggers>
+            <DataTrigger TargetType="Border" Binding="{Binding IsSelected}" Value="True">
+                <Setter Property="BackgroundColor"
+                        Value="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}" />
+                <Setter Property="Stroke"
+                        Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+                <Setter Property="StrokeThickness" Value="1.5" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="MetadataChip" TargetType="Border">
         <Setter Property="BackgroundColor"
                 Value="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}" />
@@ -391,18 +481,54 @@
         </Setter>
     </Style>
 
-    <Style TargetType="Shell">
+    <!-- ApplyToDerivedTypes is required: AppShell derives from Shell, and an implicit style
+         without it never reaches the derived type. -->
+    <Style TargetType="Shell" ApplyToDerivedTypes="True">
         <Setter Property="Shell.BackgroundColor"
                 Value="{AppThemeBinding Light={StaticResource SurfaceLight}, Dark={StaticResource SurfaceDark}}" />
         <Setter Property="Shell.ForegroundColor"
                 Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
         <Setter Property="Shell.TitleColor"
                 Value="{AppThemeBinding Light={StaticResource BrandInkLight}, Dark={StaticResource BrandInkDark}}" />
+        <Setter Property="Shell.NavBarHasShadow" Value="False" />
         <Setter Property="Shell.TabBarBackgroundColor"
                 Value="{AppThemeBinding Light={StaticResource SurfaceLight}, Dark={StaticResource SurfaceDark}}" />
         <Setter Property="Shell.TabBarForegroundColor"
                 Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+        <Setter Property="Shell.TabBarTitleColor"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
         <Setter Property="Shell.TabBarUnselectedColor"
                 Value="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}" />
+    </Style>
+
+    <!-- Baseline implicit styles owned by the brand system: the template dictionaries used to
+         provide these silently; bare controls must keep sane brand defaults without them. -->
+    <Style TargetType="Page" ApplyToDerivedTypes="True">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource SurfaceLight}, Dark={StaticResource SurfaceDark}}" />
+    </Style>
+
+    <Style TargetType="CheckBox">
+        <Setter Property="Color"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+        <Setter Property="MinimumHeightRequest" Value="{StaticResource TouchMin}" />
+        <Setter Property="MinimumWidthRequest" Value="{StaticResource TouchMin}" />
+    </Style>
+
+    <Style TargetType="Switch">
+        <Setter Property="OnColor"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+        <Setter Property="ThumbColor" Value="{StaticResource BrandWhite}" />
+    </Style>
+
+    <Style TargetType="ActivityIndicator">
+        <Setter Property="Color"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+    </Style>
+
+    <Style TargetType="RefreshView">
+        <Setter Property="RefreshColor"
+                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
     </Style>
 </ResourceDictionary>

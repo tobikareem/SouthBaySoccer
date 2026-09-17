@@ -28,6 +28,8 @@
             Glyph="{x:Static fonts:FontAwesomeGlyphs.Trophy}"
             GlyphFontFamily="FontAwesomeSolid"
             RetryCommand="{Binding RefreshCommand}">
+            <RefreshView Command="{Binding RefreshCommand}"
+                         IsRefreshing="{Binding IsRefreshing, Mode=TwoWay}">
             <ScrollView>
                 <VerticalStackLayout
                     Padding="{StaticResource LayoutPadding}"
@@ -49,6 +51,7 @@
                     <!-- Group filter: the top 5 are scoped to the selected group's members, defaulting
                          to the player's primary group. "All groups" aggregates across every group. -->
                     <Picker
+                        Style="{StaticResource BrandPicker}"
                         Title="Group"
                         ItemsSource="{Binding Groups}"
                         ItemDisplayBinding="{Binding Name, x:DataType=pageModels:LeaderboardGroupOption}"
@@ -181,6 +184,7 @@
                     </c:BrandCard>
                 </VerticalStackLayout>
             </ScrollView>
+            </RefreshView>
         </c:StateView>
     </Grid>
 </ContentPage>

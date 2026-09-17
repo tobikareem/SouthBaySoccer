@@ -60,7 +60,7 @@
                                 <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
                                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
                                         <VerticalStackLayout>
-                                            <Label Text="{Binding Name}" Style="{StaticResource TextBodyStrong}" />
+                                            <Label Text="{Binding Name}" Style="{StaticResource TextBodyStrong}" LineBreakMode="TailTruncation" />
                                             <Label Text="{Binding CaptainName, StringFormat='Captain: {0}'}" Style="{StaticResource TextCaption}" />
                                         </VerticalStackLayout>
                                         <c:Badge Grid.Column="1" Text="Your team" Variant="Success" VerticalOptions="Center" IsVisible="{Binding IsMine}" />
@@ -70,7 +70,7 @@
                                         <BindableLayout.ItemTemplate>
                                             <DataTemplate x:DataType="contracts:SessionTeamMemberDto">
                                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}" Padding="{StaticResource RowPadding}">
-                                                    <Label Text="{Binding DisplayName}" Style="{StaticResource TextBody}" VerticalOptions="Center" />
+                                                    <Label Text="{Binding DisplayName}" Style="{StaticResource TextBody}" LineBreakMode="TailTruncation" VerticalOptions="Center" />
                                                     <HorizontalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}" VerticalOptions="Center">
                                                         <c:Badge Text="Captain" Variant="Neutral" IsVisible="{Binding IsCaptain}" />
                                                         <c:Badge Text="You" Variant="Success" IsVisible="{Binding IsMe}" />
@@ -93,7 +93,7 @@
                             <BindableLayout.ItemTemplate>
                                 <DataTemplate x:DataType="contracts:SessionTeamMemberDto">
                                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}" Padding="{StaticResource RowPadding}">
-                                        <Label Text="{Binding DisplayName}" Style="{StaticResource TextBody}" VerticalOptions="Center" />
+                                        <Label Text="{Binding DisplayName}" Style="{StaticResource TextBody}" LineBreakMode="TailTruncation" VerticalOptions="Center" />
                                         <c:Badge Grid.Column="1" Text="You" Variant="Success" VerticalOptions="Center" IsVisible="{Binding IsMe}" />
                                     </Grid>
                                 </DataTemplate>

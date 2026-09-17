@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView x:Class="SouthBaySoccer.Controls.LinkExpiryCard"
+             xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:SouthBaySoccer.Controls"
+             xmlns:fonts="clr-namespace:Fonts"
+             x:Name="Root"
+             x:DataType="controls:LinkExpiryCard">
+    <Border Style="{StaticResource CardSurface}"
+            BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}">
+        <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+            <Grid ColumnDefinitions="*,Auto">
+                <Label Text="Link expires in"
+                       Style="{StaticResource TextLabel}"
+                       VerticalTextAlignment="Center" />
+                <controls:Badge Grid.Column="1"
+                                Text="{Binding RemainingText, Source={x:Reference Root}}"
+                                Glyph="{x:Static fonts:FontAwesomeGlyphs.Clock}"
+                                Variant="{Binding BadgeVariant, Source={x:Reference Root}}"
+                                AutomationProperties.IsInAccessibleTree="False" />
+            </Grid>
+            <ProgressBar Progress="{Binding Progress, Source={x:Reference Root}}"
+                         ProgressColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                         BackgroundColor="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}"
+                         HeightRequest="{StaticResource BarHeight}"
+                         SemanticProperties.Description="{Binding RemainingText, Source={x:Reference Root}, StringFormat='{0} remaining'}" />
+            <Label Text="{Binding Note, Source={x:Reference Root}}"
+                   Style="{StaticResource TextCaption}"
+                   LineHeight="1.4" />
+        </VerticalStackLayout>
+    </Border>
+</ContentView>

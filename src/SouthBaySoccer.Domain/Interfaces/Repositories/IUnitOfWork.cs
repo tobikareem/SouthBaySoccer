@@ -18,6 +18,12 @@ public interface IUnitOfWork
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Drops every tracked change without saving. Used after a failed save or a failed multi-step
+    /// operation so a later save in the same unit of work does not resubmit half-applied state.
+    /// </summary>
+    void DiscardChanges();
+
+    /// <summary>
     /// Runs a read-check-write operation inside one serializable transaction and commits it,
     /// retrying on deadlock/serialization failures. Used by mutations whose guards read state that
     /// a concurrent request could change between the read and the write (draft picks racing for
