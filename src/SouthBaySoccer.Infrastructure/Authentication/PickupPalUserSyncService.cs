@@ -135,8 +135,17 @@ public sealed class PickupPalUserSyncService(
         identityUser.EmailConfirmed = !string.IsNullOrWhiteSpace(identityUser.Email);
     }
 
+    // Owners (super admins) are identified only by the configured OwnerPhoneNumbers and always win;
+    // a configured admin number promotes to GameAdmin unless the profile already holds an
+    // administrative role. Roles are otherwise local and never overwritten by Pickup Pal data.
     private void ApplyConfiguredAdminRole(PlayerProfile profile, string phoneNumber)
     {
+        if (configuredAdminPhoneNumberService.IsConfiguredOwnerPhoneNumber(phoneNumber))
+        {
+            profile.Role = PlayerRole.Owner;
+            return;
+        }
+
         if (configuredAdminPhoneNumberService.IsConfiguredAdminPhoneNumber(phoneNumber) &&
             !IsAdministrativeRole(profile.Role))
         {

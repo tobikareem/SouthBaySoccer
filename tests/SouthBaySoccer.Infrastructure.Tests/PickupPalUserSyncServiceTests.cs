@@ -92,6 +92,20 @@ public sealed class PickupPalUserSyncServiceTests
     }
 
     [Fact]
+    public async Task SyncAsync_ConfiguredOwnerPhone_PromotesProfileAndTokenSubjectToOwnerEvenWhenAlsoAdmin()
+    {
+        using var provider = CreateServiceProvider(adminPhoneNumbers: "15106949421", ownerPhoneNumbers: "15106949421");
+        var service = provider.GetRequiredService<IPickupPalUserSyncService>();
+        var db = provider.GetRequiredService<SouthBaySoccerDbContext>();
+
+        var subject = await service.SyncAsync(CreatePickupPalUser("pickuppal-user-owner", "owner@example.test"));
+
+        var profile = await db.PlayerProfiles.FindAsync(subject.PlayerProfileId);
+        profile!.Role.Should().Be(PlayerRole.Owner, "a number in both lists is an owner");
+        subject.Roles.Should().ContainSingle().Which.Should().Be(PlayerRole.Owner.ToString());
+    }
+
+    [Fact]
     public async Task SyncAsync_WhenUnclaimedImportedProfileMatchesByPhoneHash_ClaimsItAndPromotesToPlayer()
     {
         using var provider = CreateServiceProvider();
@@ -131,10 +145,14 @@ public sealed class PickupPalUserSyncServiceTests
     private static string Sha256Hex(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
-    private ServiceProvider CreateServiceProvider(string adminPhoneNumbers = "")
+    private ServiceProvider CreateServiceProvider(string adminPhoneNumbers = "", string ownerPhoneNumbers = "")
     {
         var services = new ServiceCollection();
-        services.Configure<AdminPhoneNumberOptions>(options => options.AdminPhoneNumbers = adminPhoneNumbers);
+        services.Configure<AdminPhoneNumberOptions>(options =>
+        {
+            options.AdminPhoneNumbers = adminPhoneNumbers;
+            options.OwnerPhoneNumbers = ownerPhoneNumbers;
+        });
         services.AddInfrastructure(database.ConnectionString);
         return services.BuildServiceProvider();
     }
