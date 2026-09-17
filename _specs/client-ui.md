@@ -165,6 +165,13 @@ Keyed styles (and a few implicit) built only from tokens:
   `IconTileSurface`, `MetadataChip`, and `StepperButton`.
 - **Slider**: `RatingSlider` — tokenized track/thumb/focus treatment for the 0–10 teammate rating.
 
+### 5.1 GRP-1 addition: `IconButtonDanger`
+
+`IconButtonDanger` is `IconButton` (44dp glyph tile) re-tokened with `DangerSurface*` /
+`Danger*` and a solid-danger pressed state. Use it for a destructive glyph action that sits inside
+a list row (decline a request, remove a member) where a full-width `DangerButton` would not fit.
+Pair it with a `SemanticProperties.Description` that names the person ("Decline Ayo N.").
+
 ## 6. Custom control catalog
 
 All are `ContentView` subclasses (except where noted) with `BindableProperty` inputs and `ICommand`
@@ -372,7 +379,12 @@ Scenario: Product UI follows the authoritative wireframe
 | Sign-up numbered steps, verify account row | `Avatar` (initials) + `TextBodyStrong`/`TextCaption` |
 | Position chips (sign-up) | horizontal `CollectionView` (`SelectionMode=None`) of `SelectableChip` + `TapGestureRecognizer` |
 | Terms / remember-device toggles | `ToggleRow` |
-| Group selection (sign-in) & Stats group filter | `LinkGroupPage` (single-select `CollectionView`) / `Picker` |
+| Group selection (sign-in) & Stats group filter | `LinkGroupPage` (multi-select `CollectionView`, see §11.2) / `Picker` |
+| Membership status pills (Approved / Pending / Declined) | `Badge` — `Success` / `Warning` / `Danger` via `GroupMembershipPresentation.StatusVariant`, never a hardcoded variant per page |
+| "My groups" memberships, joinable groups, admin group rows | `PlayerRow` in menu mode (`Glyph=Users`) inside `BrandCard`; `LinkButton` (Leave / Cancel / Request again), `GhostButton` (Request) in `TrailingContent` |
+| Pending-request approve / decline, member remove | `PlayerRow` (initials avatar) + `IconButton` (check) / `IconButtonDanger` (xmark, user-minus) in `TrailingContent` |
+| Super-admin "Add member" search | `CardSurface` + `MagnifyingGlass` + `BrandEntry` (same block as the Players directory search) + `BrandCard` of `PlayerRow` results with a `GhostButton` "Add" |
+| Profile "Super admin" card | `BrandCard IsHero` with a `TapGestureRecognizer`, shown only when the server sets `IsSuperAdmin` |
 | Admin entry points on Sessions | `SectionHeader` with two actions ("Broadcast", "+ Session"), gated by `CanManageSessions` |
 | Admin broadcast composer | `BrandHeader` + fixed-audience `MetadataChip` + styled `Editor` + `AnnouncementCard` preview + `ToggleRow` + `PushPreview` + docked `PrimaryButton` |
 | Push notification preview | `PushPreview` (dark surface, app name, group title, 2-line clamped body) |
@@ -428,23 +440,53 @@ row, push preview, and announcement card are shared controls, never page-local X
 row is a `radiogroup` and the push row a `switch` for accessibility, and the unread dot is paired
 with an accessible unread-count description on the bell.
 
-## 11.2 Group-chat linking & group-scoped leaderboard
+## 11.2 Group membership with approval (GRP-1) & group-scoped leaderboard
 
-Players belong to WhatsApp group chats (mirrored from the read-only PickupPal API into our own
-database — see backend spec). Two client surfaces implement this:
+Players belong to WhatsApp group chats mirrored from the read-only Pickup Pal API into our own
+database. A player can belong to many groups; joining is a **request** a group admin approves, and
+the server auto-approves a request when Pickup Pal already lists the player in that WhatsApp group.
+The client never decides an outcome — it renders the status the server returns. Wireframe screens:
+`groups-choose`, `groups-result`, `groups-mine`, `group-members`, `super-admin-groups`, plus the
+"My groups" / "Manage members" / "Super admin" section on `profile`.
 
-- **`LinkGroupPage` (route `//link-group`, blocking).** Shown immediately after sign-in when the
-  player is linked to no group (`AuthenticationNavigator` gates the initial route on
-  `IGroupsClient.GetMyGroupsAsync().IsLinked`). It is a **required** step: declared as a
-  `ShellContent` outside the `TabBar` (no tab, no back stack), `Shell.NavBarIsVisible="False"`,
-  `Shell.TabBarIsVisible="False"`, and `OnBackButtonPressed` returns `true`. Layout reuses
-  `StateView` + a single-select `CollectionView` of `CardSurface` rows (VSM `Selected` state tints
-  the row) + a `PrimaryButton` disabled until a group is picked. On link it routes to `//sessions`
-  via `IGroupLinkNavigator`.
-- **Stats leaderboard group filter.** The former season chevron badge is replaced by a `Picker`
-  bound to the player's linked groups plus an "All groups" aggregate, defaulting to the player's
-  **primary** group. The selected group id is threaded to `stats/leaderboards?groupId=…`; the top-5
-  is scoped to that group's members (membership-based, not game-tagged).
+- **`LinkGroupPage` (route `//link-group`, blocking, multi-select).** Shown after sign-in when the
+  player has no Approved membership (`AuthenticationNavigator` still gates on the legacy
+  `IGroupsClient.GetMyGroupsAsync().IsLinked`, which now means "at least one Approved
+  membership"). `ShellContent` outside the `TabBar`, nav bar + tab bar hidden, hardware back
+  swallowed. Layout: `StateView` → `CollectionView SelectionMode=Multiple` whose `SelectedItems`
+  binds to `LinkGroupPageModel.SelectedGroups`; each `CardSurface` row carries an
+  `InputTransparent` `CheckBox` mirroring `GroupChoiceItem.IsSelected` plus the `Selected` VSM
+  tint; a "N selected" caption and a `PrimaryButton` "Continue" enabled only with ≥1 selection.
+  Requests already Pending from an earlier visit are listed in a tinted `BrandCard` above the
+  choices. After `RequestMembershipsAsync` succeeds the page swaps to the outcome view
+  (`BrandHeader` "You're in" / "Requests sent" / "Waiting for approval" + a `BrandCard` of rows
+  with `CircleCheck` or `Clock` glyph and a status `Badge`) and a `PrimaryButton` "See upcoming
+  sessions" routes to `//sessions` via `IGroupLinkNavigator` — also when every request is Pending,
+  since games of groups the player is not in are view-only.
+- **`GroupsMinePage` (route `my-groups`, Profile → "Manage").** `BrandHeader` with back;
+  "Your memberships" `BrandCard` of menu-mode `PlayerRow`s with a status `Badge` and a
+  `LinkButton` "Leave" (Approved) / "Cancel" (Pending) / "Request again" (Declined); "Join another
+  group" `BrandCard` of remaining groups with a `GhostButton` "Request". Leave asks for
+  confirmation through `IUserDialogService`. Every write invalidates the `groups:` cache prefix and
+  reloads; failures surface as an inline danger caption and keep the lists on screen.
+- **`GroupMembersPage` (route `group-members?groupId=…`).** `BrandHeader` titled with the group;
+  member / pending count `Badge`s; "Pending requests" rows with `IconButton` approve and
+  `IconButtonDanger` decline; "Members" rows with an `IconButtonDanger` remove. Super-admin extras
+  are shown only when the response says `CanAppointAdmins`: an "Add member" name search (≥2
+  characters; the fragment is the only personal data ever placed in a query string) whose results
+  exclude players already in the group, and a `LinkButton` "Make admin" / "Remove admin" per member.
+- **`SuperAdminGroupsPage` (route `super-admin-groups`).** Every group as a tappable menu-mode
+  `PlayerRow` card with "N members · M pending requests" and a warning `Badge` count, opening
+  `GroupMembersPage`. Reached only from the Profile hero card the server unlocks with
+  `IsSuperAdmin`.
+- **Profile section (own profile only).** `SectionHeader` "My groups" with a "Manage" action, a
+  `BrandCard` summary (names, "1 approved · 1 pending", one status `Badge` per group), "Manage
+  members" rows for groups the player administers, and the hero "Super admin" card.
+- **Stats leaderboard group filter.** Unchanged: a `Picker` bound to the player's linked groups
+  plus an "All groups" aggregate, defaulting to the primary group, threaded to
+  `stats/leaderboards?groupId=…`.
+- **Deferred.** View-only rendering of other groups' games waits on session DTO fields that do
+  not exist yet; session and game-day pages are untouched by GRP-1.
 
 ## 12. Out of scope / dependencies
 

@@ -40,8 +40,8 @@ public partial class App : Application
         window.Stopped += (_, _) => _appLifecycleState.SetActive(false);
 #if DEBUG
         // Debug/demo aid: N9JABAY_ONBOARDING_SCREEN=<signup-start|signup-waiting|signup-expired|
-        // signup-details|signup-welcome|signin-verify|signin-waiting> opens that onboarding screen on
-        // launch (Seed data), so the flow can be reviewed without a WhatsApp round-trip.
+        // signup-details|signup-welcome|signin-verify|signin-waiting|signed-in|groups-choose|profile>
+        // opens that screen on launch (Seed data), so flows can be reviewed without a WhatsApp round-trip.
         var debugScreenOpened = false;
         welcomeBackPage.Loaded += (_, _) =>
         {
@@ -89,6 +89,25 @@ public partial class App : Application
             case "signin-waiting":
                 await _onboardingFlow.BeginSignInVerificationAsync(pendingSignIn, CancellationToken.None);
                 await _onboardingFlow.StartSignInHandoffAsync(CancellationToken.None);
+                break;
+            // Authenticated screens (GRP-1): complete the seed sign-in, then jump to the screen.
+            case "signed-in":
+            case "groups-choose":
+            case "profile":
+                // A remembered seed session restores the Shell on its own; only sign in when it did not.
+                await Task.Delay(1200);
+                if (Windows.FirstOrDefault()?.Page is not Shell)
+                {
+                    await _onboardingFlow.BeginSignInVerificationAsync(pendingSignIn, CancellationToken.None);
+                    await Task.Delay(800);
+                    await _onboardingFlow.HandleLoginTokenAsync("demo", CancellationToken.None);
+                    await Task.Delay(1500);
+                }
+
+                if (screen.Trim().ToLowerInvariant() is var target && target != "signed-in" && Shell.Current is Shell shell)
+                {
+                    await shell.GoToAsync(target == "groups-choose" ? "//link-group" : "//profile");
+                }
                 break;
         }
     }

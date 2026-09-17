@@ -47,6 +47,10 @@
     <Compile Include="..\..\SouthBaySoccer\PageModels\ProfilePageModel.cs" Link="Client\PageModels\ProfilePageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\LeaderboardPageModel.cs" Link="Client\PageModels\LeaderboardPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\LinkGroupPageModel.cs" Link="Client\PageModels\LinkGroupPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\GroupMembershipViewModels.cs" Link="Client\PageModels\GroupMembershipViewModels.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\GroupsMinePageModel.cs" Link="Client\PageModels\GroupsMinePageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\GroupMembersPageModel.cs" Link="Client\PageModels\GroupMembersPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\SuperAdminGroupsPageModel.cs" Link="Client\PageModels\SuperAdminGroupsPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\PlayersPageModel.cs" Link="Client\PageModels\PlayersPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\MatchStatsPageModel.cs" Link="Client\PageModels\MatchStatsPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\RateTeammatesPageModel.cs" Link="Client\PageModels\RateTeammatesPageModel.cs" />
@@ -95,7 +99,6 @@
     <None Include="..\..\SouthBaySoccer\Controls\PlayerRow.xaml" Link="Client\Xaml\PlayerRow.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Controls\StateView.xaml" Link="Client\Xaml\StateView.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Controls\AnnouncementCard.xaml" Link="Client\Xaml\AnnouncementCard.xaml" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\SouthBaySoccer\Controls\GroupChoiceRow.xaml" Link="Client\Xaml\GroupChoiceRow.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Controls\ToggleRow.xaml" Link="Client\Xaml\ToggleRow.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Controls\WhatsAppHandoffCard.xaml" Link="Client\Xaml\WhatsAppHandoffCard.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Controls\LinkExpiryCard.xaml" Link="Client\Xaml\LinkExpiryCard.xaml" CopyToOutputDirectory="PreserveNewest" />
@@ -116,6 +119,10 @@
     <None Include="..\..\SouthBaySoccer\Pages\PostGameApprovalPage.xaml" Link="Client\Xaml\PostGameApprovalPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\AnnouncementsPage.xaml" Link="Client\Xaml\AnnouncementsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\SouthBaySoccer\Pages\AdminBroadcastPage.xaml" Link="Client\Xaml\AdminBroadcastPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\LinkGroupPage.xaml" Link="Client\Xaml\LinkGroupPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\GroupsMinePage.xaml" Link="Client\Xaml\GroupsMinePage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\GroupMembersPage.xaml" Link="Client\Xaml\GroupMembersPage.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\SouthBaySoccer\Pages\SuperAdminGroupsPage.xaml" Link="Client\Xaml\SuperAdminGroupsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Every XAML file in the app, mirrored wholesale so StaticResourceKeyTests can prove each

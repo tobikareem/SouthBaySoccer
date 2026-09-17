@@ -3,6 +3,7 @@ using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SouthBaySoccer.Controls;
+using SouthBaySoccer.Contracts.Groups;
 using SouthBaySoccer.Contracts.Profiles;
 using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Authentication;
@@ -17,6 +18,7 @@ namespace SouthBaySoccer.PageModels;
 /// </summary>
 public partial class ProfilePageModel(
     IProfileClient profileClient,
+    IGroupsClient groupsClient,
     IProfileExternalLauncher externalLauncher,
     IProfileNavigator navigator,
     IAuthenticationCoordinator authenticationCoordinator,
@@ -65,6 +67,47 @@ public partial class ProfilePageModel(
     [ObservableProperty]
     private bool _isBusy;
 
+    /// <summary>The signed-in player's memberships, shown as status pills in the "My groups" card.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MyGroupsSummary))]
+    private IReadOnlyList<MembershipRowItem> _myGroups = [];
+
+    /// <summary>Groups the player administers — one "Manage members" row each.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAdminGroups))]
+    private IReadOnlyList<AdminGroupItem> _adminGroups = [];
+
+    /// <summary>Set by the server for the two owners; unlocks the "Groups &amp; admins" card.</summary>
+    [ObservableProperty]
+    private bool _isSuperAdmin;
+
+    public bool HasAdminGroups => AdminGroups.Count > 0;
+
+    /// <summary>"Bay Area Soccer, Morning Pick Up Soccer" or an invitation to join when there are none.</summary>
+    public string MyGroupsSummary =>
+        MyGroups.Count == 0 ? "You're not in a group yet." : string.Join(", ", MyGroups.Select(group => group.Name));
+
+    /// <summary>"1 approved · 1 pending" style counts under the summary.</summary>
+    public string MyGroupsDetail
+    {
+        get
+        {
+            if (MyGroups.Count == 0)
+            {
+                return "Join the groups you play with.";
+            }
+
+            var parts = new List<string>(3);
+            var approved = MyGroups.Count(group => group.IsApproved);
+            var pending = MyGroups.Count(group => group.IsPending);
+            var declined = MyGroups.Count(group => group.IsDeclined);
+            if (approved > 0) parts.Add($"{approved} approved");
+            if (pending > 0) parts.Add($"{pending} pending");
+            if (declined > 0) parts.Add($"{declined} declined");
+            return string.Join(" · ", parts);
+        }
+    }
+
     public bool HasPendingNote => !string.IsNullOrWhiteSpace(PendingNote);
 
     public bool HasActionMessage => !string.IsNullOrWhiteSpace(ActionMessage);
@@ -107,6 +150,8 @@ public partial class ProfilePageModel(
     }
 
     partial void OnActionMessageChanged(string value) => OnPropertyChanged(nameof(HasActionMessage));
+
+    partial void OnMyGroupsChanged(IReadOnlyList<MembershipRowItem> value) => OnPropertyChanged(nameof(MyGroupsDetail));
 
     public void ApplyQueryAttributes(IDictionary<string, object> query)
     {
@@ -168,6 +213,16 @@ public partial class ProfilePageModel(
     private Task OpenLeaderboard() => navigator.OpenLeaderboardAsync();
 
     [RelayCommand]
+    private Task OpenMyGroups() => navigator.OpenMyGroupsAsync();
+
+    [RelayCommand]
+    private Task OpenGroupMembers(AdminGroupItem? group) =>
+        group is null ? Task.CompletedTask : navigator.OpenGroupMembersAsync(group.GroupChatId);
+
+    [RelayCommand]
+    private Task OpenSuperAdminGroups() => navigator.OpenSuperAdminGroupsAsync();
+
+    [RelayCommand]
     private Task Back() => navigator.GoBackAsync();
 
     // Sign out / switch account. Only offered on the signed-in player's own profile (CanEditProfile).
@@ -214,6 +269,11 @@ public partial class ProfilePageModel(
             Profile = profile;
             RecentForm = profile.RecentForm.Select(ProfileFormBadge.FromResult).ToArray();
             PendingNote = profile.PendingConfirmationNote ?? string.Empty;
+            if (CanEditProfile)
+            {
+                await LoadMembershipsAsync(cancellationToken);
+            }
+
             StateTitle = string.Empty;
             StateMessage = string.Empty;
             State = ViewState.Content;
@@ -236,6 +296,45 @@ public partial class ProfilePageModel(
         }
     }
 
+    // Group membership is a secondary section: if it fails, the profile still renders and the
+    // "My groups" card simply invites the player to open the membership screen, which has its own
+    // error handling.
+    private async Task LoadMembershipsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var memberships = await groupsClient.GetMyMembershipsAsync(cancellationToken);
+            IsSuperAdmin = memberships.IsSuperAdmin;
+            MyGroups = memberships.Memberships
+                .Where(membership => membership.Status is GroupMembershipStatuses.Approved
+                    or GroupMembershipStatuses.Pending
+                    or GroupMembershipStatuses.Declined)
+                .Select(membership => new MembershipRowItem(
+                    membership.GroupChatId,
+                    membership.GroupName,
+                    membership.Status,
+                    membership.Role,
+                    MemberCount: null,
+                    membership.RequestedAtUtc))
+                .ToArray();
+            AdminGroups = memberships.Memberships
+                .Where(membership => membership.Status == GroupMembershipStatuses.Approved
+                    && membership.Role == GroupMemberRoles.Admin)
+                .Select(AdminGroupItem.FromMembership)
+                .ToArray();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            IsSuperAdmin = false;
+            MyGroups = [];
+            AdminGroups = [];
+        }
+    }
+
     private void ApplyNonContentState(ViewState state, string title, string message)
     {
         ClearProfile();
@@ -249,6 +348,9 @@ public partial class ProfilePageModel(
         Profile = null;
         RecentForm = [];
         PendingNote = string.Empty;
+        MyGroups = [];
+        AdminGroups = [];
+        IsSuperAdmin = false;
     }
 }
 

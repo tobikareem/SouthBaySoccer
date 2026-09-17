@@ -175,6 +175,10 @@ public static class MauiProgram
         builder.Services.AddTransientWithShellRoute<RateTeammatesPage, RateTeammatesPageModel>("rate-teammates");
         builder.Services.AddTransientWithShellRoute<AnnouncementsPage, AnnouncementsPageModel>("announcements");
         builder.Services.AddTransientWithShellRoute<AdminBroadcastPage, AdminBroadcastPageModel>("admin-broadcast");
+        // GRP-1 group membership detail routes, pushed from the Profile tab.
+        builder.Services.AddTransientWithShellRoute<GroupsMinePage, GroupsMinePageModel>("my-groups");
+        builder.Services.AddTransientWithShellRoute<GroupMembersPage, GroupMembersPageModel>("group-members");
+        builder.Services.AddTransientWithShellRoute<SuperAdminGroupsPage, SuperAdminGroupsPageModel>("super-admin-groups");
 
         return builder.Build();
     }
