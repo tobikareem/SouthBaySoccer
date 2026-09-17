@@ -62,8 +62,12 @@ case-insensitive substring:
 | remove | any other 404 | `AlreadyApplied` |
 | any | 401/403/5xx/timeout/network | `ApplicationServiceUnavailableException` (retryable) |
 
-Open (M14.7): confirm these strings, whether `POST players` auto-waitlists a full game, and that
-API-added participants carry `userId` in `GET api/games/{id}`.
+**Confirmed by Pickup Pal (2026-09-16, M15):** adding a player to a full game places them on the
+waitlist and answers success, so any 2xx on `POST players` is `Synced` regardless of body; the
+`full` string above is only a fallback for a 4xx. Still open (M14.7): the other error strings and
+whether API-added participants carry `userId` in `GET api/games/{id}`. App-published sessions now
+also get a `pickuppal:{gameId}` occurrence key (see [[m15-pickuppal-game-creation]]), so this sync
+covers them too.
 
 ## Outbox processor
 
