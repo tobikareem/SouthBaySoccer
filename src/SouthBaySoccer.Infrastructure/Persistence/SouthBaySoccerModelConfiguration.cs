@@ -98,9 +98,16 @@ internal static class SouthBaySoccerModelConfiguration
             ConfigureBase(b, "PlayerGroupLinks", softDelete: true);
             b.HasOne<PlayerProfile>().WithMany().HasForeignKey(x => x.PlayerProfileId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne<GroupChat>().WithMany().HasForeignKey(x => x.GroupChatId).OnDelete(DeleteBehavior.Restrict);
+            b.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            b.Property(x => x.Role).HasConversion<string>().HasMaxLength(32).IsRequired();
+            b.Property(x => x.Source).HasConversion<string>().HasMaxLength(32).IsRequired();
+            // One membership row per (player, group): the row moves through the approval
+            // lifecycle instead of piling up history rows (see the GRP-1 design).
             b.HasIndex(x => new { x.PlayerProfileId, x.GroupChatId }).IsUnique().HasFilter("[IsDeleted] = 0");
             // Enforce at most one primary group per player at the database level, not just in app logic.
             b.HasIndex(x => x.PlayerProfileId).IsUnique().HasFilter("[IsPrimary] = 1 AND [IsDeleted] = 0");
+            // Members views and approved/pending counts seek by group and status.
+            b.HasIndex(x => new { x.GroupChatId, x.Status }).HasFilter("[IsDeleted] = 0");
         });
     }
 

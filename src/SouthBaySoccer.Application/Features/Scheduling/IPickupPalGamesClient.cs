@@ -1,8 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace SouthBaySoccer.Application.Features.Scheduling;
 
 /// <summary>
 /// Reads active games from the Pickup Pal bot API. Implementations must return only sanitized
-/// game data: WhatsApp JIDs, group ids, and subscriber ids never cross this boundary.
+/// game data: WhatsApp JIDs and subscriber ids never cross this boundary; the group id crosses it
+/// only as the non-serialized <see cref="PickupPalGame.GroupExternalId"/> for group matching.
 /// </summary>
 public interface IPickupPalGamesClient
 {
@@ -130,7 +133,12 @@ public enum PickupPalRosterPushResult
     Rejected,
 }
 
-/// <summary>One sanitized Pickup Pal active game.</summary>
+/// <summary>
+/// One sanitized Pickup Pal active game. <paramref name="GroupExternalId"/> is the game's WhatsApp
+/// group id - the same value the group catalogue already persists as <c>GroupChat.ExternalId</c> -
+/// exposed only so the import can attach the session to its group. It is excluded from
+/// serialization (never on the snapshot) and must never be logged.
+/// </summary>
 public sealed record PickupPalGame(
     string Id,
     DateTime StartsAtUtc,
@@ -138,7 +146,8 @@ public sealed record PickupPalGame(
     int MaxPlayers,
     string Status,
     string GroupName,
-    IReadOnlyList<PickupPalGameParticipantInfo> Participants);
+    IReadOnlyList<PickupPalGameParticipantInfo> Participants,
+    [property: JsonIgnore] string? GroupExternalId = null);
 
 /// <summary>
 /// One sanitized participant on a Pickup Pal game. Phone and WhatsApp identities arrive pre-hashed

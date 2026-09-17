@@ -501,6 +501,7 @@ public sealed class SessionAdminWorkflowHandlerTests
                 Mock.Of<ISeasonRepository>(),
                 EmptyVenueRepository(),
                 Mock.Of<IPlayerProfileRepository>(),
+                Mock.Of<IGroupChatRepository>(),
                 Mock.Of<IClock>()),
             SavingUnitOfWork().Object);
     }

@@ -57,7 +57,9 @@ public sealed record GameDayContextDto(
     string? JoinBlockedReason = null,
     int Capacity = 0,
     bool CanShowAllGames = false,
-    bool IsShowingAllGames = false);
+    bool IsShowingAllGames = false,
+    Guid? GroupChatId = null,
+    string? MembershipStatus = null);
 
 /// <summary>
 /// One of today's games the player can act on. The Game Day screen shows a picker built from these

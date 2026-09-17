@@ -810,7 +810,8 @@ public sealed class GameDayContextHandlerTests
             PickupPalGames.Object,
             PlayerGroups.Object,
             Stats.Object,
-            Eligibility.Object);
+            Eligibility.Object,
+            new TestSupport.OpenGroupMembershipGate());
     }
 
     private static DateTime Utc(int year, int month, int day, int hour, int minute) =>

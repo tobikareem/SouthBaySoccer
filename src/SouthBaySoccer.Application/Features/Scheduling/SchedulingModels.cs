@@ -52,7 +52,10 @@ public sealed record SessionFeedModel(
     bool IsCurrentPlayerGoing,
     bool IsCurrentPlayerWaitlisted,
     bool CanJoinWaitlist,
-    string? GroupName = null);
+    string? GroupName = null,
+    Guid? GroupChatId = null,
+    string? MembershipStatus = null,
+    bool CanJoin = true);
 
 public sealed record CreateSessionCommand(
     Guid SeasonId,

@@ -109,7 +109,8 @@ public sealed class ListUpcomingSessionsQueryHandlerTests
             currentUser.Object,
             clock.Object,
             profiles.Object,
-            repository);
+            repository,
+            new TestSupport.OpenGroupMembershipGate());
     }
 
     private static PlayerProfile Profile() => new()

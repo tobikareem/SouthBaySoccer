@@ -1,6 +1,7 @@
 using FluentValidation;
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Common;
+using SouthBaySoccer.Application.Features.Groups;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
@@ -96,7 +97,8 @@ public sealed class ListUpcomingSessionsQueryHandler(
     ICurrentUser currentUser,
     SouthBaySoccer.Application.Abstractions.Time.IClock clock,
     IPlayerProfileRepository playerProfileRepository,
-    ISessionRepository sessionRepository)
+    ISessionRepository sessionRepository,
+    IGroupMembershipGate groupMembershipGate)
 {
     public async Task<IReadOnlyList<SessionFeedModel>> HandleAsync(
         int take = 25,
@@ -112,14 +114,23 @@ public sealed class ListUpcomingSessionsQueryHandler(
             profile.Id,
             cancellationToken);
 
+        // GRP-1: every group's games are listed; the caller's standing in each game's group only
+        // decides whether they may join (RSVP / waitlist), never whether they see it.
+        var accessBySessionId = await groupMembershipGate.ResolveAccessAsync(
+            sessions.Select(record => record.Session).ToArray(),
+            profile.Id,
+            cancellationToken);
+
         return sessions.Select(record =>
         {
+            var access = accessBySessionId[record.Session.Id];
             var isFull = record.GoingCount >= record.Session.Capacity;
             var canJoinWaitlist = record.Session.Status == SessionStatus.Published
                 && clock.UtcNow < record.Session.RsvpDeadlineUtc
                 && isFull
                 && !record.IsCurrentPlayerGoing
-                && !record.IsCurrentPlayerWaitlisted;
+                && !record.IsCurrentPlayerWaitlisted
+                && access.CanJoin;
             return new SessionFeedModel(
                 SchedulingMappers.ToModel(record.Session),
                 record.VenueName,
@@ -129,7 +140,10 @@ public sealed class ListUpcomingSessionsQueryHandler(
                 record.IsCurrentPlayerGoing,
                 record.IsCurrentPlayerWaitlisted,
                 canJoinWaitlist,
-                record.GroupName);
+                record.GroupName ?? access.GroupName,
+                access.GroupChatId,
+                access.MembershipStatus?.ToString(),
+                access.CanJoin);
         }).ToArray();
     }
 }

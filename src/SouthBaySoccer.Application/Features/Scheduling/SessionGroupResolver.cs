@@ -7,8 +7,8 @@ namespace SouthBaySoccer.Application.Features.Scheduling;
 
 /// <summary>
 /// Resolves the WhatsApp group a session belongs to. An explicit group must exist; when the
-/// command carries none, the acting admin's only linked group is used if they have exactly one
-/// active <see cref="PlayerGroupLink"/>, otherwise the session stays app-only (null). Group
+/// command carries none, the acting admin's only group is used if they have exactly one
+/// approved <see cref="PlayerGroupLink"/>, otherwise the session stays app-only (null). Group
 /// membership is read from our own database only (see the group-chat read-only rule).
 /// </summary>
 public sealed class SessionGroupResolver(
@@ -38,7 +38,8 @@ public sealed class SessionGroupResolver(
             return null;
         }
 
-        var links = await playerGroupLinkRepository.ListByPlayerAsync(profile.Id, cancellationToken);
+        // Only approved memberships count: a pending or removed group is never a session default.
+        var links = await playerGroupLinkRepository.ListApprovedByPlayerAsync(profile.Id, cancellationToken);
         if (links.Count != 1)
         {
             return null;

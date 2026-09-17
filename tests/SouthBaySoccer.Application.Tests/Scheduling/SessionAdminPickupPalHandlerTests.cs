@@ -320,7 +320,7 @@ public sealed class SessionAdminPickupPalHandlerTests
             profileRepository.Setup(x => x.FindByIdentityUserIdAsync(identityUserId, It.IsAny<CancellationToken>())).ReturnsAsync(profile);
             var linkRepository = new Mock<IPlayerGroupLinkRepository>();
             linkRepository
-                .Setup(x => x.ListByPlayerAsync(profile.Id, It.IsAny<CancellationToken>()))
+                .Setup(x => x.ListApprovedByPlayerAsync(profile.Id, It.IsAny<CancellationToken>()))
                 .ReturnsAsync([new PlayerGroupLink { Id = Guid.NewGuid(), PlayerProfileId = profile.Id, GroupChatId = Group.Id }]);
             Resolver = new SessionGroupResolver(currentUser.Object, profileRepository.Object, linkRepository.Object, groupRepository.Object);
         }

@@ -2,6 +2,7 @@ using System.Text.Json;
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
+using SouthBaySoccer.Application.Features.Groups;
 using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Operations;
 using SouthBaySoccer.Domain.Entities.Scheduling;
@@ -192,7 +193,8 @@ public sealed class ClaimParticipantCommandHandler(
     IPickupPalGameRepository pickupPalGameRepository,
     IStatsRepository statsRepository,
     IAuditLogRepository auditLogRepository,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IGroupMembershipGate groupMembershipGate)
 {
     public async Task<GameDayMutationModel> HandleAsync(
         ClaimParticipantCommand command,
@@ -202,7 +204,9 @@ public sealed class ClaimParticipantCommandHandler(
             currentUser,
             playerProfileRepository,
             cancellationToken);
-        _ = await GameDayWorkflowQueries.GetSessionAsync(sessionRepository, command.SessionId, cancellationToken);
+        var session = await GameDayWorkflowQueries.GetSessionAsync(sessionRepository, command.SessionId, cancellationToken);
+        // GRP-1: claiming a spot on a group's game is reserved for approved members of that group.
+        await groupMembershipGate.EnsureCanJoinAsync(session, actor.Id, cancellationToken);
         var participant = await pickupPalGameRepository.FindParticipantAsync(command.ParticipantId, cancellationToken)
             ?? throw new ApplicationNotFoundException("That player entry was not found.");
         if (participant.SessionId != command.SessionId)

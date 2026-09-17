@@ -403,7 +403,10 @@ public sealed class SchedulingFunctions(
             feed.IsCurrentPlayerGoing,
             feed.IsCurrentPlayerWaitlisted,
             feed.CanJoinWaitlist,
-            feed.GroupName);
+            feed.GroupName,
+            feed.GroupChatId,
+            feed.MembershipStatus,
+            feed.CanJoin);
 
     private static CreateSessionDraftCommand ToDraftCommand(ContractCreateSessionCommand command) =>
         new(

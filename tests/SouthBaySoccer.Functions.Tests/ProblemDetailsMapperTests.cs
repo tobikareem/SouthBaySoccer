@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Authentication;
+using SouthBaySoccer.Application.Features.Groups;
 using SouthBaySoccer.Application.Features.Onboarding;
 using SouthBaySoccer.Functions.Pipeline;
 using Xunit;
@@ -27,8 +28,20 @@ public sealed class ProblemDetailsMapperTests
         { new OnboardingTokenException(OnboardingTokenFailure.EmailAlreadyRegistered), 409, "Email already registered" },
         { new OnboardingTokenException(OnboardingTokenFailure.Mismatch), 403, "Sign-in could not be completed" },
         { new ApplicationServiceUnavailableException("Pickup Pal is unavailable right now. Try again later."), 503, "Service unavailable" },
+        { new GroupMembershipRequiredException("Bay Area Soccer"), 403, "Group membership required" },
         { new InvalidOperationException("sql timeout with private details"), 500, "Unexpected error" },
     };
+
+    [Fact]
+    public void Map_WhenGroupMembershipRequired_UsesStableTypeAndNamesOnlyTheGroup()
+    {
+        var problem = _mapper.Map(new GroupMembershipRequiredException("Bay Area Soccer"), "correlation-123");
+
+        problem.Status.Should().Be(403);
+        problem.Type.Should().Be(ProblemDetailsMapper.GroupMembershipRequiredProblemType);
+        problem.Type.Should().Be("https://southbaysoccer/problems/group-membership-required");
+        problem.Detail.Should().Contain("Bay Area Soccer");
+    }
 
     [Theory]
     [MemberData(nameof(StatusMappings))]
