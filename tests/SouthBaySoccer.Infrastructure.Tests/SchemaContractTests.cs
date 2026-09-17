@@ -58,6 +58,28 @@ public sealed class SchemaContractTests
     }
 
     [Fact]
+    public async Task PlayerGroupLinks_WhenSchemaCreated_CarryMembershipColumnsAndOneActiveRowPerPair()
+    {
+        using var db = CreateDbContext();
+        var columns = await GetColumnsAsync(db, "PlayerGroupLinks");
+        var indexes = await GetFilteredIndexesAsync(db, "PlayerGroupLinks");
+
+        columns.Should().Contain("Status")
+            .And.Contain("Role")
+            .And.Contain("Source")
+            .And.Contain("RequestedAtUtc")
+            .And.Contain("ApprovedAtUtc")
+            .And.Contain("ApprovedByPlayerProfileId")
+            .And.Contain("RemovedAtUtc")
+            .And.Contain("RemovedByPlayerProfileId");
+        indexes.Should().Contain(i =>
+            i.Name == "IX_PlayerGroupLinks_PlayerProfileId_GroupChatId" &&
+            i.IsUnique &&
+            i.Filter.Contains("[IsDeleted]"));
+        indexes.Should().Contain(i => i.Name == "IX_PlayerGroupLinks_GroupChatId_Status" && !i.IsUnique);
+    }
+
+    [Fact]
     public async Task OutboxMessages_WhenSchemaCreated_UseRowVersionForWriterRaces()
     {
         using var db = CreateDbContext();

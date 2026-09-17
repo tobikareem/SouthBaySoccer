@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SouthBaySoccer.Domain.Entities.Announcements;
+using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 using SouthBaySoccer.Infrastructure.Persistence;
 
@@ -69,7 +70,7 @@ internal sealed class AnnouncementRepository(SouthBaySoccerDbContext dbContext) 
         // the (GroupChatId, SentAtUtc) index over unread rows only instead of testing every
         // announcement in the player's history. The cap bounds the badge's worst case.
         (from link in dbContext.PlayerGroupLinks.AsNoTracking()
-         where link.PlayerProfileId == playerProfileId
+         where link.PlayerProfileId == playerProfileId && link.Status == GroupMembershipStatus.Approved
          let watermark = dbContext.GroupAnnouncementReadMarkers
              .Where(marker => marker.PlayerProfileId == playerProfileId
                  && marker.GroupChatId == link.GroupChatId)
@@ -90,7 +91,9 @@ internal sealed class AnnouncementRepository(SouthBaySoccerDbContext dbContext) 
         Guid groupChatId,
         CancellationToken cancellationToken = default) =>
         (from link in dbContext.PlayerGroupLinks.AsNoTracking()
-         where link.PlayerProfileId == playerProfileId && link.GroupChatId == groupChatId
+         where link.PlayerProfileId == playerProfileId
+            && link.GroupChatId == groupChatId
+            && link.Status == GroupMembershipStatus.Approved
          let watermark = dbContext.GroupAnnouncementReadMarkers
              .Where(marker => marker.PlayerProfileId == playerProfileId
                  && marker.GroupChatId == groupChatId)
@@ -144,7 +147,8 @@ internal sealed class AnnouncementRepository(SouthBaySoccerDbContext dbContext) 
                     && marker.LastReadAtUtc >= announcement.SentAtUtc
                     && dbContext.PlayerGroupLinks.Any(link =>
                         link.PlayerProfileId == marker.PlayerProfileId
-                        && link.GroupChatId == announcement.GroupChatId))))
+                        && link.GroupChatId == announcement.GroupChatId
+                        && link.Status == GroupMembershipStatus.Approved))))
             .Take(limit)
             .ToArrayAsync(cancellationToken);
     }
