@@ -60,9 +60,14 @@ internal sealed class OutboxMessageRepository(SouthBaySoccerDbContext dbContext)
         // Re-read by lock token alone rather than trusting local copies: ExecuteUpdate bypasses the
         // change tracker, and under EnableRetryOnFailure an ambiguous UPDATE can commit and then
         // re-run reporting zero rows, so a claimed row may be missing from claimedIds. Every row
-        // carrying this run's token is ours.
+        // carrying this run's token is ours. The type filter must still apply: a lock token is only
+        // guaranteed unique per claim call within a single caller, so without it this could return
+        // a message of a type this caller never asked to claim (or, in tests, a stale row left
+        // "Processing" by an earlier claim that reused the same literal token).
         return await dbContext.OutboxMessages
-            .Where(x => x.LockToken == lockToken && x.Status == OutboxMessageStatus.Processing)
+            .Where(x => x.LockToken == lockToken
+                && x.Status == OutboxMessageStatus.Processing
+                && types.Contains(x.MessageType))
             .OrderBy(x => x.AvailableAtUtc)
             .ThenBy(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
