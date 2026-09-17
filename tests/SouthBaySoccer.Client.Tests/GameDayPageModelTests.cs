@@ -1101,7 +1101,7 @@ public class GameDayPageModelTests
         var roster = new Mock<IRosterClient>();
         roster
             .Setup(r => r.SetRsvpIntentAsync(It.IsAny<Guid>(), true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(ClientCommandResult.Failure("waiver_required", "Waiver required."));
+            .ReturnsAsync(ClientCommandResult.Failure("not_eligible", "You are not eligible for this session."));
         var dialogs = new Mock<IUserDialogService>();
         var pageModel = new GameDayPageModel(
             client.Object, Navigator().Object, dialogService: dialogs.Object, rosterClient: roster.Object);
@@ -1110,7 +1110,7 @@ public class GameDayPageModelTests
         await pageModel.JoinCommand.ExecuteAsync(null);
 
         dialogs.Verify(
-            d => d.ShowAlertAsync(GameDayPageModel.JoinFailedTitle, "Waiver required.", "OK"),
+            d => d.ShowAlertAsync(GameDayPageModel.JoinFailedTitle, "You are not eligible for this session.", "OK"),
             Times.Once);
         pageModel.State.Should().Be(ViewState.Content, "a failed CTA never blanks the page");
         pageModel.IsSpectator.Should().BeTrue();
@@ -1966,6 +1966,7 @@ public class GameDayPageModelTests
         navigator.Setup(service => service.OpenTeamDraftAsync(It.IsAny<Guid>())).Returns(Task.CompletedTask);
         navigator.Setup(service => service.OpenPostGameApprovalAsync(It.IsAny<Guid>())).Returns(Task.CompletedTask);
         navigator.Setup(service => service.GoBackAsync()).Returns(Task.CompletedTask);
+        navigator.Setup(service => service.OpenMyGroupsAsync()).Returns(Task.CompletedTask);
         return navigator;
     }
 

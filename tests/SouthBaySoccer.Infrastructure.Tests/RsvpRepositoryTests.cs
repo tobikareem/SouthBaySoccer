@@ -42,6 +42,71 @@ public sealed class RsvpRepositoryTests
     }
 
     [Fact]
+    public async Task FindRsvpForPickupPalSyncAsync_WhenRowWasSoftDeletedByCancel_StillReturnsIt()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (session, player, _) = await SeedSessionAsync(db, capacity: 1);
+        var repository = scope.ServiceProvider.GetRequiredService<IRsvpRepository>();
+        var submitted = await repository.SubmitRsvpAsync(session.Id, player.Id, RsvpStatus.Going);
+        await repository.CancelAndPromoteAsync(
+            session.Id,
+            player.Id,
+            (_, _) => Task.FromResult<IReadOnlyDictionary<Guid, bool>>(new Dictionary<Guid, bool>()));
+
+        var found = await repository.FindRsvpForPickupPalSyncAsync(session.Id, player.Id);
+
+        found.Should().NotBeNull();
+        found!.Id.Should().Be(submitted.RsvpResponseId!.Value);
+        found.IsDeleted.Should().BeTrue();
+        (await repository.GetMyRsvpAsync(session.Id, player.Id)).Should().BeNull("the filtered read must still hide the cancelled row");
+    }
+
+    [Fact]
+    public async Task FindRsvpForPickupPalSyncAsync_WhenLiveAndDeletedRowsExist_PrefersTheLiveRow()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (session, player, _) = await SeedSessionAsync(db, capacity: 1);
+        var repository = scope.ServiceProvider.GetRequiredService<IRsvpRepository>();
+        await repository.SubmitRsvpAsync(session.Id, player.Id, RsvpStatus.Going);
+        await repository.CancelAndPromoteAsync(
+            session.Id,
+            player.Id,
+            (_, _) => Task.FromResult<IReadOnlyDictionary<Guid, bool>>(new Dictionary<Guid, bool>()));
+        var resubmitted = await repository.SubmitRsvpAsync(session.Id, player.Id, RsvpStatus.Going);
+
+        var found = await repository.FindRsvpForPickupPalSyncAsync(session.Id, player.Id);
+
+        found!.Id.Should().Be(resubmitted.RsvpResponseId!.Value);
+        found.IsDeleted.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task UpdateRsvp_WhenSyncColumnsChange_PersistsThemAndGetMyRsvpReportsTheStatus()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (session, player, _) = await SeedSessionAsync(db, capacity: 1);
+        var repository = scope.ServiceProvider.GetRequiredService<IRsvpRepository>();
+        await repository.SubmitRsvpAsync(session.Id, player.Id, RsvpStatus.Going);
+        var rsvp = await repository.FindRsvpForPickupPalSyncAsync(session.Id, player.Id);
+
+        rsvp!.PickupPalSyncStatus = PickupPalSyncStatus.Failed;
+        rsvp.PickupPalSyncError = "GameFull";
+        repository.UpdateRsvp(rsvp);
+        await db.SaveChangesAsync();
+
+        var persisted = await db.RsvpResponses.AsNoTracking().SingleAsync(x => x.Id == rsvp.Id);
+        persisted.PickupPalSyncStatus.Should().Be(PickupPalSyncStatus.Failed);
+        persisted.PickupPalSyncError.Should().Be("GameFull");
+        (await repository.GetMyRsvpAsync(session.Id, player.Id))!.PickupPalSyncStatus.Should().Be(PickupPalSyncStatus.Failed);
+    }
+
+    [Fact]
     public async Task SubmitRsvpAsync_WhenSessionIsFull_CreatesWaitlistWithoutWaitlistedRsvpStatus()
     {
         using var provider = CreateServiceProvider();

@@ -48,6 +48,9 @@ internal sealed class UnitOfWork : IUnitOfWork
     }
 
     /// <inheritdoc />
+    public void DiscardChanges() => _context.ChangeTracker.Clear();
+
+    /// <inheritdoc />
     // Same shape as RsvpRepository.ExecuteInSerializableTransactionAsync (the in-repo precedent for
     // read-check-write races): serializable isolation makes the guards' reads range-locked, the
     // execution strategy wraps the manual transaction (required by EnableRetryOnFailure), and

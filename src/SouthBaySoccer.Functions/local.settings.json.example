@@ -3,6 +3,13 @@
   "Values": {
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
-    "PickupPal:BaseUrl": "https://pickuppal-bot-dev.up.railway.app"
+    "PickupPal:BaseUrl": "https://pickuppal-bot-dev.up.railway.app",
+    "PickupPal:ApiKey": "",
+    "PickupPal:Routes:LoginRedeem": "api/users/login/whatsapp",
+    "PickupPal:Routes:DeleteUser": "api/users/{id}",
+    "Onboarding:RequireWhatsAppVerification": "true",
+    "Onboarding:VerificationExemptPhoneNumbers": "",
+    "Onboarding:TermsVersion": "20250708",
+    "Outbox:Enabled": "true"
   }
 }

@@ -1,0 +1,1190 @@
+{
+  "info": {
+    "name": "PickupPal API",
+    "description": "REST API for the PickupPal WhatsApp bot service. Set BASE_URL in collection variables (default: http://localhost:3005).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "BASE_URL", "value": "http://localhost:3005", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Root",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/" }
+        },
+        {
+          "name": "Health Check",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/health" }
+        },
+        {
+          "name": "Health Check (Simple)",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/health-simple" }
+        }
+      ]
+    },
+    {
+      "name": "Games",
+      "item": [
+        {
+          "name": "Get All Games",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/games" }
+        },
+        {
+          "name": "Get Active Games",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/games/active" }
+        },
+        {
+          "name": "Get Games by Type",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/games/type/{{gameType}}",
+            "description": "gameType: WHATSAPP_GROUP | WEB_ONLY"
+          }
+        },
+        {
+          "name": "Get Active Web Games",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/games/web/active" }
+        },
+        {
+          "name": "Get Game by ID",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/games/{{gameId}}" }
+        },
+        {
+          "name": "Get Game Check-ins",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/games/{{gameId}}/checkins" }
+        },
+        {
+          "name": "Create Game",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/games",
+            "description": "gameType: WHATSAPP_GROUP | WEB_ONLY. For WHATSAPP_GROUP, groupId is also required. sport: SOCCER | BASKETBALL | VOLLEYBALL | TENNIS | etc.",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gameType\": \"WEB_ONLY\",\n  \"date\": \"2026-06-15\",\n  \"time\": \"18:00:00\",\n  \"location\": \"Mission Dolores Park, SF\",\n  \"maxPlayers\": 14,\n  \"creatorId\": \"USER_ID\",\n  \"sport\": \"SOCCER\",\n  \"lat\": 37.7596,\n  \"lng\": -122.4269,\n  \"timezone\": \"America/Los_Angeles\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Add Player to Game",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/games/{{gameId}}/players",
+            "description": "playerNumber is optional when playerId is provided.",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"playerId\": \"USER_ID\",\n  \"playerName\": \"John Doe\",\n  \"playerNumber\": \"+14155551234\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Remove Player from Game",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/api/games/{{gameId}}/players/{{playerId}}"
+          }
+        },
+        {
+          "name": "Update Game",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/api/games/{{gameId}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location\": \"New Location\",\n  \"maxPlayers\": 16\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Terminate Game",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/api/games/{{gameId}}"
+          }
+        },
+        {
+          "name": "Bump Player to Waitlist",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/games/{{gameId}}/bump-player/{{playerId}}"
+          }
+        },
+        {
+          "name": "Promote Player from Waitlist",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/games/{{gameId}}/promote-player/{{playerId}}"
+          }
+        },
+        {
+          "name": "Remove Player from Game (action)",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/games/{{gameId}}/remove-player/{{playerId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Guests",
+      "item": [
+        {
+          "name": "Add Guest to Game",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/games/{{gameId}}/guests",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"guestName\": \"Guest Player\",\n  \"addedById\": \"USER_ID\",\n  \"addedByName\": \"John Doe\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Promote Guest from Waitlist",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/games/{{gameId}}/promote-guest/{{guestId}}"
+          }
+        },
+        {
+          "name": "Remove Guest from Waitlist",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/api/games/{{gameId}}/guests/{{guestId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/users" }
+        },
+        {
+          "name": "Search Users",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{BASE_URL}}/api/users/search?q=",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "users", "search"],
+              "query": [{ "key": "q", "value": "" }]
+            },
+            "description": "Search by name or phone number."
+          }
+        },
+        {
+          "name": "Validate WhatsApp Pre-reg Token",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{BASE_URL}}/api/users/register/whatsapp/validate?token=",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "users", "register", "whatsapp", "validate"],
+              "query": [{ "key": "token", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Register via WhatsApp",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/users/register/whatsapp",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"WA_PREREG_TOKEN\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"email\": \"john@example.com\",\n  \"termsVersion\": \"1.0\",\n  \"termsAcceptedAt\": \"2026-06-07T00:00:00.000Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/users/{{userId}}" }
+        },
+        {
+          "name": "Get User by Phone",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/users/phone/{{phoneNumber}}" }
+        },
+        {
+          "name": "Get User by Email",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/users/email/{{email}}" }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/users",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"phoneNumber\": \"+14155551234\",\n  \"termsVersion\": \"1.0\",\n  \"termsAcceptedAt\": \"2026-06-07T00:00:00.000Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/api/users/{{userId}}",
+            "description": "Allowed fields: email, firstName, lastName, nickName, password, phoneNumber, profilePicture, termsVersion, termsAcceptedAt",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"nickName\": \"JD\",\n  \"phoneNumber\": \"+14155551234\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": { "method": "DELETE", "url": "{{BASE_URL}}/api/users/{{userId}}" }
+        },
+        {
+          "name": "Get User's Games",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/users/{{userId}}/games" }
+        },
+        {
+          "name": "Get User's Leagues",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/users/{{userId}}/leagues" }
+        },
+        {
+          "name": "Get User's Groups",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/users/{{userId}}/groups" }
+        },
+        {
+          "name": "Add User to Group",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/users/{{userId}}/groups",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"groupId\": \"GROUP_ID\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Remove User from Group",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/api/users/{{userId}}/groups/{{groupId}}"
+          }
+        },
+        {
+          "name": "Authenticate User (Login)",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/users/auth",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"secret\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Request Password Reset",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/users/password-reset/request",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Validate Password Reset Token",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/users/password-reset/validate/{{token}}"
+          }
+        },
+        {
+          "name": "Confirm Password Reset",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/users/password-reset/confirm",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"RESET_TOKEN\",\n  \"password\": \"newSecret123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Generate WhatsApp Link Code",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/users/{{userId}}/link-code"
+          }
+        },
+        {
+          "name": "Get WhatsApp Identity",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/users/{{userId}}/whatsapp-identity"
+          }
+        },
+        {
+          "name": "Get User's WhatsApp Groups",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/users/{{userId}}/whatsapp-groups",
+            "description": "Returns groups from the bot's in-memory group cache."
+          }
+        },
+        {
+          "name": "Unlink WhatsApp Identity",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/api/users/{{userId}}/whatsapp-identity"
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Sport Info",
+      "item": [
+        {
+          "name": "Get All User Sport Info",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/user-sport-info" }
+        },
+        {
+          "name": "Get User Sport Info by ID",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/user-sport-info/{{id}}" }
+        },
+        {
+          "name": "Get Sport Info by UserInfoId",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/user-sport-info/user/{{userInfoId}}"
+          }
+        },
+        {
+          "name": "Get Sport Info by UserInfoId + Sport",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/user-sport-info/user/{{userInfoId}}/sport/{{sport}}",
+            "description": "sport: SOCCER | BASKETBALL | VOLLEYBALL | TENNIS | etc."
+          }
+        },
+        {
+          "name": "Create User Sport Info",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/user-sport-info",
+            "description": "skillLevel: BEGINNER | INTERMEDIATE | ADVANCED",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userInfoId\": \"USER_ID\",\n  \"sport\": \"SOCCER\",\n  \"positions\": [\"FORWARD\", \"MIDFIELDER\"],\n  \"skillLevel\": \"INTERMEDIATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Update User Sport Info",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/api/user-sport-info/{{id}}",
+            "description": "Allowed fields: sport, positions, skillLevel, isActive",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"positions\": [\"GOALKEEPER\"],\n  \"skillLevel\": \"ADVANCED\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Delete User Sport Info",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/api/user-sport-info/{{id}}"
+          }
+        },
+        {
+          "name": "Toggle Active Status",
+          "request": {
+            "method": "PATCH",
+            "url": "{{BASE_URL}}/api/user-sport-info/{{id}}/toggle-active"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bot",
+      "item": [
+        {
+          "name": "Get Bot Status",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/bot/status" }
+        },
+        {
+          "name": "Get All Chats",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/bot/chats" }
+        },
+        {
+          "name": "Get All Groups",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/bot/groups" }
+        },
+        {
+          "name": "Search Groups by Name",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{BASE_URL}}/api/bot/search?name=",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "bot", "search"],
+              "query": [{ "key": "name", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Trigger Ready Status Check",
+          "request": { "method": "POST", "url": "{{BASE_URL}}/api/bot/trigger-ready" }
+        },
+        {
+          "name": "Send Test Message",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/bot/test-message",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"groupId\": \"WHATSAPP_GROUP_JID@g.us\",\n  \"message\": \"Hello from PickupPal API!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/bot/send",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chatId\": \"WHATSAPP_CHAT_JID\",\n  \"message\": \"Message text here\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Reset Client",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/bot/reset-client",
+            "description": "Reinitializes the broken WhatsApp client."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Group Chat",
+      "item": [
+        {
+          "name": "Create Group Chat",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/groupchat/create",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"groupId\": \"WHATSAPP_GROUP_JID@g.us\",\n  \"playerId\": \"USER_ID\",\n  \"groupName\": \"My Soccer Group\",\n  \"source\": \"web\",\n  \"pageVariant\": \"default\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get All Group Chats",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/groupchat/all" }
+        },
+        {
+          "name": "Get Group Chat by ID",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/groupchat/{{groupId}}" }
+        },
+        {
+          "name": "Get Group Chats by Subscriber ID",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/groupchat/subscriber/{{subscriberId}}"
+          }
+        },
+        {
+          "name": "Get Group Chats by Status",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/groupchat/status/{{status}}",
+            "description": "status: SUBSCRIBED | FREE_FOR_LIFE | TRIAL | UNSUBSCRIBED"
+          }
+        },
+        {
+          "name": "Get Group by Linkage Code",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/groupchat/linkage/{{code}}"
+          }
+        },
+        {
+          "name": "Search Groups by Name",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{BASE_URL}}/api/groupchat/search?name=",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "groupchat", "search"],
+              "query": [{ "key": "name", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Get User's Linked Groups",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/groupchat/user/{{userId}}/linked"
+          }
+        },
+        {
+          "name": "Get Group Chat Config",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/groupchat/{{groupId}}/config"
+          }
+        },
+        {
+          "name": "Update Group Chat Status",
+          "request": {
+            "method": "PATCH",
+            "url": "{{BASE_URL}}/api/groupchat/{{groupId}}/status",
+            "description": "status: SUBSCRIBED | FREE_FOR_LIFE | TRIAL | UNSUBSCRIBED",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"SUBSCRIBED\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Update Trial Dates",
+          "request": {
+            "method": "PATCH",
+            "url": "{{BASE_URL}}/api/groupchat/{{groupId}}/trial",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trialStartDate\": \"2026-06-07T00:00:00.000Z\",\n  \"trialEndDate\": \"2026-06-21T00:00:00.000Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Update Group Timezone",
+          "request": {
+            "method": "PATCH",
+            "url": "{{BASE_URL}}/api/groupchat/{{groupId}}/timezone",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"timezone\": \"America/Los_Angeles\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Update Group Chat Config",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/api/groupchat/{{groupId}}/config",
+            "description": "language: ENGLISH|SPANISH|FRENCH|GERMAN|PORTUGUESE|ITALIAN | guestAddedTo: WAITLIST|PLAYERLIST | botResponseType: MESSAGE_RESPONSE|EMOJI_RESPONSE",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"language\": \"ENGLISH\",\n  \"guestAddedTo\": \"WAITLIST\",\n  \"gamesPublicByDefault\": true,\n  \"banDurationDefault\": 2,\n  \"banWindowHours\": 24,\n  \"autoBanEnabled\": false,\n  \"autoBanWindowHours\": 48,\n  \"botResponseType\": \"MESSAGE_RESPONSE\",\n  \"lateThresholdMinutes\": 15\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Link User to Group",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/groupchat/link",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"USER_ID\",\n  \"linkageCode\": \"ABC123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Send Message to Chat",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/groupchat/send",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chatId\": \"WHATSAPP_GROUP_JID@g.us\",\n  \"message\": \"Message text here\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Sync Admin Status",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/groupchat/user/{{userId}}/sync-admin"
+          }
+        },
+        {
+          "name": "Unlink User from Group",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/api/groupchat/unlink",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"USER_ID\",\n  \"groupId\": \"GROUP_ID\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Delete Group Chat Config",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/api/groupchat/{{groupId}}/config"
+          }
+        },
+        {
+          "name": "Delete Group Chat",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/api/groupchat/{{groupId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bans",
+      "item": [
+        {
+          "name": "Ban Players from Game",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/ban/games/{{gameId}}/ban-players",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"playerIds\": [\"USER_ID_1\", \"USER_ID_2\"],\n  \"reason\": \"No-show\",\n  \"banDuration\": 2\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get Banned Players for Group",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/ban/groups/{{groupId}}/banned-players"
+          }
+        },
+        {
+          "name": "Check User Ban Status",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/ban/groups/{{groupId}}/users/{{userId}}/ban-status"
+          }
+        },
+        {
+          "name": "Get Ban History",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/ban/groups/{{groupId}}/users/{{userId}}/ban-history"
+          }
+        },
+        {
+          "name": "Get Ban Statistics for Group",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/ban/groups/{{groupId}}/ban-statistics"
+          }
+        },
+        {
+          "name": "Remove Ban (Admin Only)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/api/ban/bans/{{banId}}"
+          }
+        },
+        {
+          "name": "Check Ban Window for Game",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/ban/games/{{gameId}}/ban-window"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Player Ratings",
+      "item": [
+        {
+          "name": "Create Player Rating",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/player-ratings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raterId\": \"RATER_USER_ID\",\n  \"ratedUserId\": \"RATED_USER_ID\",\n  \"gameId\": \"GAME_ID\",\n  \"rating\": 4,\n  \"comment\": \"Great player!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get Specific Rating",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/player-ratings/{{raterId}}/{{ratedUserId}}/{{gameId}}"
+          }
+        },
+        {
+          "name": "Get Average Ratings for User",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/player-ratings/average/{{userId}}"
+          }
+        },
+        {
+          "name": "Get Ratings for Game",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/player-ratings/game/{{gameId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Player Game Stats",
+      "item": [
+        {
+          "name": "Create / Update Player Game Stats",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/player-game-stats",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gameId\": \"GAME_ID\",\n  \"userId\": \"USER_ID\",\n  \"goals\": 1,\n  \"assists\": 2,\n  \"yellowCards\": 0,\n  \"redCards\": 0\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get Stats for Player in Game",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/player-game-stats/{{gameId}}/{{userId}}"
+          }
+        },
+        {
+          "name": "Get All Stats for Game",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/player-game-stats/game/{{gameId}}"
+          }
+        },
+        {
+          "name": "Get Total Stats for Player",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/player-game-stats/player/{{userId}}/total"
+          }
+        },
+        {
+          "name": "Get Stats for Player in Group",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/player-game-stats/player/{{userId}}/group/{{groupId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recurring Games",
+      "item": [
+        {
+          "name": "Create Recurring Game",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/recurring-games",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"groupId\": \"GROUP_ID\",\n  \"creatorId\": \"USER_ID\",\n  \"dayOfWeek\": \"SATURDAY\",\n  \"time\": \"10:00\",\n  \"location\": \"Mission Dolores Park\",\n  \"maxPlayers\": 14,\n  \"sport\": \"SOCCER\",\n  \"timezone\": \"America/Los_Angeles\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get Recurring Games for Group",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/recurring-games/group/{{groupId}}"
+          }
+        },
+        {
+          "name": "Get Recurring Game by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/recurring-games/{{id}}"
+          }
+        },
+        {
+          "name": "Update Recurring Game Status",
+          "request": {
+            "method": "PATCH",
+            "url": "{{BASE_URL}}/api/recurring-games/{{id}}/status",
+            "description": "status: ACTIVE | PAUSED | CANCELLED",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Cancel Recurring Game",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/api/recurring-games/{{id}}"
+          }
+        },
+        {
+          "name": "Process Recurring Games (Cron)",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/recurring-games/process"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Lineups",
+      "item": [
+        {
+          "name": "Get Lineup for Game",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/lineups/game/{{gameId}}"
+          }
+        },
+        {
+          "name": "Claim Captain",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/lineups/game/{{gameId}}/captain/claim",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"USER_ID\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Assign Captain",
+          "request": {
+            "method": "PATCH",
+            "url": "{{BASE_URL}}/api/lineups/game/{{gameId}}/teams/{{teamId}}/captain",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"USER_ID\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Clear Captain",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/api/lineups/game/{{gameId}}/teams/{{teamId}}/captain"
+          }
+        },
+        {
+          "name": "Add Player to Team",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/lineups/game/{{gameId}}/teams/{{teamId}}/players",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gamePlayerId\": \"GAME_PLAYER_ID\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Remove Player from Team",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/api/lineups/game/{{gameId}}/teams/{{teamId}}/players/{{gamePlayerId}}"
+          }
+        },
+        {
+          "name": "Save Positions",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/api/lineups/game/{{gameId}}/teams/{{teamId}}/positions",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"positions\": [\n    { \"gamePlayerId\": \"GAME_PLAYER_ID\", \"position\": \"FORWARD\" }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Stats",
+      "item": [
+        {
+          "name": "Get Dashboard Stats",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/stats/dashboard" }
+        }
+      ]
+    },
+    {
+      "name": "Leagues",
+      "item": [
+        {
+          "name": "Get Leagues",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/leagues" }
+        },
+        {
+          "name": "Create League",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/leagues",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Summer Soccer League\",\n  \"groupId\": \"GROUP_ID\",\n  \"sport\": \"SOCCER\",\n  \"description\": \"Casual summer league\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get League by ID",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/leagues/{{leagueId}}" }
+        },
+        {
+          "name": "Update League",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated League Name\",\n  \"description\": \"Updated description\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get Teams",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/teams" }
+        },
+        {
+          "name": "Create Team",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/teams",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Team Alpha\",\n  \"captainId\": \"USER_ID\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get Team",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/teams/{{teamId}}"
+          }
+        },
+        {
+          "name": "Update Team",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/teams/{{teamId}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Team Beta\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get Roster",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/teams/{{teamId}}/players"
+          }
+        },
+        {
+          "name": "Add Player to Roster",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/teams/{{teamId}}/players",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"USER_ID\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Remove Player from Roster",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/teams/{{teamId}}/players/{{userId}}"
+          }
+        },
+        {
+          "name": "Get League Games",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/games"
+          }
+        },
+        {
+          "name": "Generate Schedule",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/games/generate",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"startDate\": \"2026-07-01\",\n  \"endDate\": \"2026-08-31\",\n  \"dayOfWeek\": \"SATURDAY\",\n  \"time\": \"10:00\",\n  \"location\": \"Mission Dolores Park\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Update League Game",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/games/{{gameId}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"homeScore\": 2,\n  \"awayScore\": 1,\n  \"status\": \"COMPLETED\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Upsert Player Stats",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/games/{{gameId}}/player-stats",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stats\": [\n    { \"userId\": \"USER_ID\", \"goals\": 1, \"assists\": 0 }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Submit Ratings",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/games/{{gameId}}/ratings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raterId\": \"USER_ID\",\n  \"ratings\": [\n    { \"ratedUserId\": \"USER_ID_2\", \"rating\": 5 }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get Standings",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/standings"
+          }
+        },
+        {
+          "name": "Get League Statistics",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/statistics"
+          }
+        },
+        {
+          "name": "Generate Invite Code",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/invite-code",
+            "description": "Generates (or rotates) the 6-character invite code for the league. Members use this code with !!joinleague <CODE> in WhatsApp. League must be in REGISTRATION status for the bot command to accept it, but the code can be generated in any status."
+          }
+        },
+        {
+          "name": "Get Registrants",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}/registrants",
+            "description": "Returns all registrants for the league. CONFIRMED = linked PickupPal account, PENDING = unlinked user (typed !!joinleague but hasn't registered yet)."
+          }
+        },
+        {
+          "name": "Update League Status",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/api/leagues/{{leagueId}}",
+            "description": "status: DRAFT | REGISTRATION | ACTIVE | COMPLETED | CANCELLED",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"REGISTRATION\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -20,6 +20,9 @@ public partial class SessionDetailPageModel : IQueryAttributable
     [RelayCommand]
     private static Task GoBack() => Shell.Current.GoToAsync("..");
 
+    [RelayCommand]
+    private static Task JoinGroup() => Shell.Current.GoToAsync("my-groups");
+
     /// <summary>Opens the venue in the system maps app. Best-effort — never surfaces a crash.</summary>
     [RelayCommand]
     private async Task OpenMap()

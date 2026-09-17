@@ -9,24 +9,61 @@ POST {{baseUrl}}/dev/local-admin-session
 
 ###
 @accessToken = {{localAdminSession.response.body.$.accessToken}}
-### Request a WhatsApp sign-in challenge.
-# Local note: this currently fails unless a WhatsApp challenge delivery sender is configured.
-POST {{baseUrl}}/auth/whatsapp/challenges
+
+### Start phone sign-in. Returns 202 { verificationRequired: true, phoneMasked, displayName } and no
+# tokens unless Onboarding:RequireWhatsAppVerification is false or the number is in
+# Onboarding:VerificationExemptPhoneNumbers (then 200 with tokens).
+POST {{baseUrl}}/auth/pickuppal/phone/sign-in
 Content-Type: application/json
 
 {
-  "phoneNumber": "+15550101000",
-  "callbackUri": "southbaysoccer://auth/callback"
+  "phoneNumber": "+15550101000"
 }
 
-### Verify a WhatsApp sign-in challenge and exchange it for app tokens.
-# Requires a real challenge token delivered by the configured challenge sender.
-POST {{baseUrl}}/auth/whatsapp/challenges/verify
+### Complete a verified sign-in with the !!login token from the Pickup Pal app link.
+# 403 onboarding-token-mismatch when the token belongs to a user with no pending sign-in;
+# 410 onboarding-token-expired; 404 onboarding-token-invalid.
+POST {{baseUrl}}/auth/pickuppal/login/complete
 Content-Type: application/json
 
 {
-  "challengeToken": "paste-challenge-token-here",
-  "callbackUri": "southbaysoccer://auth/callback"
+  "token": "paste-login-token-here",
+  "rememberDevice": true
+}
+
+### Validate a !!register token before showing the details form. Never spends the token.
+POST {{baseUrl}}/auth/pickuppal/register/validate
+Content-Type: application/json
+
+{
+  "token": "paste-registration-token-here"
+}
+
+### Pre-flight email uniqueness check (email travels in the body, never the query string).
+POST {{baseUrl}}/auth/pickuppal/register/email-availability
+Content-Type: application/json
+
+{
+  "email": "player@example.com"
+}
+
+### Current terms version every registration must accept.
+GET {{baseUrl}}/auth/terms/current
+
+### Create the linked Pickup Pal account. Persists the registration locally first, then calls
+# Pickup Pal; 503 upstream-unavailable keeps the local row for retry.
+POST {{baseUrl}}/auth/pickuppal/register
+Content-Type: application/json
+
+{
+  "token": "paste-registration-token-here",
+  "firstName": "Andre",
+  "lastName": "Silva",
+  "email": "player@example.com",
+  "password": "pickup-ball-2026",
+  "preferredPosition": "st",
+  "termsVersion": "20250708",
+  "termsAcceptedAtUtc": "2026-09-15T18:00:00Z"
 }
 
 ### Refresh an application access token using a rotating refresh token.
@@ -37,7 +74,7 @@ Content-Type: application/json
   "refreshToken": "{{refreshToken}}"
 }
 
-### Sign out the current authenticated user and revoke the supplied refresh token when present.
+### Sign out the current authenticated user and revoke the supplied refresh token family.
 POST {{baseUrl}}/auth/sign-out
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
@@ -45,3 +82,8 @@ Content-Type: application/json
 {
   "refreshToken": "{{refreshToken}}"
 }
+
+### Delete the signed-in account: soft-deletes local records, revokes sessions, and requests the
+# Pickup Pal deletion through the outbox. 204 even when Pickup Pal is unavailable.
+DELETE {{baseUrl}}/profiles/me
+Authorization: Bearer {{accessToken}}

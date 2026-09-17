@@ -106,7 +106,36 @@ public partial class SessionDetailPageModel(
     public bool HasMap => !string.IsNullOrWhiteSpace(Venue);
 
     /// <summary>True when the RSVP toggle may be invoked (content loaded, RSVP open, no update in flight).</summary>
-    public bool CanRsvp => State == ViewState.Content && RsvpAvailable && !IsCanceled && !IsUpdatingRsvp;
+    public bool CanRsvp => State == ViewState.Content && RsvpAvailable && !IsCanceled && !IsUpdatingRsvp && CanJoinGroup;
+
+    public const string PendingMembershipMessage = "Your request to join {0} is waiting for a group admin. You can watch this game until then.";
+    public const string NotMemberMessage = "This is a {0} game. Join the group to RSVP and play.";
+
+    /// <summary>False when the game belongs to a group the player is not an approved member of (view-only).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanRsvp))]
+    [NotifyPropertyChangedFor(nameof(IsViewOnly))]
+    [NotifyPropertyChangedFor(nameof(ViewOnlyMessage))]
+    [NotifyPropertyChangedFor(nameof(ShowJoinGroup))]
+    private bool _canJoinGroup = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ViewOnlyMessage))]
+    [NotifyPropertyChangedFor(nameof(ShowJoinGroup))]
+    private string? _membershipStatus;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ViewOnlyMessage))]
+    private string? _groupName;
+
+    public bool IsViewOnly => !CanJoinGroup && !IsCanceled;
+
+    /// <summary>Join is offered only when there is no live request yet.</summary>
+    public bool ShowJoinGroup => IsViewOnly && MembershipStatus != "Pending";
+
+    public string ViewOnlyMessage => string.Format(
+        MembershipStatus == "Pending" ? PendingMembershipMessage : NotMemberMessage,
+        string.IsNullOrWhiteSpace(GroupName) ? "the group" : GroupName);
 
     /// <summary>Label for the primary RSVP button, reflecting the current intent.</summary>
     public string RsvpButtonText => IsGoing ? "Going — tap to withdraw" : "RSVP — I'm going";
@@ -270,6 +299,9 @@ public partial class SessionDetailPageModel(
         _rsvpWindowOpen = session.IsRsvpAvailable;
         RsvpAvailable = session.IsRsvpAvailable;
         IsCanceled = session.IsCanceled;
+        GroupName = session.GroupName;
+        MembershipStatus = session.MembershipStatus;
+        CanJoinGroup = session.CanJoin;
     }
 
     private void ApplyRoster(RosterDto? roster)

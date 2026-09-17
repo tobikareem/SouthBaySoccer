@@ -114,8 +114,10 @@ public sealed class GameDayPickupPalRefreshServiceTests
         services.AddSingleton(Mock.Of<ISeasonRepository>());
         services.AddSingleton(Mock.Of<IVenueRepository>());
         services.AddSingleton(Mock.Of<IPlayerProfileRepository>());
+        services.AddSingleton(Mock.Of<IGroupChatRepository>());
         services.AddSingleton(Mock.Of<IUnitOfWork>());
         services.AddSingleton(clock.Object);
+        services.AddTransient<IPickupPalGameImportService, PickupPalGameImportService>();
         services.AddTransient<ImportPickupPalGamesCommandHandler>();
         var provider = services.BuildServiceProvider();
 

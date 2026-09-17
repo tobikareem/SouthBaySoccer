@@ -14,9 +14,14 @@ public class PickupPalOptionsTests
         var options = new PickupPalOptions();
 
         options.ApiBaseUri.ToString().Should().Be("http://localhost:7071/api/");
-        options.SignupUri.Scheme.Should().Be("https");
-        options.SignupUri.Host.Should().Be("www.pickuppal.xyz");
-        options.SignupUri.AbsolutePath.Should().Be("/auth/signup");
+        options.TermsUri.Scheme.Should().Be("https");
+        options.TermsUri.Host.Should().Be("www.pickuppal.xyz");
+        options.PrivacyPolicyUri.Scheme.Should().Be("https");
+        options.PrivacyPolicyUri.AbsolutePath.Should().EndWith("privacy.html");
+        options.AppLinkBaseUri.Host.Should().Be("n9jabay.desolatravels.com");
+        options.BotWhatsAppDigits.Should().Be("16502205416");
+        options.CreateWhatsAppMessageUri("!!register source=n9jabay").AbsoluteUri
+            .Should().Be("https://wa.me/16502205416?text=%21%21register%20source%3Dn9jabay");
         options.BotUri.Host.Should().Be("www.pickuppal.xyz");
         options.BotUri.AbsolutePath.Should().Be("/bot-setup");
         options.CallbackUri.Scheme.Should().Be("southbaysoccer");

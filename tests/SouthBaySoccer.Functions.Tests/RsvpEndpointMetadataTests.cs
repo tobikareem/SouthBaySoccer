@@ -37,6 +37,20 @@ public sealed class RsvpEndpointMetadataTests
     }
 
     [Fact]
+    public void RsvpResponseContract_WhenReflected_ExposesAdditivePickupPalSyncWithDefault()
+    {
+        // RSVP-9 is additive: the MAUI client constructs and deserializes the seven original
+        // positional fields and must keep compiling and parsing without the new one.
+        var property = typeof(RsvpResponseDto).GetProperty(nameof(RsvpResponseDto.PickupPalSync));
+        property.Should().NotBeNull();
+        property!.PropertyType.Should().Be(typeof(string));
+        var constructor = typeof(RsvpResponseDto).GetConstructors().Single();
+        var parameter = constructor.GetParameters().Single(p => p.Name == nameof(RsvpResponseDto.PickupPalSync));
+        parameter.HasDefaultValue.Should().BeTrue();
+        parameter.DefaultValue.Should().Be("NotApplicable");
+    }
+
+    [Fact]
     public void CheckInContracts_WhenReflected_ExposeLateOverrideFields()
     {
         typeof(CheckInPlayerRequest).GetProperty(nameof(CheckInPlayerRequest.LateOverrideReason)).Should().NotBeNull();

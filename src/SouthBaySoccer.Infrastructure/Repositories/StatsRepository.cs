@@ -726,7 +726,9 @@ internal sealed class StatsRepository(SouthBaySoccerDbContext dbContext) : IStat
         // the provider funcletizing a null check.
         var participants = groupChatId.HasValue
             ? dbContext.PlayerMatchStats.Where(participant => dbContext.PlayerGroupLinks
-                .Any(link => link.GroupChatId == groupChatId.Value && link.PlayerProfileId == participant.PlayerProfileId))
+                .Any(link => link.GroupChatId == groupChatId.Value
+                    && link.PlayerProfileId == participant.PlayerProfileId
+                    && link.Status == GroupMembershipStatus.Approved))
             : dbContext.PlayerMatchStats;
 
         var baseRows = await (

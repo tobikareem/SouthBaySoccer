@@ -73,6 +73,18 @@ public static class MauiProgram
         builder.Services.AddTransient<AppShell>();
         builder.Services.AddTransient<WelcomeBackPage>();
         builder.Services.AddTransient<WelcomeBackPageModel>();
+        builder.Services.AddTransient<SignUpStartPage>();
+        builder.Services.AddTransient<SignUpStartPageModel>();
+        builder.Services.AddTransient<LinkWaitingPage>();
+        builder.Services.AddTransient<LinkWaitingPageModel>();
+        builder.Services.AddTransient<SignUpExpiredPage>();
+        builder.Services.AddTransient<SignUpExpiredPageModel>();
+        builder.Services.AddTransient<SignUpDetailsPage>();
+        builder.Services.AddTransient<SignUpDetailsPageModel>();
+        builder.Services.AddTransient<SignUpWelcomePage>();
+        builder.Services.AddTransient<SignUpWelcomePageModel>();
+        builder.Services.AddTransient<SignInVerifyPage>();
+        builder.Services.AddTransient<SignInVerifyPageModel>();
         builder.Services.AddTransient<LinkGroupPage>();
         builder.Services.AddTransient<LinkGroupPageModel>();
         builder.Services.AddSingleton<IGroupLinkNavigator, ShellGroupLinkNavigator>();
@@ -141,6 +153,9 @@ public static class MauiProgram
         builder.Services.AddSingleton<IAuthenticationCoordinator, AuthenticationCoordinator>();
         builder.Services.AddSingleton<IAppStartupService, AppStartupService>();
         builder.Services.AddSingleton<IExternalLauncher, ExternalLauncher>();
+        builder.Services.AddSingleton<IClipboardReader, ClipboardReader>();
+        builder.Services.AddSingleton<IOnboardingNavigator, OnboardingNavigator>();
+        builder.Services.AddSingleton<IOnboardingFlow, OnboardingFlow>();
         builder.Services.AddSingleton<IAnnouncementsNavigator, ShellAnnouncementsNavigator>();
 
         builder.Services.AddTransientWithShellRoute<SessionDetailPage, SessionDetailPageModel>("session");
@@ -160,6 +175,10 @@ public static class MauiProgram
         builder.Services.AddTransientWithShellRoute<RateTeammatesPage, RateTeammatesPageModel>("rate-teammates");
         builder.Services.AddTransientWithShellRoute<AnnouncementsPage, AnnouncementsPageModel>("announcements");
         builder.Services.AddTransientWithShellRoute<AdminBroadcastPage, AdminBroadcastPageModel>("admin-broadcast");
+        // GRP-1 group membership detail routes, pushed from the Profile tab.
+        builder.Services.AddTransientWithShellRoute<GroupsMinePage, GroupsMinePageModel>("my-groups");
+        builder.Services.AddTransientWithShellRoute<GroupMembersPage, GroupMembersPageModel>("group-members");
+        builder.Services.AddTransientWithShellRoute<SuperAdminGroupsPage, SuperAdminGroupsPageModel>("super-admin-groups");
 
         return builder.Build();
     }

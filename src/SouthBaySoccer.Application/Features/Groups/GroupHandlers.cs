@@ -7,6 +7,7 @@ using FluentValidation;
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Domain.Entities.Groups;
+using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 
 namespace SouthBaySoccer.Application.Features.Groups;
@@ -37,9 +38,11 @@ public sealed class GetAvailableGroupsQueryHandler(IPickupPalGroupClient groupCl
 }
 
 /// <summary>
-/// Returns the current player's linked groups. Our database is the source of truth; the external
-/// Pickup Pal <c>/linked</c> read only seeds and cross-checks it, so a read failure there never
-/// blocks a player who already has links in our database.
+/// Returns the current player's approved groups (the legacy sign-in shape). Our database is the
+/// source of truth; the external Pickup Pal <c>/linked</c> read only seeds approved WhatsApp
+/// memberships for pairs that have no row yet, so a read failure there never blocks a player who
+/// already has memberships in our database. <c>IsLinked</c> means "has at least one approved
+/// membership".
 /// </summary>
 public sealed class GetMyGroupsQueryHandler(
     ICurrentUser currentUser,
@@ -47,6 +50,7 @@ public sealed class GetMyGroupsQueryHandler(
     IPickupPalGroupClient groupClient,
     IGroupChatRepository groupChatRepository,
     IPlayerGroupLinkRepository playerGroupLinkRepository,
+    GroupMembershipService membershipService,
     IUnitOfWork unitOfWork)
 {
     public async Task<MyGroupsResult> HandleAsync(
@@ -65,7 +69,7 @@ public sealed class GetMyGroupsQueryHandler(
             return new MyGroupsResult(IsLinked: true, Groups: []);
         }
 
-        await SeedLinksFromPickupPalAsync(profile.Id, profile.PickupPalUserId, cancellationToken);
+        await SeedLinksFromPickupPalAsync(profile, profile.PickupPalUserId, cancellationToken);
 
         var links = await playerGroupLinkRepository.ListPlayerGroupsAsync(profile.Id, cancellationToken);
         return new MyGroupsResult(
@@ -73,9 +77,10 @@ public sealed class GetMyGroupsQueryHandler(
             Groups: links.Select(ToSummary).ToArray());
     }
 
-    // Mirrors any WhatsApp-side memberships into our database without ever writing back to Pickup Pal.
+    // Mirrors any WhatsApp-side memberships into our database as approved rows, without ever
+    // writing back to Pickup Pal. Rows that already exist in any status are left alone.
     private async Task SeedLinksFromPickupPalAsync(
-        Guid playerProfileId,
+        PlayerProfile profile,
         string pickupPalUserId,
         CancellationToken cancellationToken)
     {
@@ -96,34 +101,16 @@ public sealed class GetMyGroupsQueryHandler(
             return;
         }
 
-        var existingLinks = await playerGroupLinkRepository.ListByPlayerAsync(playerProfileId, cancellationToken);
-        var linkedGroupIds = existingLinks.Select(link => link.GroupChatId).ToHashSet();
-        var hasPrimary = existingLinks.Any(link => link.IsPrimary);
-        var changed = false;
-
+        var groups = new List<GroupChat>(externalGroups.Count);
+        var groupsChanged = false;
         foreach (var externalGroup in externalGroups.Where(g => !string.IsNullOrWhiteSpace(g.ExternalId)))
         {
             var (group, groupChanged) = await GroupUpsert.UpsertAsync(groupChatRepository, externalGroup, cancellationToken);
-            changed |= groupChanged;
-            if (linkedGroupIds.Contains(group.Id))
-            {
-                continue;
-            }
-
-            await playerGroupLinkRepository.AddAsync(
-                new PlayerGroupLink
-                {
-                    PlayerProfileId = playerProfileId,
-                    GroupChatId = group.Id,
-                    IsPrimary = !hasPrimary,
-                },
-                cancellationToken);
-            linkedGroupIds.Add(group.Id);
-            hasPrimary = true;
-            changed = true;
+            groupsChanged |= groupChanged;
+            groups.Add(group);
         }
 
-        if (changed)
+        if (groupsChanged)
         {
             try
             {
@@ -131,11 +118,13 @@ public sealed class GetMyGroupsQueryHandler(
             }
             catch (ApplicationConflictException)
             {
-                // Best-effort seed: a concurrent first-time read may have inserted the same link (or
-                // primary) first and tripped a unique index. Our database still holds a consistent
-                // linkage, so swallow and return the stored state below rather than 500 the read.
+                // A concurrent first-time read inserted the same group first and tripped its
+                // unique index. The stored catalogue is consistent either way; seed next time.
+                return;
             }
         }
+
+        await membershipService.SeedFromWhatsAppAsync(profile, groups, cancellationToken);
     }
 
     private static GroupSummary ToSummary(PlayerGroupReadModel link) =>
@@ -143,8 +132,9 @@ public sealed class GetMyGroupsQueryHandler(
 }
 
 /// <summary>
-/// Links the current player to a group chat in our database. This performs no external write: the
-/// Pickup Pal API is read-only, so our database is the authority for the linkage.
+/// Legacy link endpoint: asks for membership in one group through the same approval flow as the
+/// multi-select request. Pickup Pal is never written; a group the player is already in on
+/// WhatsApp is approved at once, otherwise the request waits for a group admin.
 /// </summary>
 public sealed class LinkPlayerToGroupCommandHandler(
     IValidator<LinkPlayerToGroupCommand> validator,
@@ -153,6 +143,7 @@ public sealed class LinkPlayerToGroupCommandHandler(
     IPickupPalGroupClient groupClient,
     IGroupChatRepository groupChatRepository,
     IPlayerGroupLinkRepository playerGroupLinkRepository,
+    GroupMembershipService membershipService,
     IUnitOfWork unitOfWork)
 {
     public async Task<MyGroupsResult> HandleAsync(
@@ -168,28 +159,7 @@ public sealed class LinkPlayerToGroupCommandHandler(
         var group = await ResolveGroupAsync(externalId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Group chat was not found.");
 
-        if (!await playerGroupLinkRepository.ExistsAsync(profile.Id, group.Id, cancellationToken))
-        {
-            var existingLinks = await playerGroupLinkRepository.ListByPlayerAsync(profile.Id, cancellationToken);
-            await playerGroupLinkRepository.AddAsync(
-                new PlayerGroupLink
-                {
-                    PlayerProfileId = profile.Id,
-                    GroupChatId = group.Id,
-                    IsPrimary = existingLinks.All(link => !link.IsPrimary),
-                },
-                cancellationToken);
-            try
-            {
-                await unitOfWork.SaveChangesAsync(cancellationToken);
-            }
-            catch (ApplicationConflictException)
-            {
-                // A concurrent link for the same player won the race and the link already exists.
-                // Linking is idempotent, so return the current stored state rather than surfacing a
-                // conflict error the user cannot act on.
-            }
-        }
+        await membershipService.RequestAsync(profile, [group], cancellationToken);
 
         var links = await playerGroupLinkRepository.ListPlayerGroupsAsync(profile.Id, cancellationToken);
         return new MyGroupsResult(
@@ -217,6 +187,8 @@ public sealed class LinkPlayerToGroupCommandHandler(
         }
 
         var upserted = await GroupUpsert.UpsertAsync(groupChatRepository, match, cancellationToken);
+        // The new group row must exist before a membership row can reference it.
+        await unitOfWork.SaveChangesAsync(cancellationToken);
         return upserted.Group;
     }
 }

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.SignUpExpiredPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    x:DataType="pageModels:SignUpExpiredPageModel"
+    NavigationPage.HasNavigationBar="False"
+    Style="{StaticResource BrandPage}"
+    Title="{x:Static pageModels:SignUpExpiredPageModel.ExpiredTitle}">
+
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader Title="{x:Static pageModels:SignUpExpiredPageModel.ExpiredTitle}"
+                       Subtitle="{x:Static pageModels:SignUpExpiredPageModel.StepLabel}"
+                       ShowBack="True"
+                       BackCommand="{Binding GoBackCommand}" />
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="{StaticResource WelcomeContentPadding}"
+                                 Spacing="{StaticResource SpaceMd}">
+                <Border HeightRequest="{StaticResource HeroTileSize}" WidthRequest="{StaticResource HeroTileSize}"
+                        StrokeThickness="0"
+                        StrokeShape="{StaticResource ShapePill}"
+                        BackgroundColor="{AppThemeBinding Light={StaticResource WarningSurfaceLight}, Dark={StaticResource WarningSurfaceDark}}"
+                        HorizontalOptions="Center">
+                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}"
+                           FontFamily="FontAwesomeSolid"
+                           FontSize="{StaticResource HeroGlyphSize}"
+                           TextColor="{AppThemeBinding Light={StaticResource WarningLight}, Dark={StaticResource WarningDark}}"
+                           HorizontalTextAlignment="Center"
+                           VerticalTextAlignment="Center"
+                           SemanticProperties.Description="Expired" />
+                </Border>
+
+                <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                    <Label Text="{Binding Heading}"
+                           Style="{StaticResource TextH1}"
+                           HorizontalTextAlignment="Center"
+                           SemanticProperties.HeadingLevel="Level1" />
+                    <Label Text="{Binding Message}"
+                           Style="{StaticResource TextCaption}"
+                           HorizontalTextAlignment="Center"
+                           LineHeight="1.5" />
+                </VerticalStackLayout>
+
+                <Grid IsVisible="{Binding IsNotAlreadyRegistered}">
+                    <Button Text="Send the message again"
+                            Command="{Binding SendAgainCommand}"
+                            Style="{StaticResource WhatsAppButton}"
+                            SemanticProperties.Description="Send the registration message again" />
+                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
+                           FontFamily="FontAwesomeBrands"
+                           FontSize="{StaticResource IconMd}"
+                           TextColor="{StaticResource BrandWhite}"
+                           HorizontalOptions="Start"
+                           Margin="{StaticResource WelcomeButtonIconMargin}"
+                           VerticalTextAlignment="Center"
+                           InputTransparent="True" />
+                </Grid>
+
+                <Label Text="{Binding StatusMessage}"
+                       Style="{StaticResource TextCaption}"
+                       TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                       HorizontalTextAlignment="Center"
+                       IsVisible="{Binding HasStatusMessage}" />
+
+                <Button Text="Sign in with phone"
+                        Command="{Binding SignInCommand}"
+                        Style="{StaticResource PrimaryButton}"
+                        IsVisible="{Binding IsAlreadyRegistered}"
+                        SemanticProperties.Description="Go to sign in" />
+
+                <Border Style="{StaticResource NoticeSurface}"
+                        IsVisible="{Binding IsNotAlreadyRegistered}">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleInfo}"
+                               FontFamily="FontAwesomeSolid"
+                               FontSize="{StaticResource IconMd}"
+                               TextColor="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandSpringDark}}"
+                               AutomationProperties.IsInAccessibleTree="False" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
+                            <Label Text="{x:Static pageModels:SignUpExpiredPageModel.ExistingAccountHint}"
+                                   Style="{StaticResource TextCaption}" LineHeight="1.4" />
+                            <Button Text="Sign in" Command="{Binding SignInCommand}" Style="{StaticResource LinkButton}"
+                                    HorizontalOptions="Start" SemanticProperties.Description="Go to sign in" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </Border>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>
