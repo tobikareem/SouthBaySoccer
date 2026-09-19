@@ -19,10 +19,11 @@ public interface IGroupLinkNavigator
 }
 
 /// <summary>
-/// Backs the blocking "join your groups" step shown after sign-in when a player belongs to no group.
-/// The player picks every group they play with (multi-select) and submits one request; the server
-/// approves each group instantly when Pickup Pal already lists the player in that WhatsApp group
-/// and otherwise leaves it Pending for a group admin. The outcome is shown before continuing.
+/// Backs the "join your groups" step shown after sign-in when a player belongs to no group, and
+/// after every new sign-up. The player picks every group they play with (multi-select) and submits
+/// one request; the server approves each group instantly when Pickup Pal already lists the player
+/// in that WhatsApp group and otherwise leaves it Pending for a group admin. The outcome is shown
+/// before continuing. A player already in a group may skip without requesting more.
 /// </summary>
 public partial class LinkGroupPageModel : ObservableObject
 {
@@ -72,7 +73,18 @@ public partial class LinkGroupPageModel : ObservableObject
     /// <summary>Requests already awaiting an admin from an earlier visit, shown above the choices.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasAlreadyPending))]
+    [NotifyPropertyChangedFor(nameof(HasExistingMembership))]
+    [NotifyPropertyChangedFor(nameof(CanSkip))]
+    [NotifyCanExecuteChangedFor(nameof(SkipCommand))]
     private IReadOnlyList<GroupRequestOutcome> _alreadyPending = [];
+
+    /// <summary>Groups the player is already an approved member of (e.g. auto-approved from WhatsApp at sign-up).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAlreadyJoined))]
+    [NotifyPropertyChangedFor(nameof(HasExistingMembership))]
+    [NotifyPropertyChangedFor(nameof(CanSkip))]
+    [NotifyCanExecuteChangedFor(nameof(SkipCommand))]
+    private IReadOnlyList<GroupRequestOutcome> _alreadyJoined = [];
 
     /// <summary>What the server decided for each requested group; non-empty once a submit succeeded.</summary>
     [ObservableProperty]
@@ -85,7 +97,9 @@ public partial class LinkGroupPageModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanContinue))]
+    [NotifyPropertyChangedFor(nameof(CanSkip))]
     [NotifyCanExecuteChangedFor(nameof(ContinueCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SkipCommand))]
     private bool _isBusy;
 
     /// <summary>
@@ -102,6 +116,17 @@ public partial class LinkGroupPageModel : ObservableObject
     public bool CanContinue => SelectedCount > 0 && !IsBusy;
 
     public bool HasAlreadyPending => AlreadyPending.Count > 0;
+
+    public bool HasAlreadyJoined => AlreadyJoined.Count > 0;
+
+    /// <summary>The player already has an approved or pending membership from an earlier step.</summary>
+    public bool HasExistingMembership => HasAlreadyJoined || HasAlreadyPending;
+
+    /// <summary>
+    /// A player who already belongs to (or awaits) a group may leave without requesting more; a
+    /// player with no membership at all must pick one, since RSVP is limited to group members.
+    /// </summary>
+    public bool CanSkip => HasExistingMembership && !IsBusy;
 
     public bool HasResult => Outcomes.Count > 0;
 
@@ -198,6 +223,9 @@ public partial class LinkGroupPageModel : ObservableObject
     [RelayCommand]
     private Task ContinueToApp() => navigator.GoToAuthenticatedAppAsync();
 
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanSkip))]
+    private Task Skip() => navigator.GoToAuthenticatedAppAsync();
+
     /// <summary>The contract does not promise one row per group (e.g. a Declined history row plus a new Pending one); the last row wins.</summary>
     internal static Dictionary<Guid, GroupMembershipDto> LatestByGroup(IReadOnlyList<GroupMembershipDto> memberships) =>
         memberships
@@ -249,12 +277,16 @@ public partial class LinkGroupPageModel : ObservableObject
                 .Where(group => group.MembershipStatus == GroupMembershipStatuses.Pending)
                 .Select(group => new GroupRequestOutcome(group.Id, group.GroupName, group.MembershipStatus))
                 .ToArray();
+            AlreadyJoined = catalog
+                .Where(group => group.MembershipStatus == GroupMembershipStatuses.Approved)
+                .Select(group => new GroupRequestOutcome(group.Id, group.GroupName, group.MembershipStatus))
+                .ToArray();
             Groups = catalog
                 .Where(group => group.MembershipStatus is not (GroupMembershipStatuses.Approved or GroupMembershipStatuses.Pending))
                 .Select(group => new GroupChoiceItem(group))
                 .ToArray();
 
-            if (Groups.Count == 0 && AlreadyPending.Count == 0)
+            if (Groups.Count == 0 && AlreadyPending.Count == 0 && AlreadyJoined.Count == 0)
             {
                 ApplyNonContentState(ViewState.Empty, EmptyTitle, EmptyMessage);
                 return;
@@ -286,6 +318,7 @@ public partial class LinkGroupPageModel : ObservableObject
     {
         Groups = [];
         AlreadyPending = [];
+        AlreadyJoined = [];
         SelectedGroups.Clear();
         StateTitle = title;
         StateMessage = message;

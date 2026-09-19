@@ -32,7 +32,7 @@
             <!-- Step 1: pick every group you play with. -->
             <Grid
                 Padding="{StaticResource LayoutPadding}"
-                RowDefinitions="Auto,Auto,*,Auto,Auto"
+                RowDefinitions="Auto,Auto,*,Auto,Auto,Auto"
                 RowSpacing="{StaticResource SpaceMd}"
                 IsVisible="{Binding IsChoosing}">
 
@@ -49,30 +49,59 @@
                         Style="{StaticResource TextCaption}" />
                 </VerticalStackLayout>
 
-                <!-- Requests still waiting from an earlier visit. -->
-                <c:BrandCard Grid.Row="1" IsVisible="{Binding HasAlreadyPending}" IsTinted="True">
-                    <VerticalStackLayout
-                        BindableLayout.ItemsSource="{Binding AlreadyPending}"
-                        Spacing="{StaticResource SpaceXs}">
-                        <BindableLayout.ItemTemplate>
-                            <DataTemplate x:DataType="pageModels:GroupRequestOutcome">
-                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceSm}"
-                                      MinimumHeightRequest="{StaticResource TouchMin}"
-                                      SemanticProperties.Description="{Binding SemanticDescription}">
-                                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}" FontFamily="FontAwesomeSolid"
-                                           Style="{StaticResource BrandIconLabel}"
-                                           TextColor="{AppThemeBinding Light={StaticResource WarningLight}, Dark={StaticResource WarningDark}}"
-                                           VerticalOptions="Center" AutomationProperties.IsInAccessibleTree="False" />
-                                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
-                                        <Label Text="{Binding Name}" Style="{StaticResource TextBodyStrong}" />
-                                        <Label Text="{Binding Detail}" Style="{StaticResource TextCaption}" />
-                                    </VerticalStackLayout>
-                                    <c:Badge Grid.Column="2" Text="{Binding Status}" Variant="{Binding StatusVariant}" VerticalOptions="Center" />
-                                </Grid>
-                            </DataTemplate>
-                        </BindableLayout.ItemTemplate>
-                    </VerticalStackLayout>
-                </c:BrandCard>
+                <VerticalStackLayout Grid.Row="1" Spacing="{StaticResource SpaceSm}" IsVisible="{Binding HasExistingMembership}">
+                    <!-- Groups the player is already in, e.g. auto-approved from WhatsApp at sign-up. -->
+                    <c:BrandCard IsVisible="{Binding HasAlreadyJoined}">
+                        <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                            <Label Text="You're already in" Style="{StaticResource TextLabel}" SemanticProperties.HeadingLevel="Level2" />
+                            <VerticalStackLayout
+                                BindableLayout.ItemsSource="{Binding AlreadyJoined}"
+                                Spacing="{StaticResource SpaceXs}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="pageModels:GroupRequestOutcome">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceSm}"
+                                              MinimumHeightRequest="{StaticResource TouchMin}"
+                                              SemanticProperties.Description="{Binding SemanticDescription}">
+                                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}" FontFamily="FontAwesomeSolid"
+                                                   Style="{StaticResource BrandIconLabel}" VerticalOptions="Center"
+                                                   AutomationProperties.IsInAccessibleTree="False" />
+                                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                                                <Label Text="{Binding Name}" Style="{StaticResource TextBodyStrong}" />
+                                                <Label Text="{Binding Detail}" Style="{StaticResource TextCaption}" />
+                                            </VerticalStackLayout>
+                                            <c:Badge Grid.Column="2" Text="{Binding Status}" Variant="{Binding StatusVariant}" VerticalOptions="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+
+                    <!-- Requests still waiting from an earlier visit. -->
+                    <c:BrandCard IsVisible="{Binding HasAlreadyPending}" IsTinted="True">
+                        <VerticalStackLayout
+                            BindableLayout.ItemsSource="{Binding AlreadyPending}"
+                            Spacing="{StaticResource SpaceXs}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="pageModels:GroupRequestOutcome">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceSm}"
+                                          MinimumHeightRequest="{StaticResource TouchMin}"
+                                          SemanticProperties.Description="{Binding SemanticDescription}">
+                                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}" FontFamily="FontAwesomeSolid"
+                                               Style="{StaticResource BrandIconLabel}"
+                                               TextColor="{AppThemeBinding Light={StaticResource WarningLight}, Dark={StaticResource WarningDark}}"
+                                               VerticalOptions="Center" AutomationProperties.IsInAccessibleTree="False" />
+                                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                                            <Label Text="{Binding Name}" Style="{StaticResource TextBodyStrong}" />
+                                            <Label Text="{Binding Detail}" Style="{StaticResource TextCaption}" />
+                                        </VerticalStackLayout>
+                                        <c:Badge Grid.Column="2" Text="{Binding Status}" Variant="{Binding StatusVariant}" VerticalOptions="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+                </VerticalStackLayout>
 
                 <CollectionView
                     Grid.Row="2"
@@ -136,6 +165,15 @@
                     Style="{StaticResource PrimaryButton}"
                     Command="{Binding ContinueCommand}"
                     SemanticProperties.Description="Request to join the selected groups" />
+
+                <Button
+                    Grid.Row="5"
+                    Text="Skip for now"
+                    Style="{StaticResource LinkButton}"
+                    HorizontalOptions="Center"
+                    Command="{Binding SkipCommand}"
+                    IsVisible="{Binding HasExistingMembership}"
+                    SemanticProperties.Description="Skip joining more groups and continue to upcoming sessions" />
             </Grid>
 
             <!-- Step 2: what the server decided for each group. -->
