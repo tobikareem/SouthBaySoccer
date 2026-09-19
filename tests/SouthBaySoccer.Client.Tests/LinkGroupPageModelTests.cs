@@ -71,6 +71,63 @@ public class LinkGroupPageModelTests
         pageModel.HasAlreadyPending.Should().BeTrue();
     }
 
+    // A newly registered player auto-approved into a WhatsApp group still lands here so they can
+    // choose more groups; they see where they already are and may skip without requesting more.
+    [Fact]
+    public async Task Appearing_WhenAlreadyInAGroup_ListsItAndAllowsSkipping()
+    {
+        var approved = Catalog(BayAreaId, "Bay Area Soccer", 349, GroupMembershipStatuses.Approved);
+        var navigator = Navigator();
+        var pageModel = CreatePageModel(GroupsReturning(approved, Morning, Saturday), navigator);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.AlreadyJoined.Select(group => group.GroupChatId).Should().Equal(BayAreaId);
+        pageModel.Groups.Select(group => group.Id).Should().Equal(MorningId, SaturdayId);
+        pageModel.SkipCommand.CanExecute(null).Should().BeTrue();
+
+        await pageModel.SkipCommand.ExecuteAsync(null);
+
+        navigator.Verify(x => x.GoToAuthenticatedAppAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task Appearing_WhenInNoGroup_DoesNotAllowSkipping()
+    {
+        var pageModel = CreatePageModel(GroupsReturning(BayArea, Morning));
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.HasAlreadyJoined.Should().BeFalse();
+        pageModel.SkipCommand.CanExecute(null).Should().BeFalse("a player in no group must pick one to be able to RSVP");
+    }
+
+    [Fact]
+    public async Task Appearing_WhenAlreadyInEveryGroup_ShowsContentNotEmptyState()
+    {
+        var approved = Catalog(BayAreaId, "Bay Area Soccer", 349, GroupMembershipStatuses.Approved);
+        var pageModel = CreatePageModel(GroupsReturning(approved));
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.Groups.Should().BeEmpty();
+        pageModel.CanSkip.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Appearing_WhenOnlyPendingRequests_AllowsSkipping()
+    {
+        var pending = Catalog(MorningId, "Morning Pick Up Soccer", 67, GroupMembershipStatuses.Pending);
+        var pageModel = CreatePageModel(GroupsReturning(pending));
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.SkipCommand.CanExecute(null).Should().BeTrue("games stay view-only until approval, so the player must not be trapped here");
+    }
+
     [Fact]
     public async Task Appearing_WhenNoGroups_ShowsEmptyState()
     {

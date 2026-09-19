@@ -15,9 +15,20 @@ public sealed class AuthenticationCoordinator(
     PickupPalOptions options,
     ClientDataSourceOptions dataSourceOptions) : IAuthenticationCoordinator
 {
-    public async Task CompleteSignInAsync(
+    public Task CompleteSignInAsync(
         AuthenticationTokensResponse tokens,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        CompleteAsync(tokens, offerGroupChoice: false, cancellationToken);
+
+    public Task CompleteRegistrationAsync(
+        AuthenticationTokensResponse tokens,
+        CancellationToken cancellationToken = default) =>
+        CompleteAsync(tokens, offerGroupChoice: true, cancellationToken);
+
+    private async Task CompleteAsync(
+        AuthenticationTokensResponse tokens,
+        bool offerGroupChoice,
+        CancellationToken cancellationToken)
     {
         await _completionLock.WaitAsync(cancellationToken);
         try
@@ -32,7 +43,14 @@ public sealed class AuthenticationCoordinator(
             await tokenStore.StoreAsync(tokens);
             ResetSessionCaches();
             _completed = true;
-            await navigator.ShowAuthenticatedAppAsync(cancellationToken);
+            if (offerGroupChoice)
+            {
+                await navigator.ShowGroupChoiceAsync(cancellationToken);
+            }
+            else
+            {
+                await navigator.ShowAuthenticatedAppAsync(cancellationToken);
+            }
         }
         finally
         {

@@ -88,7 +88,11 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
             IsFull: session.IsFull,
             IsRsvpAvailable: !isCanceled && !session.IsFull && nowUtc < session.RsvpDeadlineUtc,
             IsGoing: session.IsCurrentPlayerGoing,
-            IsCanceled: isCanceled);
+            IsCanceled: isCanceled,
+            GroupChatId: session.GroupChatId,
+            GroupName: session.GroupName,
+            MembershipStatus: session.MembershipStatus,
+            CanJoin: session.CanJoin);
     }
 
     public Task<ClientCommandResult> JoinWaitlistAsync(
@@ -210,7 +214,10 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
             CanJoinWaitlist: session.CanJoinWaitlist,
             IsRsvpClosed: !IsCanceled(session)
                 && timeProvider.GetUtcNow().UtcDateTime >= session.RsvpDeadlineUtc,
-            GroupChatName: session.GroupName);
+            GroupChatName: session.GroupName,
+            GroupChatId: session.GroupChatId,
+            MembershipStatus: session.MembershipStatus,
+            CanJoin: session.CanJoin);
     }
 
     private string? BuildSummaryDeadlineLabel(SessionAdminResponse session)

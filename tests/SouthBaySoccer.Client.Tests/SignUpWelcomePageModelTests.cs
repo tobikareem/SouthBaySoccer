@@ -15,14 +15,14 @@ public class SignUpWelcomePageModelTests
     public async Task Continue_WithRegistration_HandsTokensToCoordinatorOnceAndClearsThem()
     {
         var coordinator = new Mock<IAuthenticationCoordinator>(MockBehavior.Strict);
-        coordinator.Setup(c => c.CompleteSignInAsync(Tokens, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        coordinator.Setup(c => c.CompleteRegistrationAsync(Tokens, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var pageModel = new SignUpWelcomePageModel(coordinator.Object);
         pageModel.Initialize(new RegistrationCompletedResponse(Tokens, "Ada", "+1 (555) ••• 9421", ["Saturday crew", "Sunday 7s"], false));
 
         await pageModel.ContinueCommand.ExecuteAsync(null);
         await pageModel.ContinueCommand.ExecuteAsync(null);
 
-        coordinator.Verify(c => c.CompleteSignInAsync(Tokens, It.IsAny<CancellationToken>()), Times.Once);
+        coordinator.Verify(c => c.CompleteRegistrationAsync(Tokens, It.IsAny<CancellationToken>()), Times.Once);
         pageModel.Heading.Should().Be("You're in, Ada.");
         pageModel.HasGroup.Should().BeTrue();
         pageModel.GroupDetail.Should().Contain("plus 1 more");
@@ -34,7 +34,7 @@ public class SignUpWelcomePageModelTests
     {
         var coordinator = new Mock<IAuthenticationCoordinator>(MockBehavior.Strict);
         coordinator
-            .SetupSequence(c => c.CompleteSignInAsync(Tokens, It.IsAny<CancellationToken>()))
+            .SetupSequence(c => c.CompleteRegistrationAsync(Tokens, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("window not ready"))
             .Returns(Task.CompletedTask);
         var pageModel = new SignUpWelcomePageModel(coordinator.Object);
@@ -45,6 +45,6 @@ public class SignUpWelcomePageModelTests
         pageModel.HasNoGroup.Should().BeTrue();
 
         await pageModel.ContinueCommand.ExecuteAsync(null);
-        coordinator.Verify(c => c.CompleteSignInAsync(Tokens, It.IsAny<CancellationToken>()), Times.Exactly(2));
+        coordinator.Verify(c => c.CompleteRegistrationAsync(Tokens, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 }

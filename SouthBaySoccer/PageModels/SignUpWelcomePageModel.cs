@@ -81,7 +81,7 @@ public partial class SignUpWelcomePageModel(IAuthenticationCoordinator authentic
         try
         {
             IsBusy = true;
-            await authenticationCoordinator.CompleteSignInAsync(_tokens, cancellationToken);
+            await authenticationCoordinator.CompleteRegistrationAsync(_tokens, cancellationToken);
             _tokens = null;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
