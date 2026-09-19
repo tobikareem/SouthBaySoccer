@@ -48,6 +48,36 @@ public class AuthenticationCoordinatorTests
         coordinator.IsAuthenticated.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Complete_NewAccountVsReturningSignIn_OnlyNewAccountLandsOnGroupChoice(bool isRegistration)
+    {
+        var tokens = new AuthenticationTokensResponse("access-token", "refresh-token", DateTime.UtcNow.AddMinutes(15));
+        var navigator = new Mock<IAuthenticationNavigator>();
+        var coordinator = new AuthenticationCoordinator(
+            new Mock<IAuthenticationClient>(MockBehavior.Strict).Object,
+            Mock.Of<ISecureTokenStore>(),
+            navigator.Object,
+            new ClientResponseCache(TimeProvider.System),
+            Mock.Of<IAuthenticationSessionRefresher>(),
+            new PickupPalOptions(),
+            new ClientDataSourceOptions { DataSource = ClientDataSource.Api });
+
+        if (isRegistration)
+        {
+            await coordinator.CompleteRegistrationAsync(tokens);
+        }
+        else
+        {
+            await coordinator.CompleteSignInAsync(tokens);
+        }
+
+        coordinator.IsAuthenticated.Should().BeTrue();
+        navigator.Verify(n => n.ShowGroupChoiceAsync(It.IsAny<CancellationToken>()), isRegistration ? Times.Once() : Times.Never());
+        navigator.Verify(n => n.ShowAuthenticatedAppAsync(It.IsAny<CancellationToken>()), isRegistration ? Times.Never() : Times.Once());
+    }
+
     [Fact]
     public async Task SignOutAsync_ClearsTokensResetsStateAndShowsSignIn()
     {

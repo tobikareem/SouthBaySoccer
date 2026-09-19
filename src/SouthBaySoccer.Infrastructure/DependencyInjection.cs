@@ -138,7 +138,15 @@ public static class DependencyInjection
             .AddIdentityCore<ApplicationIdentityUser>(options =>
             {
                 options.SignIn.RequireConfirmedAccount = true;
-                options.User.RequireUniqueEmail = true;
+                // Many players sign up on Pickup Pal's WhatsApp bot without ever setting an email,
+                // so ApplicationIdentityUser.NormalizedEmail is legitimately null for them. EF
+                // Core's default null-safe query translation treats two null NormalizedEmail values
+                // as equal, so Identity's built-in RequireUniqueEmail check throws
+                // "Sequence contains more than one element" the moment a second such player signs
+                // in or registers. Email uniqueness for players who do provide one is already
+                // enforced against Pickup Pal itself before local sync (see
+                // RegisterWithWhatsAppCommandHandler.IsEmailAvailableAsync).
+                options.User.RequireUniqueEmail = false;
                 options.User.AllowedUserNameCharacters += ":";
                 options.Password.RequiredLength = 10;
                 options.Password.RequireDigit = true;
