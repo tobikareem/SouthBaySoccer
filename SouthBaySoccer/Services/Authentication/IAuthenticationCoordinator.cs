@@ -17,6 +17,14 @@ public interface IAuthenticationCoordinator
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Completes sign-in for a player who just created their account, landing them on the
+    /// "join your groups" step so they can choose groups beyond the WhatsApp-approved ones.
+    /// </summary>
+    Task CompleteRegistrationAsync(
+        AuthenticationTokensResponse tokens,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Ends the current session: clears the persisted tokens, resets <see cref="IsAuthenticated"/>
     /// to false, and returns to the sign-in screen so a different account can sign in.
     /// </summary>

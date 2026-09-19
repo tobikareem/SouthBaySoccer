@@ -46,7 +46,10 @@ public sealed class InfrastructureRegistrationTests
         var options = provider.GetRequiredService<IOptions<IdentityOptions>>().Value;
         options.Tokens.ProviderMap.Should().ContainKey(TokenOptions.DefaultProvider);
         options.SignIn.RequireConfirmedAccount.Should().BeTrue();
-        options.User.RequireUniqueEmail.Should().BeTrue();
+        // False, not True: many players never set an email on Pickup Pal, and Identity's built-in
+        // uniqueness check is null-unsafe against a second such player (see
+        // PickupPalUserSyncServiceTests.SyncAsync_SecondNewUserWithNoEmail_DoesNotThrow).
+        options.User.RequireUniqueEmail.Should().BeFalse();
         options.Password.RequiredLength.Should().Be(10);
     }
 

@@ -122,6 +122,36 @@ public sealed class ApiSprint03ClientTests
         detail.DateTimeLabel.Should().Be("Sat Jul 25 · 4:00 PM");
     }
 
+    // Regression: the mapping used to drop the server's group access fields, so every session
+    // defaulted to CanJoin = true and a non-member saw an enabled RSVP button on another group's game.
+    [Fact]
+    public async Task ApiSessionsClient_GetSessionAsync_WhenCallerIsNotAGroupMember_MapsGroupAccess()
+    {
+        var client = CreateSessionsClient(_ => JsonResponse(NonMemberSessionJson));
+
+        var detail = await client.GetSessionAsync(SessionId, CancellationToken.None);
+
+        detail.Should().NotBeNull();
+        detail!.CanJoin.Should().BeFalse();
+        detail.GroupChatId.Should().Be(GroupChatId);
+        detail.GroupName.Should().Be("Morning Pick Up Soccer");
+        detail.MembershipStatus.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_GetDashboardAsync_WhenCallerIsPendingInTheGroup_MapsGroupAccess()
+    {
+        var json = NonMemberSessionJson.Replace(
+            "\"MembershipStatus\": null", "\"MembershipStatus\": \"Pending\"", StringComparison.Ordinal);
+        var client = CreateSessionsClient(_ => JsonResponse(json));
+
+        var dashboard = await client.GetDashboardAsync(CancellationToken.None);
+
+        dashboard.FeaturedSession!.CanJoin.Should().BeFalse();
+        dashboard.FeaturedSession.GroupChatId.Should().Be(GroupChatId);
+        dashboard.FeaturedSession.MembershipStatus.Should().Be("Pending");
+    }
+
     [Fact]
     public async Task ApiSessionsClient_GetDashboardAsync_WhenFeedIsFull_MapsCountsAndJoinWaitlist()
     {
@@ -845,6 +875,37 @@ public sealed class ApiSprint03ClientTests
             "status": "Published",
             "venueName": "Marina Field",
             "groupName": "Ballers United"
+          }
+        ]
+        """;
+
+    private static readonly Guid GroupChatId = Guid.Parse("88888888-8888-8888-8888-888888888888");
+
+    // PascalCase, exactly as the Functions host serializes it in production.
+    private const string NonMemberSessionJson =
+        """
+        [
+          {
+            "SessionId": "11111111-1111-1111-1111-111111111111",
+            "SeasonId": "22222222-2222-2222-2222-222222222222",
+            "VenueId": "33333333-3333-3333-3333-333333333333",
+            "RecurrenceRuleId": null,
+            "Title": "Saturday evening 7v7",
+            "Format": "7v7",
+            "Capacity": 20,
+            "TeamCount": 2,
+            "StartsAtUtc": "2026-07-25T16:00:00Z",
+            "CheckInOpensAtUtc": "2026-07-25T15:45:00Z",
+            "CheckInClosesAtUtc": "2026-07-25T16:05:00Z",
+            "RsvpDeadlineUtc": "2026-07-25T15:00:00Z",
+            "OccurrenceKey": null,
+            "Status": "Published",
+            "VenueName": "Mountain View",
+            "GoingCount": 10,
+            "GroupName": "Morning Pick Up Soccer",
+            "GroupChatId": "88888888-8888-8888-8888-888888888888",
+            "MembershipStatus": null,
+            "CanJoin": false
           }
         ]
         """;
