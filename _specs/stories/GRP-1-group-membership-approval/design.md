@@ -6,10 +6,10 @@ Realizes [`requirements.md`](requirements.md). Distilled rules for agents:
 ## Principles
 
 1. **Our database owns membership.** `PlayerGroupLink` (table `PlayerGroupLinks`, name kept to
-   limit churn) is the membership record. Pickup Pal is read only for the `/linked` cross-check
+   limit churn) is the membership record. Pickup Pal is read only for catalogue discovery, the `/linked` cross-check
    (auto-approval) and for the import's group id; it is never written.
 2. **One row per (player, group), moved through a lifecycle.** `Status` is Pending, Approved,
-   Declined, or Removed; a later request *reactivates* the same row (no history rows), so the
+   Declined, Removed, or Withdrawn; a later request *reactivates* the same row (no history rows), so the
    existing unique filtered index on `(PlayerProfileId, GroupChatId)` where `IsDeleted = 0` is the
    "unique active row" guarantee. The audit stamps (`RequestedAtUtc`, `ApprovedAtUtc/By`,
    `RemovedAtUtc/By`, `UpdatedAt`) show the last decision.
@@ -42,17 +42,17 @@ Realizes [`requirements.md`](requirements.md). Distilled rules for agents:
 | Domain | `PlayerGroupLink` (+ `Status`, `Role`, `Source`, `RequestedAtUtc`, `ApprovedAtUtc`, `ApprovedByPlayerProfileId`, `RemovedAtUtc`, `RemovedByPlayerProfileId`) | The membership record. Defaults are fail-closed (Pending / Member / Request). |
 | Domain | `IPlayerGroupLinkRepository` (see principle 3), read models `PlayerMembershipReadModel`, `GroupMemberReadModel`, `GroupMembershipCounts` | Approved-only vs any-status reads, members view, counts. |
 | Domain | `IGroupChatRepository.ListAllAsync`, `ListByExternalIdsAsync`; `IPlayerProfileRepository.SearchByDisplayNameAsync` | Catalogue, import matching, name search. |
-| Application | `GroupMembershipService` | The state machine: `RequestAsync` (WhatsApp auto-approve vs Pending, idempotent, reactivates Declined/Removed), `SeedFromWhatsAppAsync` (legacy sign-in read; only pairs with no row at all), `AddDirectlyAsync`, `ApproveAsync`, `DeclineAsync`, `RemoveAsync`, `SetRoleAsync`. Primary-group bookkeeping lives here (first approved membership is primary; ending a membership clears it). |
+| Application | `GroupMembershipService` | The state machine: `RequestAsync` (WhatsApp auto-approve vs Pending, idempotent, reactivates Declined/Removed), `SeedFromWhatsAppAsync` (legacy sign-in read; only pairs with no row or a Pending row), `AddDirectlyAsync`, `ApproveAsync`, `DeclineAsync`, `RemoveAsync`, `SetRoleAsync`. Primary-group bookkeeping lives here (first approved membership is primary; ending a membership clears it). |
 | Application | `IGroupMembershipGate` / `GroupMembershipGate`, `SessionGroupAccess`, `GroupMembershipRequiredException` | `EnsureCanJoinAsync(session, player)` and `ResolveAccessAsync(sessions, player)`. |
 | Application | `GroupMembershipAuthorization.IsSuperAdmin`, `GroupMembershipAccess` | Owner / per-group admin checks. |
 | Application | Handlers: `GetGroupCatalog`, `GetMyGroupMemberships`, `RequestGroupMemberships`, `LeaveGroup`, `GetGroupMembers`, `ReviewGroupMember` (approve / decline / remove), `AddGroupMember`, `SetGroupAdmin`, `SearchPlayers`; validators `RequestGroupMembershipsCommandValidator`, `SearchPlayersQueryValidator` | Use cases. Legacy `GetMyGroups` / `LinkPlayerToGroup` now go through the service. |
 | Application | `SubmitRsvpCommandHandler`, `SelfCheckInCommandHandler`, `ClaimParticipantCommandHandler` (gate), `ListUpcomingSessionsQueryHandler`, `GetTodayGameDayContextQueryHandler` (access projection), `SessionGroupResolver`, `GetSentAnnouncementsQueryHandler` (approved-only) | Enforcement and projections. |
-| Application | `PickupPalGame.GroupExternalId` (`[JsonIgnore]`), `PickupPalGameImportService` | Attaches imported sessions to the persisted `GroupChat` by external id; never creates a group; never clears an existing group; the id is not serialized onto the snapshot. |
+| Application | `PickupPalGame.GroupExternalId` (`[JsonIgnore]`), `PickupPalGameImportService` | Attaches imported sessions to the persisted `GroupChat` by external id, creating a missing group from the sanitized game group name. Never clears an existing group; the id is not serialized onto the snapshot. Missing group identity fails closed in the membership gate. |
 | Infrastructure | `AdminPhoneNumberOptions.OwnerPhoneNumbers`, `ConfiguredAdminPhoneNumberService`, `PickupPalUserSyncService`, `AuthenticationPolicyMapper` | Owner promotion and policies. |
 | Infrastructure | `PlayerGroupLinkRepository`, `GroupChatRepository`, `PlayerProfileRepository`, `AnnouncementRepository` / `StatsRepository` (approved filter), EF configuration, migration `AddGroupMembershipApproval` | Persistence. |
 | Infrastructure | `PickupPalGamesClient` | Reads `group.groupId` into `GroupExternalId`; never logs it. |
 | Functions | `GroupMembershipFunctions`, `AuthenticationPolicies.IsSuperAdmin` / `CanManageGroupMembers`, `ProblemDetailsMapper.GroupMembershipRequiredProblemType`, DI | Transport. |
-| Contracts | `Groups/GroupMembershipDtos.cs` (unchanged, committed in 2d87523); additive `MembershipStatus` / `CanJoin` on `SessionAdminResponse`; `GroupChatId` / `MembershipStatus` / `CanJoin` on `SessionSummaryDto`; `GroupChatId` / `GroupName` / `MembershipStatus` / `CanJoin` on `SessionDetailDto`; `GroupChatId` / `MembershipStatus` on `GameDayContextDto` | Wire shapes; the MAUI client is untouched. |
+| Contracts | `Groups/GroupMembershipDtos.cs` (unchanged, committed in 2d87523); additive `MembershipStatus` / `CanJoin` on `SessionAdminResponse`; `GroupChatId` / `MembershipStatus` / `CanJoin` on `SessionSummaryDto`; `GroupChatId` / `GroupName` / `MembershipStatus` / `CanJoin` on `SessionDetailDto`; `GroupChatId` / `MembershipStatus` on `GameDayContextDto` | Wire shapes mapped by the MAUI client; nonmembers cannot see join controls. |
 
 ## Endpoints
 
@@ -61,7 +61,7 @@ Realizes [`requirements.md`](requirements.md). Distilled rules for agents:
 | `GET groups/catalog` | AuthenticatedPlayer | - (pending counts only for groups the caller manages) | `GroupCatalogResponse` |
 | `GET players/me/memberships` | AuthenticatedPlayer | - | `MyGroupMembershipsResponse` |
 | `POST players/me/memberships/requests` | AuthenticatedPlayer | - | `MyGroupMembershipsResponse` |
-| `DELETE players/me/memberships/{groupChatId}` | AuthenticatedPlayer | - (Pending -> Declined by self; Approved -> Removed by self) | `MyGroupMembershipsResponse` |
+| `DELETE players/me/memberships/{groupChatId}` | AuthenticatedPlayer | - (Pending -> Withdrawn by self; Approved -> Removed by self) | `MyGroupMembershipsResponse` |
 | `GET groups/{groupChatId}/members` | AuthenticatedPlayer | Owner or admin of that group, else 403 | `GroupMembersResponse` |
 | `POST groups/{groupChatId}/members/{playerProfileId}/approve\|decline\|remove` | AuthenticatedPlayer | Owner or admin of that group; removing an admin needs Owner | `GroupMembersResponse` |
 | `POST groups/{groupChatId}/members` | IsSuperAdmin | Owner | `GroupMembersResponse` |
@@ -93,11 +93,28 @@ to false, and removing the primary group promotes the oldest remaining approved 
 same save; reactivating resets the approval / removal stamps and sets `RequestedAtUtc` to now.
 `Withdrawn` is a distinct status (rather than reading `RemovedByPlayerProfileId == self`) so the
 members view and the player's own list never show a self-withdrawal as an admin decline. The RSVP
-gate applies to `Going` only: Maybe / NotGoing and cancel always succeed for a removed member.
+gate applies to every submitted intent (Going / Maybe / NotGoing). A removed member may still
+cancel an existing RSVP through DELETE while the RSVP window is open; cancellation creates no intent.
 Owner promotion is reversible (an Owner whose number is no longer configured drops to GameAdmin
 or Player); role claims come from the token, so a promotion takes effect at the next sign-in.
 
 ## Persistence
+
+The authenticated catalogue refreshes group metadata from Pickup Pal's read-only all-groups
+endpoint before projecting local group ids and membership counts. New groups therefore become
+discoverable without a player first joining them through a legacy route. An unavailable provider
+falls back to the persisted catalogue; cancellation propagates. Discovery never creates or changes
+memberships and never removes a persisted group absent from an external response.
+
+Membership batches remain idempotent when the requested state is already persisted. A save
+conflict must propagate as HTTP 409: a competing write can roll back unrelated groups in the same
+batch, so it cannot be treated as success. The caller can refresh and retry the full request.
+Catalogue persistence conflicts likewise propagate rather than projecting uncommitted groups.
+
+Imported sessions without a resolved local group are closed for joining and project `CanJoin = false`.
+This includes legacy `pickuppal:` occurrence keys unless `PickupPalOrigin` is `CreatedByApp`.
+Genuinely app-only sessions without a group stay open. Waitlist promotion queries approved
+memberships for the candidate ids in one database query and applies the same unresolved-group rule.
 
 Migration `AddGroupMembershipApproval` (controlled deploy): adds the eight columns with
 fail-closed defaults (`Pending` / `Member` / `Request` / `0001-01-01`), backfills every existing

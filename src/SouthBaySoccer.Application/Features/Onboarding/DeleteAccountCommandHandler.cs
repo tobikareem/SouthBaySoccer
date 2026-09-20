@@ -11,7 +11,7 @@ namespace SouthBaySoccer.Application.Features.Onboarding;
 
 /// <summary>
 /// Deletes the signed-in player's account. Local records are soft-deleted and every refresh token
-/// revoked first; the Pickup Pal deletion is recorded in the outbox before it is attempted, so a
+/// revoked atomically with the audit/outbox intent before Pickup Pal deletion is attempted, so a
 /// failed upstream call leaves a pending row to reconcile rather than a half-deleted account.
 /// </summary>
 public sealed class DeleteAccountCommandHandler(
@@ -26,7 +26,6 @@ public sealed class DeleteAccountCommandHandler(
     /// <summary>Delay before an operator or processor should retry a failed upstream deletion.</summary>
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMinutes(15);
 
-    /// <summary>Deletes the current user's account locally and requests deletion on Pickup Pal.</summary>
     /// <summary>
     /// Deletes the caller's N9ja Bay account. The Pickup Pal account is left intact unless
     /// <paramref name="alsoDeletePickupPalAccount"/> is true, because Pickup Pal accounts are used
@@ -37,7 +36,45 @@ public sealed class DeleteAccountCommandHandler(
     {
         var identityUserId = currentUser.UserId ?? throw new ApplicationUnauthenticatedException();
 
-        var deletion = await localAccountDeletionService.DeleteAsync(identityUserId, cancellationToken);
+        OutboxMessage? message = null;
+        var deletion = await localAccountDeletionService.DeleteAsync(
+            identityUserId,
+            async (deleted, token) => message = await RecordDeletionAsync(
+                identityUserId, deleted, alsoDeletePickupPalAccount, token),
+            cancellationToken);
+        if (message is null || message.Status == OutboxMessageStatus.Processed || deletion.PickupPalUserId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await onboardingClient.DeleteUserAsync(deletion.PickupPalUserId, cancellationToken);
+            message.Status = OutboxMessageStatus.Processed;
+            message.ProcessedAtUtc = clock.UtcNow;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // The local account is already gone and the sessions revoked; the outbox row stays
+            // pending so the upstream deletion can be retried. No identifiers are logged.
+            logger.LogWarning(
+                "Pickup Pal account deletion failed and was left in the outbox. ExceptionType: {ExceptionType}",
+                exception.GetType().Name);
+            message.Status = OutboxMessageStatus.RetryScheduled;
+            message.AvailableAtUtc = clock.UtcNow.Add(RetryDelay);
+        }
+
+        message.AttemptCount += 1;
+        outboxRepository.Update(message);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<OutboxMessage?> RecordDeletionAsync(
+        Guid identityUserId,
+        LocalAccountDeletion deletion,
+        bool alsoDeletePickupPalAccount,
+        CancellationToken cancellationToken)
+    {
         var now = clock.UtcNow;
         if (deletion.PickupPalUserId is null || !alsoDeletePickupPalAccount)
         {
@@ -64,7 +101,7 @@ public sealed class DeleteAccountCommandHandler(
             }
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
-            return;
+            return null;
         }
 
         // One outbox row per identity user: a second delete (double tap, retried request) reuses the
@@ -90,33 +127,8 @@ public sealed class DeleteAccountCommandHandler(
             };
             await outboxRepository.AddAsync(message, cancellationToken);
         }
-        else if (message.Status == OutboxMessageStatus.Processed)
-        {
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-            return;
-        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        try
-        {
-            await onboardingClient.DeleteUserAsync(deletion.PickupPalUserId, cancellationToken);
-            message.Status = OutboxMessageStatus.Processed;
-            message.ProcessedAtUtc = clock.UtcNow;
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            // The local account is already gone and the sessions revoked; the outbox row stays
-            // pending so the upstream deletion can be retried. No identifiers are logged.
-            logger.LogWarning(
-                "Pickup Pal account deletion failed and was left in the outbox. ExceptionType: {ExceptionType}",
-                exception.GetType().Name);
-            message.Status = OutboxMessageStatus.RetryScheduled;
-            message.AvailableAtUtc = clock.UtcNow.Add(RetryDelay);
-        }
-
-        message.AttemptCount += 1;
-        outboxRepository.Update(message);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return message;
     }
 }

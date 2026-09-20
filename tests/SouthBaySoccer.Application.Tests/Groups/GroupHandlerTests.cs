@@ -275,7 +275,7 @@ public sealed class GroupHandlerTests
     }
 
     [Fact]
-    public async Task LinkPlayerToGroup_WhenConcurrentLinkConflicts_SwallowsAndReturnsCurrentState()
+    public async Task LinkPlayerToGroup_WhenConcurrentLinkConflicts_PropagatesConflict()
     {
         var identityUserId = Guid.NewGuid();
         var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = identityUserId, PickupPalUserId = PickupPalUserId };
@@ -297,10 +297,10 @@ public sealed class GroupHandlerTests
             CurrentUser(identityUserId).Object, Profiles(identityUserId, profile).Object,
             groupClient.Object, groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object);
 
-        var result = await handler.HandleAsync(new LinkPlayerToGroupCommand(ExternalId));
+        var act = () => handler.HandleAsync(new LinkPlayerToGroupCommand(ExternalId));
 
-        result.IsLinked.Should().BeTrue("linking is idempotent: a concurrent-link conflict returns current state, not an error");
-        result.Groups.Should().ContainSingle();
+        await act.Should().ThrowAsync<ApplicationConflictException>();
+        links.Verify(x => x.ListPlayerGroupsAsync(profile.Id, It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

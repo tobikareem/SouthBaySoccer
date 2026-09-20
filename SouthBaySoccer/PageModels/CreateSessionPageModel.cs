@@ -73,6 +73,7 @@ public partial class CreateSessionPageModel(
     private bool _isPublished;
     private Guid _publishedSessionId;
     private bool _isApplyingSession;
+    private Guid? _editingSessionGroupChatId;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanPublish))]
@@ -799,6 +800,7 @@ public partial class CreateSessionPageModel(
         try
         {
             EditingSessionId = session.SessionId;
+            _editingSessionGroupChatId = session.Command.GroupChatId;
             _isPublished = true;
             _publishedSessionId = session.SessionId;
             _draftId = null;
@@ -825,8 +827,8 @@ public partial class CreateSessionPageModel(
         SelectedFormatIndex = Math.Max(0, Formats.ToList().IndexOf(command.Format));
         SelectedTeamIndex = command.TeamCount - 2;
         SelectedGroup = command.GroupChatId is { } groupId
-            ? GroupOptions.FirstOrDefault(option => option.Id == groupId) ?? SelectedGroup
-            : SelectedGroup;
+            ? GroupOptions.FirstOrDefault(option => option.Id == groupId)
+            : null;
         SelectVenue(new VenueDto(
             command.VenueId ?? Guid.Empty,
             command.VenueName,
@@ -936,7 +938,8 @@ public partial class CreateSessionPageModel(
             SelectedTeamCount,
             RsvpDeadline,
             RsvpDeadlineDayOffset: (RsvpCloseDate.Date - GameDate.Date).Days,
-            GroupChatId: SelectedGroup?.Id);
+            // An admin's own memberships need not include the managed session's group.
+            GroupChatId: SelectedGroup?.Id ?? (IsEditingSession ? _editingSessionGroupChatId : null));
 
     private void ApplyState(ViewState state, string title, string message)
     {

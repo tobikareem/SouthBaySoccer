@@ -198,6 +198,12 @@
                     </VerticalStackLayout>
 
                     <!-- Primary RSVP toggle -->
+                    <Button Text="Cancel my spot"
+                            Command="{Binding CancelSpotCommand}"
+                            IsVisible="{Binding ShowCancelSpot}"
+                            IsEnabled="{Binding CanCancelSpot}"
+                            Style="{StaticResource GhostButton}"
+                            SemanticProperties.Description="Cancel my existing spot in this game" />
                     <Button Text="{Binding RsvpButtonText}"
                             Command="{Binding ToggleRsvpCommand}"
                             IsEnabled="{Binding CanRsvp}"

@@ -130,11 +130,28 @@ public sealed class PickupPalGameImportService(
             session = null;
         }
 
-        // GRP-1: the game's group id matches the persisted catalogue (GroupChat.ExternalId); an
-        // unmatched or absent id leaves the session's group as it is. Nothing is created here.
-        var groupChatId = game.GroupExternalId is { } externalId
-            ? lookups.GroupsByExternalId.GetValueOrDefault(externalId)?.Id
-            : null;
+        // Persist the group before its imported session even when nobody has signed in from that
+        // group yet. A missing catalogue row must never turn a group game into an open session.
+        // App-created sessions retain their own association. The external id remains excluded
+        // from snapshots and logs; only GroupChat stores it, as with catalogue reconciliation.
+        Guid? groupChatId = null;
+        if (session?.PickupPalOrigin != PickupPalOrigin.CreatedByApp
+            && !string.IsNullOrWhiteSpace(game.GroupExternalId))
+        {
+            if (!lookups.GroupsByExternalId.TryGetValue(game.GroupExternalId, out var group))
+            {
+                group = new GroupChat
+                {
+                    Id = Guid.NewGuid(),
+                    ExternalId = game.GroupExternalId,
+                    GroupName = Truncate(string.IsNullOrWhiteSpace(game.GroupName) ? "Pickup Pal group" : game.GroupName.Trim(), 200),
+                };
+                await groupChatRepository.AddAsync(group, cancellationToken);
+                lookups.GroupsByExternalId.Add(game.GroupExternalId, group);
+            }
+
+            groupChatId = group.Id;
+        }
 
         if (session is null)
         {

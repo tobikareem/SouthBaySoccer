@@ -16,6 +16,49 @@ namespace SouthBaySoccer.Client.Tests;
 
 public class SessionsHomePageModelTests
 {
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("None", false)]
+    [InlineData("Pending", false)]
+    [InlineData("Removed", false)]
+    [InlineData("Withdrawn", false)]
+    [InlineData("Declined", false)]
+    [InlineData("Approved", true)]
+    public async Task JoinWaitlist_GroupedSession_RequiresApprovedMembership(string? membershipStatus, bool mayJoin)
+    {
+        var session = new SeedState().GetDashboard().ComingUpSessions.Single() with
+        {
+            GroupChatId = Guid.NewGuid(),
+            MembershipStatus = membershipStatus,
+            CanJoin = true,
+        };
+        var client = new Mock<ISessionsClient>();
+        client.Setup(x => x.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with { ComingUpSessions = [session] });
+        client.Setup(x => x.JoinWaitlistAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Success);
+        var pageModel = CreatePageModel(client.Object, Mock.Of<ISessionsNavigator>());
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(session.Id);
+
+        session.CanJoinSession.Should().Be(mayJoin);
+        session.ShowJoinWaitlist.Should().Be(mayJoin);
+        client.Verify(x => x.JoinWaitlistAsync(session.Id, It.IsAny<CancellationToken>()),
+            mayJoin ? Times.Once() : Times.Never());
+    }
+
+    [Fact]
+    public async Task JoinWaitlist_BeforeDashboardLoads_DoesNotCallClient()
+    {
+        var client = new Mock<ISessionsClient>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(client.Object, Mock.Of<ISessionsNavigator>());
+
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
+
+        client.VerifyNoOtherCalls();
+    }
+
     [Fact]
     public async Task Appearing_SeedDashboard_PopulatesContentFromWireframeFixtures()
     {
@@ -486,6 +529,7 @@ public class SessionsHomePageModelTests
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
         var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
 
+        await pageModel.AppearingCommand.ExecuteAsync(null);
         await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
 
         sessionsClient.Verify(
@@ -495,7 +539,7 @@ public class SessionsHomePageModelTests
             Times.Once);
         sessionsClient.Verify(
             client => client.GetDashboardAsync(It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Exactly(2));
         pageModel.State.Should().Be(ViewState.Content);
         pageModel.ComingUpSessions.Single().WaitlistCount.Should().Be(4);
         pageModel.ComingUpSessions.Single().IsWaitlisted.Should().BeTrue();
@@ -509,12 +553,15 @@ public class SessionsHomePageModelTests
         // command's token. The old unguarded catch rethrew it out of the fire-and-forget command, so
         // the user saw no response at all ("the button hangs"). It must land in the Error state.
         var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient.Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SeedState().GetDashboard());
         sessionsClient
             .Setup(client => client.JoinWaitlistAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new TaskCanceledException("A task was canceled (HttpClient timeout)."));
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
         var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
 
+        await pageModel.AppearingCommand.ExecuteAsync(null);
         await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
 
         pageModel.State.Should().Be(ViewState.Error);
@@ -524,12 +571,15 @@ public class SessionsHomePageModelTests
     public async Task JoinWaitlist_ConnectivityFailure_ShowsOfflineState()
     {
         var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient.Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SeedState().GetDashboard());
         sessionsClient
             .Setup(client => client.JoinWaitlistAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("connection refused"));
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
         var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
 
+        await pageModel.AppearingCommand.ExecuteAsync(null);
         await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
 
         pageModel.State.Should().Be(ViewState.Offline);
@@ -540,6 +590,8 @@ public class SessionsHomePageModelTests
     public async Task JoinWaitlist_ClientFailure_DoesNotRefreshDashboard()
     {
         var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient.Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SeedState().GetDashboard());
         sessionsClient
             .Setup(client => client.JoinWaitlistAsync(
                 It.IsAny<Guid>(),
@@ -548,11 +600,12 @@ public class SessionsHomePageModelTests
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
         var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
 
-        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.MarinaSessionId);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
 
         sessionsClient.Verify(
             client => client.GetDashboardAsync(It.IsAny<CancellationToken>()),
-            Times.Never);
+            Times.Once);
         pageModel.State.Should().Be(ViewState.Error);
         pageModel.StateTitle.Should().Be("Couldn't join the waitlist");
         pageModel.StateMessage.Should().Be("still space");
