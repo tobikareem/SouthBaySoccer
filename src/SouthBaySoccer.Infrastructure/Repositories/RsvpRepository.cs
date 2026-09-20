@@ -252,8 +252,29 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
             _ => throw new InvalidOperationException("Unsupported RSVP status.")
         };
 
-        return new RsvpMutationResult(sessionId, playerProfileId, state, rsvp.Id);
+        return new RsvpMutationResult(
+            sessionId,
+            playerProfileId,
+            state,
+            rsvp.Id,
+            PickupPalSyncStatus: rsvp.PickupPalSyncStatus);
     }
+
+    public Task<RsvpResponse?> FindRsvpForPickupPalSyncAsync(
+        Guid sessionId,
+        Guid playerProfileId,
+        CancellationToken cancellationToken = default) =>
+        // Cancel soft-deletes the row, so the global filter is bypassed on purpose; the live row
+        // (if any) sorts first, then the most recently written one.
+        dbContext.RsvpResponses
+            .IgnoreQueryFilters()
+            .Where(x => x.SessionId == sessionId && x.PlayerProfileId == playerProfileId)
+            .OrderBy(x => x.IsDeleted)
+            .ThenByDescending(x => x.UpdatedAt ?? x.CreatedAt)
+            .ThenByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public void UpdateRsvp(RsvpResponse rsvp) => dbContext.RsvpResponses.Update(rsvp);
 
     // Ordering happens on an anonymous projection before the record is constructed: EF Core cannot
     // translate member access on a positional-record projection, so OrderBy-after-construct throws
@@ -413,9 +434,23 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
     private static bool IsRetryableSqlFailure(SqlException exception) =>
         exception.Errors.Cast<SqlError>().Any(error => error.Number is 1205 or 2601 or 2627 or 3960);
 
-    private async Task<Session> GetSessionAsync(Guid sessionId, CancellationToken cancellationToken) =>
-        await dbContext.Sessions.SingleOrDefaultAsync(x => x.Id == sessionId, cancellationToken)
+    private async Task<Session> GetSessionAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        // SERIALIZABLE alone does not guarantee mutual exclusion for this method's "read who is
+        // going, decide, then insert a new RsvpResponse/WaitlistEntry" shape: two concurrent
+        // transactions can both take compatible shared range locks over the (SessionId, Status)
+        // key they read and each conclude a spot is free before either inserts. Taking an explicit
+        // update lock on the session row itself - a single, stable resource every RSVP mutation for
+        // this session already reads - forces the second transaction to block until the first
+        // commits or rolls back, regardless of how the range locks over RsvpResponses/WaitlistEntries
+        // play out. HOLDLOCK keeps it held for the life of the ambient transaction.
+        await dbContext.Database
+            .SqlQuery<int>($"SELECT TOP (1) 1 FROM Sessions WITH (UPDLOCK, HOLDLOCK) WHERE Id = {sessionId}")
+            .ToListAsync(cancellationToken);
+
+        return await dbContext.Sessions.SingleOrDefaultAsync(x => x.Id == sessionId, cancellationToken)
             ?? throw new InvalidOperationException("Session was not found.");
+    }
 
     private Task<RsvpResponse?> FindRsvpAsync(Guid sessionId, Guid playerProfileId, CancellationToken cancellationToken) =>
         dbContext.RsvpResponses.SingleOrDefaultAsync(x => x.SessionId == sessionId && x.PlayerProfileId == playerProfileId, cancellationToken);

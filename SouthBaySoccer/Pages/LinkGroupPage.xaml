@@ -4,7 +4,6 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:c="clr-namespace:SouthBaySoccer.Controls"
-    xmlns:contracts="clr-namespace:SouthBaySoccer.Contracts.Groups;assembly=SouthBaySoccer.Contracts"
     xmlns:fonts="clr-namespace:Fonts"
     xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
     xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
@@ -13,7 +12,7 @@
     Shell.NavBarIsVisible="False"
     Shell.TabBarIsVisible="False"
     Style="{StaticResource BrandPage}"
-    Title="Join your group">
+    Title="Join your groups">
 
     <ContentPage.Behaviors>
         <toolkit:EventToCommandBehavior
@@ -29,79 +28,210 @@
         Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
         GlyphFontFamily="FontAwesomeSolid"
         RetryCommand="{Binding RefreshCommand}">
-        <Grid
-            Padding="{StaticResource LayoutPadding}"
-            RowDefinitions="Auto,*,Auto"
-            RowSpacing="{StaticResource SpaceLg}">
+        <Grid>
+            <!-- Step 1: pick every group you play with. -->
+            <Grid
+                Padding="{StaticResource LayoutPadding}"
+                RowDefinitions="Auto,Auto,*,Auto,Auto,Auto"
+                RowSpacing="{StaticResource SpaceMd}"
+                IsVisible="{Binding IsChoosing}">
 
-            <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
-                <Label
-                    Text="Join your group"
-                    Style="{StaticResource TextH1}"
-                    SemanticProperties.HeadingLevel="Level1" />
-                <Label
-                    Text="Choose the WhatsApp group you play with to finish setting up your account."
-                    Style="{StaticResource TextCaption}" />
-            </VerticalStackLayout>
+                <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                    <Label
+                        Text="Step 2 of 2"
+                        Style="{StaticResource TextLabel}" />
+                    <Label
+                        Text="Join your groups"
+                        Style="{StaticResource TextH1}"
+                        SemanticProperties.HeadingLevel="Level1" />
+                    <Label
+                        Text="Pick every WhatsApp group you play with. Groups that already list you on WhatsApp are approved instantly; the rest wait for a group admin."
+                        Style="{StaticResource TextCaption}" />
+                </VerticalStackLayout>
 
-            <CollectionView
-                Grid.Row="1"
-                ItemsSource="{Binding Groups}"
-                SelectionMode="Single"
-                SelectedItem="{Binding SelectedGroup, Mode=TwoWay}">
-                <CollectionView.ItemsLayout>
-                    <LinearItemsLayout Orientation="Vertical" ItemSpacing="{StaticResource SpaceSm}" />
-                </CollectionView.ItemsLayout>
-                <CollectionView.ItemTemplate>
-                    <DataTemplate x:DataType="contracts:GroupChatDto">
-                        <Border
-                            x:Name="GroupRow"
-                            Style="{StaticResource CardSurface}"
-                            MinimumHeightRequest="{StaticResource TouchMin}"
-                            SemanticProperties.Description="{Binding GroupName, StringFormat='{0}, tap to select this group'}">
-                            <VisualStateManager.VisualStateGroups>
-                                <VisualStateGroup x:Name="CommonStates">
-                                    <VisualState x:Name="Normal" />
-                                    <VisualState x:Name="Selected">
-                                        <VisualState.Setters>
-                                            <Setter
-                                                Property="BackgroundColor"
-                                                Value="{AppThemeBinding Light={StaticResource StatSurfaceLight}, Dark={StaticResource StatSurfaceDark}}" />
-                                            <Setter
-                                                Property="Stroke"
-                                                Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
-                                        </VisualState.Setters>
-                                    </VisualState>
-                                </VisualStateGroup>
-                            </VisualStateManager.VisualStateGroups>
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceMd}">
-                                <VerticalStackLayout Spacing="2">
-                                    <Label
-                                        Text="{Binding GroupName}"
-                                        Style="{StaticResource TextBodyStrong}" />
-                                    <Label
-                                        Text="{Binding MemberCount, StringFormat='{0} members'}"
-                                        Style="{StaticResource TextCaption}" />
-                                </VerticalStackLayout>
-                                <Label
-                                    Grid.Column="1"
-                                    Text="{x:Static fonts:FontAwesomeGlyphs.ChevronRight}"
-                                    FontFamily="FontAwesomeSolid"
-                                    Style="{StaticResource TextCaption}"
-                                    VerticalTextAlignment="Center"
-                                    AutomationProperties.IsInAccessibleTree="False" />
-                            </Grid>
+                <VerticalStackLayout Grid.Row="1" Spacing="{StaticResource SpaceSm}" IsVisible="{Binding HasExistingMembership}">
+                    <!-- Groups the player is already in, e.g. auto-approved from WhatsApp at sign-up. -->
+                    <c:BrandCard IsVisible="{Binding HasAlreadyJoined}">
+                        <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                            <Label Text="You're already in" Style="{StaticResource TextLabel}" SemanticProperties.HeadingLevel="Level2" />
+                            <VerticalStackLayout
+                                BindableLayout.ItemsSource="{Binding AlreadyJoined}"
+                                Spacing="{StaticResource SpaceXs}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="pageModels:GroupRequestOutcome">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceSm}"
+                                              MinimumHeightRequest="{StaticResource TouchMin}"
+                                              SemanticProperties.Description="{Binding SemanticDescription}">
+                                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}" FontFamily="FontAwesomeSolid"
+                                                   Style="{StaticResource BrandIconLabel}" VerticalOptions="Center"
+                                                   AutomationProperties.IsInAccessibleTree="False" />
+                                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                                                <Label Text="{Binding Name}" Style="{StaticResource TextBodyStrong}" />
+                                                <Label Text="{Binding Detail}" Style="{StaticResource TextCaption}" />
+                                            </VerticalStackLayout>
+                                            <c:Badge Grid.Column="2" Text="{Binding Status}" Variant="{Binding StatusVariant}" VerticalOptions="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+
+                    <!-- Requests still waiting from an earlier visit. -->
+                    <c:BrandCard IsVisible="{Binding HasAlreadyPending}" IsTinted="True">
+                        <VerticalStackLayout
+                            BindableLayout.ItemsSource="{Binding AlreadyPending}"
+                            Spacing="{StaticResource SpaceXs}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="pageModels:GroupRequestOutcome">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceSm}"
+                                          MinimumHeightRequest="{StaticResource TouchMin}"
+                                          SemanticProperties.Description="{Binding SemanticDescription}">
+                                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}" FontFamily="FontAwesomeSolid"
+                                               Style="{StaticResource BrandIconLabel}"
+                                               TextColor="{AppThemeBinding Light={StaticResource WarningLight}, Dark={StaticResource WarningDark}}"
+                                               VerticalOptions="Center" AutomationProperties.IsInAccessibleTree="False" />
+                                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                                            <Label Text="{Binding Name}" Style="{StaticResource TextBodyStrong}" />
+                                            <Label Text="{Binding Detail}" Style="{StaticResource TextCaption}" />
+                                        </VerticalStackLayout>
+                                        <c:Badge Grid.Column="2" Text="{Binding Status}" Variant="{Binding StatusVariant}" VerticalOptions="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </c:BrandCard>
+                </VerticalStackLayout>
+
+                <CollectionView
+                    Grid.Row="2"
+                    ItemsSource="{Binding Groups}"
+                    SelectionMode="Multiple"
+                    SelectedItems="{Binding SelectedGroups}">
+                    <CollectionView.ItemsLayout>
+                        <LinearItemsLayout Orientation="Vertical" ItemSpacing="{StaticResource SpaceSm}" />
+                    </CollectionView.ItemsLayout>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="pageModels:GroupChoiceItem">
+                            <Border
+                                Style="{StaticResource CardSurface}"
+                                MinimumHeightRequest="{StaticResource TouchMin}"
+                                SemanticProperties.Description="{Binding SemanticDescription}">
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="Selected">
+                                            <VisualState.Setters>
+                                                <Setter
+                                                    Property="BackgroundColor"
+                                                    Value="{AppThemeBinding Light={StaticResource BrandMistLight}, Dark={StaticResource BrandMistDark}}" />
+                                                <Setter
+                                                    Property="Stroke"
+                                                    Value="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceMd}">
+                                    <!-- Mirrors the CollectionView selection; the row itself is the tap target. -->
+                                    <CheckBox
+                                        IsChecked="{Binding IsSelected}"
+                                        InputTransparent="True"
+                                        VerticalOptions="Center"
+                                        AutomationProperties.IsInAccessibleTree="False" />
+                                    <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                        <Label
+                                            Text="{Binding Name}"
+                                            Style="{StaticResource TextBodyStrong}" />
+                                        <Label
+                                            Text="{Binding MemberCountText}"
+                                            Style="{StaticResource TextCaption}" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <Label
+                    Grid.Row="3"
+                    Text="{Binding SelectedCountText}"
+                    Style="{StaticResource TextCaption}"
+                    HorizontalTextAlignment="Center" />
+
+                <Button
+                    Grid.Row="4"
+                    Text="Continue"
+                    Style="{StaticResource PrimaryButton}"
+                    Command="{Binding ContinueCommand}"
+                    SemanticProperties.Description="Request to join the selected groups" />
+
+                <Button
+                    Grid.Row="5"
+                    Text="Skip for now"
+                    Style="{StaticResource LinkButton}"
+                    HorizontalOptions="Center"
+                    Command="{Binding SkipCommand}"
+                    IsVisible="{Binding HasExistingMembership}"
+                    SemanticProperties.Description="Skip joining more groups and continue to upcoming sessions" />
+            </Grid>
+
+            <!-- Step 2: what the server decided for each group. -->
+            <Grid RowDefinitions="Auto,*" IsVisible="{Binding HasResult}">
+                <c:BrandHeader
+                    Title="{Binding ResultTitle}"
+                    Subtitle="{Binding ResultSubtitle}">
+                    <c:BrandHeader.LeadingContent>
+                        <Border Style="{StaticResource IconTileSurface}" VerticalOptions="Center" AutomationProperties.IsInAccessibleTree="False">
+                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.Users}" FontFamily="FontAwesomeSolid"
+                                   Style="{StaticResource BrandIconLabel}"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
                         </Border>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
+                    </c:BrandHeader.LeadingContent>
+                </c:BrandHeader>
+                <ScrollView Grid.Row="1">
+                    <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceLg}">
+                        <c:BrandCard>
+                            <VerticalStackLayout
+                                BindableLayout.ItemsSource="{Binding Outcomes}"
+                                Spacing="{StaticResource SpaceXs}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="pageModels:GroupRequestOutcome">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceSm}"
+                                              MinimumHeightRequest="{StaticResource TouchMin}"
+                                              SemanticProperties.Description="{Binding SemanticDescription}">
+                                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}" FontFamily="FontAwesomeSolid"
+                                                   Style="{StaticResource BrandIconLabel}" VerticalOptions="Center"
+                                                   IsVisible="{Binding IsApproved}" AutomationProperties.IsInAccessibleTree="False" />
+                                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}" FontFamily="FontAwesomeSolid"
+                                                   Style="{StaticResource BrandIconLabel}"
+                                                   TextColor="{AppThemeBinding Light={StaticResource WarningLight}, Dark={StaticResource WarningDark}}"
+                                                   VerticalOptions="Center"
+                                                   IsVisible="{Binding IsPending}"
+                                                   AutomationProperties.IsInAccessibleTree="False" />
+                                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                                                <Label Text="{Binding Name}" Style="{StaticResource TextBodyStrong}" />
+                                                <Label Text="{Binding Detail}" Style="{StaticResource TextCaption}" />
+                                            </VerticalStackLayout>
+                                            <c:Badge Grid.Column="2" Text="{Binding Status}" Variant="{Binding StatusVariant}" VerticalOptions="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </c:BrandCard>
 
-            <Button
-                Grid.Row="2"
-                Text="Continue"
-                Style="{StaticResource PrimaryButton}"
-                Command="{Binding ContinueCommand}"
-                SemanticProperties.Description="Link the selected group and continue" />
+                        <Button
+                            Text="See upcoming sessions"
+                            Style="{StaticResource PrimaryButton}"
+                            Command="{Binding ContinueToAppCommand}"
+                            SemanticProperties.Description="Continue to upcoming sessions" />
+                        <Label
+                            Text="You can join more groups or leave one any time from Profile → My groups."
+                            Style="{StaticResource TextCaption}"
+                            HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
+                </ScrollView>
+            </Grid>
         </Grid>
     </c:StateView>
 </ContentPage>

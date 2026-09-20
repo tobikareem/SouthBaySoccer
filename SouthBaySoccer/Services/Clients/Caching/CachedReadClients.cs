@@ -32,31 +32,148 @@ internal sealed class CachedProfileClient(IProfileClient inner, IClientResponseC
 }
 
 /// <summary>
-/// Caches group membership, which Sessions Home and the post-sign-in gate both read.
+/// Caches group membership reads, which Sessions Home, the post-sign-in gate, Profile, and the
+/// membership screens all share. Every membership write invalidates the whole "groups:" prefix
+/// because each one changes what at least two of these reads report.
 /// </summary>
 internal sealed class CachedGroupsClient(IGroupsClient inner, IClientResponseCache cache) : IGroupsClient
 {
+    internal const string CacheKeyPrefix = "groups:";
     internal const string MyGroupsCacheKey = "groups:me";
-    internal const string AvailableGroupsCacheKey = "groups:available";
+    internal const string CatalogCacheKey = "groups:catalog";
+    internal const string MyMembershipsCacheKey = "groups:memberships";
     private static readonly TimeSpan GroupsTimeToLive = TimeSpan.FromMinutes(5);
+
+    internal static string MembersCacheKey(Guid groupChatId) => $"groups:members:{groupChatId:D}";
 
     public Task<MyGroupsResponse> GetMyGroupsAsync(CancellationToken cancellationToken) =>
         cache.GetOrCreateAsync(MyGroupsCacheKey, GroupsTimeToLive, inner.GetMyGroupsAsync, cancellationToken);
 
-    public Task<IReadOnlyList<GroupChatDto>> GetAvailableGroupsAsync(CancellationToken cancellationToken) =>
-        cache.GetOrCreateAsync(
-            AvailableGroupsCacheKey,
-            GroupsTimeToLive,
-            inner.GetAvailableGroupsAsync,
-            cancellationToken);
+    // Legacy shape served from the cached catalogue so the two reads never issue separate GETs.
+    public async Task<IReadOnlyList<GroupChatDto>> GetAvailableGroupsAsync(CancellationToken cancellationToken) =>
+        ApiGroupsClient.ToLegacyGroups(await GetCatalogAsync(cancellationToken));
 
     public async Task<MyGroupsResponse> LinkAsync(string groupExternalId, CancellationToken cancellationToken)
     {
-        var result = await inner.LinkAsync(groupExternalId, cancellationToken);
-        // Linking changes exactly what these two reads report, so neither may survive it.
-        cache.Invalidate("groups:");
-        return result;
+        try
+        {
+            return await inner.LinkAsync(groupExternalId, cancellationToken);
+        }
+        finally
+        {
+            cache.Invalidate(CacheKeyPrefix);
+        }
     }
+
+    public Task<IReadOnlyList<GroupWithMembershipDto>> GetCatalogAsync(CancellationToken cancellationToken) =>
+        cache.GetOrCreateAsync(CatalogCacheKey, GroupsTimeToLive, inner.GetCatalogAsync, cancellationToken);
+
+    public Task<MyGroupMembershipsResponse> GetMyMembershipsAsync(CancellationToken cancellationToken) =>
+        cache.GetOrCreateAsync(MyMembershipsCacheKey, GroupsTimeToLive, inner.GetMyMembershipsAsync, cancellationToken);
+
+    public async Task<MyGroupMembershipsResponse> RequestMembershipsAsync(
+        IReadOnlyList<Guid> groupChatIds,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await inner.RequestMembershipsAsync(groupChatIds, cancellationToken);
+        }
+        finally
+        {
+            // Invalidate regardless of outcome: a timed-out write may still have been applied.
+            cache.Invalidate(CacheKeyPrefix);
+        }
+    }
+
+    public async Task LeaveAsync(Guid groupChatId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await inner.LeaveAsync(groupChatId, cancellationToken);
+        }
+        finally
+        {
+            // Invalidate regardless of outcome: a timed-out write may still have been applied.
+            cache.Invalidate(CacheKeyPrefix);
+        }
+    }
+
+    public Task<GroupMembersResponse> GetMembersAsync(Guid groupChatId, CancellationToken cancellationToken) =>
+        cache.GetOrCreateAsync(
+            MembersCacheKey(groupChatId),
+            GroupsTimeToLive,
+            token => inner.GetMembersAsync(groupChatId, token),
+            cancellationToken);
+
+    public async Task ApproveAsync(Guid groupChatId, Guid playerProfileId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await inner.ApproveAsync(groupChatId, playerProfileId, cancellationToken);
+        }
+        finally
+        {
+            // Invalidate regardless of outcome: a timed-out write may still have been applied.
+            cache.Invalidate(CacheKeyPrefix);
+        }
+    }
+
+    public async Task DeclineAsync(Guid groupChatId, Guid playerProfileId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await inner.DeclineAsync(groupChatId, playerProfileId, cancellationToken);
+        }
+        finally
+        {
+            // Invalidate regardless of outcome: a timed-out write may still have been applied.
+            cache.Invalidate(CacheKeyPrefix);
+        }
+    }
+
+    public async Task RemoveMemberAsync(Guid groupChatId, Guid playerProfileId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await inner.RemoveMemberAsync(groupChatId, playerProfileId, cancellationToken);
+        }
+        finally
+        {
+            // Invalidate regardless of outcome: a timed-out write may still have been applied.
+            cache.Invalidate(CacheKeyPrefix);
+        }
+    }
+
+    public async Task AddMemberAsync(Guid groupChatId, Guid playerProfileId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await inner.AddMemberAsync(groupChatId, playerProfileId, cancellationToken);
+        }
+        finally
+        {
+            // Invalidate regardless of outcome: a timed-out write may still have been applied.
+            cache.Invalidate(CacheKeyPrefix);
+        }
+    }
+
+    public async Task SetAdminAsync(Guid groupChatId, Guid playerProfileId, bool isAdmin, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await inner.SetAdminAsync(groupChatId, playerProfileId, isAdmin, cancellationToken);
+        }
+        finally
+        {
+            // Invalidate regardless of outcome: a timed-out write may still have been applied.
+            cache.Invalidate(CacheKeyPrefix);
+        }
+    }
+
+    // Not cached: each keystroke is a distinct query and the results must reflect the latest roster.
+    public Task<IReadOnlyList<PlayerSearchResultDto>> SearchPlayersAsync(string query, CancellationToken cancellationToken) =>
+        inner.SearchPlayersAsync(query, cancellationToken);
 }
 
 /// <summary>

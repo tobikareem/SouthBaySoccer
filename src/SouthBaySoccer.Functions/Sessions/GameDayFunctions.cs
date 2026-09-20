@@ -616,7 +616,9 @@ public sealed class GameDayFunctions(
             context.JoinBlockedReason,
             context.Capacity,
             context.CanShowAllGames,
-            context.IsShowingAllGames);
+            context.IsShowingAllGames,
+            context.GroupChatId,
+            context.MembershipStatus);
     }
 
     private static LastGameSummaryDto ToResponse(LastGameSummaryModel summary) =>

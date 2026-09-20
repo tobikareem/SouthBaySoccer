@@ -10,7 +10,13 @@ public sealed class AuthenticationNavigator(
     IServiceProvider services,
     StartupErrorHandler errorHandler) : IAuthenticationNavigator
 {
-    public Task ShowAuthenticatedAppAsync(CancellationToken cancellationToken = default)
+    public Task ShowAuthenticatedAppAsync(CancellationToken cancellationToken = default) =>
+        ShowShellAsync(alwaysOfferGroupChoice: false, cancellationToken);
+
+    public Task ShowGroupChoiceAsync(CancellationToken cancellationToken = default) =>
+        ShowShellAsync(alwaysOfferGroupChoice: true, cancellationToken);
+
+    private Task ShowShellAsync(bool alwaysOfferGroupChoice, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -30,7 +36,7 @@ public sealed class AuthenticationNavigator(
             void OnShellLoaded(object? sender, EventArgs e)
             {
                 shell.Loaded -= OnShellLoaded;
-                NavigateToInitialRouteAsync(shell, cancellationToken).FireAndForgetSafeAsync(errorHandler);
+                NavigateToInitialRouteAsync(shell, alwaysOfferGroupChoice, cancellationToken).FireAndForgetSafeAsync(errorHandler);
             }
 
             shell.Loaded += OnShellLoaded;
@@ -38,19 +44,29 @@ public sealed class AuthenticationNavigator(
         });
     }
 
-    // Routes to the blocking group-link step when the player belongs to no group yet; otherwise lands
-    // on the Sessions tab. A failure resolving link status must not trap the user on a blank shell, so
+    // Routes to the group-link step when the player belongs to no group yet, or always right after
+    // sign-up; otherwise lands on the Sessions tab. A failure resolving link status must not trap the user on a blank shell, so
     // any error falls through to //sessions.
-    private async Task NavigateToInitialRouteAsync(AppShell shell, CancellationToken cancellationToken)
+    private async Task NavigateToInitialRouteAsync(AppShell shell, bool alwaysOfferGroupChoice, CancellationToken cancellationToken)
     {
         var route = "//sessions";
         try
         {
             var groupsClient = services.GetRequiredService<IGroupsClient>();
-            var myGroups = await groupsClient.GetMyGroupsAsync(cancellationToken);
-            if (!myGroups.IsLinked)
+            if (alwaysOfferGroupChoice)
             {
+                // Load the choices up front so a failure lands on //sessions below instead of
+                // stranding a newly registered player on the group step's error state.
+                await groupsClient.GetCatalogAsync(cancellationToken);
                 route = "//link-group";
+            }
+            else
+            {
+                var myGroups = await groupsClient.GetMyGroupsAsync(cancellationToken);
+                if (!myGroups.IsLinked)
+                {
+                    route = "//link-group";
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

@@ -8,6 +8,7 @@
     x:DataType="pageModels:WelcomeBackPageModel"
     Shell.FlyoutBehavior="Disabled"
     Shell.NavBarIsVisible="False"
+    NavigationPage.HasNavigationBar="False"
     Style="{StaticResource BrandPage}">
 
     <Grid RowDefinitions="Auto,*">
@@ -132,33 +133,6 @@
                     </Grid>
                 </Border>
 
-                <Border Style="{StaticResource CardSurface}"
-                        BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}">
-                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <VerticalStackLayout>
-                                <Label Text="PICKUP PAL BOT" Style="{StaticResource TextLabel}" />
-                                <Label Text="{Binding BotDisplayNumber}" Style="{StaticResource TextBodyStrong}" />
-                            </VerticalStackLayout>
-                            <Grid Grid.Column="1">
-                                <Button Text="Open"
-                                        Command="{Binding OpenPickupPalBotCommand}"
-                                        Style="{StaticResource LinkButton}"
-                                        Padding="{StaticResource WelcomeOpenButtonPadding}"
-                                        SemanticProperties.Description="Open the Pickup Pal WhatsApp bot" />
-                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.ArrowUpRightFromSquare}"
-                                       FontFamily="FontAwesomeSolid"
-                                       TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
-                                       HorizontalOptions="Start"
-                                       VerticalTextAlignment="Center"
-                                       InputTransparent="True" />
-                            </Grid>
-                        </Grid>
-                        <Label Text="{x:Static pageModels:WelcomeBackPageModel.BotHelpMessage}"
-                               Style="{StaticResource TextCaption}" />
-                    </VerticalStackLayout>
-                </Border>
-
                 <Grid ColumnDefinitions="*,Auto,*"
                       ColumnSpacing="{StaticResource SpaceSm}"
                       Margin="{StaticResource WelcomeDividerMargin}">
@@ -166,7 +140,7 @@
                              BackgroundColor="{AppThemeBinding Light={StaticResource BrandLineLight}, Dark={StaticResource BrandLineDark}}"
                              VerticalOptions="Center" />
                     <Label Grid.Column="1"
-                           Text="not on pickup pal?"
+                           Text="{x:Static pageModels:WelcomeBackPageModel.NewPlayerDivider}"
                            Style="{StaticResource TextCaption}" />
                     <BoxView Grid.Column="2"
                              HeightRequest="{StaticResource LineThickness}"
@@ -175,11 +149,11 @@
                 </Grid>
 
                 <Grid>
-                    <Button Text="Sign up on Pickup Pal"
-                            Command="{Binding OpenPickupPalSignupCommand}"
+                    <Button Text="Create your account"
+                            Command="{Binding StartSignUpCommand}"
                             Style="{StaticResource GhostButton}"
-                            SemanticProperties.Description="Sign up on Pickup Pal" />
-                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.ArrowUpRightFromSquare}"
+                            SemanticProperties.Description="Create your account" />
+                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.User}"
                            FontFamily="FontAwesomeSolid"
                            FontSize="{StaticResource FontCaption}"
                            TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
@@ -191,7 +165,32 @@
 
                 <Label Text="{x:Static pageModels:WelcomeBackPageModel.SignupHelpMessage}"
                        Style="{StaticResource TextCaption}"
-                       HorizontalTextAlignment="Center" />
+                       HorizontalTextAlignment="Center"
+                       LineHeight="1.5" />
+
+                <Border Style="{StaticResource CardSurface}"
+                        BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout>
+                            <Label Text="{x:Static pageModels:WelcomeBackPageModel.HelpLabel}" Style="{StaticResource TextLabel}" />
+                            <Label Text="Pickup Pal bot" Style="{StaticResource TextBodyStrong}" />
+                            <Label Text="{Binding BotDisplayNumber}" Style="{StaticResource TextCaption}" />
+                        </VerticalStackLayout>
+                        <Grid Grid.Column="1">
+                            <Button Text="Message"
+                                    Command="{Binding OpenPickupPalBotCommand}"
+                                    Style="{StaticResource LinkButton}"
+                                    Padding="{StaticResource WelcomeOpenButtonPadding}"
+                                    SemanticProperties.Description="Message the Pickup Pal WhatsApp bot" />
+                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
+                                   FontFamily="FontAwesomeBrands"
+                                   TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                                   HorizontalOptions="Start"
+                                   VerticalTextAlignment="Center"
+                                   InputTransparent="True" />
+                        </Grid>
+                    </Grid>
+                </Border>
 
                 <Label Text="{Binding StatusMessage}"
                        Style="{StaticResource TextCaption}"

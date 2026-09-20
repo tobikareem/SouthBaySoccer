@@ -92,6 +92,40 @@ public sealed class PickupPalUserSyncServiceTests
     }
 
     [Fact]
+    public async Task SyncAsync_ConfiguredOwnerPhone_PromotesProfileAndTokenSubjectToOwnerEvenWhenAlsoAdmin()
+    {
+        using var provider = CreateServiceProvider(adminPhoneNumbers: "15106949421", ownerPhoneNumbers: "15106949421");
+        var service = provider.GetRequiredService<IPickupPalUserSyncService>();
+        var db = provider.GetRequiredService<SouthBaySoccerDbContext>();
+
+        var subject = await service.SyncAsync(CreatePickupPalUser("pickuppal-user-owner", "owner@example.test"));
+
+        var profile = await db.PlayerProfiles.FindAsync(subject.PlayerProfileId);
+        profile!.Role.Should().Be(PlayerRole.Owner, "a number in both lists is an owner");
+        subject.Roles.Should().ContainSingle().Which.Should().Be(PlayerRole.Owner.ToString());
+    }
+
+    [Fact]
+    public async Task SyncAsync_WhenOwnerNumberIsRemovedFromConfiguration_DemotesOwnerOnNextSignIn()
+    {
+        using (var promoted = CreateServiceProvider(ownerPhoneNumbers: "15106949421"))
+        {
+            await promoted.GetRequiredService<IPickupPalUserSyncService>()
+                .SyncAsync(CreatePickupPalUser("pickuppal-user-demote", "demote@example.test"));
+        }
+
+        using var provider = CreateServiceProvider(adminPhoneNumbers: "15106949421");
+        var service = provider.GetRequiredService<IPickupPalUserSyncService>();
+        var db = provider.GetRequiredService<SouthBaySoccerDbContext>();
+
+        var subject = await service.SyncAsync(CreatePickupPalUser("pickuppal-user-demote", "demote@example.test"));
+
+        var profile = await db.PlayerProfiles.FindAsync(subject.PlayerProfileId);
+        profile!.Role.Should().Be(PlayerRole.GameAdmin, "the owner promotion is reversible; the admin number still applies");
+        subject.Roles.Should().ContainSingle().Which.Should().Be(PlayerRole.GameAdmin.ToString());
+    }
+
+    [Fact]
     public async Task SyncAsync_WhenUnclaimedImportedProfileMatchesByPhoneHash_ClaimsItAndPromotesToPlayer()
     {
         using var provider = CreateServiceProvider();
@@ -128,20 +162,43 @@ public sealed class PickupPalUserSyncServiceTests
         claimed.IsGuest.Should().BeFalse();
     }
 
+    // Regression test for a production incident: Identity's RequireUniqueEmail check calls
+    // UserManager.FindByEmailAsync internally, whose EF Core store does
+    // Users.SingleOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail). When normalizedEmail
+    // is null (a player who signed up on Pickup Pal's WhatsApp bot without setting an email), EF's
+    // null-safe translation matches every row where NormalizedEmail IS NULL, so the second such
+    // player to sign in made SingleOrDefaultAsync throw "Sequence contains more than one element",
+    // surfacing to every affected player as a 500 and "could not reach the sign-in service."
+    [Fact]
+    public async Task SyncAsync_SecondNewUserWithNoEmail_DoesNotThrow()
+    {
+        using var provider = CreateServiceProvider();
+        var service = provider.GetRequiredService<IPickupPalUserSyncService>();
+
+        await service.SyncAsync(CreatePickupPalUser("pickuppal-user-no-email-1", null, "15106949431"));
+        var act = () => service.SyncAsync(CreatePickupPalUser("pickuppal-user-no-email-2", null, "15106949432"));
+
+        await act.Should().NotThrowAsync();
+    }
+
     private static string Sha256Hex(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
-    private ServiceProvider CreateServiceProvider(string adminPhoneNumbers = "")
+    private ServiceProvider CreateServiceProvider(string adminPhoneNumbers = "", string ownerPhoneNumbers = "")
     {
         var services = new ServiceCollection();
-        services.Configure<AdminPhoneNumberOptions>(options => options.AdminPhoneNumbers = adminPhoneNumbers);
+        services.Configure<AdminPhoneNumberOptions>(options =>
+        {
+            options.AdminPhoneNumbers = adminPhoneNumbers;
+            options.OwnerPhoneNumbers = ownerPhoneNumbers;
+        });
         services.AddInfrastructure(database.ConnectionString);
         return services.BuildServiceProvider();
     }
 
     private static PickupPalUser CreatePickupPalUser(
         string id,
-        string email,
+        string? email,
         string phoneNumber = "15106949421") =>
         new(
             id,

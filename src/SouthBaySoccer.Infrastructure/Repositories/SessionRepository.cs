@@ -11,6 +11,13 @@ internal sealed class SessionRepository(SouthBaySoccerDbContext dbContext) : ISe
     public Task<Session?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.Sessions.SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
 
+    public Task<Session?> FindForPickupPalSyncAsync(Guid sessionId, CancellationToken cancellationToken = default) =>
+        // Deleting a session must still terminate the Pickup Pal game it created, so the
+        // soft-delete filter is bypassed on purpose.
+        dbContext.Sessions
+            .IgnoreQueryFilters()
+            .SingleOrDefaultAsync(x => x.Id == sessionId, cancellationToken);
+
     public Task<Session?> FindByOccurrenceKeyAsync(string occurrenceKey, CancellationToken cancellationToken = default) =>
         dbContext.Sessions.SingleOrDefaultAsync(x => x.OccurrenceKey == occurrenceKey, cancellationToken);
 
@@ -42,7 +49,25 @@ internal sealed class SessionRepository(SouthBaySoccerDbContext dbContext) : ISe
         // to the oldest; the single-key lookup used SingleOrDefault and simply threw on duplicates.
         var keyArray = occurrenceKeys as string[] ?? occurrenceKeys.ToArray();
         return await dbContext.Sessions
+            .IgnoreQueryFilters()
             .Where(x => x.OccurrenceKey != null && keyArray.Contains(x.OccurrenceKey))
+            .OrderBy(x => x.CreatedAt)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Session>> ListByPickupPalGameIdsAsync(
+        IReadOnlyCollection<string> gameIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (gameIds.Count == 0)
+        {
+            return [];
+        }
+
+        var idArray = gameIds as string[] ?? gameIds.ToArray();
+        return await dbContext.Sessions
+            .IgnoreQueryFilters()
+            .Where(x => x.PickupPalGameId != null && idArray.Contains(x.PickupPalGameId))
             .OrderBy(x => x.CreatedAt)
             .ToArrayAsync(cancellationToken);
     }

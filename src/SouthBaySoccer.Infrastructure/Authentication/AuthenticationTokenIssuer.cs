@@ -16,8 +16,17 @@ public sealed class AuthenticationTokenIssuer(
     IRefreshTokenHasher refreshTokenHasher,
     IRefreshTokenSecretGenerator refreshTokenSecretGenerator) : IAuthenticationTokenIssuer
 {
+    /// <summary>Refresh-token lifetime used when the caller does not ask for a specific one.</summary>
+    public static readonly TimeSpan DefaultRefreshTokenLifetime = TimeSpan.FromDays(30);
+
+    public Task<AuthenticationTokenSet> IssueTokensAsync(
+        AuthenticationTokenSubject subject,
+        CancellationToken cancellationToken = default) =>
+        IssueTokensAsync(subject, DefaultRefreshTokenLifetime, cancellationToken);
+
     public async Task<AuthenticationTokenSet> IssueTokensAsync(
         AuthenticationTokenSubject subject,
+        TimeSpan refreshTokenLifetime,
         CancellationToken cancellationToken = default)
     {
         var policies = AuthenticationPolicyMapper.FromRoles(subject.Roles);
@@ -32,7 +41,7 @@ public sealed class AuthenticationTokenIssuer(
             PlayerProfileId = subject.PlayerProfileId,
             TokenHash = refreshTokenHasher.Hash(refreshTokenSecret),
             FamilyId = Guid.NewGuid(),
-            ExpiresAtUtc = now.AddDays(30),
+            ExpiresAtUtc = now.Add(refreshTokenLifetime),
             CreatedAt = now,
             CreatedBy = subject.IdentityUserId.ToString("D"),
         };

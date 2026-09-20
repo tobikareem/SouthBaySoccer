@@ -30,6 +30,13 @@ public sealed class ShellProfileNavigator : IProfileNavigator
     public Task OpenLeaderboardAsync() => Shell.Current.GoToAsync("//stats");
 
     public Task GoBackAsync() => Shell.Current.GoToAsync("..");
+
+    public Task OpenMyGroupsAsync() => Shell.Current.GoToAsync("my-groups");
+
+    public Task OpenGroupMembersAsync(Guid groupChatId) =>
+        Shell.Current.GoToAsync($"group-members?{GroupMembersPageModel.GroupIdQueryKey}={groupChatId:D}");
+
+    public Task OpenSuperAdminGroupsAsync() => Shell.Current.GoToAsync("super-admin-groups");
 }
 
 public static class ProfileFeatureServiceCollectionExtensions

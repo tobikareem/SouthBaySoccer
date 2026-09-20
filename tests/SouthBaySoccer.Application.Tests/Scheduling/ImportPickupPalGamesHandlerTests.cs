@@ -3,6 +3,7 @@ using FluentAssertions;
 using Moq;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Features.Scheduling;
+using SouthBaySoccer.Domain.Entities.Groups;
 using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Enumerations;
@@ -44,6 +45,43 @@ public sealed class ImportPickupPalGamesHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenGameGroupMatchesTheCatalogue_AttachesSessionToGroupWithoutPersistingTheId()
+    {
+        var context = new TestContext();
+        var group = new GroupChat { Id = Guid.NewGuid(), ExternalId = "fire-fc@g.us", GroupName = "Fire FC" };
+        context.GroupChatRepository
+            .Setup(x => x.ListByExternalIdsAsync(
+                It.Is<IReadOnlyCollection<string>>(ids => ids.Contains("fire-fc@g.us")),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([group]);
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame() with { GroupExternalId = "fire-fc@g.us" }]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedSession!.GroupChatId.Should().Be(group.Id);
+        context.AddedSnapshot!.SanitizedGameJson.Should().NotContain("fire-fc@g.us", "the group id never lands on the snapshot");
+        context.GroupChatRepository.Verify(x => x.AddAsync(It.IsAny<GroupChat>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenGameGroupIsUnknown_LeavesSessionWithoutGroup()
+    {
+        var context = new TestContext();
+        context.GroupChatRepository
+            .Setup(x => x.ListByExternalIdsAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame() with { GroupExternalId = "unknown@g.us" }]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedSession!.GroupChatId.Should().BeNull();
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenSessionExistsWithMatchingOccurrenceKey_AdoptsAndOverwritesIt()
     {
         var existing = new Session
@@ -69,6 +107,157 @@ public sealed class ImportPickupPalGamesHandlerTests
         context.AddedSession.Should().BeNull("a session this import previously created is adopted, not duplicated");
         existing.Capacity.Should().Be(10, "Pickup Pal is the source of truth on re-import");
         context.SessionRepository.Verify(x => x.Update(existing), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenGameIsImported_MarksTheSessionAsPickupPalOwned()
+    {
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame()]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedSession!.PickupPalOrigin.Should().Be(PickupPalOrigin.Imported);
+        context.AddedSession.PickupPalGameId.Should().Be("game-1");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenSessionWasCreatedByTheApp_KeepsAppOwnershipAndFields()
+    {
+        // The app published this session and created the game itself (SES-7): a re-import must
+        // recognise it by its occurrence key, keep CreatedByApp, and leave the admin's fields and
+        // venue alone (the game's location is our own "name, address" string).
+        var existing = new Session
+        {
+            Id = Guid.NewGuid(),
+            VenueId = Guid.NewGuid(),
+            Capacity = 20,
+            Title = "Caribbean Park - Friday pickup",
+            Format = "9v9",
+            StartsAtUtc = GameStartUtc.AddHours(1),
+            OccurrenceKey = "pickuppal:game-1",
+            Status = SessionStatus.Canceled,
+            PickupPalOrigin = PickupPalOrigin.CreatedByApp,
+            PickupPalGameId = "game-1",
+        };
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame()]);
+        context.SessionRepository
+            .Setup(x => x.FindByOccurrenceKeyAsync("pickuppal:game-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.ImportedCount.Should().Be(1);
+        context.AddedSession.Should().BeNull("the app-created session is adopted, not duplicated");
+        existing.PickupPalOrigin.Should().Be(PickupPalOrigin.CreatedByApp);
+        existing.PickupPalGameId.Should().Be("game-1");
+        existing.Capacity.Should().Be(20, "the app owns the fields of a game it created");
+        existing.Title.Should().Be("Caribbean Park - Friday pickup");
+        existing.StartsAtUtc.Should().Be(GameStartUtc.AddHours(1));
+        existing.Status.Should().Be(SessionStatus.Canceled, "re-import never republishes an app-canceled session");
+        context.VenueAddCount.Should().Be(0, "no venue is derived from our own location string");
+        context.AddedSnapshot.Should().NotBeNull("the roster snapshot still refreshes");
+        context.AddedSnapshot!.SessionId.Should().Be(existing.Id);
+        context.SessionRepository.Verify(x => x.Update(existing), Times.Never, "the identity was already confirmed, so no session write is issued");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAppCreatedSessionKeepsItsRecurrenceKey_LinksByGameIdWithoutRewritingTheKey()
+    {
+        var recurrenceKey = $"{Guid.NewGuid():N}:20260724T043000Z";
+        var existing = new Session
+        {
+            Id = Guid.NewGuid(),
+            VenueId = Guid.NewGuid(),
+            Capacity = 20,
+            Title = "Caribbean Park - Friday pickup",
+            StartsAtUtc = GameStartUtc,
+            OccurrenceKey = recurrenceKey,
+            Status = SessionStatus.Published,
+            PickupPalOrigin = PickupPalOrigin.CreatedByApp,
+            PickupPalGameId = "game-1",
+        };
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame()]);
+        context.SessionRepository
+            .Setup(x => x.ListByPickupPalGameIdsAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([existing]);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.ImportedCount.Should().Be(1);
+        context.AddedSession.Should().BeNull("the session is found by its game id, not its occurrence key");
+        existing.OccurrenceKey.Should().Be(recurrenceKey, "the recurrence key stays the dedupe key");
+        existing.PickupPalGameId.Should().Be("game-1");
+        context.SessionRepository.Verify(x => x.Update(existing), Times.Never, "nothing on the session changed");
+        context.AddedSnapshot.Should().NotBeNull();
+        context.AddedSnapshot!.SessionId.Should().Be(existing.Id);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAppCreatedSessionIsDeleted_SkipsTheGameInsteadOfResurrectingIt()
+    {
+        // The admin deleted the session and its game is being terminated (immediately or from the
+        // outbox); the active feed may still list the game for a while.
+        var deleted = new Session
+        {
+            Id = Guid.NewGuid(),
+            OccurrenceKey = "pickuppal:game-1",
+            Status = SessionStatus.Published,
+            PickupPalOrigin = PickupPalOrigin.CreatedByApp,
+            PickupPalGameId = "game-1",
+            IsDeleted = true,
+        };
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame()]);
+        context.SessionRepository
+            .Setup(x => x.FindByOccurrenceKeyAsync("pickuppal:game-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(deleted);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.ImportedCount.Should().Be(0);
+        result.SkippedCount.Should().Be(1);
+        context.AddedSession.Should().BeNull();
+        context.AddedSnapshot.Should().BeNull();
+        context.SessionRepository.Verify(x => x.Update(It.IsAny<Session>()), Times.Never);
+        context.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenImportedSessionIsDeleted_CreatesAFreshSessionForTheGame()
+    {
+        var deleted = new Session
+        {
+            Id = Guid.NewGuid(),
+            OccurrenceKey = "pickuppal:game-1",
+            Status = SessionStatus.Published,
+            PickupPalOrigin = PickupPalOrigin.Imported,
+            PickupPalGameId = "game-1",
+            IsDeleted = true,
+        };
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame()]);
+        context.SessionRepository
+            .Setup(x => x.FindByOccurrenceKeyAsync("pickuppal:game-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(deleted);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.ImportedCount.Should().Be(1);
+        context.AddedSession.Should().NotBeNull("a deleted imported session is never resurrected");
+        context.AddedSession!.Id.Should().NotBe(deleted.Id);
     }
 
     [Fact]
@@ -637,6 +826,8 @@ public sealed class ImportPickupPalGamesHandlerTests
 
         public IReadOnlyList<PickupPalGameParticipant>? ReplacedParticipants { get; private set; }
 
+        public Mock<IGroupChatRepository> GroupChatRepository { get; } = new();
+
         private readonly Mock<ISeasonRepository> _seasonRepository = new();
         private readonly Mock<IVenueRepository> _venueRepository = new();
         private readonly Mock<IClock> _clock = new();
@@ -710,6 +901,11 @@ public sealed class ImportPickupPalGamesHandlerTests
                     It.IsAny<CancellationToken>()))
                 .Returns((IReadOnlyCollection<string> keys, CancellationToken token) =>
                     ResolveManyAsync(keys, key => SessionRepository.Object.FindByOccurrenceKeyAsync(key, token)));
+            SessionRepository
+                .Setup(x => x.ListByPickupPalGameIdsAsync(
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<Session>());
             PlayerProfileRepository
                 .Setup(x => x.ListByPickupPalUserIdsAsync(
                     It.IsAny<IReadOnlyCollection<string>>(),
@@ -775,14 +971,16 @@ public sealed class ImportPickupPalGamesHandlerTests
         }
 
         public ImportPickupPalGamesCommandHandler CreateHandler() =>
+            new(GamesClient.Object, CreateImportService(), UnitOfWork.Object);
+
+        public PickupPalGameImportService CreateImportService() =>
             new(
-                GamesClient.Object,
                 GameRepository.Object,
                 SessionRepository.Object,
                 _seasonRepository.Object,
                 _venueRepository.Object,
                 PlayerProfileRepository.Object,
-                UnitOfWork.Object,
+                GroupChatRepository.Object,
                 _clock.Object);
     }
 }
