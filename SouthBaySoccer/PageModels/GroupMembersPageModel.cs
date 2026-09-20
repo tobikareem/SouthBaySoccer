@@ -121,11 +121,19 @@ public partial class GroupMembersPageModel(
     {
         // A fresh keystroke supersedes any search still in flight.
         CancelSearch();
+        ActionMessage = string.Empty;
+        SearchResults = [];
 
         var fragment = value.Trim();
         if (fragment.Length < MinimumSearchLength)
         {
             SearchResults = [];
+            return;
+        }
+
+        if (!PlayerNameSearch.IsValid(fragment))
+        {
+            ActionMessage = PlayerNameSearch.ValidationMessage;
             return;
         }
 

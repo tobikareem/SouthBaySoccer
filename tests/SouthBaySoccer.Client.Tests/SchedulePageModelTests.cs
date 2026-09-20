@@ -13,6 +13,46 @@ namespace SouthBaySoccer.Client.Tests;
 
 public class SchedulePageModelTests
 {
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("None", false)]
+    [InlineData("Pending", false)]
+    [InlineData("Removed", false)]
+    [InlineData("Withdrawn", false)]
+    [InlineData("Declined", false)]
+    [InlineData("Approved", true)]
+    public async Task JoinWaitlist_GroupedSession_RequiresApprovedMembership(string? membershipStatus, bool mayJoin)
+    {
+        var session = new SeedState().GetDashboard().ComingUpSessions.Single() with
+        {
+            GroupChatId = Guid.NewGuid(),
+            MembershipStatus = membershipStatus,
+            CanJoin = true,
+        };
+        var client = ClientReturning(Dashboard(null, session));
+        client.Setup(x => x.JoinWaitlistAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Success);
+        var pageModel = CreatePageModel(client.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(session.Id);
+
+        pageModel.Groups.SelectMany(group => group.Sessions).Single().ShowJoinWaitlist.Should().Be(mayJoin);
+        client.Verify(x => x.JoinWaitlistAsync(session.Id, It.IsAny<CancellationToken>()),
+            mayJoin ? Times.Once() : Times.Never());
+    }
+
+    [Fact]
+    public async Task JoinWaitlist_BeforeScheduleLoads_DoesNotCallClient()
+    {
+        var client = new Mock<ISessionsClient>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(client.Object);
+
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
+
+        client.VerifyNoOtherCalls();
+    }
+
     // FixedTimeProvider pins "today" to Sun 2026-07-05 UTC, so the Sunday-start weeks are
     // Jul 5-11 (this week), Jul 12-18 (next week), and Jul 19+ falls into month groups.
     private static readonly DateTime ThisWeekStart = new(2026, 7, 6, 16, 0, 0, DateTimeKind.Utc);
@@ -193,6 +233,7 @@ public class SchedulePageModelTests
             .Returns((CancellationToken _) => Task.FromResult(state.GetDashboard()));
         var pageModel = CreatePageModel(sessionsClient.Object);
 
+        await pageModel.AppearingCommand.ExecuteAsync(null);
         await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
 
         var session = pageModel.Groups
@@ -215,7 +256,10 @@ public class SchedulePageModelTests
             .ReturnsAsync(ClientCommandResult.Failure("rsvp_closed", "RSVP is closed."));
         var pageModel = CreatePageModel(sessionsClient.Object);
 
-        await pageModel.JoinWaitlistCommand.ExecuteAsync(Guid.NewGuid());
+        sessionsClient.Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SeedState().GetDashboard());
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
 
         pageModel.State.Should().Be(ViewState.Error);
         pageModel.StateTitle.Should().Be("Couldn't join the waitlist");

@@ -66,7 +66,7 @@ public sealed class ImportPickupPalGamesHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_WhenGameGroupIsUnknown_LeavesSessionWithoutGroup()
+    public async Task HandleAsync_WhenGameGroupIsUnknown_CreatesGroupBeforeAttachingSession()
     {
         var context = new TestContext();
         context.GroupChatRepository
@@ -78,7 +78,32 @@ public sealed class ImportPickupPalGamesHandlerTests
 
         await context.CreateHandler().HandleAsync();
 
-        context.AddedSession!.GroupChatId.Should().BeNull();
+        context.AddedSession!.GroupChatId.Should().NotBeNull();
+        context.GroupChatRepository.Verify(x => x.AddAsync(
+            It.Is<GroupChat>(group => group.Id == context.AddedSession.GroupChatId
+                && group.ExternalId == "unknown@g.us" && group.GroupName == SampleGame().GroupName),
+            It.IsAny<CancellationToken>()), Times.Once);
+        context.AddedSnapshot!.SanitizedGameJson.Should().NotContain("unknown@g.us");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenMultipleGamesShareUnknownGroup_CreatesOneGroupForThePass()
+    {
+        var context = new TestContext();
+        var game = SampleGame() with { GroupExternalId = "new-group@g.us" };
+        context.GroupChatRepository
+            .Setup(x => x.ListByExternalIdsAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        context.GamesClient.Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([game, game with { Id = "another-game" }]);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.ImportedCount.Should().Be(2);
+        context.GroupChatRepository.Verify(x => x.AddAsync(
+            It.Is<GroupChat>(group => group.ExternalId == "new-group@g.us"),
+            It.IsAny<CancellationToken>()), Times.Once);
+        context.AddedSession!.GroupChatId.Should().NotBeNull();
     }
 
     [Fact]

@@ -37,7 +37,7 @@ client is untouched (every new contract member is additive and the new shapes li
   refinement in `.ai/memory/pickuppal-games-import.md`; story index row; M16 section in `tasks.md`.
   — Stories: `GRP-1` · Depends on: M16.5.
 
-- [ ] **M16.7** MAUI: join-groups picker (`groups/catalog`, `players/me/memberships/requests`),
+- [x] **M16.7** MAUI: join-groups picker (`groups/catalog`, `players/me/memberships/requests`),
   view-only rendering off `CanJoin` / `MembershipStatus` and the `group-membership-required`
   problem type, members screen for group admins, owner tools (add member, appoint admin, search).
   — Stories: `GRP-1` · Projects: SouthBaySoccer · Depends on: M16.4.

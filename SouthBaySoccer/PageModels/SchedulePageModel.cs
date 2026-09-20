@@ -68,6 +68,12 @@ public partial class SchedulePageModel(
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task JoinWaitlist(Guid sessionId, CancellationToken cancellationToken)
     {
+        if (State != ViewState.Content || !Groups.SelectMany(group => group.Sessions)
+                .Any(session => session.Id == sessionId && session.ShowJoinWaitlist))
+        {
+            return;
+        }
+
         try
         {
             var result = await sessionsClient.JoinWaitlistAsync(sessionId, cancellationToken);

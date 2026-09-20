@@ -15,12 +15,12 @@ public static class GroupMembershipAuthorization
 
 /// <summary>
 /// Enforces the group rule on group-scoped actions and projects a session's group access for
-/// read models. A session without a group behaves as before (open to every signed-in player).
+/// read models. App-only sessions without a group are open; unresolved imported groups are closed.
 /// </summary>
 public interface IGroupMembershipGate
 {
     /// <summary>
-    /// Throws <see cref="GroupMembershipRequiredException"/> unless the session has no group or
+    /// Throws <see cref="GroupMembershipRequiredException"/> unless an app-only session has no group or
     /// the player holds an approved membership in it.
     /// </summary>
     Task EnsureCanJoinAsync(Session session, Guid playerProfileId, CancellationToken cancellationToken = default);
@@ -40,6 +40,11 @@ public sealed class GroupMembershipGate(
     {
         if (session.GroupChatId is not { } groupChatId)
         {
+            if (HasUnresolvedImportedGroup(session))
+            {
+                throw new GroupMembershipRequiredException("this group");
+            }
+
             return;
         }
 
@@ -64,7 +69,7 @@ public sealed class GroupMembershipGate(
             .ToArray();
         if (groupIds.Length == 0)
         {
-            return sessions.ToDictionary(session => session.Id, _ => SessionGroupAccess.Open);
+            return sessions.ToDictionary(session => session.Id, ResolveUngroupedAccess);
         }
 
         var groupsById = (await groupChatRepository.ListByIdsAsync(groupIds, cancellationToken))
@@ -78,7 +83,7 @@ public sealed class GroupMembershipGate(
             {
                 if (session.GroupChatId is not { } groupChatId)
                 {
-                    return SessionGroupAccess.Open;
+                    return ResolveUngroupedAccess(session);
                 }
 
                 var status = statusByGroupId.TryGetValue(groupChatId, out var found) ? found : (GroupMembershipStatus?)null;
@@ -89,4 +94,15 @@ public sealed class GroupMembershipGate(
                     CanJoin: status == GroupMembershipStatus.Approved);
             });
     }
+
+    internal static bool HasUnresolvedImportedGroup(Session session) =>
+        session.GroupChatId is null
+        && (session.PickupPalOrigin == PickupPalOrigin.Imported
+            || (session.PickupPalOrigin != PickupPalOrigin.CreatedByApp
+                && session.OccurrenceKey?.StartsWith("pickuppal:", StringComparison.Ordinal) == true));
+
+    private static SessionGroupAccess ResolveUngroupedAccess(Session session) =>
+        HasUnresolvedImportedGroup(session)
+            ? new SessionGroupAccess(null, "this group", null, CanJoin: false)
+            : SessionGroupAccess.Open;
 }

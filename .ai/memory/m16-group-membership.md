@@ -43,10 +43,12 @@ lives in our database and is never written to Pickup Pal** (the `/linked` read i
   only; leave = self), `SetRoleAsync` (Approved only). `DELETE players/me/memberships/{id}` is
   idempotent: Pending -> Withdrawn, Approved -> Removed, anything else is a no-op.
 - **Gate:** `IGroupMembershipGate.EnsureCanJoinAsync(session, player)` runs in `SubmitRsvp`
-  **only for `Going`** (and the waitlist it may land on), `SelfCheckIn`, and `ClaimParticipant`;
-  Maybe / NotGoing, `CancelRsvp`, admin check-in, admin RSVP override, and participant linking are
-  not gated, so a removed member can always step back. A session with no
-  `GroupChatId` is open. Failure -> `GroupMembershipRequiredException(groupName)` -> **403** with
+  **for every submitted RSVP intent** (Going / Maybe / NotGoing), `SelfCheckIn`, and `ClaimParticipant`;
+  `CancelRsvp`, admin check-in, admin RSVP override, and participant linking are
+  not gated, so a removed member can cancel their existing spot while the RSVP window is open.
+  An app-only session with no `GroupChatId` is open; an imported session missing its group is
+  closed for joining. Waitlist promotion batches approved memberships inside the cancellation
+  transaction and skips candidates whose membership ended. Failure -> `GroupMembershipRequiredException(groupName)` -> **403** with
   type `https://southbaysoccer/problems/group-membership-required`
   (`ProblemDetailsMapper.GroupMembershipRequiredProblemType`), detail names only the group.
 - **Projection, never filtering:** `ResolveAccessAsync` adds `GroupChatId`, `GroupName`,
@@ -78,7 +80,8 @@ lives in our database and is never written to Pickup Pal** (the `/linked` read i
   their shapes.
 - **Import attaches the group:** `PickupPalGame.GroupExternalId` (`[JsonIgnore]`, read from the
   game's `group.groupId`) is matched to `GroupChat.ExternalId` in `PickupPalGameImportService`;
-  match -> `Session.GroupChatId`; no match -> unchanged; nothing is created; the id never lands on
+  match -> `Session.GroupChatId`; an unknown id creates a local group from the game's display name
+  and attaches the session (one group per external id per import pass). The id never lands on
   the snapshot and is never logged (see [[pickuppal-games-import]]). `CreatedByApp` sessions keep
   their own group.
 - **Migration `AddGroupMembershipApproval`** (controlled deploy): fail-closed column defaults
@@ -87,9 +90,22 @@ lives in our database and is never written to Pickup Pal** (the `/linked` read i
 
 ## Deliberately out of scope
 
-MAUI screens (M16.7), admin notifications for pending requests, bans (a removed player may ask
+Admin notifications for pending requests, bans (a removed player may ask
 again), Pickup Pal writes of any kind, and re-issuing tokens when a player becomes a group admin
 (the check is per request in the handler, so no re-sign-in is needed).
+
+## Client and catalogue follow-through
+
+- MAUI group selection, My groups, member management, and owner tools are implemented (M16.7).
+  Withdrawn requests reappear under Join another group. Name search rejects email/phone-like
+  fragments before constructing an HTTP URL, in both the page model and API client.
+- Nonmembers never see RSVP / join-waitlist buttons. Grouped responses require explicit Approved
+  membership as well as CanJoin, and commands enforce the same restriction. Existing spots can
+  only be released through a separate Cancel my spot button; capacity never blocks withdrawal.
+- `groups/catalog` reconciles Pickup Pal's read-only all-groups list before returning local ids;
+  outages fall back to stored groups. Discovery grants no membership.
+- A conflicting membership batch or catalogue insert returns 409, not false success. Refresh and
+  retry; do not swallow uniqueness conflicts that may roll back other rows in the same batch.
 
 Related: [[pickuppal-groupchat-read-only]], [[pickuppal-phone-sign-in]], [[m15-pickuppal-game-creation]],
 [[m14-pickuppal-roster-sync]], [[functions-pipeline-authz]], [[functions-problem-details]],
