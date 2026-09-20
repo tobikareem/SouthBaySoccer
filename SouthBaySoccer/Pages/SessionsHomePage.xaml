@@ -313,7 +313,7 @@
                                         </Label>
                                         <Button Text="Join waitlist"
                                                 Style="{StaticResource GhostButton}"
-                                                IsVisible="{Binding CanJoinWaitlist}"
+                                                IsVisible="{Binding ShowJoinWaitlist}"
                                                 Command="{Binding Source={x:Reference SessionsHome}, Path=BindingContext.JoinWaitlistCommand, x:DataType=ContentPage}"
                                                 CommandParameter="{Binding Id}"
                                                 SemanticProperties.Description="{Binding WaitlistActionDescription}">

@@ -120,6 +120,11 @@ public sealed class ApiGroupsClient(HttpClient httpClient) : IGroupsClient
 
     public async Task<IReadOnlyList<PlayerSearchResultDto>> SearchPlayersAsync(string query, CancellationToken cancellationToken)
     {
+        if (!PlayerNameSearch.IsValid(query))
+        {
+            throw new ArgumentException(PlayerNameSearch.ValidationMessage, nameof(query));
+        }
+
         // The only personal data allowed in a query string is the name fragment the admin typed.
         using var response = await httpClient.GetAsync(
             $"players/search?q={Uri.EscapeDataString(query)}",
@@ -142,4 +147,17 @@ public sealed class ApiGroupsClient(HttpClient httpClient) : IGroupsClient
             cancellationToken);
         response.EnsureSuccessStatusCode();
     }
+}
+
+/// <summary>Mirrors the server's name-only search boundary before any query enters an HTTP URL.</summary>
+internal static class PlayerNameSearch
+{
+    public const string ValidationMessage = "Search by name only (2–64 characters).";
+
+    public static bool IsValid(string? query) =>
+        !string.IsNullOrWhiteSpace(query)
+        && query.Trim().Length >= 2
+        && query.Length <= 64
+        && !query.Contains('@')
+        && query.Count(char.IsDigit) < 4;
 }

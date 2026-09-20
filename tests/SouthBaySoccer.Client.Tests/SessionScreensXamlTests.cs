@@ -11,6 +11,38 @@ namespace SouthBaySoccer.Client.Tests;
 // phones (NFR-Accessibility).
 public class SessionScreensXamlTests
 {
+    [Fact]
+    public void SessionsHomePage_WaitlistAction_UsesMembershipAwareVisibility()
+    {
+        var buttons = LoadXaml(HomePage).Descendants()
+            .Where(element => (Attr(element, "Command") ?? string.Empty).Contains("JoinWaitlistCommand"))
+            .ToArray();
+
+        buttons.Should().NotBeEmpty();
+        buttons.Should().OnlyContain(button => Attr(button, "IsVisible") == "{Binding ShowJoinWaitlist}");
+    }
+
+    [Fact]
+    public void GameDayPage_JoinAction_UsesMembershipAwareVisibility()
+    {
+        var button = LoadXaml("GameDayPage.xaml").Descendants()
+            .Single(element => Attr(element, "Command") == "{Binding JoinCommand}");
+
+        Attr(button, "IsVisible").Should().Be("{Binding CanJoin}");
+    }
+
+    [Fact]
+    public void SchedulePage_WaitlistAction_UsesMembershipAwareVisibility()
+    {
+        var document = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "Client", "XamlAll", "Pages", "SchedulePage.xaml"));
+        var buttons = document.Descendants()
+            .Where(element => (Attr(element, "Command") ?? string.Empty).Contains("JoinWaitlistCommand"))
+            .ToArray();
+
+        buttons.Should().NotBeEmpty();
+        buttons.Should().OnlyContain(button => Attr(button, "IsVisible") == "{Binding ShowJoinWaitlist}");
+    }
+
     private const string HomePage = "SessionsHomePage.xaml";
     private const string DetailPage = "SessionDetailPage.xaml";
 

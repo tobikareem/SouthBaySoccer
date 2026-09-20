@@ -187,7 +187,8 @@ public partial class GroupsMinePageModel(
                 .Select(group => MembershipRowItem.From(group, byGroup.GetValueOrDefault(group.Id)))
                 .ToArray();
             JoinableGroups = catalog
-                .Where(group => group.MembershipStatus is GroupMembershipStatuses.None or GroupMembershipStatuses.Removed)
+                .Where(group => group.MembershipStatus is GroupMembershipStatuses.None
+                    or GroupMembershipStatuses.Removed or GroupMembershipStatuses.Withdrawn)
                 .Select(group => new JoinableGroupItem(group.Id, group.GroupName, group.MemberCount))
                 .ToArray();
 

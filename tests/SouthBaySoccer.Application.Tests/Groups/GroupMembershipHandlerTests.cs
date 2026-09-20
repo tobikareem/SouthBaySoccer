@@ -154,6 +154,35 @@ public sealed class GroupMembershipHandlerTests
     // ----- Leave -----
 
     [Fact]
+    public async Task RequestMemberships_WhenBatchSaveConflicts_PropagatesConflictWithoutReportingSuccess()
+    {
+        var fixture = new Fixture();
+        var first = fixture.AddGroup("First group");
+        var second = fixture.AddGroup("Second group");
+        fixture.UnitOfWork.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ApplicationConflictException("Concurrent membership request."));
+
+        var act = () => fixture.RequestHandler().HandleAsync(new RequestGroupMembershipsCommand([first.Id, second.Id]));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>();
+        fixture.Links.Verify(x => x.ListPlayerMembershipsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SeedFromWhatsApp_WhenBatchSaveConflicts_PropagatesConflict()
+    {
+        var fixture = new Fixture();
+        var first = fixture.AddGroup("First group");
+        var second = fixture.AddGroup("Second group");
+        fixture.UnitOfWork.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ApplicationConflictException("Concurrent membership request."));
+
+        var act = () => fixture.Service().SeedFromWhatsAppAsync(fixture.Profile, [first, second], CancellationToken.None);
+
+        await act.Should().ThrowAsync<ApplicationConflictException>();
+    }
+
+    [Fact]
     public async Task LeaveGroup_WhenApproved_MarksRemovedByThePlayer()
     {
         var fixture = new Fixture();
@@ -563,6 +592,87 @@ public sealed class GroupMembershipHandlerTests
     // ----- Search -----
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetGroupCatalog_WhenExternalGroupIsNew_PersistsAndExposesItWithoutJoining(bool isOwner)
+    {
+        var fixture = new Fixture(isOwner);
+        fixture.GroupClient.Setup(x => x.GetAllGroupsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PickupPalGroupChat("new-group@g.us", "New group", null, "SUBSCRIBED", 20, "America/Los_Angeles")]);
+
+        var result = await fixture.CatalogHandler().HandleAsync(new GetGroupCatalogQuery());
+
+        var group = result.Groups.Should().ContainSingle().Subject;
+        group.GroupChatId.Should().NotBeEmpty();
+        group.GroupName.Should().Be("New group");
+        group.Status.Should().BeNull();
+        fixture.Added.Should().BeEmpty();
+        fixture.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetGroupCatalog_WhenProviderUnavailable_ReturnsStoredGroups()
+    {
+        var fixture = new Fixture();
+        var stored = fixture.AddGroup("Stored group");
+        fixture.GroupClient.Setup(x => x.GetAllGroupsAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Unavailable"));
+
+        var result = await fixture.CatalogHandler().HandleAsync(new GetGroupCatalogQuery());
+
+        result.Groups.Should().ContainSingle().Which.GroupChatId.Should().Be(stored.Id);
+        fixture.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetGroupCatalog_WhenExistingGroupRenamed_PreservesIdAndMembership()
+    {
+        var fixture = new Fixture();
+        var existing = fixture.AddGroup("Original name");
+        fixture.ExistingRow(existing, GroupMembershipStatus.Removed);
+        var updated = new PickupPalGroupChat(existing.ExternalId, "New name", null, "SUBSCRIBED", 20, null);
+        fixture.GroupClient.Setup(x => x.GetAllGroupsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([updated, updated]);
+
+        var result = await fixture.CatalogHandler().HandleAsync(new GetGroupCatalogQuery());
+
+        var group = result.Groups.Should().ContainSingle().Subject;
+        group.GroupChatId.Should().Be(existing.Id);
+        group.GroupName.Should().Be("New name");
+        group.Status.Should().Be(GroupMembershipStatus.Removed);
+        fixture.Added.Should().BeEmpty();
+        fixture.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetGroupCatalog_WhenRequestCancelled_PropagatesCancellation()
+    {
+        var fixture = new Fixture();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        fixture.GroupClient.Setup(x => x.GetAllGroupsAsync(cancellation.Token))
+            .ThrowsAsync(new OperationCanceledException(cancellation.Token));
+
+        var act = () => fixture.CatalogHandler().HandleAsync(new GetGroupCatalogQuery(), cancellation.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task GetGroupCatalog_WhenDiscoverySaveConflicts_PropagatesConflict()
+    {
+        var fixture = new Fixture();
+        fixture.GroupClient.Setup(x => x.GetAllGroupsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PickupPalGroupChat("new-group@g.us", "New group", null, "SUBSCRIBED", 20, null)]);
+        fixture.UnitOfWork.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ApplicationConflictException("Concurrent group discovery."));
+
+        var act = () => fixture.CatalogHandler().HandleAsync(new GetGroupCatalogQuery());
+
+        await act.Should().ThrowAsync<ApplicationConflictException>();
+    }
+
+    [Theory]
     [InlineData("a")]
     [InlineData("  ")]
     [InlineData("someone@example.com")]
@@ -626,6 +736,12 @@ public sealed class GroupMembershipHandlerTests
             groupChats.Setup(x => x.ListByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((IReadOnlyCollection<Guid> ids, CancellationToken _) => groups.Where(group => ids.Contains(group.Id)).ToArray());
             groupChats.Setup(x => x.ListAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync(() => groups.ToArray());
+            groupChats.Setup(x => x.FindByExternalIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((string externalId, CancellationToken _) => groups.SingleOrDefault(group => group.ExternalId == externalId));
+            groupChats.Setup(x => x.AddAsync(It.IsAny<GroupChat>(), It.IsAny<CancellationToken>()))
+                .Callback<GroupChat, CancellationToken>((group, _) => groups.Add(group))
+                .Returns(Task.CompletedTask);
+            GroupClient.Setup(x => x.GetAllGroupsAsync(It.IsAny<CancellationToken>())).ReturnsAsync([]);
             GroupClient.Setup(x => x.GetLinkedGroupsAsync(PickupPalUserId, It.IsAny<CancellationToken>())).ReturnsAsync([]);
             Links.Setup(x => x.ListByPlayerAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((Guid playerProfileId, CancellationToken _) => rows.Where(row => row.PlayerProfileId == playerProfileId).ToArray());
@@ -703,12 +819,12 @@ public sealed class GroupMembershipHandlerTests
         public SetGroupAdminCommandHandler SetAdminHandler() =>
             new(new SetGroupAdminCommandValidator(), currentUser.Object, Profiles.Object, groupChats.Object, Links.Object, Service());
 
-        public GetGroupCatalogQueryHandler CatalogHandler() => new(currentUser.Object, Profiles.Object, groupChats.Object, Links.Object);
+        public GetGroupCatalogQueryHandler CatalogHandler() => new(currentUser.Object, Profiles.Object, groupChats.Object, Links.Object, GroupClient.Object, UnitOfWork.Object);
 
         public SearchPlayersQueryHandler SearchHandler() =>
             new(new SearchPlayersQueryValidator(), currentUser.Object, Profiles.Object, Links.Object);
 
-        private GroupMembershipService Service()
+        public GroupMembershipService Service()
         {
             var clock = new Mock<IClock>();
             clock.SetupGet(x => x.UtcNow).Returns(NowUtc);

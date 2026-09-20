@@ -139,6 +139,37 @@ public sealed class ApiSprint03ClientTests
     }
 
     [Fact]
+    public async Task ApiSessionsClient_GetSessionAsync_WhenGroupedPayloadOmitsAccessFlag_StillDeniesJoining()
+    {
+        // Keep the production PascalCase field names and remove only the optional flag.
+        // The constant fixture is a nonempty JSON array of session objects.
+        var nodes = System.Text.Json.Nodes.JsonNode.Parse(NonMemberSessionJson)!.AsArray();
+        nodes[0]!.AsObject().Remove("CanJoin");
+        var client = CreateSessionsClient(_ => JsonResponse(nodes.ToJsonString()));
+
+        var detail = await client.GetSessionAsync(SessionId, CancellationToken.None);
+
+        detail!.GroupChatId.Should().Be(GroupChatId);
+        detail.CanJoinSession.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_GetSessionAsync_WhenFullAndWaitlisted_PreservesOpenWindowForCancellation()
+    {
+        // The constant fixture is a nonempty JSON array of session objects.
+        var nodes = System.Text.Json.Nodes.JsonNode.Parse(NonMemberSessionJson)!.AsArray();
+        nodes[0]!["IsFull"] = true;
+        nodes[0]!["IsCurrentPlayerWaitlisted"] = true;
+        var client = CreateSessionsClient(_ => JsonResponse(nodes.ToJsonString()));
+
+        var detail = await client.GetSessionAsync(SessionId, CancellationToken.None);
+
+        detail!.IsRsvpAvailable.Should().BeTrue();
+        detail.IsWaitlisted.Should().BeTrue();
+        detail.CanJoinSession.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task ApiSessionsClient_GetDashboardAsync_WhenCallerIsPendingInTheGroup_MapsGroupAccess()
     {
         var json = NonMemberSessionJson.Replace(

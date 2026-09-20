@@ -104,7 +104,7 @@ public sealed class GroupMembershipService(
 
         if (changed)
         {
-            await SaveIdempotentAsync(cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
         }
     }
 
@@ -159,7 +159,7 @@ public sealed class GroupMembershipService(
 
         if (changed)
         {
-            await SaveIdempotentAsync(cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
         }
     }
 
@@ -367,16 +367,4 @@ public sealed class GroupMembershipService(
         row.RemovedByPlayerProfileId = actingPlayerProfileId;
     }
 
-    private async Task SaveIdempotentAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-        }
-        catch (ApplicationConflictException)
-        {
-            // A concurrent request for the same player won the race on the unique (player, group)
-            // or primary index. The stored state is what the caller re-reads, so this is idempotent.
-        }
-    }
 }

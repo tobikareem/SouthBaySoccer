@@ -20,7 +20,8 @@ with a success response. **Local first, never rolled back** (same rule as RSVP-9
 - `Session.GroupChatId` (FK `GroupChats`) decides whether a session is pushed at all. Create /
   update commands take an optional `GroupChatId`; absent => the acting admin's only active
   `PlayerGroupLink` (exactly one) via `SessionGroupResolver`, else null (app-only). On update,
-  absent keeps the existing association (the current MAUI client never sends it). Group membership
+  absent keeps the existing association. The client now sends the chosen group and preserves the
+  edited session's original group when absent from the admin's choices. Group membership
   is read from our database only (group writes to Pickup Pal remain forbidden).
 - Action is **derived from current state** by `SessionPickupPalSyncService.ResolveAction`:
   `Imported` -> none; deleted or `Canceled` + game id -> ensure-terminated; not `Published` -> none
@@ -88,8 +89,8 @@ deploy only. `ISessionRepository.FindForPickupPalSyncAsync` reads including soft
 
 `CreateSessionCommand.GroupChatId`, `CreateSessionAdminRequest.GroupChatId`,
 `SessionAdminResponse.GroupChatId`, `ManagedSessionDto.GroupChatId/GroupName`,
-`ManagedSessionEditDto.GroupName` (+ `Command.GroupChatId`). The Create Session page has no group
-picker yet (M15.7).
+`ManagedSessionEditDto.GroupName` (+ `Command.GroupChatId`). The Create Session / edit page has a
+group picker (M15.7); missing choices never overwrite the original session's association.
 
 ## Deliberately out of scope
 

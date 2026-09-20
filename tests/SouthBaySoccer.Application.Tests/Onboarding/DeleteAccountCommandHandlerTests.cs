@@ -30,9 +30,15 @@ public sealed class DeleteAccountCommandHandlerTests
     {
         currentUser.SetupGet(x => x.UserId).Returns(IdentityUserId);
         localDeletion
-            .Setup(x => x.DeleteAsync(IdentityUserId, It.IsAny<CancellationToken>()))
-            .Callback(() => calls.Add("local-delete"))
-            .ReturnsAsync(new LocalAccountDeletion(PlayerProfileId, PickupPalUserId));
+            .Setup(x => x.DeleteAsync(IdentityUserId, It.IsAny<Func<LocalAccountDeletion, CancellationToken, Task>>(), It.IsAny<CancellationToken>()))
+            .Returns(async (Guid id, Func<LocalAccountDeletion, CancellationToken, Task> record, CancellationToken token) =>
+            {
+                calls.Add("local-delete");
+                var deletion = new LocalAccountDeletion(PlayerProfileId, PickupPalUserId);
+                await record(deletion, token);
+                calls.Add("local-commit");
+                return deletion;
+            });
         outbox
             .Setup(x => x.AddAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()))
             .Callback<OutboxMessage, CancellationToken>((message, _) =>
@@ -52,7 +58,7 @@ public sealed class DeleteAccountCommandHandlerTests
     {
         await CreateHandler().HandleAsync(alsoDeletePickupPalAccount: true);
 
-        calls.Should().Equal("local-delete", "outbox", "pickuppal-delete");
+        calls.Should().Equal("local-delete", "outbox", "local-commit", "pickuppal-delete");
         var message = enqueued.Should().ContainSingle().Subject;
         message.MessageType.Should().Be(OnboardingOutboxMessages.PickupPalUserDeletionRequested);
         message.Status.Should().Be(OutboxMessageStatus.Processed);
@@ -72,7 +78,7 @@ public sealed class DeleteAccountCommandHandlerTests
         var act = () => CreateHandler().HandleAsync(alsoDeletePickupPalAccount: true);
 
         await act.Should().NotThrowAsync();
-        localDeletion.Verify(x => x.DeleteAsync(IdentityUserId, It.IsAny<CancellationToken>()), Times.Once);
+        localDeletion.Verify(x => x.DeleteAsync(IdentityUserId, It.IsAny<Func<LocalAccountDeletion, CancellationToken, Task>>(), It.IsAny<CancellationToken>()), Times.Once);
         var message = enqueued.Should().ContainSingle().Subject;
         message.Status.Should().Be(OutboxMessageStatus.RetryScheduled);
         message.ProcessedAtUtc.Should().BeNull();
@@ -131,8 +137,14 @@ public sealed class DeleteAccountCommandHandlerTests
     public async Task HandleAsync_WhenAccountNotLinkedToPickupPal_DeletesLocallyAndWritesAuditOnly()
     {
         localDeletion
-            .Setup(x => x.DeleteAsync(IdentityUserId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new LocalAccountDeletion(PlayerProfileId, null));
+            .Setup(x => x.DeleteAsync(IdentityUserId, It.IsAny<Func<LocalAccountDeletion, CancellationToken, Task>>(), It.IsAny<CancellationToken>()))
+            .Returns(async (Guid id, Func<LocalAccountDeletion, CancellationToken, Task> record, CancellationToken token) =>
+            {
+                var deletion = new LocalAccountDeletion(PlayerProfileId, null);
+                await record(deletion, token);
+                calls.Add("local-commit");
+                return deletion;
+            });
 
         await CreateHandler().HandleAsync(alsoDeletePickupPalAccount: true);
 
@@ -154,7 +166,7 @@ public sealed class DeleteAccountCommandHandlerTests
                 && m.Status == OutboxMessageStatus.Processed
                 && m.PayloadJson.Contains("\"PickupPalAccountRetained\":true"));
         onboardingClient.Verify(x => x.DeleteUserAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-        localDeletion.Verify(x => x.DeleteAsync(IdentityUserId, It.IsAny<CancellationToken>()), Times.Once);
+        localDeletion.Verify(x => x.DeleteAsync(IdentityUserId, It.IsAny<Func<LocalAccountDeletion, CancellationToken, Task>>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -165,7 +177,19 @@ public sealed class DeleteAccountCommandHandlerTests
         var act = () => CreateHandler().HandleAsync(alsoDeletePickupPalAccount: true);
 
         await act.Should().ThrowAsync<ApplicationUnauthenticatedException>();
-        localDeletion.Verify(x => x.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        localDeletion.Verify(x => x.DeleteAsync(It.IsAny<Guid>(), It.IsAny<Func<LocalAccountDeletion, CancellationToken, Task>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenDurableIntentCannotBeSaved_DoesNotCallPickupPal()
+    {
+        unitOfWork.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Intent persistence failed."));
+
+        var act = () => CreateHandler().HandleAsync(alsoDeletePickupPalAccount: true);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        onboardingClient.Verify(x => x.DeleteUserAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private DeleteAccountCommandHandler CreateHandler()

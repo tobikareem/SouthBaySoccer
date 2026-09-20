@@ -15,18 +15,22 @@ the local row:
   (`LastExternalError`) and bumps `ExternalAttemptCount`. Never stores the raw phone, the password,
   or the token. A retry with a fresh `!!register` token reuses the awaiting row.
 - Pickup Pal unreachable (network, timeout, 5xx) returns **503 `upstream-unavailable`** and writes an
-  `OutboxMessages` row (`PlayerRegistrationExternalFailed`). Nothing drains the outbox yet; the row
-  is the reconciliation record. The player retries by sending `!!register` again (a new token).
+  `OutboxMessages` row (`PlayerRegistrationExternalFailed`). Registration failures are audit-only;
+  the player retries with a new `!!register` token. The M14 outbox processor drains account
+  deletion and RSVP/session sync requests, not registration failures.
 - `PendingPhoneSignIn` (`Domain/Entities/Operations/`, immutable operational record, not soft-
   deleted) is written by `BeginPhoneSignInCommand` and consumed by `CompleteWhatsAppLoginCommand`.
   The client carries no pending id, so the binding is the redeemed Pickup Pal user id: a login token
   for a user with no live pending sign-in is a **mismatch (403)**.
 - `DELETE profiles/me`: `LocalAccountDeletionService` soft-deletes the profile, emergency contacts,
   group links, and registrations, anonymizes and locks the identity user (synthetic unique email so
-  the real one is free for re-registration), revokes every refresh token, then an outbox row
-  (`PickupPalUserDeletionRequested`) is written before the Pickup Pal delete is attempted; failure
-  leaves it `RetryScheduled` and still returns 204.
-- Sign-out now revokes the presented refresh token's family (`IRefreshTokenRevocationService`).
+  the real one is free for re-registration), and revokes every refresh token. A callback records
+  the opt-in `PickupPalUserDeletionRequested` intent (or local-only audit) in the same serializable
+  SQL execution-strategy transaction. Only after commit is Pickup Pal called; failure leaves the
+  intent retryable. Retry reads include the deleted profile so an ambiguous commit preserves the
+  provider id and reuses the same outbox key.
+- The backend sign-out endpoint revokes the presented refresh token's family
+  (`IRefreshTokenRevocationService`); MAUI sign-out still needs to call that endpoint.
 - `RegisterWithWhatsAppCommand` records `ExternalCreated` + `PickupPalUserId` with its own save the
   moment Pickup Pal returns 201, before local sync, so a sync failure never orphans an upstream account.
 - `PendingPhoneSignIn` carries a SQL row version; completion consumes **every** live row for the
@@ -63,8 +67,10 @@ the token. Pickup Pal error bodies come in two shapes (`error` string vs `error.
 
 ## Settings (`Onboarding:*`, `OnboardingOptions` / `IOnboardingPolicy`)
 
-- `RequireWhatsAppVerification` (default `true`): phone sign-in returns 202 `verificationRequired`
-  and no tokens. Set `false` only for local development.
+- `RequireWhatsAppVerification` (default `false`): production phone lookup stays enabled by the
+  September 16 decision because Pickup Pal has no login redemption route. When enabled, sign-in
+  returns 202 `verificationRequired` and no tokens (except configured exemptions). Do not enable
+  until the external endpoint and pending-flow binding are complete.
 - `VerificationExemptPhoneNumbers`: comma-separated, normalized to `+digits` like `AdminPhoneNumbers`;
   for the App Review demo accounts, which get tokens straight from phone sign-in.
 - `TermsVersion` (default `20250708`): served by `GET auth/terms/current` and required on register.
@@ -87,8 +93,9 @@ SHA-256 hashes; nothing raw is held.
   Follow-up **M13.10** in the story tasks: block sync while a deletion is pending.
 - `PendingPhoneSignIns` has no retention/purge yet (immutable operational record; grows with every
   sign-in start). Same purge-service gap as the other operational tables.
-- `DeleteUser` treats a 404 as failure (route unconfirmed), so a genuinely already-deleted user keeps
-  a `RetryScheduled` outbox row until the route is confirmed and the handling revisited.
+- `DeleteUser` treats 404 as already deleted; `PickupPalUserDeletionOutboxHandler` retries failures.
+- Account-deletion UI remains open. Verified login still binds to any live pending sign-in for
+  the redeemed user, not a pending id carried by the initiating device; fix before enabling it.
 - Migration `AddOnboardingRegistrations` drops `WhatsAppSignInChallenges` **with its data** (ephemeral
   challenge rows from the retired flow); it is not recoverable after deploy.
 
