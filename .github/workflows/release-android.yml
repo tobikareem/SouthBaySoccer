@@ -66,6 +66,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      # Runner images preinstall newer SDKs (10.0.400 as of 2026-09), and without a global.json the
+      # dotnet host always picks the newest one, ignoring the version setup-dotnet installs. Pin it
+      # here rather than in a committed global.json so local machines are not tied to this patch.
+      - name: Pin .NET SDK ${{ env.DOTNET_SDK_VERSION }}
+        shell: bash
+        run: printf '{"sdk":{"version":"%s","rollForward":"disable"}}\n' "$DOTNET_SDK_VERSION" > global.json
+
       - name: Setup .NET ${{ env.DOTNET_SDK_VERSION }}
         uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
@@ -110,6 +117,13 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
+
+      # Runner images preinstall newer SDKs (10.0.400 as of 2026-09), and without a global.json the
+      # dotnet host always picks the newest one, ignoring the version setup-dotnet installs. Pin it
+      # here rather than in a committed global.json so local machines are not tied to this patch.
+      - name: Pin .NET SDK ${{ env.DOTNET_SDK_VERSION }}
+        shell: bash
+        run: printf '{"sdk":{"version":"%s","rollForward":"disable"}}\n' "$DOTNET_SDK_VERSION" > global.json
 
       - name: Setup .NET ${{ env.DOTNET_SDK_VERSION }}
         uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
