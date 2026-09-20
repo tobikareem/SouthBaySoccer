@@ -70,6 +70,12 @@ public sealed record SessionSummaryDto(
     public string CardSemanticDescription => $"{DisplayTitle} — {StatusLabel}";
 
     public string WaitlistActionDescription => $"Join the waitlist for {DisplayTitle}";
+
+    /// <summary>A grouped session requires explicit approval even if an older response defaults CanJoin to true.</summary>
+    public bool CanJoinSession => CanJoin && (GroupChatId is null || MembershipStatus == "Approved");
+
+    /// <summary>Visibility and command guard for the waitlist action.</summary>
+    public bool ShowJoinWaitlist => CanJoinWaitlist && CanJoinSession;
 }
 
 public sealed record StatsPromptDto(
@@ -97,4 +103,9 @@ public sealed record SessionDetailDto(
     Guid? GroupChatId = null,
     string? GroupName = null,
     string? MembershipStatus = null,
-    bool CanJoin = true);
+    bool CanJoin = true,
+    bool IsWaitlisted = false)
+{
+    /// <summary>A grouped session requires explicit approval even if an older response defaults CanJoin to true.</summary>
+    public bool CanJoinSession => CanJoin && (GroupChatId is null || MembershipStatus == "Approved");
+}

@@ -75,6 +75,25 @@ public class GroupsMinePageModelTests
     }
 
     [Fact]
+    public async Task Appearing_WithdrawnRequest_OffersTheGroupForRequestAgain()
+    {
+        var groups = GroupsReturning(
+            [Catalog(SaturdayId, "Saturday Soccer", 58, GroupMembershipStatuses.Withdrawn)],
+            [Membership(SaturdayId, "Saturday Soccer", GroupMembershipStatuses.Withdrawn, GroupMemberRoles.Member)]);
+        groups.Setup(x => x.RequestMembershipsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MyGroupMembershipsResponse(false, false, []));
+        var pageModel = CreatePageModel(groups);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.RequestCommand.ExecuteAsync(pageModel.JoinableGroups.Single());
+
+        pageModel.Memberships.Should().BeEmpty();
+        groups.Verify(x => x.RequestMembershipsAsync(
+            It.Is<IReadOnlyList<Guid>>(ids => ids.Count == 1 && ids[0] == SaturdayId),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task Leave_WhenConfirmed_CallsLeaveInvalidatesAndReloads()
     {
         var cache = new Mock<IClientResponseCache>();

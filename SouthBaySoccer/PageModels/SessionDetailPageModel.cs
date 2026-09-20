@@ -43,6 +43,7 @@ public partial class SessionDetailPageModel(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRsvp))]
+    [NotifyPropertyChangedFor(nameof(CanCancelSpot))]
     private ViewState _state = ViewState.Loading;
 
     [ObservableProperty]
@@ -88,7 +89,17 @@ public partial class SessionDetailPageModel(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RsvpButtonText))]
+    [NotifyPropertyChangedFor(nameof(CanRsvp))]
+    [NotifyPropertyChangedFor(nameof(ShowCancelSpot))]
+    [NotifyPropertyChangedFor(nameof(CanCancelSpot))]
     private bool _isGoing;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RsvpButtonText))]
+    [NotifyPropertyChangedFor(nameof(CanRsvp))]
+    [NotifyPropertyChangedFor(nameof(ShowCancelSpot))]
+    [NotifyPropertyChangedFor(nameof(CanCancelSpot))]
+    private bool _isWaitlisted;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRsvp))]
@@ -96,17 +107,30 @@ public partial class SessionDetailPageModel(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRsvp))]
+    [NotifyPropertyChangedFor(nameof(CanCancelSpot))]
+    [NotifyPropertyChangedFor(nameof(ShowCancelSpot))]
+    [NotifyPropertyChangedFor(nameof(IsViewOnly))]
+    [NotifyPropertyChangedFor(nameof(ShowJoinGroup))]
     private bool _isCanceled;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRsvp))]
+    [NotifyPropertyChangedFor(nameof(CanCancelSpot))]
     private bool _isUpdatingRsvp;
 
     /// <summary>True when a venue is known and a map link can be offered.</summary>
     public bool HasMap => !string.IsNullOrWhiteSpace(Venue);
 
     /// <summary>True when the RSVP toggle may be invoked (content loaded, RSVP open, no update in flight).</summary>
-    public bool CanRsvp => State == ViewState.Content && RsvpAvailable && !IsCanceled && !IsUpdatingRsvp && CanJoinGroup;
+    public bool CanRsvp => State == ViewState.Content && (RsvpAvailable || CanCancelSpot)
+        && !IsCanceled && !IsUpdatingRsvp && CanJoinGroup;
+
+    /// <summary>Ending membership cannot trap an existing spot; cancellation never creates a new RSVP.</summary>
+    public bool CanCancelSpot => State == ViewState.Content && RsvpWindowOpen && !IsCanceled
+        && !IsUpdatingRsvp && (IsGoing || IsWaitlisted);
+
+    /// <summary>Keep the RSVP button hidden for non-members; expose only withdrawal of an existing spot.</summary>
+    public bool ShowCancelSpot => !CanJoinGroup && !IsCanceled && (IsGoing || IsWaitlisted);
 
     public const string PendingMembershipMessage = "Your request to join {0} is waiting for a group admin. You can watch this game until then.";
     public const string NotMemberMessage = "This is a {0} game. Join the group to RSVP and play.";
@@ -117,7 +141,8 @@ public partial class SessionDetailPageModel(
     [NotifyPropertyChangedFor(nameof(IsViewOnly))]
     [NotifyPropertyChangedFor(nameof(ViewOnlyMessage))]
     [NotifyPropertyChangedFor(nameof(ShowJoinGroup))]
-    private bool _canJoinGroup = true;
+    [NotifyPropertyChangedFor(nameof(ShowCancelSpot))]
+    private bool _canJoinGroup;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ViewOnlyMessage))]
@@ -138,7 +163,8 @@ public partial class SessionDetailPageModel(
         string.IsNullOrWhiteSpace(GroupName) ? "the group" : GroupName);
 
     /// <summary>Label for the primary RSVP button, reflecting the current intent.</summary>
-    public string RsvpButtonText => IsGoing ? "Going — tap to withdraw" : "RSVP — I'm going";
+    public string RsvpButtonText => IsGoing ? "Going — tap to withdraw"
+        : IsWaitlisted ? "Waitlisted — tap to withdraw" : "RSVP — I'm going";
 
     /// <summary>Going section heading with count, e.g. "Going · 16".</summary>
     public string GoingHeading => $"Going · {Going.Count}";
@@ -238,11 +264,21 @@ public partial class SessionDetailPageModel(
             return;
         }
 
+        await SetIntentAsync(!IsGoing && !IsWaitlisted, cancellationToken);
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private Task CancelSpot(CancellationToken cancellationToken) =>
+        CanCancelSpot ? SetIntentAsync(false, cancellationToken) : Task.CompletedTask;
+
+    private async Task SetIntentAsync(bool desiredIsGoing, CancellationToken cancellationToken)
+    {
         var previousIsGoing = IsGoing;
-        var desiredIsGoing = !previousIsGoing;
+        var previousIsWaitlisted = IsWaitlisted;
 
         IsUpdatingRsvp = true;
         IsGoing = desiredIsGoing;
+        IsWaitlisted = false;
 
         try
         {
@@ -252,6 +288,7 @@ public partial class SessionDetailPageModel(
             if (!result.IsSuccess)
             {
                 IsGoing = previousIsGoing;
+                IsWaitlisted = previousIsWaitlisted;
                 return;
             }
 
@@ -260,11 +297,13 @@ public partial class SessionDetailPageModel(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             IsGoing = previousIsGoing;
+            IsWaitlisted = previousIsWaitlisted;
             throw;
         }
         catch (Exception)
         {
             IsGoing = previousIsGoing;
+            IsWaitlisted = previousIsWaitlisted;
         }
         finally
         {
@@ -284,6 +323,9 @@ public partial class SessionDetailPageModel(
 
     // The session DTO's availability covers the RSVP window (deadline, cancellation); capacity is
     // re-evaluated from the roster because the composed detail has no reliable going count.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanRsvp))]
+    [NotifyPropertyChangedFor(nameof(CanCancelSpot))]
     private bool _rsvpWindowOpen;
 
     private void ApplySession(SessionDetailDto session)
@@ -296,12 +338,13 @@ public partial class SessionDetailPageModel(
         Capacity = session.Capacity;
         DeadlineLabel = session.DeadlineLabel;
         IsGoing = session.IsGoing;
-        _rsvpWindowOpen = session.IsRsvpAvailable;
+        IsWaitlisted = session.IsWaitlisted;
+        RsvpWindowOpen = session.IsRsvpAvailable;
         RsvpAvailable = session.IsRsvpAvailable;
         IsCanceled = session.IsCanceled;
         GroupName = session.GroupName;
         MembershipStatus = session.MembershipStatus;
-        CanJoinGroup = session.CanJoin;
+        CanJoinGroup = session.CanJoinSession;
     }
 
     private void ApplyRoster(RosterDto? roster)
@@ -327,7 +370,7 @@ public partial class SessionDetailPageModel(
 
         // Keep the capacity card and RSVP gate in sync with the authoritative roster.
         GoingCount = roster.Going.Count;
-        RsvpAvailable = _rsvpWindowOpen && (Capacity <= 0 || roster.Going.Count < Capacity);
+        RsvpAvailable = RsvpWindowOpen && (Capacity <= 0 || roster.Going.Count < Capacity);
     }
 
     private void ResetContent()

@@ -143,6 +143,28 @@ public class GroupMembersPageModelTests
         pageModel.SearchResults.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData("player@example.test")]
+    [InlineData("+1 (555) 123-4567")]
+    [InlineData("１２３４")]
+    public async Task SearchQuery_PersonalIdentifier_ClearsResultsAndDoesNotSearch(string query)
+    {
+        var groups = GroupsReturning(Members(canAppointAdmins: true));
+        groups.Setup(x => x.SearchPlayersAsync("de", It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PlayerSearchResultDto(DejiId, "Deji O.", "DO", null)]);
+        var pageModel = CreatePageModel(groups);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        pageModel.SearchQuery = "de";
+        await pageModel.PendingSearch;
+
+        pageModel.SearchQuery = query;
+        await pageModel.PendingSearch;
+
+        groups.Verify(x => x.SearchPlayersAsync(query, It.IsAny<CancellationToken>()), Times.Never);
+        pageModel.SearchResults.Should().BeEmpty();
+        pageModel.ActionMessage.Should().Contain("Search by name only");
+    }
+
     [Fact]
     public async Task SearchQuery_TwoCharacters_SearchesAndHidesPlayersAlreadyInTheGroup()
     {

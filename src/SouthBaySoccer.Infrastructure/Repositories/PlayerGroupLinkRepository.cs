@@ -40,6 +40,25 @@ internal sealed class PlayerGroupLinkRepository(SouthBaySoccerDbContext dbContex
                 && x.Status == GroupMembershipStatus.Approved,
             cancellationToken);
 
+    public async Task<IReadOnlyList<Guid>> ListApprovedPlayerIdsAsync(
+        Guid groupChatId,
+        IReadOnlyCollection<Guid> playerProfileIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (playerProfileIds.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = playerProfileIds as Guid[] ?? playerProfileIds.ToArray();
+        return await dbContext.PlayerGroupLinks.AsNoTracking()
+            .Where(link => link.GroupChatId == groupChatId
+                && link.Status == GroupMembershipStatus.Approved
+                && ids.Contains(link.PlayerProfileId))
+            .Select(link => link.PlayerProfileId)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<PlayerGroupReadModel>> ListPlayerGroupsAsync(
         Guid playerProfileId,
         CancellationToken cancellationToken = default) =>

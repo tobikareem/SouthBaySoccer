@@ -201,6 +201,14 @@ public partial class SessionsHomePageModel(
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task JoinWaitlist(Guid sessionId, CancellationToken cancellationToken)
     {
+        var session = FeaturedSession?.Id == sessionId
+            ? FeaturedSession
+            : ComingUpSessions.FirstOrDefault(item => item.Id == sessionId);
+        if (State != ViewState.Content || session?.ShowJoinWaitlist != true)
+        {
+            return;
+        }
+
         try
         {
             var result = await sessionsClient.JoinWaitlistAsync(sessionId, cancellationToken);

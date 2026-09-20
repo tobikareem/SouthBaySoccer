@@ -86,13 +86,14 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
             session.Capacity,
             DeadlineLabel: BuildDeadlineLabel(session.RsvpDeadlineUtc, nowUtc),
             IsFull: session.IsFull,
-            IsRsvpAvailable: !isCanceled && !session.IsFull && nowUtc < session.RsvpDeadlineUtc,
+            IsRsvpAvailable: !isCanceled && nowUtc < session.RsvpDeadlineUtc,
             IsGoing: session.IsCurrentPlayerGoing,
             IsCanceled: isCanceled,
             GroupChatId: session.GroupChatId,
             GroupName: session.GroupName,
             MembershipStatus: session.MembershipStatus,
-            CanJoin: session.CanJoin);
+            CanJoin: session.CanJoin,
+            IsWaitlisted: session.IsCurrentPlayerWaitlisted);
     }
 
     public Task<ClientCommandResult> JoinWaitlistAsync(

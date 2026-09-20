@@ -338,6 +338,86 @@ public class SessionDetailPageModelTests
             rsvpAvailable,
             isGoing);
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Pending")]
+    [InlineData("Removed")]
+    [InlineData("Declined")]
+    [InlineData("Withdrawn")]
+    public async Task ToggleRsvp_WhenNotApproved_HidesButtonAndDoesNotSubmit(string? status)
+    {
+        var detail = Detail(rsvpAvailable: true, isGoing: false) with
+        {
+            GroupChatId = Guid.NewGuid(), MembershipStatus = status, CanJoin = true,
+        };
+        var roster = new Mock<IRosterClient>();
+        roster.Setup(x => x.GetRosterAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(EmptyRoster);
+        var page = new SessionDetailPageModel(SessionsReturning(detail).Object, roster.Object);
+        ApplyQuery(page, detail.Id);
+        await page.LoadCommand.ExecuteAsync(null);
+
+        await page.ToggleRsvpCommand.ExecuteAsync(null);
+        await page.CancelSpotCommand.ExecuteAsync(null);
+
+        page.CanJoinGroup.Should().BeFalse("membership must be explicit even if an old payload defaults CanJoin to true");
+        page.CanRsvp.Should().BeFalse();
+        page.ShowCancelSpot.Should().BeFalse();
+        roster.Verify(x => x.SetRsvpIntentAsync(It.IsAny<Guid>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CancelSpot_WhenMembershipEnded_CancelsExistingGoingOrWaitlistWithoutOfferingRsvp(bool waitlisted)
+    {
+        var detail = Detail(rsvpAvailable: true, isGoing: !waitlisted) with
+        {
+            GroupChatId = Guid.NewGuid(), MembershipStatus = "Removed", CanJoin = false,
+            IsWaitlisted = waitlisted, IsFull = true,
+        };
+        var roster = new Mock<IRosterClient>();
+        roster.Setup(x => x.GetRosterAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RosterWithGoing(detail.Capacity));
+        roster.Setup(x => x.SetRsvpIntentAsync(detail.Id, false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Success);
+        var page = new SessionDetailPageModel(SessionsReturning(detail).Object, roster.Object);
+        ApplyQuery(page, detail.Id);
+        await page.LoadCommand.ExecuteAsync(null);
+
+        page.CanJoinGroup.Should().BeFalse();
+        page.CanRsvp.Should().BeFalse();
+        page.ShowCancelSpot.Should().BeTrue();
+        page.CanCancelSpot.Should().BeTrue("capacity must not prevent freeing a held spot");
+        await page.CancelSpotCommand.ExecuteAsync(null);
+
+        page.ShowCancelSpot.Should().BeFalse();
+        page.IsGoing.Should().BeFalse();
+        page.IsWaitlisted.Should().BeFalse();
+        roster.Verify(x => x.SetRsvpIntentAsync(detail.Id, false, It.IsAny<CancellationToken>()), Times.Once);
+        roster.Verify(x => x.SetRsvpIntentAsync(detail.Id, true, It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CancelSpot_WhenCanceledRequestFails_PreservesExistingSpot()
+    {
+        var detail = Detail(rsvpAvailable: true, isGoing: false) with
+        {
+            GroupChatId = Guid.NewGuid(), CanJoin = false, IsWaitlisted = true,
+        };
+        var roster = new Mock<IRosterClient>();
+        roster.Setup(x => x.GetRosterAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(EmptyRoster);
+        roster.Setup(x => x.SetRsvpIntentAsync(detail.Id, false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Failure("unavailable", "Try again."));
+        var page = new SessionDetailPageModel(SessionsReturning(detail).Object, roster.Object);
+        ApplyQuery(page, detail.Id);
+        await page.LoadCommand.ExecuteAsync(null);
+
+        await page.CancelSpotCommand.ExecuteAsync(null);
+
+        page.IsWaitlisted.Should().BeTrue();
+        page.ShowCancelSpot.Should().BeTrue();
+    }
+
     private static RosterDto EmptyRoster =>
         new(SeedFixtures.MarinaSessionId, [], []);
 

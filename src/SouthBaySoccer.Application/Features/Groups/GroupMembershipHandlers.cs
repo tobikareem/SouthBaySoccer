@@ -127,12 +127,15 @@ public sealed class GetGroupCatalogQueryHandler(
     ICurrentUser currentUser,
     IPlayerProfileRepository playerProfileRepository,
     IGroupChatRepository groupChatRepository,
-    IPlayerGroupLinkRepository playerGroupLinkRepository)
+    IPlayerGroupLinkRepository playerGroupLinkRepository,
+    IPickupPalGroupClient groupClient,
+    IUnitOfWork unitOfWork)
 {
     public async Task<GroupCatalogModel> HandleAsync(GetGroupCatalogQuery query, CancellationToken cancellationToken = default)
     {
         _ = query;
         var profile = await GroupMembershipAccess.RequireProfileAsync(currentUser, playerProfileRepository, cancellationToken);
+        await RefreshCatalogAsync(cancellationToken);
         var groups = await groupChatRepository.ListAllAsync(cancellationToken);
         var counts = await playerGroupLinkRepository.CountByGroupAsync(groups.Select(group => group.Id).ToArray(), cancellationToken);
         var mine = (await playerGroupLinkRepository.ListByPlayerAsync(profile.Id, cancellationToken))
@@ -152,6 +155,38 @@ public sealed class GetGroupCatalogQueryHandler(
                 row is { Status: GroupMembershipStatus.Approved } ? row.Role : GroupMemberRole.Member,
                 canManage ? groupCounts.PendingCount : 0);
         }).ToArray());
+    }
+
+    private async Task RefreshCatalogAsync(CancellationToken cancellationToken)
+    {
+        IReadOnlyList<PickupPalGroupChat> externalGroups;
+        try
+        {
+            externalGroups = await groupClient.GetAllGroupsAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // Provider availability must not hide the persisted catalogue or memberships.
+            return;
+        }
+
+        var changed = false;
+        foreach (var source in externalGroups
+                     .Where(group => !string.IsNullOrWhiteSpace(group.ExternalId))
+                     .DistinctBy(group => group.ExternalId, StringComparer.Ordinal))
+        {
+            var result = await GroupUpsert.UpsertAsync(groupChatRepository, source, cancellationToken);
+            changed |= result.Changed;
+        }
+
+        if (changed)
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
     }
 }
 

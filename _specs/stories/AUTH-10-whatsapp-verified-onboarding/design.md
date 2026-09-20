@@ -61,7 +61,8 @@ SignUpDetailsPageModel.CreateAccountCommand
          -> re-read GET /api/users/:id/groups for the welcome summary
          -> IAuthenticationTokenIssuer -> access + refresh tokens
   -> IAuthenticationCoordinator.CompleteSignInAsync(tokens) with welcome payload
-  -> navigate signup-welcome -> WAIV-1 -> Sessions Shell
+  -> navigate signup-welcome -> group choice / request outcome -> Sessions Shell
+     (waiver gating removed; group choice is offered even with an auto-approved membership)
 ```
 
 ### Sign-in with verification
@@ -161,8 +162,12 @@ milestone.
   issues tokens only after sync succeeds;
 - complete-login handler rejects a token whose user differs from the pending sign-in, and rejects an
   expired or consumed pending sign-in;
-- delete-account handler soft-deletes locally, calls Pickup Pal delete, and revokes tokens even if
-  the Pickup Pal call fails (logged, retried by outbox).
+- delete-account handler commits local soft deletion, Identity anonymization, token revocation, and
+  the audit/outbox intent in one SQL execution-strategy transaction before any external call. The
+  application supplies an idempotent database-only callback to the local deletion port; callback
+  failures roll back every local change. Retries recover identifiers from the soft-deleted profile
+  and reuse the unique outbox key, including after an ambiguous commit. Pickup Pal deletion remains
+  explicit opt-in; external failure leaves the committed intent available for the outbox processor.
 
 `Functions.Tests`
 - each new endpoint maps Pickup Pal error strings (both error body shapes) to RFC 7807 problems

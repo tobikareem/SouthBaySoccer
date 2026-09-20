@@ -61,7 +61,7 @@ Scenario: Requests are idempotent and a removed member can ask again
 Scenario: Group-scoped actions require an approved membership
   Given a session that belongs to a WhatsApp group
   And I am not an approved member of that group
-  When I RSVP Going, join the waitlist, self check-in, or claim a spot on it
+  When I submit any RSVP intent (Going, Maybe, or NotGoing), join the waitlist, self check-in, or claim a spot on it
   Then the request is refused with 403 and problem type
     "https://southbaysoccer/problems/group-membership-required" naming only the group
   And cancelling an RSVP I already hold is always allowed
@@ -73,6 +73,23 @@ Scenario: Feeds show every group's games with a join flag
   Then every group's games are listed
   And each carries GroupChatId, GroupName, my MembershipStatus, and CanJoin
   And CanJoin is true only when the session has no group or I am an approved member of it
+
+Scenario: Non-members never see an RSVP or join-waitlist button
+  Given a session belongs to a group where I have no approved membership
+  When I open the home feed, schedule, session detail, or Game Day
+  Then the RSVP and join-waitlist buttons are hidden
+  And invoking a join command directly cannot submit an RSVP
+  And a missing membership field never grants access to a grouped session
+  And a direct POST RSVP request is refused for every intent, including Maybe and NotGoing
+  Given I already held a Going or waitlist spot before my membership ended
+  Then session detail offers a separate "Cancel my spot" action while RSVP is open
+  And that action only cancels my existing intent and never creates an RSVP
+
+Scenario: Promotion checks current membership
+  Given a waitlisted player is no longer an approved member of the session's group
+  When a cancellation frees a spot
+  Then that player is not promoted
+  And the next payment-eligible approved member may be promoted
 
 Scenario: Group admins manage their own group's members
   Given I am an approved member with role Admin in "Bay Area Soccer"
@@ -105,12 +122,14 @@ Scenario: Player search is name-only and masked
   When the fragment looks like a phone number or an email
   Then the request is refused with 400 (personal identifiers never travel in the query string)
 
-Scenario: Imported games are attached to their group
-  Given the Pickup Pal active-games feed reports a game whose group id matches a persisted GroupChat
+Scenario: Imported games are attached to their group even before a member signs in
+  Given the Pickup Pal active-games feed reports a game with a group id
   When the import runs
+  Then a missing GroupChat is created locally from the group id and display name
   Then the session's GroupChatId is set to that group
   And the group id is not persisted on the snapshot and never logged
-  And a game whose group id matches nothing leaves the session's group unchanged
+  And importing multiple games for the same group creates only one group
+  And a game with no group id leaves an existing session's group unchanged
 
 Scenario: Existing links survive the migration as approved WhatsApp memberships
   Given PlayerGroupLinks rows that existed before this story
@@ -120,6 +139,6 @@ Scenario: Existing links survive the migration as approved WhatsApp memberships
 
 ## Out of scope
 
-The MAUI screens (join-groups picker, members list, owner tools), notifications to admins about
-pending requests, and any Pickup Pal write. The legacy `GET groups` / `players/me/groups` /
+Notifications to admins about pending requests and any Pickup Pal group write. The MAUI
+join-groups picker, members list, and owner tools are implemented. The legacy `GET groups` / `players/me/groups` /
 `players/me/groups/link` endpoints keep their response shapes; the new shapes live on new routes.
