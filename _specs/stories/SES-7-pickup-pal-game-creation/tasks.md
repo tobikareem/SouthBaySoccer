@@ -32,8 +32,9 @@ current client).
   index row in `stories/README.md`; M15 section in `tasks.md`.
   — Stories: `SES-7` · Depends on: M15.5.
 
-- [ ] **M15.7** MAUI: group picker on the Create Session / edit page bound to `groupChatId`
-  (coordinator follow-up; the single-group default covers organizers with one group).
+- [x] **M15.7** MAUI: group picker on the Create Session / edit page bound to `groupChatId`.
+  Editing preserves the original group, including null, even if it is absent from the admin's
+  own membership choices; a stale/default selection must not change an existing session's group.
   — Stories: `SES-7` · Projects: SouthBaySoccer · Depends on: M15.4.
 
 - [ ] **M15.8** External follow-ups: confirm with the Pickup Pal developer the create response

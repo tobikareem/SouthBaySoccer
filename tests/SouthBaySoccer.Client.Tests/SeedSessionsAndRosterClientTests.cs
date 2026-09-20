@@ -1,10 +1,83 @@
 using FluentAssertions;
+using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
 
 namespace SouthBaySoccer.Client.Tests;
 
 public class SeedSessionsAndRosterClientTests
 {
+    [Fact]
+    public async Task GetSession_FullWaitlistedSession_AllowsWithdrawalAndUpdatesDetail()
+    {
+        var state = new SeedState();
+        state.JoinWaitlist(SeedFixtures.StanfordSessionId).IsSuccess.Should().BeTrue();
+        var pageModel = DetailPage(state, SeedFixtures.StanfordSessionId);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        var detail = state.GetSession(SeedFixtures.StanfordSessionId);
+        detail.Should().NotBeNull();
+        detail?.IsFull.Should().BeTrue();
+        detail?.IsWaitlisted.Should().BeTrue();
+        detail?.IsRsvpAvailable.Should().BeTrue();
+        pageModel.CanRsvp.Should().BeTrue();
+
+        await pageModel.ToggleRsvpCommand.ExecuteAsync(null);
+
+        state.GetSession(SeedFixtures.StanfordSessionId)?.IsWaitlisted.Should().BeFalse();
+        state.GetRoster(SeedFixtures.StanfordSessionId)?.Waitlist
+            .Should().NotContain(entry => entry.Player.Id == SeedFixtures.CurrentPlayerId);
+        pageModel.CanRsvp.Should().BeFalse("the full game has no held spot left to withdraw");
+    }
+
+    [Fact]
+    public async Task GetSession_FullGoingSession_AllowsWithdrawal()
+    {
+        var state = new SeedState();
+        var editable = state.GetSessionForEdit(SeedFixtures.MarinaSessionId);
+        editable.Should().NotBeNull();
+        state.UpdateSession(SeedFixtures.MarinaSessionId, editable!.Command with { Capacity = 16 })
+            .IsSuccess.Should().BeTrue(); // The seed fixture always has a managed Marina session.
+        var pageModel = DetailPage(state, SeedFixtures.MarinaSessionId);
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        state.GetSession(SeedFixtures.MarinaSessionId)?.IsFull.Should().BeTrue();
+        pageModel.CanRsvp.Should().BeTrue();
+
+        await pageModel.ToggleRsvpCommand.ExecuteAsync(null);
+
+        state.GetSession(SeedFixtures.MarinaSessionId)?.IsGoing.Should().BeFalse();
+        state.GetRoster(SeedFixtures.MarinaSessionId)?.Going.Should().HaveCount(15);
+    }
+
+    [Fact]
+    public async Task GetSession_FullSessionWithoutHeldSpot_DoesNotAllowPrimaryRsvp()
+    {
+        var state = new SeedState();
+        var pageModel = DetailPage(state, SeedFixtures.StanfordSessionId);
+
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        await pageModel.ToggleRsvpCommand.ExecuteAsync(null);
+
+        pageModel.CanRsvp.Should().BeFalse();
+        state.GetSession(SeedFixtures.StanfordSessionId)?.IsGoing.Should().BeFalse();
+        state.GetSession(SeedFixtures.StanfordSessionId)?.IsWaitlisted.Should().BeFalse();
+    }
+
+    [Fact]
+    public void GetSession_CanceledSession_ClosesRsvpWindow()
+    {
+        var state = new SeedState();
+
+        state.CancelSession(SeedFixtures.MarinaSessionId);
+
+        state.GetSession(SeedFixtures.MarinaSessionId)?.IsRsvpAvailable.Should().BeFalse();
+    }
+
+    private static SessionDetailPageModel DetailPage(SeedState state, Guid sessionId)
+    {
+        var pageModel = new SessionDetailPageModel(new SeedSessionsClient(state), new SeedRosterClient(state));
+        pageModel.ApplyQueryAttributes(new Dictionary<string, object> { ["sessionId"] = sessionId.ToString("D") });
+        return pageModel;
+    }
+
     [Fact]
     public async Task GetDashboardAsync_FreshStates_ReturnsDeterministicWireframeFixtures()
     {

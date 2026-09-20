@@ -1090,6 +1090,29 @@ public class GameDayPageModelTests
         pageModel.State.Should().Be(ViewState.Content);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("None")]
+    [InlineData("Pending")]
+    [InlineData("Declined")]
+    [InlineData("Removed")]
+    [InlineData("Withdrawn")]
+    public async Task Join_GroupedSessionWithoutApprovedMembership_HidesActionAndDoesNotCallClient(string? membershipStatus)
+    {
+        var context = SpectatorContext() with { MembershipStatus = membershipStatus, CanJoin = true };
+        var client = new Mock<IGameDayClient>();
+        client.Setup(x => x.GetTodayContextAsync(It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(context);
+        var roster = new Mock<IRosterClient>(MockBehavior.Strict);
+        var pageModel = new GameDayPageModel(client.Object, Navigator().Object, rosterClient: roster.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        await pageModel.JoinCommand.ExecuteAsync(null);
+
+        pageModel.CanJoin.Should().BeFalse();
+        roster.VerifyNoOtherCalls();
+    }
+
     [Fact]
     public async Task Join_WhenRsvpFails_ShowsDialogAndStaysOnContent()
     {
@@ -1453,6 +1476,8 @@ public class GameDayPageModelTests
             GroupName = "Bay Area Soccer",
             IsSpectator = true,
             CanJoin = true,
+            GroupChatId = Guid.Parse("50000000-0000-0000-0000-000000000001"),
+            MembershipStatus = "Approved",
             Capacity = 20,
             StatusLabel = "Spectator",
             IsSelfCheckInAvailable = false,

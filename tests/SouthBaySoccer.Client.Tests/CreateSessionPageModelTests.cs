@@ -276,6 +276,33 @@ public class CreateSessionPageModelTests
         captured.RsvpDeadlineDayOffset.Should().Be(-1);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task EditManagedSession_GroupAbsentFromOptions_PreservesOriginalGroupOnSave(bool hasGroup)
+    {
+        var pageModel = MockBackedModel(out var adminClient, out _);
+        var session = new ManagedSessionDto(
+            Guid.NewGuid(), "Test session", "Jul 11", "7:40 PM", "Marina Field", "7v7", 20, "Published");
+        Guid? originalGroup = hasGroup ? Guid.NewGuid() : null;
+        var editable = EditableSessionWithRsvpDeadlineDayBeforeGame(session.SessionId, Guid.NewGuid());
+        adminClient.Setup(client => client.GetSessionForEditAsync(session.SessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(editable with { Command = editable.Command with { GroupChatId = originalGroup } });
+        CreateSessionCommand? captured = null;
+        adminClient.Setup(client => client.UpdateSessionAsync(session.SessionId, It.IsAny<CreateSessionCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid, CreateSessionCommand, CancellationToken>((_, command, _) => captured = command)
+            .ReturnsAsync(CreateSessionResult.Success(session.SessionId));
+        await pageModel.LoadCommand.ExecuteAsync(null);
+        pageModel.SelectedGroup = new SessionGroupOption(Guid.NewGuid(), "Another group");
+
+        await pageModel.EditManagedSessionCommand.ExecuteAsync(session);
+        await pageModel.PublishToTeamCommand.ExecuteAsync(null);
+
+        captured.Should().NotBeNull();
+        captured?.GroupChatId.Should().Be(originalGroup);
+        pageModel.SelectedGroup.Should().BeNull();
+    }
+
     [Fact]
     public async Task EditManagedSession_GameDateMovedForward_RsvpCloseDateShiftsWithItPreservingOffset()
     {

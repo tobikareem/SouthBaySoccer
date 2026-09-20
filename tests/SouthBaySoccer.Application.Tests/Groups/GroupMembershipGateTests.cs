@@ -45,6 +45,38 @@ public sealed class GroupMembershipGateTests
     }
 
     [Theory]
+    [InlineData(PickupPalOrigin.Imported, null)]
+    [InlineData(PickupPalOrigin.None, "pickuppal:legacy")]
+    public async Task EnsureCanJoin_WhenImportedGroupUnresolved_Rejects(PickupPalOrigin origin, string? occurrenceKey)
+    {
+        var session = Session(null);
+        session.PickupPalOrigin = origin;
+        session.OccurrenceKey = occurrenceKey;
+        var gate = new GroupMembershipGate(Mock.Of<IPlayerGroupLinkRepository>(), Mock.Of<IGroupChatRepository>());
+
+        var act = () => gate.EnsureCanJoinAsync(session, Guid.NewGuid());
+
+        await act.Should().ThrowAsync<GroupMembershipRequiredException>();
+    }
+
+    [Theory]
+    [InlineData(PickupPalOrigin.Imported, null, false)]
+    [InlineData(PickupPalOrigin.None, "pickuppal:legacy", false)]
+    [InlineData(PickupPalOrigin.CreatedByApp, "pickuppal:app", true)]
+    [InlineData(PickupPalOrigin.None, null, true)]
+    public async Task ResolveAccess_WhenNoGroup_OnlyOpensAppSessions(PickupPalOrigin origin, string? occurrenceKey, bool canJoin)
+    {
+        var session = Session(null);
+        session.PickupPalOrigin = origin;
+        session.OccurrenceKey = occurrenceKey;
+        var gate = new GroupMembershipGate(Mock.Of<IPlayerGroupLinkRepository>(), Mock.Of<IGroupChatRepository>());
+
+        var result = await gate.ResolveAccessAsync([session], Guid.NewGuid());
+
+        result[session.Id].CanJoin.Should().Be(canJoin);
+    }
+
+    [Theory]
     [InlineData(GroupMembershipStatus.Pending)]
     [InlineData(GroupMembershipStatus.Declined)]
     [InlineData(GroupMembershipStatus.Removed)]
@@ -120,15 +152,11 @@ public sealed class GroupMembershipGateTests
     [Theory]
     [InlineData(RsvpStatus.Maybe)]
     [InlineData(RsvpStatus.NotGoing)]
-    public async Task SubmitRsvp_WhenSteppingBack_NeverConsultsTheGate(RsvpStatus status)
+    public async Task SubmitRsvp_WhenNonmemberSubmitsOtherIntent_RejectsBeforeWriting(RsvpStatus status)
     {
         var fixture = new ActorFixture();
-        // A strict gate with no setups: any call would throw, proving Maybe / NotGoing are not gated.
-        var gate = new Mock<IGroupMembershipGate>(MockBehavior.Strict);
-        var eligibility = new Mock<IPlayerSessionEligibilityService>();
-        eligibility
-            .Setup(x => x.CheckAsync(fixture.Profile.Id, fixture.Session.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new PlayerSessionEligibilityResult(false, "Payment required."));
+        var eligibility = new Mock<IPlayerSessionEligibilityService>(MockBehavior.Strict);
+        var rsvps = new Mock<IRsvpRepository>(MockBehavior.Strict);
         var handler = new SubmitRsvpCommandHandler(
             fixture.CurrentUser.Object,
             fixture.Clock.Object,
@@ -136,16 +164,15 @@ public sealed class GroupMembershipGateTests
             fixture.Profiles.Object,
             fixture.Sessions.Object,
             eligibility.Object,
-            Mock.Of<IRsvpRepository>(),
+            rsvps.Object,
             Mock.Of<IRsvpPickupPalSyncService>(),
-            gate.Object);
+            fixture.ClosedGate());
 
         var act = async () => await handler.HandleAsync(new SubmitRsvpCommand(fixture.Session.Id, status));
 
-        // The flow reached the eligibility step (past where the gate would have run) untouched.
-        await act.Should().ThrowAsync<SouthBaySoccer.Application.Common.ApplicationConflictException>()
-            .WithMessage("Payment required.");
-        gate.VerifyNoOtherCalls();
+        await act.Should().ThrowAsync<GroupMembershipRequiredException>();
+        eligibility.VerifyNoOtherCalls();
+        rsvps.VerifyNoOtherCalls();
     }
 
     [Fact]

@@ -100,8 +100,11 @@ public sealed class SeedState
             {
                 GoingCount = roster.Going.Count,
                 IsFull = roster.Going.Count >= session.Capacity,
-                IsRsvpAvailable = !canceledSessionIds.Contains(sessionId) && roster.Going.Count < session.Capacity,
+                // Seed games intentionally keep their RSVP window open regardless of fixture dates.
+                // Capacity controls joining, but must not prevent withdrawing a held spot.
+                IsRsvpAvailable = !canceledSessionIds.Contains(sessionId),
                 IsGoing = roster.Going.Any(entry => entry.Player.Id == SeedFixtures.CurrentPlayerId),
+                IsWaitlisted = roster.Waitlist.Any(entry => entry.Player.Id == SeedFixtures.CurrentPlayerId),
                 IsCanceled = canceledSessionIds.Contains(sessionId)
             };
         }
@@ -149,9 +152,14 @@ public sealed class SeedState
                 waitlist.RemoveAll(entry => entry.Player.Id == SeedFixtures.CurrentPlayerId);
                 going.Add(new RosterEntryDto(SeedFixtures.Players[0], true));
             }
-            else if (existingGoing >= 0)
+            else
             {
-                going.RemoveAt(existingGoing);
+                if (existingGoing >= 0)
+                {
+                    going.RemoveAt(existingGoing);
+                }
+
+                waitlist.RemoveAll(entry => entry.Player.Id == SeedFixtures.CurrentPlayerId);
             }
 
             rosters[sessionId] = new RosterDto(

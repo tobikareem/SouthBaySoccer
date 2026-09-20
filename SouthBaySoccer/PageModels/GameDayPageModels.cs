@@ -172,6 +172,7 @@ public partial class GameDayPageModel(
     [NotifyPropertyChangedFor(nameof(HeaderContextLabel))]
     [NotifyPropertyChangedFor(nameof(DisplayHeaderContextLabel))]
     [NotifyPropertyChangedFor(nameof(SpectatorBannerText))]
+    [NotifyPropertyChangedFor(nameof(ShowJoinGroup))]
     private string? _groupName;
 
     /// <summary>"Bay Area Soccer · Marina Field" — which group and field this page is about.</summary>
@@ -197,6 +198,7 @@ public partial class GameDayPageModel(
     [NotifyPropertyChangedFor(nameof(HasJoinBlockedReason))]
     [NotifyPropertyChangedFor(nameof(StatusBadgeVariant))]
     [NotifyPropertyChangedFor(nameof(ShowSpectatorContent))]
+    [NotifyPropertyChangedFor(nameof(ShowJoinGroup))]
     private bool _isSpectator;
 
     public bool IsParticipant => !IsSpectator && !IsNoGame && !IsShowingRecentGames;
@@ -229,6 +231,7 @@ public partial class GameDayPageModel(
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(JoinCommand))]
+    [NotifyPropertyChangedFor(nameof(ShowJoinGroup))]
     private bool _canJoin;
 
     [ObservableProperty]
@@ -1086,7 +1089,7 @@ public partial class GameDayPageModel(
         GroupName = context.GroupName;
         MembershipStatus = context.MembershipStatus;
         IsSpectator = context.IsSpectator;
-        CanJoin = context.CanJoin;
+        CanJoin = context.CanJoin && (context.GroupChatId is null || context.MembershipStatus == "Approved");
         JoinBlockedReason = context.JoinBlockedReason;
         Capacity = context.Capacity;
         CanShowAllGames = context.CanShowAllGames;

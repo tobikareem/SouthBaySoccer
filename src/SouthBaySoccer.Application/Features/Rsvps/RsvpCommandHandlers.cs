@@ -26,13 +26,9 @@ public sealed class SubmitRsvpCommandHandler(
         var profile = await GetCurrentProfileAsync(currentUser, playerProfileRepository, cancellationToken);
         var session = await GetOpenSessionAsync(sessionRepository, command.SessionId, clock.UtcNow, cancellationToken);
 
-        // GRP-1: Going (and the waitlist it may land on) is reserved for approved members of the
-        // session's group; a session without a group is open as before. Maybe / NotGoing and
-        // cancel are never gated, so a removed member can always step back.
-        if (command.Status == RsvpStatus.Going)
-        {
-            await groupMembershipGate.EnsureCanJoinAsync(session, profile.Id, cancellationToken);
-        }
+        // Every submitted intent requires membership. DELETE RSVP remains available separately
+        // so a player whose membership ended can release an existing spot without submitting one.
+        await groupMembershipGate.EnsureCanJoinAsync(session, profile.Id, cancellationToken);
 
         var eligibility = await eligibilityService.CheckAsync(profile.Id, session.Id, cancellationToken);
         if (!eligibility.IsEligible)

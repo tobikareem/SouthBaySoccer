@@ -22,3 +22,5 @@ One line per lesson. Skim this at the start of a task; read the full entry when 
 - [link-dedupe-before-outcome](link-dedupe-before-outcome.md) - Single-use link dedupe: set on dispatch, clear on transport failure, never in Reset(); map token failures by problem type
 - [supplementary-viewmodel-assignment-boundary](2026-08-05-supplementary-viewmodel-assignment-boundary.md) - Optional UI property assignment can throw through binding callbacks; isolate the whole operation
 - [api-client-must-map-every-access-field](2026-09-19-api-client-must-map-every-access-field.md) - Api client mappers dropped CanJoin; permissive DTO defaults hid it. Map every access field and test with PascalCase bodies
+- [membership-access-through-every-path](2026-09-19-membership-access-through-every-path.md) - Enforce membership through import, mapping, commands, and promotion; separate cancellation from hidden RSVP controls
+- [deletion-and-outbox-commit-together](2026-09-19-deletion-and-outbox-commit-together.md) - Local account deletion and its durable upstream intent must share a retry-safe transaction

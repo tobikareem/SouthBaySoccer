@@ -9,10 +9,9 @@ using SouthBaySoccer.Infrastructure.Persistence;
 namespace SouthBaySoccer.Infrastructure.Authentication.Onboarding;
 
 /// <summary>
-/// EF/Identity-backed local account deletion. Soft-deletes the profile and its dependents (the audit
-/// interceptor converts <c>Remove</c> into <c>IsDeleted = true</c>), anonymizes and locks the identity
-/// user so its email and Pickup Pal user name are free for a future re-registration, and revokes every
-/// refresh token. Nothing is hard-deleted.
+/// EF/Identity-backed local account deletion. Soft-deletes the profile and its dependents, anonymizes
+/// and locks the identity user so its email and Pickup Pal user name are free for re-registration,
+/// and revokes every refresh token. Commits these changes with the audit/outbox intent.
 /// <para>
 /// The body performs several saves (Identity's <c>UpdateAsync</c> saves on its own, so does token
 /// revocation), so it runs as one transaction inside the SQL execution strategy: with
@@ -27,7 +26,11 @@ public sealed class LocalAccountDeletionService(
 {
     private const string RevocationReason = "AccountDeleted";
 
-    public async Task<LocalAccountDeletion> DeleteAsync(Guid identityUserId, CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public async Task<LocalAccountDeletion> DeleteAsync(
+        Guid identityUserId,
+        Func<LocalAccountDeletion, CancellationToken, Task> recordDeletionAsync,
+        CancellationToken cancellationToken = default)
     {
         var strategy = dbContext.Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
@@ -35,12 +38,13 @@ public sealed class LocalAccountDeletionService(
             dbContext.ChangeTracker.Clear();
 
             await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                IsolationLevel.ReadCommitted,
+                IsolationLevel.Serializable,
                 cancellationToken);
 
             var deletion = await DeleteLocalRecordsAsync(identityUserId, cancellationToken);
             await AnonymizeIdentityUserAsync(identityUserId);
             await refreshTokenRevocationService.RevokeAllAsync(identityUserId, RevocationReason, cancellationToken);
+            await recordDeletionAsync(deletion, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
@@ -54,30 +58,43 @@ public sealed class LocalAccountDeletionService(
             .SingleOrDefaultAsync(x => x.IdentityUserId == identityUserId, cancellationToken);
         if (profile is null)
         {
-            // Already deleted (a repeated request): nothing local to remove, and no upstream id to
-            // hand back, so the caller does not enqueue a second Pickup Pal deletion.
-            return new LocalAccountDeletion(null, null);
+            // Preserve identifiers for a repeated request or an execution-strategy replay after
+            // an ambiguous commit. The callback reuses the durable outbox idempotency key.
+            return await dbContext.PlayerProfiles.IgnoreQueryFilters()
+                .Where(x => x.IdentityUserId == identityUserId)
+                .OrderByDescending(x => x.CreatedAt)
+                .Select(x => new LocalAccountDeletion(x.Id, x.PickupPalUserId))
+                .FirstOrDefaultAsync(cancellationToken) ?? new LocalAccountDeletion(null, null);
         }
 
         var emergencyContacts = await dbContext.EmergencyContacts
             .Where(x => x.PlayerProfileId == profile.Id)
             .ToListAsync(cancellationToken);
-        dbContext.EmergencyContacts.RemoveRange(emergencyContacts);
+        foreach (var contact in emergencyContacts)
+        {
+            contact.IsDeleted = true;
+        }
 
         var groupLinks = await dbContext.PlayerGroupLinks
             .Where(x => x.PlayerProfileId == profile.Id)
             .ToListAsync(cancellationToken);
-        dbContext.PlayerGroupLinks.RemoveRange(groupLinks);
+        foreach (var link in groupLinks)
+        {
+            link.IsDeleted = true;
+        }
 
         if (profile.PickupPalUserId is { } pickupPalUserId)
         {
             var registrations = await dbContext.PlayerRegistrations
                 .Where(x => x.PickupPalUserId == pickupPalUserId)
                 .ToListAsync(cancellationToken);
-            dbContext.PlayerRegistrations.RemoveRange(registrations);
+            foreach (var registration in registrations)
+            {
+                registration.IsDeleted = true;
+            }
         }
 
-        dbContext.PlayerProfiles.Remove(profile);
+        profile.IsDeleted = true;
         return new LocalAccountDeletion(profile.Id, profile.PickupPalUserId);
     }
 

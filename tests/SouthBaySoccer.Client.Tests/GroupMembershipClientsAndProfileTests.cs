@@ -32,6 +32,24 @@ public class GroupMembershipClientsAndProfileTests
 
     // ---- ApiGroupsClient routes ----------------------------------------------------------------
 
+    [Theory]
+    [InlineData("player@example.test")]
+    [InlineData("+1 (555) 123-4567")]
+    [InlineData("name 1234")]
+    [InlineData("１２３４")]
+    [InlineData("a")]
+    [InlineData("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklm")]
+    public async Task SearchPlayersAsync_InvalidNameFragment_DoesNotSendHttpRequest(string query)
+    {
+        var handler = new CountingHttpMessageHandler();
+        var client = new ApiGroupsClient(CreateHttpClient(handler));
+
+        var act = () => client.SearchPlayersAsync(query, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentException>();
+        handler.Requests.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task ApiGroupsClient_ReadsAndWrites_HitTheContractRoutes()
     {

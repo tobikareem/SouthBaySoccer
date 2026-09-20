@@ -38,6 +38,12 @@ public interface IPlayerGroupLinkRepository : IRepository<PlayerGroupLink>
         Guid groupChatId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Lists the supplied players with an approved membership in the specified group.</summary>
+    Task<IReadOnlyList<Guid>> ListApprovedPlayerIdsAsync(
+        Guid groupChatId,
+        IReadOnlyCollection<Guid> playerProfileIds,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Lists the player's approved groups joined to their group-chat details, primary first.
     /// </summary>

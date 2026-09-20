@@ -465,17 +465,25 @@ The client never decides an outcome — it renders the status the server returns
   with `CircleCheck` or `Clock` glyph and a status `Badge`) and a `PrimaryButton` "See upcoming
   sessions" routes to `//sessions` via `IGroupLinkNavigator` — also when every request is Pending,
   since games of groups the player is not in are view-only.
+- **Session participation.** Grouped games require explicit `Approved` membership and server
+  `CanJoin` for RSVP/join-waitlist visibility across detail, Home, Schedule, and Game Day. Hidden
+  actions are also guarded in their commands. Detail uses a separate `GhostButton` "Cancel my
+  spot" for a nonmember's already-held Going/waitlist spot; it cannot create intent. Cancellation
+  depends on the RSVP window, not remaining capacity. `SessionDetailDto.IsRsvpAvailable` denotes
+  that window and `IsWaitlisted` preserves the existing waitlist intent in API and Seed modes.
 - **`GroupsMinePage` (route `my-groups`, Profile → "Manage").** `BrandHeader` with back;
   "Your memberships" `BrandCard` of menu-mode `PlayerRow`s with a status `Badge` and a
   `LinkButton` "Leave" (Approved) / "Cancel" (Pending) / "Request again" (Declined); "Join another
-  group" `BrandCard` of remaining groups with a `GhostButton` "Request". Leave asks for
+  group" `BrandCard` of remaining groups (including Withdrawn requests and Removed memberships)
+  with a `GhostButton` "Request". Leave asks for
   confirmation through `IUserDialogService`. Every write invalidates the `groups:` cache prefix and
   reloads; failures surface as an inline danger caption and keep the lists on screen.
 - **`GroupMembersPage` (route `group-members?groupId=…`).** `BrandHeader` titled with the group;
   member / pending count `Badge`s; "Pending requests" rows with `IconButton` approve and
   `IconButtonDanger` decline; "Members" rows with an `IconButtonDanger` remove. Super-admin extras
   are shown only when the response says `CanAppointAdmins`: an "Add member" name search (≥2
-  characters; the fragment is the only personal data ever placed in a query string) whose results
+  characters, at most 64; input containing `@` or four or more digits is rejected before any
+  HTTP request, in both the page model and API client) whose results
   exclude players already in the group, and a `LinkButton` "Make admin" / "Remove admin" per member.
 - **`SuperAdminGroupsPage` (route `super-admin-groups`).** Every group as a tappable menu-mode
   `PlayerRow` card with "N members · M pending requests" and a warning `Badge` count, opening
