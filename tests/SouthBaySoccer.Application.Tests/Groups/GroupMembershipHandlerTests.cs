@@ -562,6 +562,36 @@ public sealed class GroupMembershipHandlerTests
     // ----- Catalog -----
 
     [Fact]
+    public async Task GetGroupCatalog_WhenCustomExclusionsConfigured_ReplacesDefaultPatterns()
+    {
+        var fixture = new Fixture();
+        fixture.AddGroup("Archive Soccer");
+        var visible = fixture.AddGroup("Test Soccer");
+
+        var result = await fixture.CatalogHandler(new GroupNameVisibility(" archive "))
+            .HandleAsync(new GetGroupCatalogQuery());
+
+        result.Groups.Should().ContainSingle().Which.GroupChatId.Should().Be(visible.Id);
+    }
+
+    [Theory]
+    [InlineData("Soccer TEST")]
+    [InlineData("tmp group")]
+    [InlineData("120363123@g.us")]
+    public async Task GetGroupCatalog_WhenStoredNameIsExcluded_HidesItDuringProviderFailure(string name)
+    {
+        var fixture = new Fixture();
+        fixture.AddGroup(name);
+        var visible = fixture.AddGroup("South Bay Soccer");
+        fixture.GroupClient.Setup(client => client.GetAllGroupsAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Unavailable"));
+
+        var result = await fixture.CatalogHandler().HandleAsync(new GetGroupCatalogQuery());
+
+        result.Groups.Should().ContainSingle().Which.GroupChatId.Should().Be(visible.Id);
+    }
+
+    [Fact]
     public async Task GetGroupCatalog_ShowsPendingCountsOnlyForGroupsTheCallerManages()
     {
         var fixture = new Fixture();
@@ -641,6 +671,21 @@ public sealed class GroupMembershipHandlerTests
         group.GroupName.Should().Be("New name");
         group.Status.Should().Be(GroupMembershipStatus.Removed);
         fixture.Added.Should().BeEmpty();
+        fixture.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetGroupCatalog_WhenRenamedToExcludedName_UpdatesStoredNameAndHidesGroup()
+    {
+        var fixture = new Fixture();
+        var existing = fixture.AddGroup("Sunday Soccer");
+        fixture.GroupClient.Setup(x => x.GetAllGroupsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PickupPalGroupChat(existing.ExternalId, "TMP Soccer", null, "SUBSCRIBED", 20, null)]);
+
+        var result = await fixture.CatalogHandler().HandleAsync(new GetGroupCatalogQuery());
+
+        result.Groups.Should().BeEmpty();
+        existing.GroupName.Should().Be("TMP Soccer");
         fixture.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -803,10 +848,10 @@ public sealed class GroupMembershipHandlerTests
         }
 
         public RequestGroupMembershipsCommandHandler RequestHandler() =>
-            new(new RequestGroupMembershipsCommandValidator(), currentUser.Object, Profiles.Object, groupChats.Object, Links.Object, Service());
+            new(new RequestGroupMembershipsCommandValidator(), currentUser.Object, Profiles.Object, groupChats.Object, Links.Object, Service(), new GroupNameVisibility());
 
         public LeaveGroupCommandHandler LeaveHandler() =>
-            new(new LeaveGroupCommandValidator(), currentUser.Object, Profiles.Object, Links.Object, Service());
+            new(new LeaveGroupCommandValidator(), currentUser.Object, Profiles.Object, Links.Object, Service(), new GroupNameVisibility());
 
         public GetGroupMembersQueryHandler MembersHandler() => new(currentUser.Object, Profiles.Object, groupChats.Object, Links.Object);
 
@@ -819,7 +864,7 @@ public sealed class GroupMembershipHandlerTests
         public SetGroupAdminCommandHandler SetAdminHandler() =>
             new(new SetGroupAdminCommandValidator(), currentUser.Object, Profiles.Object, groupChats.Object, Links.Object, Service());
 
-        public GetGroupCatalogQueryHandler CatalogHandler() => new(currentUser.Object, Profiles.Object, groupChats.Object, Links.Object, GroupClient.Object, UnitOfWork.Object);
+        public GetGroupCatalogQueryHandler CatalogHandler(GroupNameVisibility? visibility = null) => new(currentUser.Object, Profiles.Object, groupChats.Object, Links.Object, GroupClient.Object, UnitOfWork.Object, visibility ?? new GroupNameVisibility());
 
         public SearchPlayersQueryHandler SearchHandler() =>
             new(new SearchPlayersQueryValidator(), currentUser.Object, Profiles.Object, Links.Object);

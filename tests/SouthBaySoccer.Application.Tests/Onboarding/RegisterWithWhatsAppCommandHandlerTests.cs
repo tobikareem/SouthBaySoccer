@@ -362,6 +362,6 @@ public sealed class RegisterWithWhatsAppCommandHandlerTests
             clock.Object,
             syncService.Object,
             groupClient.Object,
-            tokenIssuer.Object);
+            tokenIssuer.Object, new GroupNameVisibility());
     }
 }

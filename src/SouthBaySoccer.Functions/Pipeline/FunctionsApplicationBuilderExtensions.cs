@@ -26,6 +26,8 @@ public static class FunctionsApplicationBuilderExtensions
 {
     public static FunctionsApplicationBuilder AddSouthBaySoccerHttpPipeline(this FunctionsApplicationBuilder builder)
     {
+        builder.Services.AddSingleton(new GroupNameVisibility(
+            builder.Configuration["ExcludedGroupNamePatterns"] ?? GroupNameVisibility.DefaultExcludedNamePatterns));
         builder.Services.AddScoped<IValidator<BeginPhoneSignInCommand>, BeginPhoneSignInCommandValidator>();
         builder.Services.AddScoped<IValidator<CompleteWhatsAppLoginCommand>, CompleteWhatsAppLoginCommandValidator>();
         builder.Services.AddScoped<IValidator<ValidateRegistrationTokenCommand>, ValidateRegistrationTokenCommandValidator>();
