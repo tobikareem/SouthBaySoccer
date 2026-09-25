@@ -102,7 +102,8 @@ public sealed class RegisterWithWhatsAppCommandHandler(
     IClock clock,
     IPickupPalUserSyncService pickupPalUserSyncService,
     IPickupPalGroupClient groupClient,
-    IAuthenticationTokenIssuer tokenIssuer)
+    IAuthenticationTokenIssuer tokenIssuer,
+    GroupNameVisibility groupNameVisibility)
 {
     /// <summary>Runs the registration pipeline.</summary>
     /// <exception cref="OnboardingTokenException">The token or email cannot be used; nothing external was created.</exception>
@@ -279,7 +280,8 @@ public sealed class RegisterWithWhatsAppCommandHandler(
         try
         {
             var groups = await groupClient.GetLinkedGroupsAsync(pickupPalUserId, cancellationToken);
-            return (groups.Select(group => group.GroupName).Where(name => name.Length > 0).ToArray(), false);
+            return (groups.Select(group => group.GroupName)
+                .Where(name => name.Length > 0 && groupNameVisibility.IsVisible(name)).ToArray(), false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

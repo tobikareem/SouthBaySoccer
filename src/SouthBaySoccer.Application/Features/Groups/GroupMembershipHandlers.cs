@@ -70,9 +70,11 @@ internal static class GroupMembershipAccess
         ICurrentUser currentUser,
         IPlayerGroupLinkRepository playerGroupLinkRepository,
         Guid playerProfileId,
+        GroupNameVisibility groupNameVisibility,
         CancellationToken cancellationToken)
     {
-        var rows = await playerGroupLinkRepository.ListPlayerMembershipsAsync(playerProfileId, cancellationToken);
+        var rows = (await playerGroupLinkRepository.ListPlayerMembershipsAsync(playerProfileId, cancellationToken))
+            .Where(row => groupNameVisibility.IsVisible(row.GroupName)).ToArray();
         return new MyGroupMembershipsModel(
             GroupMembershipAuthorization.IsSuperAdmin(currentUser),
             rows.Any(row => row.Status == GroupMembershipStatus.Approved),
@@ -129,14 +131,16 @@ public sealed class GetGroupCatalogQueryHandler(
     IGroupChatRepository groupChatRepository,
     IPlayerGroupLinkRepository playerGroupLinkRepository,
     IPickupPalGroupClient groupClient,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    GroupNameVisibility groupNameVisibility)
 {
     public async Task<GroupCatalogModel> HandleAsync(GetGroupCatalogQuery query, CancellationToken cancellationToken = default)
     {
         _ = query;
         var profile = await GroupMembershipAccess.RequireProfileAsync(currentUser, playerProfileRepository, cancellationToken);
         await RefreshCatalogAsync(cancellationToken);
-        var groups = await groupChatRepository.ListAllAsync(cancellationToken);
+        var groups = (await groupChatRepository.ListAllAsync(cancellationToken))
+            .Where(group => groupNameVisibility.IsVisible(group.GroupName)).ToArray();
         var counts = await playerGroupLinkRepository.CountByGroupAsync(groups.Select(group => group.Id).ToArray(), cancellationToken);
         var mine = (await playerGroupLinkRepository.ListByPlayerAsync(profile.Id, cancellationToken))
             .ToDictionary(row => row.GroupChatId);
@@ -193,13 +197,14 @@ public sealed class GetGroupCatalogQueryHandler(
 public sealed class GetMyGroupMembershipsQueryHandler(
     ICurrentUser currentUser,
     IPlayerProfileRepository playerProfileRepository,
-    IPlayerGroupLinkRepository playerGroupLinkRepository)
+    IPlayerGroupLinkRepository playerGroupLinkRepository,
+    GroupNameVisibility groupNameVisibility)
 {
     public async Task<MyGroupMembershipsModel> HandleAsync(GetMyGroupMembershipsQuery query, CancellationToken cancellationToken = default)
     {
         _ = query;
         var profile = await GroupMembershipAccess.RequireProfileAsync(currentUser, playerProfileRepository, cancellationToken);
-        return await GroupMembershipAccess.BuildMyMembershipsAsync(currentUser, playerGroupLinkRepository, profile.Id, cancellationToken);
+        return await GroupMembershipAccess.BuildMyMembershipsAsync(currentUser, playerGroupLinkRepository, profile.Id, groupNameVisibility, cancellationToken);
     }
 }
 
@@ -209,7 +214,8 @@ public sealed class RequestGroupMembershipsCommandHandler(
     IPlayerProfileRepository playerProfileRepository,
     IGroupChatRepository groupChatRepository,
     IPlayerGroupLinkRepository playerGroupLinkRepository,
-    GroupMembershipService membershipService)
+    GroupMembershipService membershipService,
+    GroupNameVisibility groupNameVisibility)
 {
     public async Task<MyGroupMembershipsModel> HandleAsync(RequestGroupMembershipsCommand command, CancellationToken cancellationToken = default)
     {
@@ -223,7 +229,7 @@ public sealed class RequestGroupMembershipsCommandHandler(
         }
 
         await membershipService.RequestAsync(profile, groups, cancellationToken);
-        return await GroupMembershipAccess.BuildMyMembershipsAsync(currentUser, playerGroupLinkRepository, profile.Id, cancellationToken);
+        return await GroupMembershipAccess.BuildMyMembershipsAsync(currentUser, playerGroupLinkRepository, profile.Id, groupNameVisibility, cancellationToken);
     }
 }
 
@@ -237,7 +243,8 @@ public sealed class LeaveGroupCommandHandler(
     ICurrentUser currentUser,
     IPlayerProfileRepository playerProfileRepository,
     IPlayerGroupLinkRepository playerGroupLinkRepository,
-    GroupMembershipService membershipService)
+    GroupMembershipService membershipService,
+    GroupNameVisibility groupNameVisibility)
 {
     public async Task<MyGroupMembershipsModel> HandleAsync(LeaveGroupCommand command, CancellationToken cancellationToken = default)
     {
@@ -258,7 +265,7 @@ public sealed class LeaveGroupCommandHandler(
                 break;
         }
 
-        return await GroupMembershipAccess.BuildMyMembershipsAsync(currentUser, playerGroupLinkRepository, profile.Id, cancellationToken);
+        return await GroupMembershipAccess.BuildMyMembershipsAsync(currentUser, playerGroupLinkRepository, profile.Id, groupNameVisibility, cancellationToken);
     }
 }
 
