@@ -34,7 +34,7 @@ public sealed class GroupHandlerTests
             new Mock<IGroupChatRepository>().Object,
             links.Object,
             Service(groupClient, links, unitOfWork),
-            unitOfWork.Object);
+            unitOfWork.Object, new GroupNameVisibility());
 
         var result = await handler.HandleAsync(new GetMyGroupsQuery());
 
@@ -74,7 +74,7 @@ public sealed class GroupHandlerTests
 
         var handler = new GetMyGroupsQueryHandler(
             CurrentUser(identityUserId).Object, Profiles(identityUserId, profile).Object, groupClient.Object,
-            groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object);
+            groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object, new GroupNameVisibility());
 
         var result = await handler.HandleAsync(new GetMyGroupsQuery());
 
@@ -111,7 +111,7 @@ public sealed class GroupHandlerTests
 
         var handler = new GetMyGroupsQueryHandler(
             CurrentUser(identityUserId).Object, Profiles(identityUserId, profile).Object, groupClient.Object,
-            groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object);
+            groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object, new GroupNameVisibility());
 
         var result = await handler.HandleAsync(new GetMyGroupsQuery());
 
@@ -142,7 +142,7 @@ public sealed class GroupHandlerTests
 
         var handler = new GetMyGroupsQueryHandler(
             CurrentUser(identityUserId).Object, Profiles(identityUserId, profile).Object, groupClient.Object,
-            groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object);
+            groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object, new GroupNameVisibility());
 
         var result = await handler.HandleAsync(new GetMyGroupsQuery());
 
@@ -180,7 +180,7 @@ public sealed class GroupHandlerTests
 
         var handler = new GetMyGroupsQueryHandler(
             CurrentUser(identityUserId).Object, Profiles(identityUserId, profile).Object, groupClient.Object,
-            groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object);
+            groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object, new GroupNameVisibility());
 
         await handler.HandleAsync(new GetMyGroupsQuery());
 
@@ -213,7 +213,7 @@ public sealed class GroupHandlerTests
 
         var handler = new GetMyGroupsQueryHandler(
             CurrentUser(identityUserId).Object, Profiles(identityUserId, profile).Object, groupClient.Object,
-            groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object);
+            groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object, new GroupNameVisibility());
 
         await handler.HandleAsync(new GetMyGroupsQuery());
 
@@ -237,7 +237,7 @@ public sealed class GroupHandlerTests
 
         var handler = new GetMyGroupsQueryHandler(
             CurrentUser(identityUserId).Object, Profiles(identityUserId, profile).Object, groupClient.Object,
-            new Mock<IGroupChatRepository>().Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object);
+            new Mock<IGroupChatRepository>().Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object, new GroupNameVisibility());
 
         var result = await handler.HandleAsync(new GetMyGroupsQuery());
 
@@ -265,7 +265,7 @@ public sealed class GroupHandlerTests
         var handler = new LinkPlayerToGroupCommandHandler(
             new LinkPlayerToGroupCommandValidator(),
             CurrentUser(identityUserId).Object, Profiles(identityUserId, profile).Object,
-            groupClient.Object, groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object);
+            groupClient.Object, groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object, new GroupNameVisibility());
 
         var result = await handler.HandleAsync(new LinkPlayerToGroupCommand(ExternalId));
 
@@ -295,7 +295,7 @@ public sealed class GroupHandlerTests
         var handler = new LinkPlayerToGroupCommandHandler(
             new LinkPlayerToGroupCommandValidator(),
             CurrentUser(identityUserId).Object, Profiles(identityUserId, profile).Object,
-            groupClient.Object, groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object);
+            groupClient.Object, groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object, new GroupNameVisibility());
 
         var act = () => handler.HandleAsync(new LinkPlayerToGroupCommand(ExternalId));
 
@@ -329,7 +329,7 @@ public sealed class GroupHandlerTests
         var handler = new LinkPlayerToGroupCommandHandler(
             new LinkPlayerToGroupCommandValidator(),
             CurrentUser(identityUserId).Object, Profiles(identityUserId, profile).Object,
-            groupClient.Object, groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object);
+            groupClient.Object, groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object, new GroupNameVisibility());
 
         var result = await handler.HandleAsync(new LinkPlayerToGroupCommand(ExternalId));
 
@@ -368,7 +368,7 @@ public sealed class GroupHandlerTests
         var handler = new LinkPlayerToGroupCommandHandler(
             new LinkPlayerToGroupCommandValidator(),
             CurrentUser(identityUserId).Object, Profiles(identityUserId, profile).Object,
-            groupClient.Object, groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object);
+            groupClient.Object, groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object, new GroupNameVisibility());
 
         var result = await handler.HandleAsync(new LinkPlayerToGroupCommand(ExternalId));
 
@@ -393,7 +393,7 @@ public sealed class GroupHandlerTests
         var handler = new LinkPlayerToGroupCommandHandler(
             new LinkPlayerToGroupCommandValidator(),
             CurrentUser(identityUserId).Object, Profiles(identityUserId, profile).Object,
-            groupClient.Object, groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object);
+            groupClient.Object, groupChats.Object, links.Object, Service(groupClient, links, unitOfWork), unitOfWork.Object, new GroupNameVisibility());
 
         var act = async () => await handler.HandleAsync(new LinkPlayerToGroupCommand("does-not-exist@g.us"));
 

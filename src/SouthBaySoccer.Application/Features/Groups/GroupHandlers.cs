@@ -13,7 +13,9 @@ using SouthBaySoccer.Domain.Interfaces.Repositories;
 namespace SouthBaySoccer.Application.Features.Groups;
 
 /// <summary>Returns every available Pickup Pal group chat for the sign-in selection list.</summary>
-public sealed class GetAvailableGroupsQueryHandler(IPickupPalGroupClient groupClient)
+public sealed class GetAvailableGroupsQueryHandler(
+    IPickupPalGroupClient groupClient,
+    GroupNameVisibility groupNameVisibility)
 {
     public async Task<IReadOnlyList<GroupSummary>> HandleAsync(
         GetAvailableGroupsQuery query,
@@ -26,6 +28,8 @@ public sealed class GetAvailableGroupsQueryHandler(IPickupPalGroupClient groupCl
         var groups = await groupClient.GetAllGroupsAsync(cancellationToken);
         return groups
             .Where(group => !string.IsNullOrWhiteSpace(group.ExternalId))
+            .Where(group => groupNameVisibility.IsVisible(
+                string.IsNullOrWhiteSpace(group.GroupName) ? group.ExternalId : group.GroupName))
             .Select(group => new GroupSummary(
                 Guid.Empty,
                 group.ExternalId,
@@ -51,7 +55,8 @@ public sealed class GetMyGroupsQueryHandler(
     IGroupChatRepository groupChatRepository,
     IPlayerGroupLinkRepository playerGroupLinkRepository,
     GroupMembershipService membershipService,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    GroupNameVisibility groupNameVisibility)
 {
     public async Task<MyGroupsResult> HandleAsync(
         GetMyGroupsQuery query,
@@ -71,9 +76,10 @@ public sealed class GetMyGroupsQueryHandler(
 
         await SeedLinksFromPickupPalAsync(profile, profile.PickupPalUserId, cancellationToken);
 
-        var links = await playerGroupLinkRepository.ListPlayerGroupsAsync(profile.Id, cancellationToken);
+        var links = (await playerGroupLinkRepository.ListPlayerGroupsAsync(profile.Id, cancellationToken))
+            .Where(link => groupNameVisibility.IsVisible(link.GroupName)).ToArray();
         return new MyGroupsResult(
-            IsLinked: links.Count > 0,
+            IsLinked: links.Length > 0,
             Groups: links.Select(ToSummary).ToArray());
     }
 
@@ -144,7 +150,8 @@ public sealed class LinkPlayerToGroupCommandHandler(
     IGroupChatRepository groupChatRepository,
     IPlayerGroupLinkRepository playerGroupLinkRepository,
     GroupMembershipService membershipService,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    GroupNameVisibility groupNameVisibility)
 {
     public async Task<MyGroupsResult> HandleAsync(
         LinkPlayerToGroupCommand command,
@@ -161,9 +168,10 @@ public sealed class LinkPlayerToGroupCommandHandler(
 
         await membershipService.RequestAsync(profile, [group], cancellationToken);
 
-        var links = await playerGroupLinkRepository.ListPlayerGroupsAsync(profile.Id, cancellationToken);
+        var links = (await playerGroupLinkRepository.ListPlayerGroupsAsync(profile.Id, cancellationToken))
+            .Where(link => groupNameVisibility.IsVisible(link.GroupName)).ToArray();
         return new MyGroupsResult(
-            IsLinked: links.Count > 0,
+            IsLinked: links.Length > 0,
             Groups: links.Select(link => new GroupSummary(
                 link.GroupChatId, link.ExternalId, link.GroupName, link.MemberCount, IsLinked: true, link.IsPrimary)).ToArray());
     }
