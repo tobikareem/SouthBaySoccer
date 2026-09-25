@@ -3,6 +3,7 @@
   "Values": {
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "ExcludedGroupNamePatterns": "test,tmp,120363",
     "PickupPal:BaseUrl": "https://pickuppal-bot-dev.up.railway.app",
     "PickupPal:ApiKey": "",
     "PickupPal:Routes:LoginRedeem": "api/users/login/whatsapp",

@@ -12,6 +12,13 @@ in `.ai/memory/functions-pipeline-authz.md` / `functions-problem-details.md`.
 
 ## Context
 
+Group lists exclude names containing patterns from the root Functions setting
+`ExcludedGroupNamePatterns` (comma-separated, case-insensitive substring matching), including
+previously persisted groups. When absent, the default is `test,tmp,120363`; an empty setting
+disables exclusions. Trim entries and ignore empty entries. Apply the rule to displayed names, not normal
+WhatsApp group IDs; an ID used as the fallback for a missing name is a displayed name. This is
+a list filter and does not delete groups or revoke existing memberships.
+
 Until now a player "linked" themselves to a WhatsApp group with one tap, and every signed-in player
 could RSVP on every game. Product decisions (2026-09-16): **(1)** a player can belong to many
 groups; **(2)** joining a group is a request that a group admin approves, except that a player
