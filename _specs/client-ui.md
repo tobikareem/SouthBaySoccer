@@ -20,6 +20,10 @@ text styles, spacing), **shared styles**, and **custom XAML controls**. Grounded
 
 ## 1. Purpose & principles
 
+The native launch splash uses the existing N9ja Bay pitch logo on white (`#FFFFFF`),
+with a centered 192-by-192 base artwork area. `Resources/Splash/splash.svg` mirrors the
+app-icon foreground artwork. Do not use the default .NET splash artwork.
+
 A single, token-driven UI vocabulary so every screen looks like the wireframes and the brand,
 with zero per-page styling drift.
 
