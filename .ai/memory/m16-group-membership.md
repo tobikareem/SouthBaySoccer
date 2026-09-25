@@ -110,3 +110,13 @@ again), Pickup Pal writes of any kind, and re-issuing tokens when a player becom
 Related: [[pickuppal-groupchat-read-only]], [[pickuppal-phone-sign-in]], [[m15-pickuppal-game-creation]],
 [[m14-pickuppal-roster-sync]], [[functions-pipeline-authz]], [[functions-problem-details]],
 [[controlled-migrations]]
+# Group list exclusions (2026-09-25)
+
+Group list projections hide names matching root Functions setting `ExcludedGroupNamePatterns`:
+comma-separated, trimmed, case-insensitive substrings. Missing setting defaults to `test,tmp,120363`;
+empty/whitespace entries are ignored and an empty setting disables exclusions. The immutable policy
+is captured at backend startup; restart after configuration changes and refresh cached client lists.
+Do not filter normal WhatsApp external IDs when a real name exists. Keep provider metadata
+unfiltered so an upstream rename to an excluded name updates the persisted catalog; filter the
+returned catalog, personal group/membership lists, and registration welcome names instead.
+This does not delete groups or revoke membership.
