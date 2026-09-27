@@ -39,7 +39,8 @@ public sealed class AnnouncementHandlerTests
             GroupChats(groupChat).Object,
             announcements.Object,
             new Mock<IUnitOfWork>().Object,
-            Clock().Object);
+            Clock().Object, new Mock<IOutboxMessageRepository>().Object,
+            new Mock<IPickupPalAnnouncementClient>().Object);
 
         var result = await handler.HandleAsync(
             new PostAnnouncementCommand(groupChat.Id, "  Pitch change: Baylands Field.  ", SendPush: true));
@@ -69,7 +70,8 @@ public sealed class AnnouncementHandlerTests
             new Mock<IGroupChatRepository>(MockBehavior.Strict).Object,
             announcements.Object,
             new Mock<IUnitOfWork>(MockBehavior.Strict).Object,
-            Clock().Object);
+            Clock().Object, new Mock<IOutboxMessageRepository>().Object,
+            new Mock<IPickupPalAnnouncementClient>().Object);
 
         var act = () => handler.HandleAsync(new PostAnnouncementCommand(foreignGroupId, "Hello", SendPush: false));
 
@@ -98,7 +100,8 @@ public sealed class AnnouncementHandlerTests
         var handler = new PostAnnouncementCommandHandler(
             new PostAnnouncementCommandValidator(), currentUser.Object, Profiles(identityUserId, profile).Object,
             links.Object, new Mock<IGroupChatRepository>(MockBehavior.Strict).Object,
-            announcements.Object, unitOfWork.Object, Clock().Object);
+            announcements.Object, unitOfWork.Object, Clock().Object, new Mock<IOutboxMessageRepository>().Object,
+            new Mock<IPickupPalAnnouncementClient>().Object);
 
         var act = () => handler.HandleAsync(new PostAnnouncementCommand(groupId, "Hello", false));
 
@@ -125,7 +128,8 @@ public sealed class AnnouncementHandlerTests
         var handler = new PostAnnouncementCommandHandler(
             new PostAnnouncementCommandValidator(), currentUser.Object, Profiles(identityUserId, profile).Object,
             links.Object, new Mock<IGroupChatRepository>(MockBehavior.Strict).Object,
-            announcements.Object, unitOfWork.Object, Clock().Object);
+            announcements.Object, unitOfWork.Object, Clock().Object, new Mock<IOutboxMessageRepository>().Object,
+            new Mock<IPickupPalAnnouncementClient>().Object);
 
         var act = () => handler.HandleAsync(new PostAnnouncementCommand(groupId, "Hello", false));
 
@@ -152,14 +156,15 @@ public sealed class AnnouncementHandlerTests
         var unitOfWork = new Mock<IUnitOfWork>();
         var handler = new PostAnnouncementCommandHandler(
             new PostAnnouncementCommandValidator(), currentUser.Object, Profiles(identityUserId, profile).Object,
-            links.Object, GroupChats(group).Object, announcements.Object, unitOfWork.Object, Clock().Object);
+            links.Object, GroupChats(group).Object, announcements.Object, unitOfWork.Object, Clock().Object, new Mock<IOutboxMessageRepository>().Object,
+            new Mock<IPickupPalAnnouncementClient>().Object);
 
         await handler.HandleAsync(new PostAnnouncementCommand(group.Id, "  Hello  ", true));
 
         announcements.Verify(x => x.AddAsync(It.Is<Announcement>(a => a.GroupChatId == group.Id
             && a.AuthorPlayerProfileId == profile.Id && a.Body == "Hello" && a.SentAtUtc == NowUtc
             && !a.PushRequested), It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Theory]
@@ -648,7 +653,8 @@ public sealed class AnnouncementHandlerTests
             GroupChats(groupChat).Object,
             announcements.Object,
             new Mock<IUnitOfWork>().Object,
-            Clock().Object);
+            Clock().Object, new Mock<IOutboxMessageRepository>().Object,
+            new Mock<IPickupPalAnnouncementClient>().Object);
 
         await handler.HandleAsync(new PostAnnouncementCommand(groupChat.Id, "Kickoff moved", SendPush: false));
 
@@ -816,7 +822,8 @@ public sealed class AnnouncementHandlerTests
             GroupChats(groupChat).Object,
             announcements.Object,
             new Mock<IUnitOfWork>().Object,
-            Clock().Object);
+            Clock().Object, new Mock<IOutboxMessageRepository>().Object,
+            new Mock<IPickupPalAnnouncementClient>().Object);
     }
 
     private static MarkGroupAnnouncementsReadCommandHandler CreateMarkReadHandler(

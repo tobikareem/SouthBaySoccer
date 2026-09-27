@@ -21,8 +21,9 @@ public sealed record OutboxRunSummary(int Claimed, int Processed, int Retried, i
 /// row. Retryable failures back off 1, 5, 15, then 60 minutes and dead-letter once
 /// <see cref="OutboxOptions.MaxAttempts"/> attempts are spent; permanent failures dead-letter
 /// immediately. A settle that loses a row-version race (the immediate RSVP path reopened the row)
-/// is skipped: the other writer owns the row now. Every handler must be idempotent because a crash
-/// between execution and settlement re-runs the row after its lock expires.
+/// is skipped: the other writer owns the row now. Handlers can be replayed because a crash
+/// between execution and settlement re-runs the row after its lock expires. Pickup Pal announcement
+/// messages have at-least-once delivery because that provider does not document deduplication.
 /// </summary>
 public sealed class OutboxProcessor(
     IServiceScopeFactory scopeFactory,
@@ -163,7 +164,7 @@ public sealed class OutboxProcessor(
         catch (Exception exception)
         {
             // The lock expires on its own and the row is reclaimed by a later run; the handler's
-            // work is idempotent so re-running it is safe.
+            // work will run again (external announcement messages may repeat after an ambiguous send).
             logger.LogWarning(
                 "Outbox row could not be settled and will be reclaimed after its lock expires. MessageType: {MessageType}, ExceptionType: {ExceptionType}",
                 message.MessageType,

@@ -6,6 +6,7 @@ using Moq;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Application.Features.Outbox;
+using SouthBaySoccer.Application.Features.Announcements;
 using SouthBaySoccer.Domain.Entities.Operations;
 using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
@@ -43,6 +44,8 @@ public sealed class OutboxProcessorTests
         // registered but not listed would never have its rows claimed.
         OutboxMessageTypes.Handled.Should().BeEquivalentTo(
         [
+            new AnnouncementPickupPalOutboxHandler(Mock.Of<IAnnouncementRepository>(), Mock.Of<IGroupChatRepository>(),
+                Mock.Of<IPickupPalAnnouncementClient>()).MessageType,
             new RsvpPickupPalSyncOutboxHandler(Mock.Of<SouthBaySoccer.Application.Features.Rsvps.IRsvpPickupPalSyncService>()).MessageType,
             new SessionPickupPalSyncOutboxHandler(Mock.Of<SouthBaySoccer.Application.Features.Scheduling.ISessionPickupPalSyncService>()).MessageType,
             new PickupPalUserDeletionOutboxHandler(Mock.Of<SouthBaySoccer.Application.Features.Onboarding.IPickupPalOnboardingClient>()).MessageType,

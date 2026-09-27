@@ -9,6 +9,10 @@ As of September 2026, announcements are simple database-backed in-app posts. The
 reachable from the Sessions bell → Announcements → Post announcement, for approved group admins
 (or owners who are approved members). Both posting and sent history enforce per-group admin access;
 a global GameAdmin role alone is insufficient. No Firebase, push toggle, or push delivery is used.
+Posting also calls Pickup Pal `POST /api/groupchat/send` with the stored group ExternalId as chatId
+and the trimmed announcement body as message. Announcement and leased outbox intent commit together
+before the immediate HTTP send. Retry uses the existing outbox timer; upstream failures preserve the
+local post. Provider deduplication is undocumented, so an ambiguous send may duplicate a group-chat copy.
 Composer audiences come directly from local membership records, so Pickup Pal linkage is not required.
 The approved-group picker preserves the selected feed group and retains the draft destination on retry.
 Success confirms posting and offers Write another announcement. Members can switch their approved

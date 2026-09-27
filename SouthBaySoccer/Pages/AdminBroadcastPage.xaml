@@ -39,7 +39,7 @@
                                 SelectedItem="{Binding Group}"
                                 IsEnabled="{Binding IsComposerEnabled}"
                                 SemanticProperties.Description="Group receiving this announcement" />
-                        <Label Text="Members can read this announcement in the app." Style="{StaticResource TextCaption}" />
+                        <Label Text="Members can read this in the app. A copy is also sent to your group chat." Style="{StaticResource TextCaption}" />
                     </VerticalStackLayout>
                     <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
                         <Grid ColumnDefinitions="*,Auto">

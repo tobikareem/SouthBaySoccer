@@ -408,7 +408,7 @@ composer literally shows what players will receive.
     The server enforces both membership and group authority. Global GameAdmin alone does not grant posting.
   - **Message:** styled Editor with a 500-character limit and an inline validation message.
   - **Preview:** the same AnnouncementCard used in the member feed.
-  - **Post announcement:** saves to the existing database; no push/Firebase controls or delivery.
+  - **Post announcement:** saves to the existing database and sends a copy to the same group through Pickup Pal; no push/Firebase controls.
   - Success locks the draft, confirms posting, and offers **Write another announcement**.
   - Recently sent and read counts remain admin-facing only.
 - **Player group announcements.** The notification bell on Sessions opens a read-only, group-scoped

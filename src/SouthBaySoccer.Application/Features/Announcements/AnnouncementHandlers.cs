@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentValidation;
@@ -9,6 +10,8 @@ using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Domain.Entities.Announcements;
 using SouthBaySoccer.Domain.Entities.Groups;
+using SouthBaySoccer.Domain.Entities.Operations;
+using SouthBaySoccer.Application.Features.Outbox;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 using SouthBaySoccer.Domain.Enumerations;
 
@@ -215,7 +218,9 @@ public sealed class PostAnnouncementCommandHandler(
     IGroupChatRepository groupChatRepository,
     IAnnouncementRepository announcementRepository,
     IUnitOfWork unitOfWork,
-    IClock clock)
+    IClock clock,
+    IOutboxMessageRepository outboxRepository,
+    IPickupPalAnnouncementClient pickupPalClient)
 {
     public async Task<SentAnnouncementSummary> HandleAsync(
         PostAnnouncementCommand command,
@@ -257,8 +262,31 @@ public sealed class PostAnnouncementCommandHandler(
             PushRequested = false,
         };
 
-        await announcementRepository.AddAsync(announcement, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        var delivery = new OutboxMessage
+        {
+            MessageType = AnnouncementPickupPalOutboxHandler.DeliveryRequested,
+            PayloadJson = JsonSerializer.Serialize(new { AnnouncementId = announcement.Id }),
+            IdempotencyKey = $"announcement-pickuppal:{announcement.Id:N}",
+            Status = OutboxMessageStatus.Processing,
+            AvailableAtUtc = clock.UtcNow,
+            LockToken = Guid.NewGuid().ToString("N"),
+            LockedUntilUtc = clock.UtcNow.AddMinutes(5),
+        };
+        try
+        {
+            await announcementRepository.AddAsync(announcement, cancellationToken);
+            await outboxRepository.AddAsync(delivery, cancellationToken);
+            // One EF commit saves the announcement and its leased delivery intent atomically.
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            // Idempotency cleanup also saves this scoped DbContext. It must not accidentally
+            // commit the failed post or its delivery intent while abandoning the request key.
+            unitOfWork.DiscardChanges();
+            throw;
+        }
+        await TryDeliverAsync(delivery, groupChat.ExternalId, announcement.Body, cancellationToken);
 
         return new SentAnnouncementSummary(
             announcement.Id,
@@ -268,6 +296,38 @@ public sealed class PostAnnouncementCommandHandler(
             announcement.SentAtUtc,
             ReadCount: 0,
             announcement.RecipientCount);
+    }
+
+    private async Task TryDeliverAsync(OutboxMessage delivery, string chatId, string body, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = string.IsNullOrWhiteSpace(chatId)
+                ? OutboxHandlingResult.Fail("GroupDestinationNotFound")
+                : AnnouncementPickupPalOutboxHandler.ToResult(
+                    await pickupPalClient.SendAsync(chatId, body, cancellationToken));
+            delivery.Status = result.Disposition switch
+            {
+                OutboxHandlingDisposition.Completed => OutboxMessageStatus.Processed,
+                OutboxHandlingDisposition.Fail => OutboxMessageStatus.DeadLettered,
+                _ => OutboxMessageStatus.RetryScheduled,
+            };
+            delivery.AttemptCount = 1;
+            delivery.ProcessedAtUtc = result.Disposition == OutboxHandlingDisposition.Completed ? clock.UtcNow : null;
+            delivery.DeadLetterReason = result.Disposition == OutboxHandlingDisposition.Fail ? result.Code : null;
+            delivery.AvailableAtUtc = clock.UtcNow.AddMinutes(1);
+            delivery.LockToken = null;
+            delivery.LockedUntilUtc = null;
+            outboxRepository.Update(delivery);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception)
+        {
+            // The local post has committed. Preserve its success even if sending or settling fails
+            // (including request cancellation). The persisted lease expires and the timer recovers it.
+            // Never log the exception: a provider could include message content or the chat ID.
+            unitOfWork.DiscardChanges();
+        }
     }
 }
 
