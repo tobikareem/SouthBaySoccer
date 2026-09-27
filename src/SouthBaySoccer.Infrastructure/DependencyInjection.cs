@@ -11,12 +11,14 @@ using SouthBaySoccer.Application.Abstractions.Maps;
 using SouthBaySoccer.Application.Abstractions.Payments;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Features.Authentication;
+using SouthBaySoccer.Application.Features.Announcements;
 using SouthBaySoccer.Application.Features.Groups;
 using SouthBaySoccer.Application.Features.Idempotency;
 using SouthBaySoccer.Application.Features.Onboarding;
 using SouthBaySoccer.Application.Features.Scheduling;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 using SouthBaySoccer.Infrastructure.Authentication;
+using SouthBaySoccer.Infrastructure.Announcements;
 using SouthBaySoccer.Infrastructure.Authentication.Onboarding;
 using SouthBaySoccer.Infrastructure.Groups;
 using SouthBaySoccer.Infrastructure.Identity;
@@ -104,6 +106,9 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(10))
             .RemoveAllLoggers();
         services.AddHttpClient<IPickupPalGamesClient, PickupPalGamesClient>(client =>
+                client.Timeout = TimeSpan.FromSeconds(5))
+            .RemoveAllLoggers();
+        services.AddHttpClient<IPickupPalAnnouncementClient, PickupPalAnnouncementClient>(client =>
                 client.Timeout = TimeSpan.FromSeconds(5))
             .RemoveAllLoggers();
         // Registered by concrete type so the caching decorator below owns the IPickupPalGroupClient

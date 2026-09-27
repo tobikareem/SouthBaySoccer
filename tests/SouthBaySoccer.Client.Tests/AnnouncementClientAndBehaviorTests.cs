@@ -13,6 +13,24 @@ public sealed class AnnouncementClientAndBehaviorTests
 {
     private static readonly Guid GroupId = Guid.Parse("50000000-0000-0000-0000-000000000001");
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetSentAsync_WithOptionalGroup_SendsFilterWhenProvided(bool filtered)
+    {
+        string? observedPath = null;
+        var client = new ApiAnnouncementsClient(CreateHttpClient(request =>
+        {
+            observedPath = request.RequestUri?.PathAndQuery;
+            return JsonResponse("{\"announcements\":[]}");
+        }));
+
+        await client.GetSentAsync(10, CancellationToken.None, filtered ? GroupId : null);
+
+        observedPath.Should().Be("/players/me/announcements/sent?limit=10"
+            + (filtered ? $"&groupId={GroupId}" : string.Empty));
+    }
+
     [Fact]
     public async Task GetFeedAsync_WithCompoundCursor_SendsBothCursorValues()
     {
@@ -65,12 +83,12 @@ public sealed class AnnouncementClientAndBehaviorTests
 
         await client.PostAsync(
             GroupId,
-            new PostAnnouncementRequest("Field moved.", true),
+            new PostAnnouncementRequest("Field moved."),
             key,
             CancellationToken.None);
 
         observedKey.Should().Be(key);
-        observedBody.Should().Contain("\"body\":\"Field moved.\"").And.Contain("\"sendPush\":true");
+        observedBody.Should().Contain("\"body\":\"Field moved.\"").And.NotContain("sendPush");
     }
 
     [Fact]
@@ -130,7 +148,7 @@ public sealed class AnnouncementClientAndBehaviorTests
     }
 
     [Fact]
-    public async Task Send_RetrySameComposition_ReusesKey_ButPushChangeMintsNewKey()
+    public async Task Send_RetrySameComposition_ReusesKey_ButBodyChangeMintsNewKey()
     {
         var client = new RecordingPostClient(failuresBeforeSuccess: 2);
         var model = CreateComposer(client);
@@ -139,7 +157,7 @@ public sealed class AnnouncementClientAndBehaviorTests
 
         await model.SendCommand.ExecuteAsync(null);
         await model.SendCommand.ExecuteAsync(null);
-        model.SendPush = !model.SendPush;
+        model.Body += " Please arrive early.";
         await model.SendCommand.ExecuteAsync(null);
 
         client.Keys.Should().HaveCount(3);
@@ -147,11 +165,8 @@ public sealed class AnnouncementClientAndBehaviorTests
         client.Keys[2].Should().NotBe(client.Keys[0]);
     }
 
-    // Replaces a group-switch case: the audience is now fixed to the admin's own group, so the push
-    // toggle is the remaining composition field a retry can change. GroupId is still part of the
-    // composition record, so it stays covered by the same reset path.
     [Fact]
-    public async Task Send_PushToggleAfterFailure_MintsNewKey()
+    public async Task Send_UpdatedMessageAfterFailure_MintsNewKey()
     {
         var client = new RecordingPostClient(failuresBeforeSuccess: 1);
         var model = CreateComposer(client);
@@ -159,7 +174,7 @@ public sealed class AnnouncementClientAndBehaviorTests
         model.Body = "Field moved.";
 
         await model.SendCommand.ExecuteAsync(null);
-        model.SendPush = !model.SendPush;
+        model.Body += " Please arrive early.";
         await model.SendCommand.ExecuteAsync(null);
 
         client.Keys.Should().HaveCount(2);
@@ -319,7 +334,7 @@ public sealed class AnnouncementClientAndBehaviorTests
         public Task<SentAnnouncementDto> PostAsync(Guid groupId, PostAnnouncementRequest request, string idempotencyKey, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken) =>
+        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken, Guid? groupId = null) =>
             Task.FromResult(new SentAnnouncementsResponse([]));
     }
 
@@ -372,7 +387,7 @@ public sealed class AnnouncementClientAndBehaviorTests
             return new SentAnnouncementDto(Guid.NewGuid(), groupId, "Saturday crew", request.Body, DateTime.UtcNow, 0, 24);
         }
 
-        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken) =>
+        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken, Guid? groupId = null) =>
             Task.FromResult(new SentAnnouncementsResponse([]));
     }
 
@@ -394,14 +409,14 @@ public sealed class AnnouncementClientAndBehaviorTests
             throw new NotSupportedException();
         public Task<SentAnnouncementDto> PostAsync(Guid groupId, PostAnnouncementRequest request, string idempotencyKey, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken) =>
+        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken, Guid? groupId = null) =>
             throw new NotSupportedException();
     }
 
     private sealed class StubNavigator : IAnnouncementsNavigator
     {
         public Task GoToAnnouncementsAsync(Guid groupId) => Task.CompletedTask;
-        public Task GoToAdminBroadcastAsync() => Task.CompletedTask;
+        public Task GoToAdminBroadcastAsync(Guid? groupId = null) => Task.CompletedTask;
         public Task GoBackAsync() => Task.CompletedTask;
     }
 

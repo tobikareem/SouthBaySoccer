@@ -5,12 +5,18 @@ type: product
 created: 2026-07-27
 ---
 
-SouthBaySoccer notifications use an admin-only, group-scoped broadcast model. The composer runs
-*audience → message → how it lands → send*: a single-select row of group cards (name + member
-count, not a dropdown), a 500-character editor with the counter on the label line, an announcement
-preview, a push toggle that reveals an OS-style push preview, and a bottom-docked CTA carrying the
-exact recipient count. Selecting a group must update the preview, push preview, recipient count, and
-destination feed together. A "Recently sent" list gives admins read receipts.
+As of September 2026, announcements are simple database-backed in-app posts. The composer is
+reachable from the Sessions bell → Announcements → Post announcement, for approved group admins
+(or owners who are approved members). Both posting and sent history enforce per-group admin access;
+a global GameAdmin role alone is insufficient. No Firebase, push toggle, or push delivery is used.
+Posting also calls Pickup Pal `POST /api/groupchat/send` with the stored group ExternalId as chatId
+and the trimmed announcement body as message. Announcement and leased outbox intent commit together
+before the immediate HTTP send. Retry uses the existing outbox timer; upstream failures preserve the
+local post. Provider deduplication is undocumented, so an ambiguous send may duplicate a group-chat copy.
+Composer audiences come directly from local membership records, so Pickup Pal linkage is not required.
+The approved-group picker preserves the selected feed group and retains the draft destination on retry.
+Success confirms posting and offers Write another announcement. Members can switch their approved
+groups in the feed. Reopening reloads the feed. Existing EF announcement persistence is reused.
 
 Players open a read-only Announcements feed from the Sessions notification bell: plain cards (not
 chat bubbles) on a white surface, grouped under Today/Earlier, filtered by an All/Unread segmented
@@ -43,3 +49,10 @@ The authoritative design is in `documentation/mobile-wireframes.html`; the imple
 is `_specs/client-ui.md` §11.1.
 
 Related: [[mobile-wireframes-design-source]], [[client-reusable-ui]]
+
+Review safeguards: a revoked draft destination stays unselected until the admin explicitly chooses a
+group. Sent history filters the selected authorized group before limiting. Feed requests capture both
+group and generation, so stale results/errors cannot overwrite newer data. Same-group refresh is
+suppressed while marking read. The unread summary returns a capped total and newest unread group
+from one bounded query; the bell opens that group (primary fallback for zero/legacy responses).
+After a successful local post, idempotency completion uses its own bounded cancellation token.

@@ -81,13 +81,16 @@ public sealed class IdempotentRequestExecutor(
         }
 
         var responseJson = JsonSerializer.Serialize(response.Body, JsonOptions);
+        // The operation has committed successfully. A disconnected caller must not leave its
+        // saved result permanently marked as processing; give completion its own bounded window.
+        using var completionCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await idempotencyStore.CompleteAsync(
             record.Id,
             (int)response.StatusCode,
             responseJson,
             ComputeHash(responseJson),
             clock.UtcNow,
-            cancellationToken);
+            completionCancellation.Token);
 
         return await WriteStoredJsonAsync(
             request,

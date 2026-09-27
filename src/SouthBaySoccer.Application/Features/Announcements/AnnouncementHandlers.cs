@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentValidation;
@@ -9,7 +10,10 @@ using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Domain.Entities.Announcements;
 using SouthBaySoccer.Domain.Entities.Groups;
+using SouthBaySoccer.Domain.Entities.Operations;
+using SouthBaySoccer.Application.Features.Outbox;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
+using SouthBaySoccer.Domain.Enumerations;
 
 namespace SouthBaySoccer.Application.Features.Announcements;
 
@@ -139,7 +143,7 @@ public sealed class GetUnreadAnnouncementCountQueryHandler(
     /// </summary>
     public const int UnreadBadgeCap = 99;
 
-    public async Task<int> HandleAsync(
+    public async Task<UnreadAnnouncementSummary> HandleAsync(
         GetUnreadAnnouncementCountQuery query,
         CancellationToken cancellationToken = default)
     {
@@ -147,7 +151,7 @@ public sealed class GetUnreadAnnouncementCountQueryHandler(
         var playerProfileId = await AnnouncementAccess.RequireProfileIdAsync(
             currentUser, playerProfileRepository, cancellationToken);
 
-        return await announcementRepository.CountUnreadForPlayerAsync(
+        return await announcementRepository.GetUnreadSummaryForPlayerAsync(
             playerProfileId, UnreadBadgeCap, cancellationToken);
     }
 }
@@ -172,10 +176,16 @@ public sealed class GetSentAnnouncementsQueryHandler(
         var playerProfileId = await AnnouncementAccess.RequireProfileIdAsync(
             currentUser, playerProfileRepository, cancellationToken);
 
-        // Scoped to the admin's current groups as well as their authorship, so leaving a group also
-        // ends visibility of what they sent to it.
+        // Scope history to current group-admin rights and authorship. Leaving a group or losing
+        // its admin role ends visibility of its sent history.
         var links = await playerGroupLinkRepository.ListApprovedByPlayerAsync(playerProfileId, cancellationToken);
-        var groupChatIds = links.Select(link => link.GroupChatId).ToArray();
+        var isOwner = currentUser.IsInRole(PlayerRole.Owner.ToString());
+        var groupChatIds = links
+            .Where(link => link.Status == GroupMembershipStatus.Approved
+                && (link.Role == GroupMemberRole.Admin || isOwner)
+                && (!query.GroupChatId.HasValue || link.GroupChatId == query.GroupChatId.Value))
+            .Select(link => link.GroupChatId)
+            .ToArray();
         if (groupChatIds.Length == 0)
         {
             return [];
@@ -198,8 +208,8 @@ public sealed class GetSentAnnouncementsQueryHandler(
 }
 
 /// <summary>
-/// Broadcasts one announcement to one group. The admin must belong to the group they are posting
-/// to — an admin of one crew cannot broadcast into another.
+/// Posts one in-app announcement to one group. The author must be an approved group admin
+/// or an owner with approved membership in that group.
 /// </summary>
 public sealed class PostAnnouncementCommandHandler(
     IValidator<PostAnnouncementCommand> validator,
@@ -209,7 +219,9 @@ public sealed class PostAnnouncementCommandHandler(
     IGroupChatRepository groupChatRepository,
     IAnnouncementRepository announcementRepository,
     IUnitOfWork unitOfWork,
-    IClock clock)
+    IClock clock,
+    IOutboxMessageRepository outboxRepository,
+    IPickupPalAnnouncementClient pickupPalClient)
 {
     public async Task<SentAnnouncementSummary> HandleAsync(
         PostAnnouncementCommand command,
@@ -219,8 +231,17 @@ public sealed class PostAnnouncementCommandHandler(
 
         var playerProfileId = await AnnouncementAccess.RequireProfileIdAsync(
             currentUser, playerProfileRepository, cancellationToken);
-        await AnnouncementAccess.RequireGroupMembershipAsync(
+        var membership = await AnnouncementAccess.RequireGroupMembershipAsync(
             playerGroupLinkRepository, playerProfileId, command.GroupChatId, cancellationToken);
+        if (membership.Status != GroupMembershipStatus.Approved)
+        {
+            throw new ApplicationNotFoundException("Group chat was not found.");
+        }
+
+        if (membership.Role != GroupMemberRole.Admin && !currentUser.IsInRole(PlayerRole.Owner.ToString()))
+        {
+            throw new ApplicationForbiddenException("Only an admin of this group can post announcements.");
+        }
 
         var groupChat = await groupChatRepository.GetByIdAsync(command.GroupChatId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Group chat was not found.");
@@ -239,11 +260,34 @@ public sealed class PostAnnouncementCommandHandler(
             Body = command.Body.Trim(),
             SentAtUtc = clock.UtcNow,
             RecipientCount = recipientCount,
-            PushRequested = command.SendPush,
+            PushRequested = false,
         };
 
-        await announcementRepository.AddAsync(announcement, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        var delivery = new OutboxMessage
+        {
+            MessageType = AnnouncementPickupPalOutboxHandler.DeliveryRequested,
+            PayloadJson = JsonSerializer.Serialize(new { AnnouncementId = announcement.Id }),
+            IdempotencyKey = $"announcement-pickuppal:{announcement.Id:N}",
+            Status = OutboxMessageStatus.Processing,
+            AvailableAtUtc = clock.UtcNow,
+            LockToken = Guid.NewGuid().ToString("N"),
+            LockedUntilUtc = clock.UtcNow.AddMinutes(5),
+        };
+        try
+        {
+            await announcementRepository.AddAsync(announcement, cancellationToken);
+            await outboxRepository.AddAsync(delivery, cancellationToken);
+            // One EF commit saves the announcement and its leased delivery intent atomically.
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            // Idempotency cleanup also saves this scoped DbContext. It must not accidentally
+            // commit the failed post or its delivery intent while abandoning the request key.
+            unitOfWork.DiscardChanges();
+            throw;
+        }
+        await TryDeliverAsync(delivery, groupChat.ExternalId, announcement.Body, cancellationToken);
 
         return new SentAnnouncementSummary(
             announcement.Id,
@@ -253,6 +297,38 @@ public sealed class PostAnnouncementCommandHandler(
             announcement.SentAtUtc,
             ReadCount: 0,
             announcement.RecipientCount);
+    }
+
+    private async Task TryDeliverAsync(OutboxMessage delivery, string chatId, string body, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = string.IsNullOrWhiteSpace(chatId)
+                ? OutboxHandlingResult.Fail("GroupDestinationNotFound")
+                : AnnouncementPickupPalOutboxHandler.ToResult(
+                    await pickupPalClient.SendAsync(chatId, body, cancellationToken));
+            delivery.Status = result.Disposition switch
+            {
+                OutboxHandlingDisposition.Completed => OutboxMessageStatus.Processed,
+                OutboxHandlingDisposition.Fail => OutboxMessageStatus.DeadLettered,
+                _ => OutboxMessageStatus.RetryScheduled,
+            };
+            delivery.AttemptCount = 1;
+            delivery.ProcessedAtUtc = result.Disposition == OutboxHandlingDisposition.Completed ? clock.UtcNow : null;
+            delivery.DeadLetterReason = result.Disposition == OutboxHandlingDisposition.Fail ? result.Code : null;
+            delivery.AvailableAtUtc = clock.UtcNow.AddMinutes(1);
+            delivery.LockToken = null;
+            delivery.LockedUntilUtc = null;
+            outboxRepository.Update(delivery);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception)
+        {
+            // The local post has committed. Preserve its success even if sending or settling fails
+            // (including request cancellation). The persisted lease expires and the timer recovers it.
+            // Never log the exception: a provider could include message content or the chat ID.
+            unitOfWork.DiscardChanges();
+        }
     }
 }
 
