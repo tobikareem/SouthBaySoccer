@@ -28,6 +28,12 @@ public sealed class ApiProfileClient(HttpClient httpClient) : IProfileClient
         }
     }
 
+    public async Task DeleteCurrentAccountAsync(CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.DeleteAsync("profiles/me", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
     private async Task<PlayerProfileDto?> GetProfileByPathAsync(
         string path,
         CancellationToken cancellationToken)

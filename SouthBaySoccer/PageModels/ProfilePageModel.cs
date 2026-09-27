@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -36,6 +37,14 @@ public partial class ProfilePageModel(
     public const string SignOutConfirmTitle = "Sign out?";
     public const string SignOutConfirmMessage =
         "You'll be signed out on this device. Sign in again with any phone number connected to a Pickup Pal account.";
+    public const string DeleteAccountConfirmTitle = "Delete your account?";
+    public const string DeleteAccountConfirmMessage =
+        "This permanently deletes your N9ja Bay profile, group memberships, and sign-in on every device. " +
+        "Your Pickup Pal account is not affected. This cannot be undone.";
+    public const string DeleteAccountErrorTitle = "Couldn't delete your account";
+    public const string DeleteAccountErrorMessage = "Something went wrong. Your account was not deleted. Please try again.";
+    public const string DeleteAccountOfflineMessage =
+        "We couldn't reach the server, so we can't confirm your account was deleted. Reconnect and try again.";
 
     private Guid? requestedPlayerId;
 
@@ -241,6 +250,69 @@ public partial class ProfilePageModel(
         }
 
         await authenticationCoordinator.SignOutAsync(cancellationToken);
+    }
+
+    [ObservableProperty]
+    private bool _isDeletingAccount;
+
+    // Delete account. Only offered on the signed-in player's own profile (CanEditProfile). The server
+    // soft-deletes our records and revokes every session; Pickup Pal is never called. Local sign-out
+    // runs only after the server confirms, so a failed delete leaves the player signed in.
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task DeleteAccount(CancellationToken cancellationToken)
+    {
+        if (!CanEditProfile)
+        {
+            return;
+        }
+
+        var confirmed = await dialogService.ShowConfirmationAsync(
+            DeleteAccountConfirmTitle,
+            DeleteAccountConfirmMessage,
+            "Delete account",
+            "Cancel",
+            cancellationToken);
+        if (!confirmed)
+        {
+            return;
+        }
+
+        IsDeletingAccount = true;
+        try
+        {
+            await profileClient.DeleteCurrentAccountAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            // The session is gone even after a refresh attempt. The usual cause is a retry after a
+            // delete that committed (revoking every refresh token) but whose response was lost, so
+            // fall through and finish signing out rather than claim the account still exists.
+        }
+        catch (Exception exception)
+        {
+            await dialogService.ShowAlertAsync(
+                DeleteAccountErrorTitle,
+                // No status code means no response: the delete may or may not have committed.
+                // ApiRequestException always carries the status of a response the server sent.
+                exception is HttpRequestException { StatusCode: null }
+                    ? DeleteAccountOfflineMessage
+                    : DeleteAccountErrorMessage,
+                "OK",
+                cancellationToken);
+            return;
+        }
+        finally
+        {
+            IsDeletingAccount = false;
+        }
+
+        // The server account is gone, so local sign-out must finish even if this command's
+        // token is cancelled; otherwise the device would stay signed in to a deleted account.
+        await authenticationCoordinator.SignOutAsync(CancellationToken.None);
     }
 
     private async Task LoadProfileAsync(CancellationToken cancellationToken)

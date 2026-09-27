@@ -110,19 +110,19 @@ Scenario: Remembered device skips verification
   Then I am signed in without a WhatsApp round-trip
   And signing out revokes the refresh token so the next sign-in requires verification again
 
-Scenario: Account deletion removes N9ja Bay data by default
+Scenario: Account deletion removes N9ja Bay data only
   Given I am signed in
-  When I choose to delete my account from Profile and confirm without opting to remove my Pickup Pal account
+  When I tap "Delete account" on my own Profile and confirm
   Then the Function App soft-deletes my local records and writes an audit record
-  And my Pickup Pal account is left intact
+  And no Pickup Pal endpoint is called, so my Pickup Pal account is left intact
   And my session tokens are revoked
   And the app returns to the Welcome Back screen
 
-Scenario: Account deletion can also remove the Pickup Pal account on request
+Scenario: A failed account deletion keeps me signed in
   Given I am signed in
-  When I confirm deletion with "Also remove my Pickup Pal account" switched on
-  Then the Function App additionally calls the Pickup Pal deletion endpoint through the outbox
-  And a failed upstream call is retried without restoring my N9ja Bay data
+  When I confirm "Delete account" and the request fails
+  Then I see that my account was not deleted
+  And I stay signed in on this device
 ```
 
 ## Out of scope
