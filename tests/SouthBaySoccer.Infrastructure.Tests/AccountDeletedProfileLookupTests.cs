@@ -22,12 +22,22 @@ public sealed class AccountDeletedProfileLookupTests(InfrastructureDatabaseFixtu
         };
         var ordinaryIdentity = new ApplicationIdentityUser { Id = Guid.NewGuid(), UserName = $"player:{Guid.NewGuid():N}" };
         db.Users.AddRange(deletedIdentity, ordinaryIdentity);
-        var marker = Profile(deletedIdentity.Id, deleted: true);
-        var ordinary = Profile(ordinaryIdentity.Id, deleted: true);
-        var imported = Profile(null, deleted: true);
-        var active = Profile(null, deleted: false);
+        var marker = Profile(deletedIdentity.Id);
+        var ordinary = Profile(ordinaryIdentity.Id);
+        var imported = Profile(null);
+        var active = Profile(null);
         db.PlayerProfiles.AddRange(marker, ordinary, imported, active);
         await db.SaveChangesAsync();
+        // The audit interceptor initializes every inserted entity as active. Model deletion as
+        // a subsequent update, just as the real account-deletion and profile-merge flows do.
+        marker.IsDeleted = true;
+        ordinary.IsDeleted = true;
+        imported.IsDeleted = true;
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        (await db.PlayerProfiles.IgnoreQueryFilters().CountAsync(x =>
+            (x.Id == marker.Id || x.Id == ordinary.Id || x.Id == imported.Id) && x.IsDeleted))
+            .Should().Be(3, "the lookup must exercise persisted soft-deleted rows");
         var repository = provider.GetRequiredService<IPlayerProfileRepository>();
 
         var byUserId = await repository.ListAccountDeletedProfilesAsync(
@@ -49,7 +59,7 @@ public sealed class AccountDeletedProfileLookupTests(InfrastructureDatabaseFixtu
     {
         using var provider = new ServiceCollection().AddInfrastructure(database.ConnectionString).BuildServiceProvider();
         var db = provider.GetRequiredService<SouthBaySoccerDbContext>();
-        var profile = Profile(null, deleted: false);
+        var profile = Profile(null);
         db.PlayerProfiles.Add(profile);
         await db.SaveChangesAsync();
         var repository = provider.GetRequiredService<IPlayerProfileRepository>();
@@ -71,9 +81,9 @@ public sealed class AccountDeletedProfileLookupTests(InfrastructureDatabaseFixtu
         saved.DisplayName.Should().Be(profile.DisplayName);
     }
 
-    private static PlayerProfile Profile(Guid? identityUserId, bool deleted) => new()
+    private static PlayerProfile Profile(Guid? identityUserId) => new()
     {
-        Id = Guid.NewGuid(), IdentityUserId = identityUserId, IsDeleted = deleted,
+        Id = Guid.NewGuid(), IdentityUserId = identityUserId,
         PickupPalUserId = $"lookup-{Guid.NewGuid():N}", PhoneNumberHash = Guid.NewGuid().ToString("N"),
         WhatsAppJidHash = Guid.NewGuid().ToString("N"), DisplayName = "Lookup player",
         NormalizedDisplayName = "LOOKUP PLAYER", PreferredPosition = string.Empty,
