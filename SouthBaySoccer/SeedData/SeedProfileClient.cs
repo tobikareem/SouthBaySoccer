@@ -28,6 +28,12 @@ public sealed class SeedProfileClient(SeedGameDayState? gameDayState = null) : I
         return Task.FromResult<PlayerProfileDto?>(ApplyRecentForm(ProfileFor(SeedFixtures.Players[playerIndex], playerIndex)));
     }
 
+    public Task DeleteCurrentAccountAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
+
     private PlayerProfileDto ApplyRecentForm(PlayerProfileDto profile) =>
         gameDayState is null
             ? profile

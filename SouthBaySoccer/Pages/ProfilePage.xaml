@@ -295,6 +295,32 @@
                             Style="{StaticResource TextCaption}"
                             HorizontalTextAlignment="Center"
                             Opacity="0.65" />
+
+                        <!-- Delete account (App Store 5.1.1(v)). Deletes N9ja Bay data only; the
+                             Pickup Pal account is left intact. Confirmation is in the page model. -->
+                        <Button
+                            Text="Delete account"
+                            Command="{Binding DeleteAccountCommand}"
+                            Style="{StaticResource LinkButton}"
+                            TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                            HorizontalOptions="Center"
+                            Margin="0,8,0,0"
+                            ContentLayout="Left,6"
+                            SemanticProperties.Description="Delete your N9ja Bay account"
+                            SemanticProperties.Hint="Asks for confirmation. Your Pickup Pal account is not affected.">
+                            <Button.ImageSource>
+                                <FontImageSource
+                                    FontFamily="FontAwesomeSolid"
+                                    Glyph="{x:Static fonts:FontAwesomeGlyphs.TrashCan}"
+                                    Color="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                                    Size="{StaticResource IconMd}" />
+                            </Button.ImageSource>
+                        </Button>
+                        <ActivityIndicator
+                            IsRunning="{Binding IsDeletingAccount}"
+                            IsVisible="{Binding IsDeletingAccount}"
+                            HorizontalOptions="Center"
+                            Color="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}" />
                     </VerticalStackLayout>
                 </VerticalStackLayout>
             </ScrollView>

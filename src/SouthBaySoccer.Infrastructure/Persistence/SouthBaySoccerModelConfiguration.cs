@@ -129,6 +129,16 @@ internal static class SouthBaySoccerModelConfiguration
             b.HasIndex(x => x.PickupPalUserId).IsUnique().HasFilter("[PickupPalUserId] IS NOT NULL AND [IsDeleted] = 0");
             b.HasIndex(x => x.PhoneNumberHash).HasFilter("[PhoneNumberHash] IS NOT NULL AND [IsDeleted] = 0");
             b.HasIndex(x => x.WhatsAppJidHash).HasFilter("[WhatsAppJidHash] IS NOT NULL AND [IsDeleted] = 0");
+            // Import suppression reads deleted accounts; active-only indexes cannot serve this path.
+            b.HasIndex(x => x.PickupPalUserId, "IX_PlayerProfiles_Deleted_PickupPalUserId")
+                .IncludeProperties(x => x.IdentityUserId)
+                .HasFilter("[IsDeleted] = 1 AND [IdentityUserId] IS NOT NULL AND [PickupPalUserId] IS NOT NULL");
+            b.HasIndex(x => x.PhoneNumberHash, "IX_PlayerProfiles_Deleted_PhoneNumberHash")
+                .IncludeProperties(x => x.IdentityUserId)
+                .HasFilter("[IsDeleted] = 1 AND [IdentityUserId] IS NOT NULL AND [PhoneNumberHash] IS NOT NULL");
+            b.HasIndex(x => x.WhatsAppJidHash, "IX_PlayerProfiles_Deleted_WhatsAppJidHash")
+                .IncludeProperties(x => x.IdentityUserId)
+                .HasFilter("[IsDeleted] = 1 AND [IdentityUserId] IS NOT NULL AND [WhatsAppJidHash] IS NOT NULL");
             b.HasIndex(x => new { x.IsGuest, x.IsDeleted });
             // Serves both the import's display-name fallback lookup and the directory's name order.
             b.HasIndex(x => x.NormalizedDisplayName).IncludeProperties(x => new { x.DisplayName, x.PreferredPosition, x.IsGuest }).HasFilter("[IsDeleted] = 0");

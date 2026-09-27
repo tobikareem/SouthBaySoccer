@@ -335,12 +335,13 @@ public class ProfilePageModelTests
             .Where(element => element.Name.LocalName == "Button")
             .ToList();
 
-        buttons.Should().HaveCount(3);
+        buttons.Should().HaveCount(4);
         buttons.Select(button => Attribute(button, "Style"))
             .Should().BeEquivalentTo(
                 "{StaticResource LinkButton}",
                 "{StaticResource GhostButton}",
-                "{StaticResource DangerButton}");
+                "{StaticResource DangerButton}",
+                "{StaticResource LinkButton}");
         page.Descendants().Should().Contain(element => element.Name.LocalName == "ScrollView");
     }
 
@@ -478,6 +479,194 @@ public class ProfilePageModelTests
         await pageModel.SignOutCommand.ExecuteAsync(null);
 
         coordinator.Verify(c => c.SignOutAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAccount_WhenConfirmed_DeletesOnServerThenSignsOut()
+    {
+        var calls = new List<string>();
+        var profileClient = new Mock<IProfileClient>();
+        profileClient
+            .Setup(client => client.DeleteCurrentAccountAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => calls.Add("delete"))
+            .Returns(Task.CompletedTask);
+        var coordinator = new Mock<IAuthenticationCoordinator>();
+        coordinator
+            .Setup(c => c.SignOutAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => calls.Add("sign-out"))
+            .Returns(Task.CompletedTask);
+        var pageModel = CreatePageModel(
+            profileClient,
+            authenticationCoordinator: coordinator,
+            dialogService: DialogConfirming(true));
+
+        await pageModel.DeleteAccountCommand.ExecuteAsync(null);
+
+        calls.Should().Equal("delete", "sign-out");
+        pageModel.IsDeletingAccount.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DeleteAccount_WhenCancelled_DoesNotDeleteOrSignOut()
+    {
+        var profileClient = new Mock<IProfileClient>();
+        var coordinator = new Mock<IAuthenticationCoordinator>();
+        var pageModel = CreatePageModel(
+            profileClient,
+            authenticationCoordinator: coordinator,
+            dialogService: DialogConfirming(false));
+
+        await pageModel.DeleteAccountCommand.ExecuteAsync(null);
+
+        profileClient.Verify(client => client.DeleteCurrentAccountAsync(It.IsAny<CancellationToken>()), Times.Never);
+        coordinator.Verify(c => c.SignOutAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeleteAccount_WhenServerFails_StaysSignedInAndExplains(bool offline)
+    {
+        var profileClient = new Mock<IProfileClient>();
+        profileClient
+            .Setup(client => client.DeleteCurrentAccountAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(offline
+                ? new HttpRequestException("No route to host.")
+                : new ApiRequestException(System.Net.HttpStatusCode.InternalServerError, "Server error."));
+        var coordinator = new Mock<IAuthenticationCoordinator>();
+        var dialog = DialogConfirming(true);
+        var pageModel = CreatePageModel(
+            profileClient,
+            authenticationCoordinator: coordinator,
+            dialogService: dialog);
+
+        await pageModel.DeleteAccountCommand.ExecuteAsync(null);
+
+        coordinator.Verify(c => c.SignOutAsync(It.IsAny<CancellationToken>()), Times.Never);
+        dialog.Verify(d => d.ShowAlertAsync(
+            ProfilePageModel.DeleteAccountErrorTitle,
+            offline ? ProfilePageModel.DeleteAccountOfflineMessage : ProfilePageModel.DeleteAccountErrorMessage,
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        pageModel.IsDeletingAccount.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DeleteAccount_WhenAuthenticationFails_ExplainsUnknownOutcomeThenSignsOut()
+    {
+        // A 401 can occur before deletion or after an earlier committed deletion. Never infer success.
+        var profileClient = new Mock<IProfileClient>();
+        profileClient
+            .Setup(client => client.DeleteCurrentAccountAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Unauthorized.", null, System.Net.HttpStatusCode.Unauthorized));
+        var coordinator = new Mock<IAuthenticationCoordinator>();
+        var dialog = DialogConfirming(true);
+        var pageModel = CreatePageModel(
+            profileClient,
+            authenticationCoordinator: coordinator,
+            dialogService: dialog);
+
+        await pageModel.DeleteAccountCommand.ExecuteAsync(null);
+
+        coordinator.Verify(c => c.SignOutAsync(It.IsAny<CancellationToken>()), Times.Once);
+        dialog.Verify(d => d.ShowAlertAsync(
+            ProfilePageModel.DeleteAccountErrorTitle, ProfilePageModel.DeleteAccountAuthenticationMessage,
+            "OK", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteAccount_WhenHttpTimeoutOccurs_ReportsUnknownOutcomeAndKeepsSession()
+    {
+        var client = new Mock<IProfileClient>();
+        client.Setup(x => x.DeleteCurrentAccountAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new TaskCanceledException("HTTP timeout", new TimeoutException()));
+        var coordinator = new Mock<IAuthenticationCoordinator>();
+        var dialog = DialogConfirming(true);
+        var model = CreatePageModel(client, authenticationCoordinator: coordinator, dialogService: dialog);
+
+        await model.DeleteAccountCommand.ExecuteAsync(null);
+
+        coordinator.Verify(x => x.SignOutAsync(It.IsAny<CancellationToken>()), Times.Never);
+        dialog.Verify(x => x.ShowAlertAsync(ProfilePageModel.DeleteAccountErrorTitle,
+            ProfilePageModel.DeleteAccountOfflineMessage, "OK", It.IsAny<CancellationToken>()), Times.Once);
+        model.IsDeletingAccount.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DeleteAccount_WhenCancelledDuringRequest_DoesNotSignOutOrAlert()
+    {
+        ProfilePageModel? pageModel = null;
+        var profileClient = new Mock<IProfileClient>();
+        profileClient
+            .Setup(client => client.DeleteCurrentAccountAsync(It.IsAny<CancellationToken>()))
+            .Returns<CancellationToken>(token =>
+            {
+                // The toolkit command owns its token; cancel it the way the UI would. pageModel is
+                // assigned below, before the command runs, so the null-forgiving operator is safe.
+                pageModel!.DeleteAccountCommand.Cancel();
+                token.ThrowIfCancellationRequested();
+                return Task.CompletedTask;
+            });
+        var coordinator = new Mock<IAuthenticationCoordinator>();
+        var dialog = DialogConfirming(true);
+        pageModel = CreatePageModel(
+            profileClient,
+            authenticationCoordinator: coordinator,
+            dialogService: dialog);
+
+        var act = () => pageModel.DeleteAccountCommand.ExecuteAsync(null);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        coordinator.Verify(c => c.SignOutAsync(It.IsAny<CancellationToken>()), Times.Never);
+        dialog.Verify(d => d.ShowAlertAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        pageModel.IsDeletingAccount.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DeleteAccount_OnAnotherPlayersProfile_DoesNothing()
+    {
+        var profileClient = new Mock<IProfileClient>();
+        var dialog = DialogConfirming(true);
+        var pageModel = CreatePageModel(profileClient, dialogService: dialog);
+        pageModel.ApplyQueryAttributes(new Dictionary<string, object>
+        {
+            [ProfilePageModel.PlayerIdQueryKey] = Guid.NewGuid().ToString(),
+        });
+
+        await pageModel.DeleteAccountCommand.ExecuteAsync(null);
+
+        pageModel.CanEditProfile.Should().BeFalse();
+        dialog.Verify(d => d.ShowConfirmationAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        profileClient.Verify(client => client.DeleteCurrentAccountAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public void ProfilePageXaml_DeleteAccount_IsOnlyOfferedOnOwnProfileWithTrashIcon()
+    {
+        var page = LoadXaml("ProfilePage.xaml");
+        var button = page.Descendants().Single(element =>
+            element.Name.LocalName == "Button" &&
+            Attribute(element, "Command") == "{Binding DeleteAccountCommand}");
+
+        button.Ancestors().Should().Contain(element =>
+            Attribute(element, "IsVisible") == "{Binding CanEditProfile}");
+        button.Descendants().Should().Contain(element =>
+            element.Name.LocalName == "FontImageSource" &&
+            Attribute(element, "Glyph") == "{x:Static fonts:FontAwesomeGlyphs.TrashCan}");
+    }
+
+    private static Mock<IUserDialogService> DialogConfirming(bool confirmed)
+    {
+        var dialog = new Mock<IUserDialogService>();
+        dialog
+            .Setup(service => service.ShowConfirmationAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(confirmed);
+        return dialog;
     }
 
     private static ProfilePageModel CreatePageModel(

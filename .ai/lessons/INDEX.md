@@ -28,3 +28,5 @@ One line per lesson. Skim this at the start of a task; read the full entry when 
 - [announcement-outbox-idempotency-cleanup](2026-09-26-announcement-outbox-idempotency-cleanup.md) - Discard failed tracked announcement/outbox writes before shared-context idempotency cleanup saves
 
 - [announcement-concurrency-and-ios-evidence](2026-09-26-announcement-concurrency-and-ios-evidence.md) - Preserve group scope across async operations; distinguish simulator validation from fixing the historical watchdog cause
+
+- [account-deletion-boundaries](2026-09-27-account-deletion-boundaries.md) - Reject old access tokens, preserve uncertain client outcomes, and suppress passive profile recreation with indexed deletion markers
