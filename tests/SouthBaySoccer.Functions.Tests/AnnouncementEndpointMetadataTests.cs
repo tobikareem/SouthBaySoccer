@@ -32,7 +32,7 @@ public sealed class AnnouncementEndpointMetadataTests
     [Theory]
     [InlineData(nameof(AnnouncementFunctions.PostAnnouncement), "groups/{groupId:guid}/announcements")]
     [InlineData(nameof(AnnouncementFunctions.GetSentAnnouncements), "players/me/announcements/sent")]
-    public void AdminAnnouncementEndpoint_WhenMetadataResolved_RequiresSessionManagementPolicy(
+    public void AdminAnnouncementEndpoint_WhenMetadataResolved_RequiresAuthenticatedPlayerForGroupAuthorization(
         string methodName,
         string expectedRoute)
     {
@@ -41,8 +41,8 @@ public sealed class AnnouncementEndpointMetadataTests
         method.GetCustomAttribute<AllowAnonymousAttribute>().Should().BeNull();
         method.GetCustomAttribute<RequirePolicyAttribute>()!.Policy
             .Should().Be(
-                AuthenticationPolicies.CanManageSessions,
-                because: "broadcasting and its read receipts are admin surfaces, not player surfaces");
+                AuthenticationPolicies.AuthenticatedPlayer,
+                because: "the handler authorizes current group admins without requiring a global admin role");
         GetHttpTrigger(method).Route.Should().Be(expectedRoute);
     }
 

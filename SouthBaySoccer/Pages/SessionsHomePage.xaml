@@ -61,9 +61,39 @@
                                     </DataTrigger>
                                 </controls:Badge.Triggers>
                             </controls:Badge>
-                            <!-- The announcements bell is hidden until the iOS navigation watchdog
-                                 crash is fixed and the announcements command navigates for real; a
-                                 button whose only outcome is a "Coming soon" alert is a dead end. -->
+                            <Grid WidthRequest="{StaticResource TouchMin}"
+                                  HeightRequest="{StaticResource TouchMin}"
+                                  Margin="0,4,4,0">
+                                <Button Text="{x:Static fonts:FontAwesomeGlyphs.Bell}"
+                                        FontFamily="FontAwesomeSolid"
+                                        Style="{StaticResource IconButton}"
+                                        Command="{Binding OpenAnnouncementsCommand}"
+                                        SemanticProperties.Description="{Binding NotificationsSemanticDescription}"
+                                        SemanticProperties.Hint="Opens group announcements" />
+                                <!-- Danger red, not brand green: an unread badge has to read as an
+                                     alert against a green icon tile, and green-on-green does not.
+                                     The surface-coloured ring separates it from the glyph beneath. -->
+                                <Border InputTransparent="True"
+                                        IsVisible="{Binding HasUnreadAnnouncements}"
+                                        HorizontalOptions="End"
+                                        VerticalOptions="Start"
+                                        Margin="0,-6,-6,0"
+                                        Padding="5,1"
+                                        MinimumWidthRequest="20"
+                                        HeightRequest="20"
+                                        BackgroundColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                                        Stroke="{AppThemeBinding Light={StaticResource BrandWhite}, Dark={StaticResource BrandPineDark}}"
+                                        StrokeThickness="2"
+                                        StrokeShape="RoundRectangle 10">
+                                    <Label Text="{Binding UnreadAnnouncementBadge}"
+                                           TextColor="{StaticResource BrandWhite}"
+                                           FontSize="11"
+                                           FontAttributes="Bold"
+                                           LineBreakMode="NoWrap"
+                                           HorizontalTextAlignment="Center"
+                                           VerticalTextAlignment="Center" />
+                                </Border>
+                            </Grid>
                         </HorizontalStackLayout>
                     </Grid>
 
@@ -214,9 +244,7 @@
                         </Grid>
                     </controls:BrandCard>
 
-                    <!-- Admin entry point, gated by the signed-in profile role. Broadcast is hidden
-                         until the iOS navigation watchdog crash is fixed and the broadcast command
-                         navigates for real; a "Coming soon" alert is a dead end. -->
+                    <!-- Session administration; group announcements are managed from the bell feed. -->
                     <controls:SectionHeader
                         Text="Admin"
                         ActionText="Session"

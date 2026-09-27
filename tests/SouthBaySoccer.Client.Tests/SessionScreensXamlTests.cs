@@ -132,14 +132,12 @@ public class SessionScreensXamlTests
     // --- NFR-Accessibility: informational/interactive icons carry screen-reader descriptions ---
 
     [Fact]
-    public void SessionsHomePage_HidesDeadAnnouncementAndBroadcastEntries()
+    public void SessionsHomePage_ExposesAnnouncementsBell()
     {
-        // The bell and Broadcast buttons only popped a "Coming soon" alert (real navigation is
-        // disabled pending the iOS watchdog fix). They stay hidden until they navigate for real.
         var xaml = ReadXaml(HomePage);
 
-        xaml.Should().NotContain("FontAwesomeGlyphs.Bell");
-        xaml.Should().NotContain("OpenAnnouncementsCommand");
+        xaml.Should().Contain("FontAwesomeGlyphs.Bell");
+        xaml.Should().Contain("OpenAnnouncementsCommand");
         xaml.Should().NotContain("OpenBroadcastCommand");
     }
 

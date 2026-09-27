@@ -10,6 +10,7 @@ using SouthBaySoccer.Application.Common;
 using SouthBaySoccer.Domain.Entities.Announcements;
 using SouthBaySoccer.Domain.Entities.Groups;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
+using SouthBaySoccer.Domain.Enumerations;
 
 namespace SouthBaySoccer.Application.Features.Announcements;
 
@@ -172,10 +173,15 @@ public sealed class GetSentAnnouncementsQueryHandler(
         var playerProfileId = await AnnouncementAccess.RequireProfileIdAsync(
             currentUser, playerProfileRepository, cancellationToken);
 
-        // Scoped to the admin's current groups as well as their authorship, so leaving a group also
-        // ends visibility of what they sent to it.
+        // Scope history to current group-admin rights and authorship. Leaving a group or losing
+        // its admin role ends visibility of its sent history.
         var links = await playerGroupLinkRepository.ListApprovedByPlayerAsync(playerProfileId, cancellationToken);
-        var groupChatIds = links.Select(link => link.GroupChatId).ToArray();
+        var isOwner = currentUser.IsInRole(PlayerRole.Owner.ToString());
+        var groupChatIds = links
+            .Where(link => link.Status == GroupMembershipStatus.Approved
+                && (link.Role == GroupMemberRole.Admin || isOwner))
+            .Select(link => link.GroupChatId)
+            .ToArray();
         if (groupChatIds.Length == 0)
         {
             return [];
@@ -198,8 +204,8 @@ public sealed class GetSentAnnouncementsQueryHandler(
 }
 
 /// <summary>
-/// Broadcasts one announcement to one group. The admin must belong to the group they are posting
-/// to — an admin of one crew cannot broadcast into another.
+/// Posts one in-app announcement to one group. The author must be an approved group admin
+/// or an owner with approved membership in that group.
 /// </summary>
 public sealed class PostAnnouncementCommandHandler(
     IValidator<PostAnnouncementCommand> validator,
@@ -219,8 +225,17 @@ public sealed class PostAnnouncementCommandHandler(
 
         var playerProfileId = await AnnouncementAccess.RequireProfileIdAsync(
             currentUser, playerProfileRepository, cancellationToken);
-        await AnnouncementAccess.RequireGroupMembershipAsync(
+        var membership = await AnnouncementAccess.RequireGroupMembershipAsync(
             playerGroupLinkRepository, playerProfileId, command.GroupChatId, cancellationToken);
+        if (membership.Status != GroupMembershipStatus.Approved)
+        {
+            throw new ApplicationNotFoundException("Group chat was not found.");
+        }
+
+        if (membership.Role != GroupMemberRole.Admin && !currentUser.IsInRole(PlayerRole.Owner.ToString()))
+        {
+            throw new ApplicationForbiddenException("Only an admin of this group can post announcements.");
+        }
 
         var groupChat = await groupChatRepository.GetByIdAsync(command.GroupChatId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Group chat was not found.");
@@ -239,7 +254,7 @@ public sealed class PostAnnouncementCommandHandler(
             Body = command.Body.Trim(),
             SentAtUtc = clock.UtcNow,
             RecipientCount = recipientCount,
-            PushRequested = command.SendPush,
+            PushRequested = false,
         };
 
         await announcementRepository.AddAsync(announcement, cancellationToken);

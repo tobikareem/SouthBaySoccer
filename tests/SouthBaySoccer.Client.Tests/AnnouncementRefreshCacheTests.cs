@@ -95,7 +95,7 @@ public sealed class AnnouncementRefreshCacheTests
 
         public Task GoToAnnouncementsAsync(Guid groupId) => Task.CompletedTask;
 
-        public Task GoToAdminBroadcastAsync() => Task.CompletedTask;
+        public Task GoToAdminBroadcastAsync(Guid? groupId = null) => Task.CompletedTask;
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset now, TimeZoneInfo zone) : TimeProvider

@@ -429,15 +429,12 @@
     <!-- ADMIN BROADCAST — compose one group-wide notification -->
     <section class="screen" data-s="adminbroadcast">
       <div class="ghdr"><span class="flag"></span>
-        <div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Admin only</div><div style="font-size:17px;font-weight:500">Broadcast message</div></div></div>
+        <div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Admin only</div><div style="font-size:17px;font-weight:500">Post announcement</div></div></div>
       </div>
       <div class="scroll">
         <div class="field" style="margin-top:6px">
-          <div class="label">Sending to</div>
-          <!-- Stated, not chosen: an admin broadcasts to their own group chat and nowhere else, so
-               there is nothing to pick between. The server rejects a post to a group the caller is
-               not linked to; this keeps the screen honest about the reach the admin actually has. -->
-          <div class="audience" aria-label="Broadcast audience" data-group="Saturday crew" data-count="24"><i class="ti ti-brand-whatsapp"></i><b>Saturday crew</b><span>24 members</span></div>
+          <label class="label" for="announcementGroup">Post to group</label>
+          <select id="announcementGroup" class="audience" aria-label="Announcement group" onchange="this.closest('.screen').querySelector('.broadcast-group').textContent=this.value"><option>Saturday crew</option><option>Wednesday 5v5</option></select>
           <p class="muted" style="margin:9px 2px 0;font-size:12px">Delivered in the app only — admins post, players read.</p>
         </div>
 
@@ -448,21 +445,12 @@
         </div>
 
         <div class="field">
-          <div class="label">How it lands</div>
+          <div class="label">Preview</div>
           <div class="card" style="padding:13px 14px;margin-top:9px">
             <div class="ann-top" style="margin-bottom:8px"><span class="avatar" style="width:30px;height:30px;font-size:11px">AO</span><div class="ann-who"><div class="ann-name">Ayo · Admin</div><div class="ann-sub broadcast-group">Saturday crew</div></div><span class="ann-time">Now</span></div>
             <div class="ann-copy broadcast-preview">Pitch change: Saturday's game is moving to Baylands Field. Kickoff stays at 9:00 AM. Please update your RSVP by Friday.</div>
           </div>
-          <div class="toggle-row" role="switch" aria-checked="true" tabindex="0" onclick="togglePush(this)">
-            <span class="mini-action"><i class="ti ti-bell-ringing"></i></span>
-            <div style="flex:1"><div style="font-size:13px;font-weight:700">Push notification</div><div class="muted" style="font-size:11.5px">Alert phones now instead of on next open</div></div>
-            <span class="switch on push-switch"></span>
-          </div>
-          <div class="push push-preview">
-            <div class="push-app"><i class="ti ti-ball-football"></i> N9ja Bay · now</div>
-            <div class="push-title push-group">Saturday crew</div>
-            <div class="push-copy broadcast-preview">Pitch change: Saturday's game is moving to Baylands Field. Kickoff stays at 9:00 AM. Please update your RSVP by Friday.</div>
-          </div>
+
         </div>
 
         <div class="section-row" style="margin-top:22px"><div class="label">Recently sent</div><span class="muted" style="font-size:11px">read receipts</span></div>
@@ -472,8 +460,8 @@
         </div>
 
         <div class="cta-dock">
-          <button class="btn primary broadcast-btn" onclick="sendBroadcast(this)"><i class="ti ti-send"></i> Broadcast to 24 members</button>
-          <p class="muted" style="text-align:center;margin:9px 8px 0;font-size:11.5px">Broadcasts cannot be edited after sending.</p>
+          <button class="btn primary broadcast-btn" onclick="sendBroadcast(this)"><i class="ti ti-send"></i> Post announcement</button>
+          <p class="muted" style="text-align:center;margin:9px 8px 0;font-size:11.5px">Announcements cannot be edited after posting.</p>
         </div>
       </div>
     </section>
@@ -481,9 +469,14 @@
     <!-- PLAYER NOTIFICATIONS — group-chat style announcement feed -->
     <section class="screen" data-s="notifications">
       <div class="ghdr"><span class="flag"></span>
-        <div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div style="flex:1"><div style="font-size:12px;opacity:.85"><span class="feed-group">Saturday crew</span> · admins only</div><div style="font-size:17px;font-weight:500">Announcements</div></div></div>
+        <div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div style="flex:1"><div style="font-size:12px;opacity:.85"><span class="feed-group">Saturday crew</span></div><div style="font-size:17px;font-weight:500">Announcements</div></div></div>
       </div>
       <div class="scroll">
+        <div class="row" style="gap:12px;margin-top:12px">
+          <select aria-label="Your announcement group" style="flex:1"><option>Saturday crew</option><option>Wednesday 5v5</option></select>
+          <!-- Post is visible only to an admin of the selected group. -->
+          <span class="link" onclick="show('adminbroadcast')">Post announcement</span>
+        </div>
         <div class="section-row" style="margin-top:4px"><div class="seg" style="flex:1;margin:12px 0"><a class="active" onclick="annFilter(this,'all')">All</a><a onclick="annFilter(this,'unread')">Unread · 1</a></div></div>
         <div class="row" style="justify-content:flex-end;margin:-4px 2px 2px"><span class="link mark-read" onclick="markAllRead(this)"><i class="ti ti-checks"></i> Mark all read</span></div>
 
@@ -1207,12 +1200,6 @@
   function rosterMatch(){ closeRoster(); show('adminmatch'); }
   function rosterClaim(){ closeRoster(); show('claimpick'); }
 
-  function togglePush(row){
-    var on=!row.querySelector('.switch').classList.contains('on');
-    row.querySelector('.switch').classList.toggle('on',on);
-    row.setAttribute('aria-checked',on);
-    row.closest('.screen').querySelector('.push-preview').style.display=on?'block':'none';
-  }
   function sendBroadcast(btn){
     var s=btn.closest('.screen');
     var editor=s.querySelector('#broadcastCopy');
@@ -1220,9 +1207,10 @@
     if(!copy){ s.querySelector('#broadcastError').style.display='block'; editor.focus(); return; }
     var chip=activeGroup(s);
     document.querySelectorAll('.latest-broadcast-copy').forEach(function(el){ el.textContent=copy; });
-    document.querySelectorAll('.feed-group').forEach(function(el){ el.textContent=chip.dataset.group; });
+    document.querySelectorAll('.feed-group').forEach(function(el){ el.textContent=chip.value; });
     btn.className='btn ghost broadcast-btn';
-    btn.innerHTML="<i class='ti ti-circle-check'></i> Sent to "+chip.dataset.count+" members in "+chip.dataset.group;
+    btn.innerHTML="<i class='ti ti-circle-check'></i> Posted to "+chip.value;
+    chip.disabled=true;
     btn.disabled=true;
     editor.disabled=true;
   }

@@ -130,7 +130,7 @@ public sealed class AnnouncementClientAndBehaviorTests
     }
 
     [Fact]
-    public async Task Send_RetrySameComposition_ReusesKey_ButPushChangeMintsNewKey()
+    public async Task Send_RetrySameComposition_ReusesKey_ButBodyChangeMintsNewKey()
     {
         var client = new RecordingPostClient(failuresBeforeSuccess: 2);
         var model = CreateComposer(client);
@@ -139,7 +139,7 @@ public sealed class AnnouncementClientAndBehaviorTests
 
         await model.SendCommand.ExecuteAsync(null);
         await model.SendCommand.ExecuteAsync(null);
-        model.SendPush = !model.SendPush;
+        model.Body += " Please arrive early.";
         await model.SendCommand.ExecuteAsync(null);
 
         client.Keys.Should().HaveCount(3);
@@ -147,11 +147,8 @@ public sealed class AnnouncementClientAndBehaviorTests
         client.Keys[2].Should().NotBe(client.Keys[0]);
     }
 
-    // Replaces a group-switch case: the audience is now fixed to the admin's own group, so the push
-    // toggle is the remaining composition field a retry can change. GroupId is still part of the
-    // composition record, so it stays covered by the same reset path.
     [Fact]
-    public async Task Send_PushToggleAfterFailure_MintsNewKey()
+    public async Task Send_UpdatedMessageAfterFailure_MintsNewKey()
     {
         var client = new RecordingPostClient(failuresBeforeSuccess: 1);
         var model = CreateComposer(client);
@@ -159,7 +156,7 @@ public sealed class AnnouncementClientAndBehaviorTests
         model.Body = "Field moved.";
 
         await model.SendCommand.ExecuteAsync(null);
-        model.SendPush = !model.SendPush;
+        model.Body += " Please arrive early.";
         await model.SendCommand.ExecuteAsync(null);
 
         client.Keys.Should().HaveCount(2);
@@ -401,7 +398,7 @@ public sealed class AnnouncementClientAndBehaviorTests
     private sealed class StubNavigator : IAnnouncementsNavigator
     {
         public Task GoToAnnouncementsAsync(Guid groupId) => Task.CompletedTask;
-        public Task GoToAdminBroadcastAsync() => Task.CompletedTask;
+        public Task GoToAdminBroadcastAsync(Guid? groupId = null) => Task.CompletedTask;
         public Task GoBackAsync() => Task.CompletedTask;
     }
 

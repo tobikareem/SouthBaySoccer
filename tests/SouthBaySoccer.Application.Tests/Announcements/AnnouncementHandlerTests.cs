@@ -9,6 +9,7 @@ using SouthBaySoccer.Domain.Entities.Announcements;
 using SouthBaySoccer.Domain.Entities.Groups;
 using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
+using SouthBaySoccer.Domain.Enumerations;
 using Xunit;
 
 namespace SouthBaySoccer.Application.Tests.Announcements;
@@ -47,7 +48,7 @@ public sealed class AnnouncementHandlerTests
         saved!.Body.Should().Be("Pitch change: Baylands Field.", because: "the body is trimmed before it is broadcast");
         saved.SentAtUtc.Should().Be(NowUtc, because: "send time comes from IClock, never DateTime.Now");
         saved.RecipientCount.Should().Be(24, because: "the audience size is snapshotted so later joins cannot rewrite history");
-        saved.PushRequested.Should().BeTrue();
+        saved.PushRequested.Should().BeFalse();
         result.ReadCount.Should().Be(0);
         result.RecipientCount.Should().Be(24);
     }
@@ -75,6 +76,123 @@ public sealed class AnnouncementHandlerTests
         await act.Should().ThrowAsync<ApplicationNotFoundException>(
             because: "an admin may broadcast only to their own group, and a group they cannot see must not be confirmed to exist");
         announcements.Verify(x => x.AddAsync(It.IsAny<Announcement>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(GroupMembershipStatus.Pending)]
+    [InlineData(GroupMembershipStatus.Removed)]
+    [InlineData(GroupMembershipStatus.Declined)]
+    [InlineData(GroupMembershipStatus.Withdrawn)]
+    public async Task PostAnnouncement_WhenAdminMembershipIsNotApproved_RejectsWithoutWriting(GroupMembershipStatus status)
+    {
+        var identityUserId = Guid.NewGuid();
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = identityUserId };
+        var groupId = Guid.NewGuid();
+        var links = new Mock<IPlayerGroupLinkRepository>();
+        links.Setup(x => x.FindLinkAsync(profile.Id, groupId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlayerGroupLink { Status = status, Role = GroupMemberRole.Admin });
+        var currentUser = CurrentUser(identityUserId);
+        currentUser.Setup(x => x.IsInRole(nameof(PlayerRole.Owner))).Returns(true);
+        var announcements = new Mock<IAnnouncementRepository>(MockBehavior.Strict);
+        var unitOfWork = new Mock<IUnitOfWork>(MockBehavior.Strict);
+        var handler = new PostAnnouncementCommandHandler(
+            new PostAnnouncementCommandValidator(), currentUser.Object, Profiles(identityUserId, profile).Object,
+            links.Object, new Mock<IGroupChatRepository>(MockBehavior.Strict).Object,
+            announcements.Object, unitOfWork.Object, Clock().Object);
+
+        var act = () => handler.HandleAsync(new PostAnnouncementCommand(groupId, "Hello", false));
+
+        await act.Should().ThrowAsync<ApplicationNotFoundException>();
+        announcements.VerifyNoOtherCalls();
+        unitOfWork.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PostAnnouncement_WhenApprovedMemberIsNotGroupAdmin_RejectsEvenGlobalGameAdmin(bool isGameAdmin)
+    {
+        var identityUserId = Guid.NewGuid();
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = identityUserId };
+        var groupId = Guid.NewGuid();
+        var links = new Mock<IPlayerGroupLinkRepository>();
+        links.Setup(x => x.FindLinkAsync(profile.Id, groupId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlayerGroupLink { Status = GroupMembershipStatus.Approved, Role = GroupMemberRole.Member });
+        var currentUser = CurrentUser(identityUserId);
+        currentUser.Setup(x => x.IsInRole(nameof(PlayerRole.GameAdmin))).Returns(isGameAdmin);
+        var announcements = new Mock<IAnnouncementRepository>(MockBehavior.Strict);
+        var unitOfWork = new Mock<IUnitOfWork>(MockBehavior.Strict);
+        var handler = new PostAnnouncementCommandHandler(
+            new PostAnnouncementCommandValidator(), currentUser.Object, Profiles(identityUserId, profile).Object,
+            links.Object, new Mock<IGroupChatRepository>(MockBehavior.Strict).Object,
+            announcements.Object, unitOfWork.Object, Clock().Object);
+
+        var act = () => handler.HandleAsync(new PostAnnouncementCommand(groupId, "Hello", false));
+
+        await act.Should().ThrowAsync<ApplicationForbiddenException>();
+        announcements.VerifyNoOtherCalls();
+        unitOfWork.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData(GroupMemberRole.Admin, false)]
+    [InlineData(GroupMemberRole.Member, true)]
+    public async Task PostAnnouncement_WhenApprovedGroupAdminOrOwner_PersistsInAppAnnouncement(
+        GroupMemberRole role, bool isOwner)
+    {
+        var identityUserId = Guid.NewGuid();
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = identityUserId };
+        var group = new GroupChat { Id = Guid.NewGuid(), GroupName = "Saturday crew" };
+        var links = new Mock<IPlayerGroupLinkRepository>();
+        links.Setup(x => x.FindLinkAsync(profile.Id, group.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlayerGroupLink { Status = GroupMembershipStatus.Approved, Role = role });
+        var currentUser = CurrentUser(identityUserId);
+        currentUser.Setup(x => x.IsInRole(nameof(PlayerRole.Owner))).Returns(isOwner);
+        var announcements = new Mock<IAnnouncementRepository>();
+        var unitOfWork = new Mock<IUnitOfWork>();
+        var handler = new PostAnnouncementCommandHandler(
+            new PostAnnouncementCommandValidator(), currentUser.Object, Profiles(identityUserId, profile).Object,
+            links.Object, GroupChats(group).Object, announcements.Object, unitOfWork.Object, Clock().Object);
+
+        await handler.HandleAsync(new PostAnnouncementCommand(group.Id, "  Hello  ", true));
+
+        announcements.Verify(x => x.AddAsync(It.Is<Announcement>(a => a.GroupChatId == group.Id
+            && a.AuthorPlayerProfileId == profile.Id && a.Body == "Hello" && a.SentAtUtc == NowUtc
+            && !a.PushRequested), It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetSentAnnouncements_WhenMembershipsVary_QueriesOnlyAuthorizedCurrentGroups(bool isOwner)
+    {
+        var identityUserId = Guid.NewGuid();
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = identityUserId };
+        var adminGroup = Guid.NewGuid();
+        var memberGroup = Guid.NewGuid();
+        var links = new Mock<IPlayerGroupLinkRepository>();
+        links.Setup(x => x.ListApprovedByPlayerAsync(profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new PlayerGroupLink { GroupChatId = adminGroup, Status = GroupMembershipStatus.Approved, Role = GroupMemberRole.Admin },
+                new PlayerGroupLink { GroupChatId = memberGroup, Status = GroupMembershipStatus.Approved, Role = GroupMemberRole.Member },
+                new PlayerGroupLink { GroupChatId = Guid.NewGuid(), Status = GroupMembershipStatus.Pending, Role = GroupMemberRole.Admin },
+                new PlayerGroupLink { GroupChatId = Guid.NewGuid(), Status = GroupMembershipStatus.Removed, Role = GroupMemberRole.Admin },
+            ]);
+        var currentUser = CurrentUser(identityUserId);
+        currentUser.Setup(x => x.IsInRole(nameof(PlayerRole.Owner))).Returns(isOwner);
+        var announcements = new Mock<IAnnouncementRepository>(MockBehavior.Strict);
+        announcements.Setup(x => x.ListSentByAuthorAsync(profile.Id,
+                It.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == (isOwner ? 2 : 1)
+                    && ids.Contains(adminGroup) && ids.Contains(memberGroup) == isOwner),
+                10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        var handler = new GetSentAnnouncementsQueryHandler(new GetSentAnnouncementsQueryValidator(),
+            currentUser.Object, Profiles(identityUserId, profile).Object, links.Object, announcements.Object);
+
+        await handler.HandleAsync(new GetSentAnnouncementsQuery(10));
+
+        announcements.VerifyAll();
     }
 
     [Theory]
@@ -341,7 +459,7 @@ public sealed class AnnouncementHandlerTests
         var links = new Mock<IPlayerGroupLinkRepository>();
         links
             .Setup(x => x.ListApprovedByPlayerAsync(profile.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync([new PlayerGroupLink { PlayerProfileId = profile.Id, GroupChatId = groupChatId }]);
+            .ReturnsAsync([new PlayerGroupLink { PlayerProfileId = profile.Id, GroupChatId = groupChatId, Status = GroupMembershipStatus.Approved, Role = GroupMemberRole.Admin }]);
         var announcements = new Mock<IAnnouncementRepository>();
         announcements
             .Setup(x => x.ListSentByAuthorAsync(
@@ -511,7 +629,7 @@ public sealed class AnnouncementHandlerTests
         var links = new Mock<IPlayerGroupLinkRepository>();
         links
             .Setup(x => x.FindLinkAsync(profile.Id, groupChat.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new PlayerGroupLink { PlayerProfileId = profile.Id, GroupChatId = groupChat.Id });
+            .ReturnsAsync(new PlayerGroupLink { PlayerProfileId = profile.Id, GroupChatId = groupChat.Id, Status = GroupMembershipStatus.Approved, Role = GroupMemberRole.Admin });
         links
             .Setup(x => x.CountMembersAsync(groupChat.Id, profile.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(12);
@@ -762,6 +880,8 @@ public sealed class AnnouncementHandlerTests
                     PlayerProfileId = playerProfileId,
                     GroupChatId = groupChatId,
                     CreatedAt = joinedAtUtc ?? NowUtc.AddYears(-1),
+                    Status = GroupMembershipStatus.Approved,
+                    Role = GroupMemberRole.Admin,
                 }
                 : null);
         links

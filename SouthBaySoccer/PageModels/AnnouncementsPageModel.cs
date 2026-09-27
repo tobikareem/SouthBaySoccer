@@ -2,6 +2,7 @@ using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Contracts.Groups;
 using SouthBaySoccer.Services.Clients.Caching;
 using ViewState = SouthBaySoccer.Controls.ViewState;
 
@@ -11,7 +12,8 @@ public partial class AnnouncementsPageModel(
     IAnnouncementsClient announcementsClient,
     IAnnouncementsNavigator navigator,
     IClientResponseCache responseCache,
-    TimeProvider timeProvider) : ObservableObject
+    TimeProvider timeProvider,
+    IGroupsClient? groupsClient = null) : ObservableObject
 {
     public const string ErrorTitle = "Couldn't load announcements";
     public const string ErrorMessage = "Something went wrong loading announcements. Please try again.";
@@ -23,6 +25,36 @@ public partial class AnnouncementsPageModel(
     private Guid? nextCursorId;
 
     public Guid GroupId { get; set; }
+    private bool loadingGroups;
+    private bool isSuperAdmin;
+    [ObservableProperty] private IReadOnlyList<GroupMembershipDto> _groups = [];
+    [ObservableProperty] private GroupMembershipDto? _selectedGroup;
+    public bool CanPost => SelectedGroup is not null
+        && (isSuperAdmin || SelectedGroup.Role == GroupMemberRoles.Admin);
+    public bool CanChangeGroup => !loadingGroups && !IsRefreshing && !IsLoadingMore && !IsMarkingRead;
+
+    partial void OnIsRefreshingChanged(bool value) => OnPropertyChanged(nameof(CanChangeGroup));
+    partial void OnIsLoadingMoreChanged(bool value) => OnPropertyChanged(nameof(CanChangeGroup));
+    partial void OnSelectedGroupChanged(GroupMembershipDto? value)
+    {
+        GroupId = value?.GroupChatId ?? Guid.Empty;
+        loadedItems.Clear();
+        DayGroups = [];
+        nextCursorUtc = null;
+        nextCursorId = null;
+        UnreadCount = 0;
+        GroupName = value?.GroupName ?? string.Empty;
+        LoadMoreError = string.Empty;
+        OnPropertyChanged(nameof(CanPost));
+        if (!loadingGroups && GroupId != Guid.Empty)
+        {
+            RefreshCommand.Execute(null);
+        }
+    }
+
+    [RelayCommand]
+    private Task Compose() => CanPost ? navigator.GoToAdminBroadcastAsync(GroupId) : Task.CompletedTask;
+
 
     [ObservableProperty] private ViewState _state = ViewState.Loading;
     [ObservableProperty] private bool _isRefreshing;
@@ -45,6 +77,7 @@ public partial class AnnouncementsPageModel(
     partial void OnLoadMoreErrorChanged(string value) => OnPropertyChanged(nameof(HasLoadMoreError));
     partial void OnIsMarkingReadChanged(bool value)
     {
+        OnPropertyChanged(nameof(CanChangeGroup));
         OnPropertyChanged(nameof(CanMarkAllRead));
         MarkAllReadCommand.NotifyCanExecuteChanged();
     }
@@ -61,11 +94,44 @@ public partial class AnnouncementsPageModel(
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task Appearing(CancellationToken cancellationToken)
     {
-        if (GroupId == Guid.Empty || loadedItems.Count > 0)
+        if (groupsClient is not null)
         {
+            loadingGroups = true;
+            OnPropertyChanged(nameof(CanChangeGroup));
+            try
+            {
+                var response = await groupsClient.GetMyMembershipsAsync(cancellationToken);
+                isSuperAdmin = response.IsSuperAdmin;
+                var selectedId = GroupId;
+                Groups = response.Memberships.Where(item => item.Status == GroupMembershipStatuses.Approved).ToArray();
+                SelectedGroup = Groups.FirstOrDefault(item => item.GroupChatId == selectedId) ?? Groups.FirstOrDefault();
+                OnPropertyChanged(nameof(CanPost));
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                State = exception is HttpRequestException ? ViewState.Offline : ViewState.Error;
+                StateTitle = exception is HttpRequestException ? OfflineTitle : ErrorTitle;
+                StateMessage = exception is HttpRequestException ? OfflineMessage : ErrorMessage;
+                return;
+            }
+            finally
+            {
+                loadingGroups = false;
+                OnPropertyChanged(nameof(CanChangeGroup));
+            }
+        }
+        if (GroupId == Guid.Empty)
+        {
+            State = ViewState.Empty;
+            StateTitle = "No group announcements";
+            StateMessage = "Announcements are available to approved group members.";
             return;
         }
-
+        responseCache.Invalidate("announcements:");
         await LoadAsync(replace: true, cancellationToken);
     }
 
