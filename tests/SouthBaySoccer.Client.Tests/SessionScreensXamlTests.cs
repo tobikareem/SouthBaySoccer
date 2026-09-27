@@ -31,6 +31,18 @@ public class SessionScreensXamlTests
         Attr(button, "IsVisible").Should().Be("{Binding CanJoin}");
     }
 
+    [Theory]
+    [InlineData("SessionDetailPage.xaml", "ViewOnlyMessage")]
+    [InlineData("GameDayPage.xaml", "SpectatorBannerText")]
+    public void NonmemberNotice_KeepsMessageWithoutJoinGroupButton(string fileName, string messageBinding)
+    {
+        var xaml = ReadXaml(fileName);
+
+        xaml.Should().Contain($"{{Binding {messageBinding}}}", "the nonmember explanation stays visible");
+        xaml.Should().NotContain("JoinGroupCommand");
+        xaml.Should().NotContain("Text=\"Join the group\"");
+    }
+
     [Fact]
     public void SchedulePage_WaitlistAction_UsesMembershipAwareVisibility()
     {
