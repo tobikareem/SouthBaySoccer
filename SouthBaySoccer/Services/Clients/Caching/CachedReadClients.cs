@@ -29,6 +29,12 @@ internal sealed class CachedProfileClient(IProfileClient inner, IClientResponseC
     // per-player key space would grow with everyone the user ever viewed.
     public Task<PlayerProfileDto?> GetProfileAsync(Guid playerId, CancellationToken cancellationToken) =>
         inner.GetProfileAsync(playerId, cancellationToken);
+
+    public async Task DeleteCurrentAccountAsync(CancellationToken cancellationToken)
+    {
+        await inner.DeleteCurrentAccountAsync(cancellationToken);
+        cache.Invalidate(CurrentProfileCacheKey);
+    }
 }
 
 /// <summary>

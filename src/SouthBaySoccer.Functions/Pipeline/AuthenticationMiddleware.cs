@@ -47,6 +47,12 @@ public sealed class AuthenticationMiddleware : IFunctionsWorkerMiddleware
             throw new UnauthenticatedException();
         }
 
+        var accountAccess = context.InstanceServices.GetRequiredService<IAccountAccessValidator>();
+        if (!await accountAccess.IsActiveAsync(validation.UserId.Value, context.CancellationToken))
+        {
+            throw new UnauthenticatedException();
+        }
+
         var principal = FunctionCurrentUserPrincipal.Authenticated(
             validation.UserId.Value,
             validation.Roles,

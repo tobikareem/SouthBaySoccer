@@ -51,6 +51,9 @@ public static class FontAwesomeGlyphs
     public const string UserPlus = "\uf234";
     /// <summary>Crown \u2014 group admin role.</summary>
     public const string Crown = "\uf521";
+
+    /// <summary>Trash can \u2014 delete the signed-in player's account from Profile.</summary>
+    public const string TrashCan = "\uf2ed";
 }
 
 

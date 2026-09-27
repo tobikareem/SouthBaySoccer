@@ -74,7 +74,7 @@ public sealed class ProfileFunctions(
 
     /// <summary>
     /// Deletes the signed-in player's account (App Store 5.1.1(v)). Local records are soft-deleted
-    /// and every session revoked before the Pickup Pal deletion is requested through the outbox.
+    /// and every session revoked. Pickup Pal is never called; the Pickup Pal account stays intact.
     /// </summary>
     [Function(nameof(DeleteMyProfile))]
     [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
@@ -82,13 +82,7 @@ public sealed class ProfileFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "profiles/me")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        // Default deletes only N9ja Bay data. `?alsoDeletePickupPal=true` is the explicit opt-in the
-        // confirmation sheet exposes; anything else is treated as false.
-        var alsoDeletePickupPal = string.Equals(
-            System.Web.HttpUtility.ParseQueryString(request.Url.Query)["alsoDeletePickupPal"],
-            "true",
-            StringComparison.OrdinalIgnoreCase);
-        await onboardingWorkflow.DeleteMyAccountAsync(alsoDeletePickupPal, cancellationToken);
+        await onboardingWorkflow.DeleteMyAccountAsync(cancellationToken);
         return request.CreateResponse(HttpStatusCode.NoContent);
     }
 

@@ -193,6 +193,39 @@ public sealed class ApiPipelineTests
     }
 
     [Fact]
+    public async Task ApiProfileClient_DeleteCurrentAccountAsync_SendsDeleteWithoutPickupPalOptIn()
+    {
+        HttpRequestMessage? observed = null;
+        var client = new ApiProfileClient(new HttpClient(new StubHttpMessageHandler(request =>
+        {
+            observed = request;
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        }))
+        {
+            BaseAddress = new Uri("https://api.test/"),
+        });
+
+        await client.DeleteCurrentAccountAsync(CancellationToken.None);
+
+        observed!.Method.Should().Be(HttpMethod.Delete);
+        observed.RequestUri!.PathAndQuery.Should().Be("/profiles/me");
+    }
+
+    [Fact]
+    public async Task ApiProfileClient_DeleteCurrentAccountAsync_WhenServerFails_Throws()
+    {
+        var client = new ApiProfileClient(new HttpClient(new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.InternalServerError)))
+        {
+            BaseAddress = new Uri("https://api.test/"),
+        });
+
+        var act = () => client.DeleteCurrentAccountAsync(CancellationToken.None);
+
+        await act.Should().ThrowAsync<HttpRequestException>();
+    }
+
+    [Fact]
     public async Task ApiProfileClient_GetCurrentProfileAsync_MapsFunctionResponse()
     {
         var client = new ApiProfileClient(new HttpClient(new StubHttpMessageHandler(_ =>

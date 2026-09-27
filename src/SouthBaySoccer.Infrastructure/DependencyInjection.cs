@@ -84,6 +84,7 @@ public static class DependencyInjection
         services.AddScoped<IIdempotencyStore, EfIdempotencyStore>();
         services.TryAddSingleton<IMapsService, UnavailableMapsService>();
         services.AddScoped<IIdentityService, IdentityService>();
+        services.AddScoped<IAccountAccessValidator, AccountAccessValidator>();
         services.AddScoped<IWhatsAppIdentityResolver, WhatsAppIdentityResolver>();
         services.AddScoped<IPlayerRegistrationRepository, PlayerRegistrationRepository>();
         services.AddScoped<IPendingPhoneSignInRepository, PendingPhoneSignInRepository>();
