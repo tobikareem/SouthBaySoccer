@@ -8,7 +8,8 @@ The MAUI client never chooses an external destination or holds provider credenti
 Save the announcement and a delivery outbox row in one SaveChanges call before contacting Pickup Pal.
 The initial row has a five-minute processing lease so the existing timer cannot race the immediate
 send. Attempt delivery immediately after commit. Success marks the row processed; temporary network,
-timeout, 408, 429, or 5xx failures leave a scheduled retry; permanent rejection dead-letters it.
+timeout, auth (401/403), 408, 429, 5xx, and other unclassified failures leave a scheduled retry;
+only a request Pickup Pal can never accept (400, 404, 410, 413, 422) dead-letters it immediately.
 An immediate send/settlement failure must not turn a saved announcement into a failed local post.
 The existing outbox timer retries the stored announcement, not the announcement creation command.
 No new table, migration, Firebase integration, or push notification is required.

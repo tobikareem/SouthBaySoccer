@@ -37,10 +37,16 @@ public sealed class PickupPalAnnouncementClient(
                 return PickupPalAnnouncementSendResult.Sent;
             }
 
-            return response.StatusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests
-                || (int)response.StatusCode is >= 500 and <= 599
-                    ? PickupPalAnnouncementSendResult.Retry
-                    : PickupPalAnnouncementSendResult.Rejected;
+            // Only a request Pickup Pal can never accept is permanent. Auth failures (401/403) are
+            // usually a rotated or misconfigured key, so they retry until the outbox attempt limit
+            // dead-letters them instead of silently dropping every announcement in that window.
+            return response.StatusCode is HttpStatusCode.BadRequest
+                or HttpStatusCode.NotFound
+                or HttpStatusCode.Gone
+                or HttpStatusCode.RequestEntityTooLarge
+                or HttpStatusCode.UnprocessableEntity
+                    ? PickupPalAnnouncementSendResult.Rejected
+                    : PickupPalAnnouncementSendResult.Retry;
         }
         catch (HttpRequestException)
         {

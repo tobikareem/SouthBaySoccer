@@ -16,7 +16,7 @@ public sealed record GetUnreadAnnouncementCountQuery;
 public sealed record GetSentAnnouncementsQuery(int Limit);
 
 /// <summary>Broadcasts one announcement to one group the current admin belongs to.</summary>
-public sealed record PostAnnouncementCommand(Guid GroupChatId, string Body, bool SendPush);
+public sealed record PostAnnouncementCommand(Guid GroupChatId, string Body);
 
 /// <summary>Marks every announcement in a group read for the current player.</summary>
 public sealed record MarkGroupAnnouncementsReadCommand(Guid GroupChatId);

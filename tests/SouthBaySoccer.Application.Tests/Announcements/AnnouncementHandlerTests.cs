@@ -43,7 +43,7 @@ public sealed class AnnouncementHandlerTests
             new Mock<IPickupPalAnnouncementClient>().Object);
 
         var result = await handler.HandleAsync(
-            new PostAnnouncementCommand(groupChat.Id, "  Pitch change: Baylands Field.  ", SendPush: true));
+            new PostAnnouncementCommand(groupChat.Id, "  Pitch change: Baylands Field.  "));
 
         saved.Should().NotBeNull();
         saved!.Body.Should().Be("Pitch change: Baylands Field.", because: "the body is trimmed before it is broadcast");
@@ -73,7 +73,7 @@ public sealed class AnnouncementHandlerTests
             Clock().Object, new Mock<IOutboxMessageRepository>().Object,
             new Mock<IPickupPalAnnouncementClient>().Object);
 
-        var act = () => handler.HandleAsync(new PostAnnouncementCommand(foreignGroupId, "Hello", SendPush: false));
+        var act = () => handler.HandleAsync(new PostAnnouncementCommand(foreignGroupId, "Hello"));
 
         await act.Should().ThrowAsync<ApplicationNotFoundException>(
             because: "an admin may broadcast only to their own group, and a group they cannot see must not be confirmed to exist");
@@ -103,7 +103,7 @@ public sealed class AnnouncementHandlerTests
             announcements.Object, unitOfWork.Object, Clock().Object, new Mock<IOutboxMessageRepository>().Object,
             new Mock<IPickupPalAnnouncementClient>().Object);
 
-        var act = () => handler.HandleAsync(new PostAnnouncementCommand(groupId, "Hello", false));
+        var act = () => handler.HandleAsync(new PostAnnouncementCommand(groupId, "Hello"));
 
         await act.Should().ThrowAsync<ApplicationNotFoundException>();
         announcements.VerifyNoOtherCalls();
@@ -131,7 +131,7 @@ public sealed class AnnouncementHandlerTests
             announcements.Object, unitOfWork.Object, Clock().Object, new Mock<IOutboxMessageRepository>().Object,
             new Mock<IPickupPalAnnouncementClient>().Object);
 
-        var act = () => handler.HandleAsync(new PostAnnouncementCommand(groupId, "Hello", false));
+        var act = () => handler.HandleAsync(new PostAnnouncementCommand(groupId, "Hello"));
 
         await act.Should().ThrowAsync<ApplicationForbiddenException>();
         announcements.VerifyNoOtherCalls();
@@ -159,7 +159,7 @@ public sealed class AnnouncementHandlerTests
             links.Object, GroupChats(group).Object, announcements.Object, unitOfWork.Object, Clock().Object, new Mock<IOutboxMessageRepository>().Object,
             new Mock<IPickupPalAnnouncementClient>().Object);
 
-        await handler.HandleAsync(new PostAnnouncementCommand(group.Id, "  Hello  ", true));
+        await handler.HandleAsync(new PostAnnouncementCommand(group.Id, "  Hello  "));
 
         announcements.Verify(x => x.AddAsync(It.Is<Announcement>(a => a.GroupChatId == group.Id
             && a.AuthorPlayerProfileId == profile.Id && a.Body == "Hello" && a.SentAtUtc == NowUtc
@@ -207,7 +207,7 @@ public sealed class AnnouncementHandlerTests
     {
         var handler = CreatePostHandler(out _, out _);
 
-        var act = () => handler.HandleAsync(new PostAnnouncementCommand(Guid.NewGuid(), body, SendPush: false));
+        var act = () => handler.HandleAsync(new PostAnnouncementCommand(Guid.NewGuid(), body));
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -218,7 +218,7 @@ public sealed class AnnouncementHandlerTests
         var handler = CreatePostHandler(out _, out _);
 
         var act = () => handler.HandleAsync(
-            new PostAnnouncementCommand(Guid.NewGuid(), new string('a', 501), SendPush: false));
+            new PostAnnouncementCommand(Guid.NewGuid(), new string('a', 501)));
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -228,7 +228,7 @@ public sealed class AnnouncementHandlerTests
     {
         var handler = CreatePostHandler(out var groupChat, out var announcements);
 
-        await handler.HandleAsync(new PostAnnouncementCommand(groupChat.Id, new string('a', 500), SendPush: false));
+        await handler.HandleAsync(new PostAnnouncementCommand(groupChat.Id, new string('a', 500)));
 
         announcements.Verify(
             x => x.AddAsync(It.IsAny<Announcement>(), It.IsAny<CancellationToken>()),
@@ -656,7 +656,7 @@ public sealed class AnnouncementHandlerTests
             Clock().Object, new Mock<IOutboxMessageRepository>().Object,
             new Mock<IPickupPalAnnouncementClient>().Object);
 
-        await handler.HandleAsync(new PostAnnouncementCommand(groupChat.Id, "Kickoff moved", SendPush: false));
+        await handler.HandleAsync(new PostAnnouncementCommand(groupChat.Id, "Kickoff moved"));
 
         saved!.RecipientCount.Should().Be(
             12,
@@ -797,7 +797,7 @@ public sealed class AnnouncementHandlerTests
         var handler = CreatePostHandler(out var groupChat, out var announcements);
 
         await handler.HandleAsync(
-            new PostAnnouncementCommand(groupChat.Id, "  " + new string('a', 500) + "  ", SendPush: false));
+            new PostAnnouncementCommand(groupChat.Id, "  " + new string('a', 500) + "  "));
 
         announcements.Verify(
             x => x.AddAsync(It.IsAny<Announcement>(), It.IsAny<CancellationToken>()),
