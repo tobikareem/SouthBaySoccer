@@ -52,7 +52,7 @@ public sealed class IdempotentRequestExecutorCancellationTests
         var handler = new PostAnnouncementCommandHandler(new PostAnnouncementCommandValidator(), fixture.User,
             profiles.Object, links.Object, groups.Object, announcements.Object, unitOfWork.Object,
             fixture.Clock, Mock.Of<IOutboxMessageRepository>(), client.Object);
-        var command = new PostAnnouncementCommand(group.Id, "Pitch changed", false);
+        var command = new PostAnnouncementCommand(group.Id, "Pitch changed");
         async Task<IdempotentResponse<SentAnnouncementSummary>> PostAsync(CancellationToken token) =>
             new(HttpStatusCode.Created, await handler.HandleAsync(command, token));
 
