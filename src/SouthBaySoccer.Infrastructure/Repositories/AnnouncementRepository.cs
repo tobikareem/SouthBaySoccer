@@ -62,29 +62,37 @@ internal sealed class AnnouncementRepository(SouthBaySoccerDbContext dbContext) 
             .ToArrayAsync(cancellationToken);
     }
 
+    public async Task<UnreadAnnouncementSummary> GetUnreadSummaryForPlayerAsync(
+        Guid playerProfileId, int cap, CancellationToken cancellationToken = default)
+    {
+        // Count and destination come from the same capped snapshot; never load each group's feed.
+        var groupIds = await UnreadForPlayer(playerProfileId)
+            .OrderByDescending(announcement => announcement.SentAtUtc)
+            .ThenByDescending(announcement => announcement.Id)
+            .Select(announcement => announcement.GroupChatId)
+            .Take(cap)
+            .ToArrayAsync(cancellationToken);
+        return new UnreadAnnouncementSummary(groupIds.Length, groupIds.Length == 0 ? null : groupIds[0]);
+    }
+
     public Task<int> CountUnreadForPlayerAsync(
-        Guid playerProfileId,
-        int cap,
-        CancellationToken cancellationToken = default) =>
-        // The read mark is resolved once per group and compared as a range predicate, so this seeks
-        // the (GroupChatId, SentAtUtc) index over unread rows only instead of testing every
-        // announcement in the player's history. The cap bounds the badge's worst case.
-        (from link in dbContext.PlayerGroupLinks.AsNoTracking()
-         where link.PlayerProfileId == playerProfileId && link.Status == GroupMembershipStatus.Approved
-         let watermark = dbContext.GroupAnnouncementReadMarkers
-             .Where(marker => marker.PlayerProfileId == playerProfileId
-                 && marker.GroupChatId == link.GroupChatId)
-             .Select(marker => (DateTime?)marker.LastReadAtUtc)
-             .FirstOrDefault()
-         from announcement in dbContext.Announcements.AsNoTracking()
-         where announcement.GroupChatId == link.GroupChatId
+        Guid playerProfileId, int cap, CancellationToken cancellationToken = default) =>
+        UnreadForPlayer(playerProfileId).Take(cap).CountAsync(cancellationToken);
+
+    private IQueryable<Announcement> UnreadForPlayer(Guid playerProfileId) =>
+        from link in dbContext.PlayerGroupLinks.AsNoTracking()
+        where link.PlayerProfileId == playerProfileId && link.Status == GroupMembershipStatus.Approved
+        let watermark = dbContext.GroupAnnouncementReadMarkers
+            .Where(marker => marker.PlayerProfileId == playerProfileId
+                && marker.GroupChatId == link.GroupChatId)
+            .Select(marker => (DateTime?)marker.LastReadAtUtc)
+            .FirstOrDefault()
+        from announcement in dbContext.Announcements.AsNoTracking()
+        where announcement.GroupChatId == link.GroupChatId
             && announcement.AuthorPlayerProfileId != playerProfileId
-            // Joining a group does not hand a player its entire back catalogue as unread.
             && announcement.SentAtUtc > link.CreatedAt
             && (watermark == null || announcement.SentAtUtc > watermark)
-         select announcement.Id)
-        .Take(cap)
-        .CountAsync(cancellationToken);
+        select announcement;
 
     public Task<int> CountUnreadForGroupAsync(
         Guid playerProfileId,

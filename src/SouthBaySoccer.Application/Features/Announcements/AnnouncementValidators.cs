@@ -39,6 +39,7 @@ public sealed class GetSentAnnouncementsQueryValidator : AbstractValidator<GetSe
     public GetSentAnnouncementsQueryValidator()
     {
         RuleFor(x => x.Limit).InclusiveBetween(1, MaxLimit);
+        RuleFor(x => x.GroupChatId).NotEqual(Guid.Empty).When(x => x.GroupChatId.HasValue);
     }
 }
 

@@ -612,53 +612,17 @@ public class SessionsHomePageModelTests
     }
 
     [Fact]
-    public async Task OpenBroadcast_WhenInvoked_ShowsComingSoonAndDoesNotNavigate()
+    public async Task OpenAnnouncements_WhenInvoked_NavigatesToFeed()
     {
         var announcementsNavigator = new Mock<IAnnouncementsNavigator>();
-        var dialog = new Mock<IUserDialogService>();
         var pageModel = CreatePageModel(
             new Mock<ISessionsClient>().Object,
             new Mock<ISessionsNavigator>().Object,
-            announcementsNavigator: announcementsNavigator.Object,
-            dialogService: dialog.Object);
-
-        await pageModel.OpenBroadcastCommand.ExecuteAsync(null);
-
-        dialog.Verify(
-            x => x.ShowAlertAsync(
-                SessionsHomePageModel.ComingSoonTitle,
-                SessionsHomePageModel.ComingSoonMessage,
-                It.IsAny<string>(),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-        announcementsNavigator.Verify(
-            x => x.GoToAdminBroadcastAsync(),
-            Times.Never,
-            "navigating to the broadcast page hangs the main thread until iOS terminates the app");
-    }
-
-    [Fact]
-    public async Task OpenAnnouncements_WhenInvoked_ShowsComingSoonAndDoesNotNavigate()
-    {
-        var announcementsNavigator = new Mock<IAnnouncementsNavigator>();
-        var dialog = new Mock<IUserDialogService>();
-        var pageModel = CreatePageModel(
-            new Mock<ISessionsClient>().Object,
-            new Mock<ISessionsNavigator>().Object,
-            announcementsNavigator: announcementsNavigator.Object,
-            dialogService: dialog.Object);
+            announcementsNavigator: announcementsNavigator.Object);
 
         await pageModel.OpenAnnouncementsCommand.ExecuteAsync(null);
 
-        dialog.Verify(
-            x => x.ShowAlertAsync(
-                SessionsHomePageModel.ComingSoonTitle,
-                SessionsHomePageModel.ComingSoonMessage,
-                It.IsAny<string>(),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-        announcementsNavigator.Verify(
-            x => x.GoToAnnouncementsAsync(It.IsAny<Guid>()), Times.Never);
+        announcementsNavigator.Verify(x => x.GoToAnnouncementsAsync(It.IsAny<Guid>()), Times.Once);
     }
 
     private static SessionsHomePageModel CreatePageModel(
@@ -668,8 +632,7 @@ public class SessionsHomePageModelTests
         int hour = 9,
         IDismissedStatsPromptStore? dismissedPromptStore = null,
         IGroupsClient? groupsClient = null,
-        IAnnouncementsNavigator? announcementsNavigator = null,
-        IUserDialogService? dialogService = null) =>
+        IAnnouncementsNavigator? announcementsNavigator = null) =>
         new(
             sessionsClient,
             navigator,
@@ -679,8 +642,7 @@ public class SessionsHomePageModelTests
             new ClientResponseCache(TimeProvider.System),
             new FixedTimeProvider(hour),
             announcementsClient: null,
-            announcementsNavigator: announcementsNavigator,
-            dialogService: dialogService);
+            announcementsNavigator: announcementsNavigator);
 
     private static Mock<IGroupsClient> GroupsClientReturning(params GroupChatDto[] groups)
     {

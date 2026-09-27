@@ -85,8 +85,8 @@ internal sealed class CachedAnnouncementsClient(
         }
     }
 
-    public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken) =>
-        inner.GetSentAsync(limit, cancellationToken);
+    public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken, Guid? groupId = null) =>
+        inner.GetSentAsync(limit, cancellationToken, groupId);
 
     private async Task<T> GetSingleFlightAsync<T>(
         ConcurrentDictionary<string, Lazy<Task<T>>> fills,

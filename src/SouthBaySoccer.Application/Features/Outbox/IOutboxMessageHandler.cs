@@ -4,8 +4,8 @@ namespace SouthBaySoccer.Application.Features.Outbox;
 
 /// <summary>
 /// Executes one claimed outbox message of a single <see cref="MessageType"/>. Handlers must be
-/// idempotent: the processor may run the same row again after a crash, a lock expiry, or an
-/// ambiguous failure. Handlers never save; the processor commits the row's new status together with
+/// replay-safe where the provider supports it: the processor may run the same row again after a crash, a lock expiry, or an
+/// ambiguous failure. Non-idempotent message providers require documented at-least-once semantics. Handlers never save; the processor commits the row's new status together with
 /// whatever the handler tracked.
 /// </summary>
 public interface IOutboxMessageHandler

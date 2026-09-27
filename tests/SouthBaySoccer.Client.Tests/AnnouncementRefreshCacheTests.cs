@@ -95,7 +95,7 @@ public sealed class AnnouncementRefreshCacheTests
 
         public Task GoToAnnouncementsAsync(Guid groupId) => Task.CompletedTask;
 
-        public Task GoToAdminBroadcastAsync() => Task.CompletedTask;
+        public Task GoToAdminBroadcastAsync(Guid? groupId = null) => Task.CompletedTask;
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset now, TimeZoneInfo zone) : TimeProvider
@@ -147,7 +147,7 @@ public sealed class AnnouncementRefreshCacheTests
             string idempotencyKey,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken) =>
+        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken, Guid? groupId = null) =>
             Task.FromResult(new SentAnnouncementsResponse([]));
     }
 }

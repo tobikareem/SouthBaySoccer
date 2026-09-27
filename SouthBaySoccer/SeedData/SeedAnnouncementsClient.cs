@@ -96,7 +96,8 @@ public sealed class SeedAnnouncementsClient(TimeProvider timeProvider) : IAnnoun
         cancellationToken.ThrowIfCancellationRequested();
         lock (sync)
         {
-            return Task.FromResult(new UnreadAnnouncementsResponse(announcements.Count(item => item.IsUnread)));
+            var unread = announcements.Where(item => item.IsUnread).OrderByDescending(item => item.SentAtUtc).ToArray();
+            return Task.FromResult(new UnreadAnnouncementsResponse(unread.Length, unread.FirstOrDefault()?.GroupId));
         }
     }
 
@@ -131,12 +132,16 @@ public sealed class SeedAnnouncementsClient(TimeProvider timeProvider) : IAnnoun
         }
     }
 
-    public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken)
+    public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken, Guid? groupId = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         lock (sync)
         {
-            return Task.FromResult(new SentAnnouncementsResponse(sentAnnouncements.Take(limit).ToArray()));
+            var sent = sentAnnouncements
+                .Where(item => !groupId.HasValue || item.GroupId == groupId.Value)
+                .Take(limit)
+                .ToArray();
+            return Task.FromResult(new SentAnnouncementsResponse(sent));
         }
     }
 }

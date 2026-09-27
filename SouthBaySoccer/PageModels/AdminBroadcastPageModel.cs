@@ -3,6 +3,7 @@ using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SouthBaySoccer.Contracts.Announcements;
+using SouthBaySoccer.Contracts.Groups;
 using SouthBaySoccer.Services.Clients;
 using ViewState = SouthBaySoccer.Controls.ViewState;
 
@@ -22,22 +23,20 @@ public partial class AdminBroadcastPageModel(
 
     private string idempotencyKey = Guid.NewGuid().ToString("N");
     private BroadcastComposition? attemptedComposition;
+    private bool loadingAudience;
+    private Guid? selectedAudienceId;
+    private bool requiresAudienceSelection;
+    private int historyVersion;
     public DateTimeOffset LocalNow => timeProvider.GetLocalNow();
+    public Guid InitialGroupId { get; set; }
 
     [ObservableProperty] private ViewState _state = ViewState.Loading;
     [ObservableProperty] private bool _isRefreshing;
     [ObservableProperty] private string _stateTitle = string.Empty;
     [ObservableProperty] private string _stateMessage = string.Empty;
-    /// <summary>
-    /// The one group this admin broadcasts to — their primary group chat. An admin has no business
-    /// addressing a group they do not run, so the audience is resolved for them rather than picked:
-    /// there is nothing to choose between, and offering a list implied a reach they do not have.
-    /// The server is the actual boundary (it rejects a post to a group the caller is not linked to);
-    /// this just stops the UI from suggesting otherwise.
-    /// </summary>
-    [ObservableProperty] private GroupChoiceViewModel? _group;
+    [ObservableProperty] private IReadOnlyList<GroupMembershipDto> _groups = [];
+    [ObservableProperty] private GroupMembershipDto? _group;
     [ObservableProperty] private string _body = string.Empty;
-    [ObservableProperty] private bool _sendPush = true;
     [ObservableProperty] private bool _isSending;
     [ObservableProperty] private bool _isSent;
     [ObservableProperty] private string _inlineError = string.Empty;
@@ -46,14 +45,14 @@ public partial class AdminBroadcastPageModel(
     public int CharacterCount => Body.Length;
     public string CharacterCountLabel => $"{CharacterCount} / {MaximumBodyLength}";
     public string GroupName => Group?.GroupName ?? string.Empty;
-    public string AudienceLabel => Group is null ? string.Empty : $"{Group.MemberCount} members";
     public string PreviewGroupName => Group?.GroupName ?? string.Empty;
     public string PreviewBody => string.IsNullOrEmpty(Body) ? "Your announcement preview appears here." : Body;
-    public string PushTitle => Group is null ? "N9ja Bay" : $"N9ja Bay · {Group.GroupName}";
-    public string BroadcastLabel => $"Broadcast to {Group?.MemberCount ?? 0} members";
+    public string BroadcastLabel => "Post announcement";
     public bool IsComposerEnabled => !IsSent && !IsSending;
     public bool CanSend => IsComposerEnabled
+        && !IsRefreshing
         && Group is not null
+        && Groups.Any(item => item.GroupChatId == Group.GroupChatId)
         && !string.IsNullOrWhiteSpace(Body)
         && Body.Length <= MaximumBodyLength;
 
@@ -69,18 +68,25 @@ public partial class AdminBroadcastPageModel(
         SendCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnGroupChanged(GroupChoiceViewModel? value)
+    partial void OnGroupChanged(GroupMembershipDto? value)
     {
-        ResetIdempotencyWhenCompositionChanges();
+        if (!loadingAudience)
+        {
+            selectedAudienceId = value?.GroupChatId ?? selectedAudienceId;
+            if (value is not null)
+            {
+                requiresAudienceSelection = false;
+            }
+            InlineError = string.Empty;
+            ResetIdempotencyWhenCompositionChanges();
+            _ = LoadHistoryCommand.ExecuteAsync(null);
+        }
+        OnPropertyChanged(nameof(CanSend));
         OnPropertyChanged(nameof(GroupName));
-        OnPropertyChanged(nameof(AudienceLabel));
         OnPropertyChanged(nameof(PreviewGroupName));
-        OnPropertyChanged(nameof(PushTitle));
         OnPropertyChanged(nameof(BroadcastLabel));
         SendCommand.NotifyCanExecuteChanged();
     }
-
-    partial void OnSendPushChanged(bool value) => ResetIdempotencyWhenCompositionChanges();
 
     partial void OnIsSendingChanged(bool value)
     {
@@ -108,16 +114,30 @@ public partial class AdminBroadcastPageModel(
         IsRefreshing = true;
         try
         {
-            var groupsResponse = await groupsClient.GetMyGroupsAsync(cancellationToken);
-            // Primary first, then any linked group: an admin linked to exactly one group has no
-            // primary flag set in some seeds, and falling back keeps them able to broadcast.
-            var group = groupsResponse.Groups.FirstOrDefault(item => item.IsPrimary)
-                ?? groupsResponse.Groups.FirstOrDefault();
-            Group = group is null ? null : new GroupChoiceViewModel(group);
-            RecentlySent = (await announcementsClient.GetSentAsync(10, cancellationToken)).Announcements;
-            State = Group is null ? ViewState.Empty : ViewState.Content;
-            StateTitle = Group is null ? "No group chat" : string.Empty;
-            StateMessage = Group is null ? "Link a group chat before you can broadcast." : string.Empty;
+            var selectedId = selectedAudienceId ?? Group?.GroupChatId ?? InitialGroupId;
+            var memberships = await groupsClient.GetMyMembershipsAsync(cancellationToken);
+            // Replacing Picker items can briefly clear its two-way selection. Preserve the retry key
+            // until the final authorized audience has been restored.
+            loadingAudience = true;
+            Groups = memberships.Memberships
+                .Where(item => item.Status == GroupMembershipStatuses.Approved
+                    && (item.Role == GroupMemberRoles.Admin || memberships.IsSuperAdmin))
+                .ToArray();
+            Group = requiresAudienceSelection ? null : selectedId == Guid.Empty
+                ? Groups.FirstOrDefault()
+                : Groups.FirstOrDefault(item => item.GroupChatId == selectedId);
+            requiresAudienceSelection = Group is null && selectedId != Guid.Empty;
+            selectedAudienceId = selectedId == Guid.Empty ? Group?.GroupChatId : selectedId;
+            loadingAudience = false;
+            ResetIdempotencyWhenCompositionChanges();
+            await LoadHistory(cancellationToken);
+            State = Groups.Count == 0 ? ViewState.Empty : ViewState.Content;
+            StateTitle = Groups.Count == 0 ? "No groups to manage" : string.Empty;
+            StateMessage = Groups.Count == 0 ? "Only admins can post announcements to their groups." : string.Empty;
+            if (Group is null && Groups.Count > 0)
+            {
+                InlineError = "You can no longer post to the selected group. Select a group before posting.";
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -133,7 +153,42 @@ public partial class AdminBroadcastPageModel(
         }
         finally
         {
+            loadingAudience = false;
             IsRefreshing = false;
+            OnPropertyChanged(nameof(CanSend));
+            SendCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private async Task LoadHistory(CancellationToken cancellationToken)
+    {
+        var version = ++historyVersion;
+        var groupId = Group?.GroupChatId;
+        RecentlySent = [];
+        if (groupId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var response = await announcementsClient.GetSentAsync(10, cancellationToken, groupId);
+            if (version == historyVersion && Group?.GroupChatId == groupId)
+            {
+                RecentlySent = response.Announcements;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // History is supplementary; cancellation must not discard the draft.
+        }
+        catch (Exception)
+        {
+            if (version == historyVersion)
+            {
+                InlineError = "Couldn't load recently sent announcements. Your draft is still available.";
+            }
         }
     }
 
@@ -152,11 +207,12 @@ public partial class AdminBroadcastPageModel(
         {
             attemptedComposition ??= CurrentComposition();
             var sent = await announcementsClient.PostAsync(
-                Group.Id,
-                new PostAnnouncementRequest(Body, SendPush),
+                Group.GroupChatId,
+                new PostAnnouncementRequest(Body),
                 idempotencyKey,
                 cancellationToken);
-            RecentlySent = [sent, .. RecentlySent];
+            historyVersion++;
+            RecentlySent = [sent, .. RecentlySent.Where(item => item.Id != sent.Id)];
             IsSent = true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -185,7 +241,6 @@ public partial class AdminBroadcastPageModel(
     private void Reset()
     {
         Body = string.Empty;
-        SendPush = true;
         IsSent = false;
         InlineError = string.Empty;
         idempotencyKey = Guid.NewGuid().ToString("N");
@@ -203,7 +258,7 @@ public partial class AdminBroadcastPageModel(
     }
 
     private BroadcastComposition CurrentComposition() =>
-        new(Group?.Id ?? Guid.Empty, Body, SendPush);
+        new(Group?.GroupChatId ?? Guid.Empty, Body);
 
     private void ResetIdempotencyWhenCompositionChanges()
     {
@@ -214,5 +269,5 @@ public partial class AdminBroadcastPageModel(
         }
     }
 
-    private sealed record BroadcastComposition(Guid GroupId, string Body, bool SendPush);
+    private sealed record BroadcastComposition(Guid GroupId, string Body);
 }

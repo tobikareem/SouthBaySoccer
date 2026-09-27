@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:announcements="clr-namespace:SouthBaySoccer.Contracts.Announcements;assembly=SouthBaySoccer.Contracts"
+    xmlns:groups="clr-namespace:SouthBaySoccer.Contracts.Groups;assembly=SouthBaySoccer.Contracts"
     xmlns:controls="clr-namespace:SouthBaySoccer.Controls"
     xmlns:fonts="clr-namespace:Fonts"
     xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
@@ -19,8 +20,8 @@
             Command="{Binding AppearingCommand}" />
     </ContentPage.Behaviors>
     <Grid RowDefinitions="Auto,*,Auto">
-        <controls:BrandHeader Title="Broadcast message"
-                              Subtitle="Admin only"
+        <controls:BrandHeader Title="Post announcement"
+                              Subtitle="Group admins"
                               ShowBack="True"
                               BackCommand="{Binding BackCommand}" />
         <controls:StateView Grid.Row="1"
@@ -30,29 +31,15 @@
                             RetryCommand="{Binding AppearingCommand}">
             <ScrollView>
                 <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceLg}">
-                    <!-- Fixed audience, not a picker: an admin broadcasts to their own group chat and
-                         nowhere else, so the group is stated rather than chosen. The server rejects a
-                         post to a group the caller is not linked to; this keeps the UI honest about
-                         the reach the admin actually has. -->
                     <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
-                        <Label Text="Sending to" Style="{StaticResource TextLabel}" />
-                        <Border Style="{StaticResource MetadataChip}"
-                                HorizontalOptions="Start"
-                                SemanticProperties.Description="{Binding BroadcastLabel}">
-                            <HorizontalStackLayout Spacing="{StaticResource SpaceSm}" VerticalOptions="Center">
-                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
-                                       FontFamily="FontAwesomeBrands"
-                                       Style="{StaticResource TextCaption}"
-                                       VerticalTextAlignment="Center" />
-                                <Label Text="{Binding GroupName}"
-                                       Style="{StaticResource TextBodyStrong}"
-                                       LineBreakMode="TailTruncation"
-                                       VerticalTextAlignment="Center" />
-                                <Label Text="{Binding AudienceLabel}"
-                                       Style="{StaticResource TextCaption}"
-                                       VerticalTextAlignment="Center" />
-                            </HorizontalStackLayout>
-                        </Border>
+                        <Label Text="Post to group" Style="{StaticResource TextLabel}" />
+                        <Picker Title="Select your group"
+                                ItemsSource="{Binding Groups}"
+                                ItemDisplayBinding="{Binding GroupName, x:DataType=groups:GroupMembershipDto}"
+                                SelectedItem="{Binding Group}"
+                                IsEnabled="{Binding IsComposerEnabled}"
+                                SemanticProperties.Description="Group receiving this announcement" />
+                        <Label Text="Members can read this in the app. A copy is also sent to your group chat." Style="{StaticResource TextCaption}" />
                     </VerticalStackLayout>
                     <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
                         <Grid ColumnDefinitions="*,Auto">
@@ -77,20 +64,11 @@
                         </Label>
                     </VerticalStackLayout>
                     <VerticalStackLayout Spacing="{StaticResource SpaceMd}">
-                        <Label Text="How it lands" Style="{StaticResource TextLabel}" />
+                        <Label Text="Preview" Style="{StaticResource TextLabel}" />
                         <controls:AnnouncementCard AuthorName="Admin"
                                                    GroupName="{Binding PreviewGroupName}"
                                                    TimeLabel="Now"
                                                    Body="{Binding PreviewBody}" />
-                        <controls:ToggleRow Glyph="{x:Static fonts:FontAwesomeGlyphs.Bell}"
-                                            GlyphFontFamily="FontAwesomeSolid"
-                                            Title="Send a push notification"
-                                            Subtitle="Players still receive this in the app."
-                                            IsToggled="{Binding SendPush}"
-                                            IsEnabled="{Binding IsComposerEnabled}" />
-                        <controls:PushPreview Title="{Binding PushTitle}"
-                                              Body="{Binding PreviewBody}"
-                                              IsVisible="{Binding SendPush}" />
                     </VerticalStackLayout>
                     <VerticalStackLayout BindableLayout.ItemsSource="{Binding RecentlySent}" Spacing="{StaticResource SpaceSm}">
                         <BindableLayout.ItemTemplate>
@@ -110,7 +88,9 @@
         </controls:StateView>
         <VerticalStackLayout Grid.Row="2" Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceXs}">
             <Button Text="{Binding BroadcastLabel}" Command="{Binding SendCommand}" Style="{StaticResource PrimaryButton}" />
-            <Label Text="Broadcasts cannot be edited after sending."
+            <Label Text="Announcement posted." IsVisible="{Binding IsSent}" Style="{StaticResource TextBodyStrong}" />
+            <Button Text="Write another announcement" Command="{Binding ResetCommand}" IsVisible="{Binding IsSent}" Style="{StaticResource LinkButton}" />
+            <Label Text="Announcements cannot be edited after posting."
                    HorizontalTextAlignment="Center"
                    Style="{StaticResource TextCaption}" />
         </VerticalStackLayout>

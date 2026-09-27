@@ -199,6 +199,7 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<GetUnreadAnnouncementCountQueryHandler>();
         builder.Services.AddScoped<GetSentAnnouncementsQueryHandler>();
         builder.Services.AddScoped<PostAnnouncementCommandHandler>();
+        builder.Services.AddScoped<IOutboxMessageHandler, AnnouncementPickupPalOutboxHandler>();
         builder.Services.AddScoped<MarkGroupAnnouncementsReadCommandHandler>();
         builder.Services.AddScoped<FunctionCurrentUser>();
         builder.Services.AddScoped<ICurrentUser>(services => services.GetRequiredService<FunctionCurrentUser>());

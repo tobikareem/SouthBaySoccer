@@ -3,6 +3,7 @@
     x:Class="SouthBaySoccer.Pages.AnnouncementsPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:groups="clr-namespace:SouthBaySoccer.Contracts.Groups;assembly=SouthBaySoccer.Contracts"
     xmlns:controls="clr-namespace:SouthBaySoccer.Controls"
     xmlns:fonts="clr-namespace:Fonts"
     xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
@@ -17,12 +18,20 @@
             EventName="Appearing"
             Command="{Binding AppearingCommand}" />
     </ContentPage.Behaviors>
-    <Grid RowDefinitions="Auto,Auto,*">
+    <Grid RowDefinitions="Auto,Auto,Auto,*">
         <controls:BrandHeader Title="Announcements"
                               Subtitle="{Binding GroupName}"
                               ShowBack="True"
                               BackCommand="{Binding BackCommand}" />
         <Grid Grid.Row="1" Padding="{StaticResource LayoutPadding}" ColumnDefinitions="*,Auto">
+            <Picker Title="Your group" ItemsSource="{Binding Groups}"
+                    ItemDisplayBinding="{Binding GroupName, x:DataType=groups:GroupMembershipDto}"
+                    SelectedItem="{Binding SelectedGroup}" IsEnabled="{Binding CanChangeGroup}"
+                    SemanticProperties.Description="Announcement group" />
+            <Button Grid.Column="1" Text="Post announcement" IsVisible="{Binding CanPost}"
+                    Command="{Binding ComposeCommand}" Style="{StaticResource LinkButton}" />
+        </Grid>
+        <Grid Grid.Row="2" Padding="{StaticResource LayoutPadding}" ColumnDefinitions="*,Auto">
             <controls:SegmentedControl ItemsSource="{Binding FilterLabels}"
                                        SelectionChangedCommand="{Binding ApplyFilterCommand}" />
             <Button Grid.Column="1"
@@ -31,13 +40,13 @@
                     Style="{StaticResource LinkButton}"
                     SemanticProperties.Description="{Binding UnreadCount, StringFormat='Mark all read, {0} unread'}" />
         </Grid>
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="3">
         <controls:StateView
                             State="{Binding State}"
                             Title="{Binding StateTitle}"
                             Message="{Binding StateMessage}"
                             Glyph="{x:Static fonts:FontAwesomeGlyphs.Bell}"
-                            RetryCommand="{Binding RefreshCommand}"
+                            RetryCommand="{Binding AppearingCommand}"
                             ShowRetryWhenEmpty="True">
             <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing, Mode=TwoWay}">
                 <CollectionView ItemsSource="{Binding DayGroups}"
