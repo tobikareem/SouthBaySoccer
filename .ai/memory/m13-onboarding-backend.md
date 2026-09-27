@@ -25,18 +25,17 @@ the local row:
 - `DELETE profiles/me`: `LocalAccountDeletionService` soft-deletes the profile, emergency contacts,
   group links, and registrations, anonymizes and locks the identity user (synthetic unique email so
   the real one is free for re-registration), and revokes every refresh token. A callback records
-  the opt-in `PickupPalUserDeletionRequested` intent (or local-only audit) in the same serializable
-  SQL execution-strategy transaction. Only after commit is Pickup Pal called; failure leaves the
-  intent retryable. Retry reads include the deleted profile so an ambiguous commit preserves the
-  provider id and reuses the same outbox key.
+  the `N9jaBayAccountDeleted` audit row in the same serializable SQL execution-strategy transaction.
+  **Pickup Pal is never called** (2026-09-27; the `?alsoDeletePickupPal=true` opt-in was removed).
+  Retry reads include the deleted profile so an ambiguous commit reuses the same audit key.
 - The backend sign-out endpoint revokes the presented refresh token's family
   (`IRefreshTokenRevocationService`); MAUI sign-out still needs to call that endpoint.
 - `RegisterWithWhatsAppCommand` records `ExternalCreated` + `PickupPalUserId` with its own save the
   moment Pickup Pal returns 201, before local sync, so a sync failure never orphans an upstream account.
 - `PendingPhoneSignIn` carries a SQL row version; completion consumes **every** live row for the
   user, and a row-version conflict (same link opened twice) is reported as a mismatch.
-- `DeleteAccountCommandHandler` looks the deletion outbox row up by idempotency key first, so a
-  double tap after local deletion reuses the row instead of tripping the unique index.
+- `DeleteAccountCommandHandler` looks the audit row up by idempotency key first, so a double tap
+  after local deletion reuses the row instead of tripping the unique index.
 - Refresh lifetimes: session sign-in (no remember-device) = `Onboarding:SessionRefreshTokenLifetime`
   (12 h); remember-device = 30 d; rotation keeps the family's own lifetime
   (`ExpiresAtUtc - CreatedAt` of the presented token), so refreshing never extends a session token.
@@ -49,7 +48,7 @@ the local row:
 | `RegisterWithToken` | `api/users/register/whatsapp` | confirmed |
 | `EmailLookup` | `api/users/email/{email}` (404 = available) | confirmed |
 | `LoginRedeem` | `api/users/login/whatsapp` (`POST { token }`) | **Does not exist** (2026-09-16 contract). Verification flow dormant; `Onboarding:RequireWhatsAppVerification` default **false** |
-| `DeleteUser` | `api/users/{id}` (`DELETE`; 404 = already gone) | confirmed (Postman contract). Called **only** when the player opts in via `DELETE profiles/me?alsoDeletePickupPal=true`; default deletes N9ja Bay data only and writes an `N9jaBayAccountDeleted` audit outbox row |
+| `DeleteUser` | `api/users/{id}` (`DELETE`; 404 = already gone) | confirmed (Postman contract). No longer called by account deletion (2026-09-27); only the legacy `PickupPalUserDeletionRequested` outbox handler can still call it for rows queued before then. Account deletion writes an `N9jaBayAccountDeleted` audit outbox row |
 
 `PickupPal:ApiKey` is sent as `X-Api-Key` (header name configurable) when present; absent until the
 bot API has one. **URI-logging ban** (same as `PickupPalUserClient`): the validate route carries the
@@ -88,13 +87,13 @@ SHA-256 hashes; nothing raw is held.
 
 - Access tokens stay valid for up to `Authentication:Jwt:AccessTokenLifetime` (15 min) after
   account deletion or sign-out; only refresh tokens are revoked immediately.
-- Re-signing in while a `PickupPalUserDeletionRequested` outbox row is still unprocessed would let
-  `PickupPalUserSyncService` recreate the local profile from the still-existing Pickup Pal user.
-  Follow-up **M13.10** in the story tasks: block sync while a deletion is pending.
+- The Pickup Pal account survives deletion, so signing in again by phone creates a fresh local
+  profile through `PickupPalUserSyncService`. That is intended: deletion removes N9ja Bay data only.
 - `PendingPhoneSignIns` has no retention/purge yet (immutable operational record; grows with every
   sign-in start). Same purge-service gap as the other operational tables.
 - `DeleteUser` treats 404 as already deleted; `PickupPalUserDeletionOutboxHandler` retries failures.
-- Account-deletion UI remains open. Verified login still binds to any live pending sign-in for
+- Account deletion UI: Profile "Delete account" (trash icon, own profile only) confirms, calls
+  `DELETE profiles/me`, and signs out locally only after the server succeeds. Verified login still binds to any live pending sign-in for
   the redeemed user, not a pending id carried by the initiating device; fix before enabling it.
 - Migration `AddOnboardingRegistrations` drops `WhatsAppSignInChallenges` **with its data** (ephemeral
   challenge rows from the retired flow); it is not recoverable after deploy.

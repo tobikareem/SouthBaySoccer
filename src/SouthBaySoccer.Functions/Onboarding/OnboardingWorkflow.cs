@@ -61,6 +61,6 @@ public sealed class OnboardingWorkflow(
 
     public TermsVersionResponse GetCurrentTermsVersion() => new(onboardingPolicy.TermsVersion);
 
-    public Task DeleteMyAccountAsync(bool alsoDeletePickupPalAccount, CancellationToken cancellationToken) =>
-        deleteAccountHandler.HandleAsync(alsoDeletePickupPalAccount, cancellationToken);
+    public Task DeleteMyAccountAsync(CancellationToken cancellationToken) =>
+        deleteAccountHandler.HandleAsync(cancellationToken);
 }

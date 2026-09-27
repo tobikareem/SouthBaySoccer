@@ -483,7 +483,10 @@ The client never decides an outcome — it renders the status the server returns
   `IsSuperAdmin`.
 - **Profile section (own profile only).** `SectionHeader` "My groups" with a "Manage" action, a
   `BrandCard` summary (names, "1 approved · 1 pending", one status `Badge` per group), "Manage
-  members" rows for groups the player administers, and the hero "Super admin" card.
+  members" rows for groups the player administers, and the hero "Super admin" card. At the bottom,
+  a `DangerButton` "Sign out" and a danger-coloured `LinkButton` "Delete account" with a Font Awesome
+  `TrashCan` icon. Delete confirms first, calls `DELETE profiles/me` (N9ja Bay data only; Pickup Pal
+  is never called), and signs out locally only after the server succeeds.
 - **Stats leaderboard group filter.** Unchanged: a `Picker` bound to the player's linked groups
   plus an "All groups" aggregate, defaulting to the primary group, threaded to
   `stats/leaderboards?groupId=…`.

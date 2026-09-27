@@ -46,19 +46,19 @@ fake client.
   `verificationRequired`. Rename `RequestWhatsAppChallengeCommand` to `SignInCommand`.
   — Stories: `AUTH-10` · Projects: MAUI client · Depends on: M13.1, M13.5.
 
-- [ ] **M13.7** Account deletion. `DELETE profiles/me` (bearer) soft-deletes local records, calls
-  Pickup Pal delete through the outbox, revokes refresh tokens; Profile screen gains "Delete
-  account" with confirmation. *(Backend done; the Profile screen action is still open.)*
+- [x] **M13.7** Account deletion. `DELETE profiles/me` (bearer) soft-deletes local records, writes
+  an audit row, and revokes refresh tokens. It never calls Pickup Pal. Profile screen has "Delete
+  account" (trash icon) with confirmation; on success the app signs out locally.
   — Stories: `AUTH-10` · Projects: Application, Functions, MAUI client · Depends on: M13.2.
 
 - [ ] **M13.8** Tests per `design.md` "Test design" across Client, Application, Functions, and
   Infrastructure test projects. Full suite green.
   — Stories: `AUTH-10` · Depends on: M13.3–M13.7.
 
-- [ ] **M13.10** Backend: block `IPickupPalUserSyncService` (phone sign-in, login completion,
-  registration) for a Pickup Pal user id whose `PickupPalUserDeletionRequested` outbox row is still
-  unprocessed, so a re-sign-in cannot resurrect a deleted account before Pickup Pal deletes it; add
-  a purge policy for `PendingPhoneSignIns`.
+- [ ] **M13.10** Backend: add a purge policy for `PendingPhoneSignIns`. (The sync block for a
+  pending `PickupPalUserDeletionRequested` row no longer applies: account deletion stopped writing
+  that type on 2026-09-27. A player whose Pickup Pal account remains can sign in again and gets a
+  fresh N9ja Bay profile.)
   — Stories: `AUTH-10` · Projects: Application, Infrastructure · Depends on: M13.7.
 
 - [ ] **M13.9** Release prep. Update App Store review notes (sign-up now in-app; deletion path),

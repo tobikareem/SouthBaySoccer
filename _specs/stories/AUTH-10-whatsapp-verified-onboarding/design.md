@@ -11,7 +11,8 @@ Pickup Pal shipped the register redirect: `!!register source=n9jabay` replies wi
 (`documentation/pickuppal-mobile-signup-guide.md`). `DELETE api/users/{id}` is confirmed. There is
 **no** `!!login` command and no login-token redemption endpoint; the verified sign-in flow below is
 implemented but dormant (`Onboarding:RequireWhatsAppVerification=false`). Account deletion removes
-N9ja Bay data only by default; Pickup Pal deletion is an explicit opt-in on the confirmation sheet.
+N9ja Bay data only and never calls Pickup Pal (decision 2026-09-27; the earlier opt-in to also
+delete the Pickup Pal account was removed).
 
 ## External prerequisites (Pickup Pal bot)
 
@@ -166,8 +167,9 @@ milestone.
   the audit/outbox intent in one SQL execution-strategy transaction before any external call. The
   application supplies an idempotent database-only callback to the local deletion port; callback
   failures roll back every local change. Retries recover identifiers from the soft-deleted profile
-  and reuse the unique outbox key, including after an ambiguous commit. Pickup Pal deletion remains
-  explicit opt-in; external failure leaves the committed intent available for the outbox processor.
+  and reuse the unique audit key, including after an ambiguous commit. The handler never calls
+  Pickup Pal and never writes a pending outbox row. The `PickupPalUserDeletionRequested` outbox
+  handler stays registered only to drain rows queued (by explicit opt-in) before 2026-09-27.
 
 `Functions.Tests`
 - each new endpoint maps Pickup Pal error strings (both error body shapes) to RFC 7807 problems
