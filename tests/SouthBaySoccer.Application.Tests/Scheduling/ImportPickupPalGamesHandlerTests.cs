@@ -814,6 +814,62 @@ public sealed class ImportPickupPalGamesHandlerTests
             $"a change to {changedField} must not be dropped by the unchanged-payload skip");
     }
 
+    [Theory]
+    [InlineData("user", false)]
+    [InlineData("phone", false)]
+    [InlineData("jid", false)]
+    [InlineData("user", true)]
+    [InlineData("phone", true)]
+    [InlineData("jid", true)]
+    public async Task HandleAsync_WhenAccountWasDeleted_DoesNotRecreateUnlessExplicitlyRegistered(string key, bool registered)
+    {
+        var context = new TestContext();
+        var participant = SampleGame().Participants[0] with
+        {
+            UserId = key == "user" ? "deleted-user" : null,
+            PhoneNumberHash = key == "phone" ? "deleted-phone" : null,
+            WhatsAppJidHash = key == "jid" ? "deleted-jid" : null,
+        };
+        var marker = new PlayerProfile
+        {
+            Id = Guid.NewGuid(), IsDeleted = true, IdentityUserId = Guid.NewGuid(),
+            PickupPalUserId = participant.UserId, PhoneNumberHash = participant.PhoneNumberHash,
+            WhatsAppJidHash = participant.WhatsAppJidHash,
+        };
+        context.PlayerProfileRepository.Setup(x => x.ListAccountDeletedProfilesAsync(
+            It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<IReadOnlyCollection<string>>(),
+            It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>())).ReturnsAsync([marker]);
+        var newProfile = new PlayerProfile
+        {
+            Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), PickupPalUserId = participant.UserId,
+            PhoneNumberHash = participant.PhoneNumberHash, WhatsAppJidHash = participant.WhatsAppJidHash,
+        };
+        if (registered)
+        {
+            context.PlayerProfileRepository.Setup(x => x.FindByPickupPalUserIdAsync("deleted-user", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(newProfile);
+            context.PlayerProfileRepository.Setup(x => x.FindByPhoneNumberHashAsync("deleted-phone", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(newProfile);
+            context.PlayerProfileRepository.Setup(x => x.FindByWhatsAppJidHashAsync("deleted-jid", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(newProfile);
+        }
+        // A name-only match must not bypass deletion suppression.
+        context.PlayerProfileRepository.Setup(x => x.FindSingleByNormalizedDisplayNameAsync(
+            participant.DisplayName.ToUpperInvariant(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlayerProfile { Id = Guid.NewGuid(), DisplayName = participant.DisplayName,
+                NormalizedDisplayName = participant.DisplayName.ToUpperInvariant() });
+        context.GamesClient.Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame() with { Participants = [participant, participant with { Id = "second" }] }]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedProfiles.Should().BeEmpty();
+        context.ReplacedParticipants.Should().OnlyContain(x => x.PlayerProfileId == (registered ? newProfile.Id : (Guid?)null));
+        context.PlayerProfileRepository.Verify(x => x.ListAccountDeletedProfilesAsync(
+            It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<IReadOnlyCollection<string>>(),
+            It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private static PickupPalGame SampleGame() =>
         new(
             "game-1",
@@ -859,6 +915,9 @@ public sealed class ImportPickupPalGamesHandlerTests
 
         public TestContext(bool seasonCoversGame = true)
         {
+            PlayerProfileRepository.Setup(x => x.ListAccountDeletedProfilesAsync(
+                It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<IReadOnlyCollection<string>>(),
+                It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
             _clock.SetupGet(x => x.UtcNow).Returns(new DateTime(2026, 7, 22, 8, 0, 0, DateTimeKind.Utc));
             _seasonRepository
                 .Setup(x => x.ListActiveAsync(It.IsAny<CancellationToken>()))

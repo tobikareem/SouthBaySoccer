@@ -28,6 +28,32 @@ internal sealed class PlayerProfileRepository(SouthBaySoccerDbContext dbContext)
             .OrderBy(x => x.CreatedAt)
             .FirstOrDefaultAsync(x => x.WhatsAppJidHash == whatsAppJidHash, cancellationToken);
 
+    public async Task<IReadOnlyList<PlayerProfile>> ListAccountDeletedProfilesAsync(
+        IReadOnlyCollection<string> pickupPalUserIds,
+        IReadOnlyCollection<string> phoneNumberHashes,
+        IReadOnlyCollection<string> whatsAppJidHashes,
+        CancellationToken cancellationToken = default)
+    {
+        if (pickupPalUserIds.Count == 0 && phoneNumberHashes.Count == 0 && whatsAppJidHashes.Count == 0)
+        {
+            return [];
+        }
+
+        var userIds = pickupPalUserIds.ToArray();
+        var phones = phoneNumberHashes.ToArray();
+        var jids = whatsAppJidHashes.ToArray();
+        // Account deletion anonymizes Identity atomically with the profile soft delete. A merged
+        // profile alone is not a deletion marker. Keep this lookup scoped to the incoming batch.
+        return await (from profile in dbContext.PlayerProfiles.IgnoreQueryFilters().AsNoTracking()
+                      join user in dbContext.Users.AsNoTracking() on profile.IdentityUserId equals user.Id
+                      where profile.IsDeleted && profile.IdentityUserId != null && user.PlayerProfileId == null
+                          && user.UserName != null && user.UserName.StartsWith("deleted:")
+                          && ((profile.PickupPalUserId != null && userIds.Contains(profile.PickupPalUserId))
+                              || (profile.PhoneNumberHash != null && phones.Contains(profile.PhoneNumberHash))
+                              || (profile.WhatsAppJidHash != null && jids.Contains(profile.WhatsAppJidHash)))
+                      select profile).ToArrayAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<PlayerProfile>> ListByPickupPalUserIdsAsync(
         IReadOnlyCollection<string> pickupPalUserIds,
         CancellationToken cancellationToken = default)
@@ -173,8 +199,21 @@ internal sealed class PlayerProfileRepository(SouthBaySoccerDbContext dbContext)
     public async Task AddProfileMergeAsync(ProfileMerge profileMerge, CancellationToken cancellationToken = default) =>
         await dbContext.ProfileMerges.AddAsync(profileMerge, cancellationToken);
 
-    public void Update(PlayerProfile entity) =>
-        dbContext.PlayerProfiles.Update(entity);
+    public void Update(PlayerProfile entity)
+    {
+        // Repository reads are tracked. Let EF update only fields the caller changed: marking the
+        // whole row modified can overwrite a deletion committed after an import loaded this row.
+        var entry = dbContext.Entry(entity);
+        if (entry.State == EntityState.Detached)
+        {
+            dbContext.PlayerProfiles.Update(entity);
+            // A detached ordinary edit is never an instruction to restore a deleted account.
+            if (!entity.IsDeleted)
+            {
+                entry.Property(profile => profile.IsDeleted).IsModified = false;
+            }
+        }
+    }
 
     public void UpdateEmergencyContact(EmergencyContact emergencyContact) =>
         dbContext.EmergencyContacts.Update(emergencyContact);

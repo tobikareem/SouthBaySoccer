@@ -486,7 +486,7 @@ The client never decides an outcome — it renders the status the server returns
   members" rows for groups the player administers, and the hero "Super admin" card. At the bottom,
   a `DangerButton` "Sign out" and a danger-coloured `LinkButton` "Delete account" with a Font Awesome
   `TrashCan` icon. Delete confirms first, calls `DELETE profiles/me` (N9ja Bay data only; Pickup Pal
-  is never called), and signs out locally only after the server succeeds.
+  is never called), and signs out after confirmed success. Authentication failure explains that deletion is unconfirmed before clearing the expired session; timeouts also report an uncertain outcome.
 - **Stats leaderboard group filter.** Unchanged: a `Picker` bound to the player's linked groups
   plus an "All groups" aggregate, defaulting to the primary group, threaded to
   `stats/leaderboards?groupId=…`.
