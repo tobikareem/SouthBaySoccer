@@ -3,9 +3,11 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SouthBaySoccer.Application.Features.Onboarding;
+using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Operations;
 using SouthBaySoccer.Domain.Enumerations;
+using SouthBaySoccer.Domain.Interfaces.Repositories;
 using SouthBaySoccer.Infrastructure.Identity;
 using SouthBaySoccer.Infrastructure.Persistence;
 
@@ -73,7 +75,16 @@ public sealed class LocalAccountDeletionServiceTests
         await db.SaveChangesAsync();
         var service = provider.GetRequiredService<ILocalAccountDeletionService>();
 
+        var accountAccess = provider.GetRequiredService<IAccountAccessValidator>();
+        (await accountAccess.IsActiveAsync(identityUser.Id)).Should().BeTrue();
+
         var deletion = await service.DeleteAsync(identityUser.Id, (_, _) => Task.CompletedTask);
+
+        // Reusing the same validator must still read committed state, not a cached/tracked user.
+        (await accountAccess.IsActiveAsync(identityUser.Id)).Should().BeFalse();
+        var profiles = provider.GetRequiredService<IPlayerProfileRepository>();
+        (await profiles.ListAccountDeletedProfilesAsync([pickupPalUserId], [], []))
+            .Should().ContainSingle(x => x.Id == profile.Id);
 
         deletion.PlayerProfileId.Should().Be(profile.Id);
         deletion.PickupPalUserId.Should().Be(pickupPalUserId);

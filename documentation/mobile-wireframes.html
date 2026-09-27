@@ -874,6 +874,14 @@
         <!-- Owners only (IsSuperAdmin from the server). -->
         <div class="card hero-card" style="cursor:pointer" onclick="show('super-admin-groups')"><div class="hero-kicker">Super admin</div><div class="hero-title">Groups &amp; admins</div><div style="font-size:12px;opacity:.85">Manage any group, add players directly, appoint admins.</div></div>
         <button class="btn ghost" onclick="show('leaderboard')">View season leaderboard</button>
+        <!-- Own profile only. Delete account confirms first, deletes N9ja Bay data only (Pickup Pal
+             is never called), then signs out to Welcome Back. A 401 explains that deletion is unconfirmed
+             before clearing the expired session; timeouts also show an uncertain outcome. -->
+        <div data-profile-own>
+          <button class="btn" style="margin-top:14px;background:var(--danger);color:#fff">Sign out</button>
+          <div class="muted" style="text-align:center;margin-top:6px">Sign out to switch to a different account.</div>
+          <div style="text-align:center;margin-top:12px"><span class="link" style="color:var(--danger)" onclick="confirm('Delete your account?\n\nThis permanently deletes your N9ja Bay profile, group memberships, and sign-in on every device. Your Pickup Pal account is not affected. This cannot be undone.')"><i class="ti ti-trash"></i> Delete account</span></div>
+        </div>
       </div>
       <nav class="tab"><a onclick="show('home')"><i class="ti ti-calendar-event"></i>Sessions</a><a onclick="show('gameday')"><i class="ti ti-ball-football"></i>Game Day</a><a onclick="show('leaderboard')"><i class="ti ti-trophy"></i>Stats</a><a onclick="show('players')"><i class="ti ti-users"></i>Players</a><a class="active" onclick="showPlayer('TK')"><i class="ti ti-user"></i>Profile</a></nav>
     </section>
@@ -1078,6 +1086,7 @@
     phone.querySelectorAll('[data-profile="subtitle"]').forEach(function(el){ el.textContent=p.subtitle; });
     phone.querySelectorAll('[data-profile="status"]').forEach(function(el){ el.innerHTML=(selectedPlayer==='TK'?'<i class="ti ti-brand-whatsapp"></i> ':'<i class="ti ti-id"></i> ')+p.status; });
     phone.querySelectorAll('[data-profile-edit]').forEach(function(el){ el.style.display=selectedPlayer==='TK'?'inline':'none'; });
+    phone.querySelectorAll('[data-profile-own]').forEach(function(el){ el.style.display=selectedPlayer==='TK'?'block':'none'; });
     ['matches','goals','assists','rating','mvp','likes'].forEach(function(k,i){ phone.querySelectorAll('[data-stat="'+k+'"]').forEach(function(el){ el.textContent=p.stats[i]; }); });
     phone.querySelectorAll('[data-profile="form"]').forEach(function(el){ el.innerHTML=p.form.map(function(v){ return '<span class="pill '+(v==='W'?'ok':v==='D'?'warn':'full')+'">'+v+'</span>'; }).join(''); });
     phone.querySelectorAll('[data-profile-note]').forEach(function(el){ el.style.display=p.note?'block':'none'; el.innerHTML=p.note?'<i class="ti ti-clock-hour-4" style="color:var(--amber)"></i> '+p.note:''; });

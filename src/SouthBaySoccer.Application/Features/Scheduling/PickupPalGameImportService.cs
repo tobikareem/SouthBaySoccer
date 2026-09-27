@@ -252,6 +252,10 @@ public sealed class PickupPalGameImportService(
         {
             if (profileCache.TryGetValue(key, out var cached))
             {
+                if (cached.IdentityUserId is null && IsAccountDeleted(participant, lookups))
+                {
+                    return null;
+                }
                 // A later game in the same pass may carry identity keys the first sighting lacked;
                 // fold them in now so this import persists every key, not just the next one.
                 BackfillIdentityKeys(cached, participant);
@@ -282,6 +286,13 @@ public sealed class PickupPalGameImportService(
             {
                 profile = null;
             }
+        }
+
+        // Only an explicit sign-in/registration (an identity-linked active profile) overrides a
+        // deletion marker. Never revive the person via a display-name match or an imported shell.
+        if (profile?.IdentityUserId is null && IsAccountDeleted(participant, lookups))
+        {
+            return null;
         }
 
         // Last resort: some participants arrive with no user id, no phone, and only an opaque
@@ -333,6 +344,11 @@ public sealed class PickupPalGameImportService(
         CacheProfile(profileCache, keys, profile);
         return profile;
     }
+
+    private static bool IsAccountDeleted(PickupPalGameParticipantInfo participant, ImportLookups lookups) =>
+        (participant.UserId is { } userId && lookups.DeletedAccountKeys.Contains($"user:{userId}"))
+        || (participant.PhoneNumberHash is { } phone && lookups.DeletedAccountKeys.Contains($"phone:{phone}"))
+        || (participant.WhatsAppJidHash is { } jid && lookups.DeletedAccountKeys.Contains($"jid:{jid}"));
 
     private static List<string> BuildProfileCacheKeys(PickupPalGameParticipantInfo participant)
     {
@@ -606,6 +622,19 @@ public sealed class PickupPalGameImportService(
             profile => profile.WhatsAppJidHash,
             lookups.ProfilesByWhatsAppJidHash);
 
+        var deletedAccounts = await playerProfileRepository.ListAccountDeletedProfilesAsync(
+            userIds, phoneHashes, jidHashes, cancellationToken);
+        foreach (var profile in deletedAccounts)
+        {
+            // Index requested keys, preserving the same SQL collation matching used by active lookups.
+            foreach (var key in userIds.Where(key => MatchesRequestedKey(profile.PickupPalUserId, key)))
+                lookups.DeletedAccountKeys.Add($"user:{key}");
+            foreach (var key in phoneHashes.Where(key => MatchesRequestedKey(profile.PhoneNumberHash, key)))
+                lookups.DeletedAccountKeys.Add($"phone:{key}");
+            foreach (var key in jidHashes.Where(key => MatchesRequestedKey(profile.WhatsAppJidHash, key)))
+                lookups.DeletedAccountKeys.Add($"jid:{key}");
+        }
+
         var displayNames = participants
             .Select(participant => participant.DisplayName)
             .Where(displayName => !string.IsNullOrWhiteSpace(displayName))
@@ -738,6 +767,8 @@ public sealed class PickupPalGameImportService(
 
         /// <summary>Sessions linked by their stored Pickup Pal game id (app-created sessions keep their own occurrence key).</summary>
         public Dictionary<string, Session> SessionsByGameId { get; } = new(StringComparer.Ordinal);
+
+        public HashSet<string> DeletedAccountKeys { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<string, PlayerProfile> ProfilesByPickupPalUserId { get; } = new(StringComparer.Ordinal);
 
