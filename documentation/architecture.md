@@ -732,7 +732,13 @@ Each provider is behind an Application interface:
 
 Use typed `HttpClient` instances and provider SDK clients registered through dependency injection.
 Set timeouts, honor cancellation tokens, and apply retries only to operations that are safe to
-repeat. External requests that create side effects require idempotency keys.
+repeat. External requests that create side effects require idempotency keys when the provider supports them.
+
+Documented exception: Pickup Pal `POST /api/groupchat/send` accepts only chatId/message and exposes
+no deduplication contract. Announcement copies use at-least-once delivery via the existing outbox
+(ANN-1): commit the local announcement and leased intent together, attempt the external send with a
+five-second timeout, then settle. Ambiguous failures can duplicate a group-chat copy; never describe
+this provider operation as exactly-once. Local announcement creation retains its request idempotency.
 
 ## 14. Stripe Payment Architecture
 

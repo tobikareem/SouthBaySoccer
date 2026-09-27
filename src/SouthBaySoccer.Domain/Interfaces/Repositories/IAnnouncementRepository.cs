@@ -33,6 +33,12 @@ public interface IAnnouncementRepository : IRepository<Announcement>
         int limit,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Gets the capped total and a group containing unread posts in one bounded read.</summary>
+    Task<UnreadAnnouncementSummary> GetUnreadSummaryForPlayerAsync(
+        Guid playerProfileId,
+        int cap,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Counts the announcements the player has not yet read across every group they belong to,
     /// capped at <paramref name="cap"/> so the notification badge cannot become an unbounded scan.
@@ -105,3 +111,6 @@ public sealed record SentAnnouncementReadModel(
     DateTime SentAtUtc,
     int RecipientCount,
     int ReadCount);
+
+/// <summary>The capped unread total and a group containing the newest unread announcement.</summary>
+public sealed record UnreadAnnouncementSummary(int UnreadCount, Guid? TargetGroupId);

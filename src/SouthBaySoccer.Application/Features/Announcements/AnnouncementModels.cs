@@ -13,10 +13,10 @@ public sealed record GetGroupAnnouncementsQuery(Guid GroupChatId, DateTime? Befo
 public sealed record GetUnreadAnnouncementCountQuery;
 
 /// <summary>Reads the current admin's recently sent announcements with their read receipts.</summary>
-public sealed record GetSentAnnouncementsQuery(int Limit);
+public sealed record GetSentAnnouncementsQuery(int Limit, Guid? GroupChatId = null);
 
 /// <summary>Broadcasts one announcement to one group the current admin belongs to.</summary>
-public sealed record PostAnnouncementCommand(Guid GroupChatId, string Body, bool SendPush);
+public sealed record PostAnnouncementCommand(Guid GroupChatId, string Body);
 
 /// <summary>Marks every announcement in a group read for the current player.</summary>
 public sealed record MarkGroupAnnouncementsReadCommand(Guid GroupChatId);

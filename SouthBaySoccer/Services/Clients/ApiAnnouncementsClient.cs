@@ -76,10 +76,11 @@ public sealed class ApiAnnouncementsClient(HttpClient httpClient) : IAnnouncemen
 
     public async Task<SentAnnouncementsResponse> GetSentAsync(
         int limit,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? groupId = null)
     {
         using var response = await httpClient.GetAsync(
-            $"players/me/announcements/sent?limit={limit}",
+            $"players/me/announcements/sent?limit={limit}" + (groupId.HasValue ? $"&groupId={groupId.Value}" : string.Empty),
             cancellationToken);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<SentAnnouncementsResponse>(cancellationToken)

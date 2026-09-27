@@ -15,9 +15,8 @@ namespace SouthBaySoccer.Functions.Announcements;
 /// <summary>
 /// HTTP endpoints for admin group broadcasts and the player announcement feed.
 /// <para>
-/// Every route is scoped to a single group and every handler proves the caller belongs to that
-/// group, so the admin policy alone never grants cross-group reach: an admin can broadcast to their
-/// own crew and to no one else.
+/// Handlers scope reads to the caller's approved groups and require group-admin rights for posting
+/// and sent history. A global game-admin role never grants cross-group reach.
 /// </para>
 /// </summary>
 public sealed class AnnouncementFunctions(
@@ -83,19 +82,20 @@ public sealed class AnnouncementFunctions(
         return await WriteJsonAsync(
             request,
             HttpStatusCode.OK,
-            new UnreadAnnouncementsResponse(unreadCount),
+            new UnreadAnnouncementsResponse(unreadCount.UnreadCount, unreadCount.TargetGroupId),
             cancellationToken);
     }
 
     [Function(nameof(GetSentAnnouncements))]
-    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
     public async Task<HttpResponseData> GetSentAnnouncements(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "players/me/announcements/sent")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
         var query = HttpUtility.ParseQueryString(request.Url.Query);
         var result = await getSentAnnouncementsHandler.HandleAsync(
-            new GetSentAnnouncementsQuery(ParseOptionalInt(query["limit"], "limit") ?? DefaultSentLimit),
+            new GetSentAnnouncementsQuery(ParseOptionalInt(query["limit"], "limit") ?? DefaultSentLimit,
+                ParseOptionalGuid(query["groupId"], "groupId")),
             cancellationToken);
 
         return await WriteJsonAsync(
@@ -106,7 +106,7 @@ public sealed class AnnouncementFunctions(
     }
 
     [Function(nameof(PostAnnouncement))]
-    [RequirePolicy(AuthenticationPolicies.CanManageSessions)]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
     public async Task<HttpResponseData> PostAnnouncement(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "groups/{groupId:guid}/announcements")] HttpRequestData request,
         Guid groupId,
@@ -120,11 +120,11 @@ public sealed class AnnouncementFunctions(
             request,
             nameof(PostAnnouncement),
             GetIdempotencyKey(request),
-            new { groupId, body.Body, body.SendPush },
+            new { groupId, body.Body },
             async token =>
             {
                 var result = await postAnnouncementHandler.HandleAsync(
-                    new PostAnnouncementCommand(groupId, body.Body, body.SendPush),
+                    new PostAnnouncementCommand(groupId, body.Body),
                     token);
                 return new IdempotentResponse<SentAnnouncementDto>(HttpStatusCode.Created, ToDto(result));
             },
