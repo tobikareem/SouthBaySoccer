@@ -143,7 +143,7 @@ public sealed class GetUnreadAnnouncementCountQueryHandler(
     /// </summary>
     public const int UnreadBadgeCap = 99;
 
-    public async Task<int> HandleAsync(
+    public async Task<UnreadAnnouncementSummary> HandleAsync(
         GetUnreadAnnouncementCountQuery query,
         CancellationToken cancellationToken = default)
     {
@@ -151,7 +151,7 @@ public sealed class GetUnreadAnnouncementCountQueryHandler(
         var playerProfileId = await AnnouncementAccess.RequireProfileIdAsync(
             currentUser, playerProfileRepository, cancellationToken);
 
-        return await announcementRepository.CountUnreadForPlayerAsync(
+        return await announcementRepository.GetUnreadSummaryForPlayerAsync(
             playerProfileId, UnreadBadgeCap, cancellationToken);
     }
 }
@@ -182,7 +182,8 @@ public sealed class GetSentAnnouncementsQueryHandler(
         var isOwner = currentUser.IsInRole(PlayerRole.Owner.ToString());
         var groupChatIds = links
             .Where(link => link.Status == GroupMembershipStatus.Approved
-                && (link.Role == GroupMemberRole.Admin || isOwner))
+                && (link.Role == GroupMemberRole.Admin || isOwner)
+                && (!query.GroupChatId.HasValue || link.GroupChatId == query.GroupChatId.Value))
             .Select(link => link.GroupChatId)
             .ToArray();
         if (groupChatIds.Length == 0)

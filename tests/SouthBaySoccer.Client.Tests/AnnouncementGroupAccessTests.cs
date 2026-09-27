@@ -223,6 +223,92 @@ public sealed class AnnouncementGroupAccessTests
         navigator.Verify(client => client.GoToAdminBroadcastAsync(second.GroupChatId), Times.Once);
     }
 
+    [Fact]
+    public async Task ComposerAppearing_WhenInitialGroupUnavailable_DoesNotChooseAnotherDestination()
+    {
+        var first = Membership("First", GroupMembershipStatuses.Approved, GroupMemberRoles.Admin);
+        var model = new AdminBroadcastPageModel(Groups(false, first).Object, Announcements().Object,
+            new Mock<IAnnouncementsNavigator>().Object, TimeProvider.System)
+        {
+            InitialGroupId = Guid.NewGuid(),
+            Body = "Draft for unavailable group",
+        };
+
+        await model.AppearingCommand.ExecuteAsync(null);
+
+        model.State.Should().Be(ViewState.Content);
+        model.Group.Should().BeNull();
+        model.CanSend.Should().BeFalse();
+        model.RecentlySent.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ComposerRetry_WhenSelectedGroupAccessLost_PreservesDraftAndRequiresExplicitSelection()
+    {
+        var first = Membership("First", GroupMembershipStatuses.Approved, GroupMemberRoles.Admin);
+        var second = Membership("Second", GroupMembershipStatuses.Approved, GroupMemberRoles.Admin);
+        var groups = Groups(false, first, second);
+        var announcements = Announcements();
+        announcements.Setup(client => client.PostAsync(second.GroupChatId, It.IsAny<PostAnnouncementRequest>(),
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Connection lost"));
+        var model = new AdminBroadcastPageModel(groups.Object, announcements.Object,
+            new Mock<IAnnouncementsNavigator>().Object, TimeProvider.System) { InitialGroupId = second.GroupChatId };
+        await model.AppearingCommand.ExecuteAsync(null);
+        model.Body = "For the second group";
+        await model.SendCommand.ExecuteAsync(null);
+        groups.Setup(client => client.GetMyMembershipsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MyGroupMembershipsResponse(false, true, [first]));
+
+        await model.AppearingCommand.ExecuteAsync(null);
+        await model.SendCommand.ExecuteAsync(null);
+
+        model.State.Should().Be(ViewState.Content);
+        model.Group.Should().BeNull();
+        model.Body.Should().Be("For the second group");
+        model.CanSend.Should().BeFalse();
+        announcements.Verify(client => client.PostAsync(first.GroupChatId, It.IsAny<PostAnnouncementRequest>(),
+            It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        groups.Setup(client => client.GetMyMembershipsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MyGroupMembershipsResponse(false, true, [first, second]));
+        model.State = ViewState.Error;
+        await model.AppearingCommand.ExecuteAsync(null);
+        model.Group.Should().BeNull();
+        model.CanSend.Should().BeFalse();
+        model.Group = first;
+        model.CanSend.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ComposerHistory_WhenOldGroupCompletesAfterSelection_DoesNotReplaceSelectedGroupHistory()
+    {
+        var first = Membership("First", GroupMembershipStatuses.Approved, GroupMemberRoles.Admin);
+        var second = Membership("Second", GroupMembershipStatuses.Approved, GroupMemberRoles.Admin);
+        var announcements = Announcements();
+        var model = new AdminBroadcastPageModel(Groups(false, first, second).Object, announcements.Object,
+            new Mock<IAnnouncementsNavigator>().Object, TimeProvider.System);
+        await model.AppearingCommand.ExecuteAsync(null);
+        var pending = new TaskCompletionSource<SentAnnouncementsResponse>();
+        announcements.Setup(client => client.GetSentAsync(10, It.IsAny<CancellationToken>(), first.GroupChatId))
+            .Returns(pending.Task);
+        var secondPost = new SentAnnouncementDto(Guid.NewGuid(), second.GroupChatId, second.GroupName,
+            "Second message", SentAtUtc, 0, 1);
+        announcements.Setup(client => client.GetSentAsync(10, It.IsAny<CancellationToken>(), second.GroupChatId))
+            .ReturnsAsync(new SentAnnouncementsResponse([secondPost]));
+        var oldLoad = model.LoadHistoryCommand.ExecuteAsync(null);
+
+        model.Group = second;
+        if (model.LoadHistoryCommand.ExecutionTask is { } history)
+        {
+            await history;
+        }
+        pending.SetResult(new SentAnnouncementsResponse([new SentAnnouncementDto(Guid.NewGuid(),
+            first.GroupChatId, first.GroupName, "Old message", SentAtUtc, 0, 1)]));
+        await oldLoad;
+
+        model.RecentlySent.Should().Equal(secondPost);
+    }
+
     private static AnnouncementsPageModel FeedModel(Mock<IAnnouncementsClient> announcements, Mock<IGroupsClient> groups) =>
         new(announcements.Object, new Mock<IAnnouncementsNavigator>().Object,
             new Mock<IClientResponseCache>().Object, TimeProvider.System, groups.Object);
@@ -243,7 +329,7 @@ public sealed class AnnouncementGroupAccessTests
     private static Mock<IAnnouncementsClient> Announcements()
     {
         var announcements = new Mock<IAnnouncementsClient>(MockBehavior.Strict);
-        announcements.Setup(client => client.GetSentAsync(10, It.IsAny<CancellationToken>()))
+        announcements.Setup(client => client.GetSentAsync(10, It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
             .ReturnsAsync(new SentAnnouncementsResponse([]));
         return announcements;
     }

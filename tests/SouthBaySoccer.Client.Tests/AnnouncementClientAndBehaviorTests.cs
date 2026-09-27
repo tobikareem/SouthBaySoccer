@@ -13,6 +13,24 @@ public sealed class AnnouncementClientAndBehaviorTests
 {
     private static readonly Guid GroupId = Guid.Parse("50000000-0000-0000-0000-000000000001");
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetSentAsync_WithOptionalGroup_SendsFilterWhenProvided(bool filtered)
+    {
+        string? observedPath = null;
+        var client = new ApiAnnouncementsClient(CreateHttpClient(request =>
+        {
+            observedPath = request.RequestUri?.PathAndQuery;
+            return JsonResponse("{\"announcements\":[]}");
+        }));
+
+        await client.GetSentAsync(10, CancellationToken.None, filtered ? GroupId : null);
+
+        observedPath.Should().Be("/players/me/announcements/sent?limit=10"
+            + (filtered ? $"&groupId={GroupId}" : string.Empty));
+    }
+
     [Fact]
     public async Task GetFeedAsync_WithCompoundCursor_SendsBothCursorValues()
     {
@@ -316,7 +334,7 @@ public sealed class AnnouncementClientAndBehaviorTests
         public Task<SentAnnouncementDto> PostAsync(Guid groupId, PostAnnouncementRequest request, string idempotencyKey, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken) =>
+        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken, Guid? groupId = null) =>
             Task.FromResult(new SentAnnouncementsResponse([]));
     }
 
@@ -369,7 +387,7 @@ public sealed class AnnouncementClientAndBehaviorTests
             return new SentAnnouncementDto(Guid.NewGuid(), groupId, "Saturday crew", request.Body, DateTime.UtcNow, 0, 24);
         }
 
-        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken) =>
+        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken, Guid? groupId = null) =>
             Task.FromResult(new SentAnnouncementsResponse([]));
     }
 
@@ -391,7 +409,7 @@ public sealed class AnnouncementClientAndBehaviorTests
             throw new NotSupportedException();
         public Task<SentAnnouncementDto> PostAsync(Guid groupId, PostAnnouncementRequest request, string idempotencyKey, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken) =>
+        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken, Guid? groupId = null) =>
             throw new NotSupportedException();
     }
 

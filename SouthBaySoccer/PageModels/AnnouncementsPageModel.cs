@@ -27,16 +27,21 @@ public partial class AnnouncementsPageModel(
     public Guid GroupId { get; set; }
     private bool loadingGroups;
     private bool isSuperAdmin;
+    private int loadVersion;
+    private int activeOperations;
+    private int activeRefreshes;
+    private Guid? markingGroupId;
     [ObservableProperty] private IReadOnlyList<GroupMembershipDto> _groups = [];
     [ObservableProperty] private GroupMembershipDto? _selectedGroup;
     public bool CanPost => SelectedGroup is not null
         && (isSuperAdmin || SelectedGroup.Role == GroupMemberRoles.Admin);
-    public bool CanChangeGroup => !loadingGroups && !IsRefreshing && !IsLoadingMore && !IsMarkingRead;
+    public bool CanChangeGroup => !loadingGroups && activeOperations == 0 && !IsRefreshing && !IsLoadingMore && !IsMarkingRead;
 
     partial void OnIsRefreshingChanged(bool value) => OnPropertyChanged(nameof(CanChangeGroup));
     partial void OnIsLoadingMoreChanged(bool value) => OnPropertyChanged(nameof(CanChangeGroup));
     partial void OnSelectedGroupChanged(GroupMembershipDto? value)
     {
+        loadVersion++;
         GroupId = value?.GroupChatId ?? Guid.Empty;
         loadedItems.Clear();
         DayGroups = [];
@@ -72,7 +77,7 @@ public partial class AnnouncementsPageModel(
     public IReadOnlyList<string> FilterLabels => ["All", UnreadTabLabel];
     public bool HasMore => nextCursorUtc is not null && nextCursorId is not null;
     public bool HasLoadMoreError => !string.IsNullOrWhiteSpace(LoadMoreError);
-    public bool CanMarkAllRead => UnreadCount > 0 && !IsMarkingRead;
+    public bool CanMarkAllRead => UnreadCount > 0 && !IsMarkingRead && !loadingGroups && activeOperations == 0;
 
     partial void OnLoadMoreErrorChanged(string value) => OnPropertyChanged(nameof(HasLoadMoreError));
     partial void OnIsMarkingReadChanged(bool value)
@@ -94,10 +99,12 @@ public partial class AnnouncementsPageModel(
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task Appearing(CancellationToken cancellationToken)
     {
+        // A reopened screen supersedes requests started before navigating away.
+        loadVersion++;
         if (groupsClient is not null)
         {
             loadingGroups = true;
-            OnPropertyChanged(nameof(CanChangeGroup));
+            NotifyOperationState();
             try
             {
                 var response = await groupsClient.GetMyMembershipsAsync(cancellationToken);
@@ -121,7 +128,7 @@ public partial class AnnouncementsPageModel(
             finally
             {
                 loadingGroups = false;
-                OnPropertyChanged(nameof(CanChangeGroup));
+                NotifyOperationState();
             }
         }
         if (GroupId == Guid.Empty)
@@ -138,6 +145,12 @@ public partial class AnnouncementsPageModel(
     [RelayCommand(AllowConcurrentExecutions = false)]
     private Task Refresh(CancellationToken cancellationToken)
     {
+        // A refresh that races the read write could restore the pre-write unread count.
+        if (markingGroupId == GroupId)
+        {
+            IsRefreshing = activeRefreshes > 0;
+            return Task.CompletedTask;
+        }
         // Without this the feed's first page is served from its own 60s cache, so pulling to
         // refresh could return the identical list and look like nothing had happened.
         responseCache.Invalidate("announcements:");
@@ -147,7 +160,7 @@ public partial class AnnouncementsPageModel(
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task LoadMore(CancellationToken cancellationToken)
     {
-        if (!HasMore || IsLoadingMore || HasLoadMoreError)
+        if (!HasMore || activeOperations > 0 || loadingGroups || IsLoadingMore || HasLoadMoreError)
         {
             return;
         }
@@ -195,15 +208,23 @@ public partial class AnnouncementsPageModel(
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanMarkAllRead))]
     private async Task MarkAllRead(CancellationToken cancellationToken)
     {
-        if (UnreadCount == 0)
+        if (!CanMarkAllRead)
         {
             return;
         }
 
+        var requestedGroupId = GroupId;
+        var version = loadVersion;
+        BeginOperation();
+        markingGroupId = requestedGroupId;
         IsMarkingRead = true;
         try
         {
-            var response = await announcementsClient.MarkReadAsync(GroupId, cancellationToken);
+            var response = await announcementsClient.MarkReadAsync(requestedGroupId, cancellationToken);
+            if (!IsCurrentRequest(requestedGroupId, version))
+            {
+                return;
+            }
             foreach (var item in loadedItems)
             {
                 item.IsUnread = false;
@@ -218,15 +239,17 @@ public partial class AnnouncementsPageModel(
         }
         catch (HttpRequestException)
         {
-            ApplyError(ViewState.Offline, OfflineTitle, OfflineMessage);
+            if (IsCurrentRequest(requestedGroupId, version)) ApplyError(ViewState.Offline, OfflineTitle, OfflineMessage);
         }
         catch (Exception)
         {
-            ApplyError(ViewState.Error, ErrorTitle, ErrorMessage);
+            if (IsCurrentRequest(requestedGroupId, version)) ApplyError(ViewState.Error, ErrorTitle, ErrorMessage);
         }
         finally
         {
+            markingGroupId = null;
             IsMarkingRead = false;
+            EndOperation();
         }
     }
 
@@ -235,6 +258,13 @@ public partial class AnnouncementsPageModel(
 
     private async Task LoadAsync(bool replace, CancellationToken cancellationToken)
     {
+        var requestedGroupId = GroupId;
+        if (requestedGroupId == Guid.Empty)
+        {
+            return;
+        }
+        var version = replace ? ++loadVersion : loadVersion;
+        BeginOperation();
         if (replace)
         {
             // Only blank the screen for a genuine first load. During pull-to-refresh the list must
@@ -245,6 +275,7 @@ public partial class AnnouncementsPageModel(
                 State = ViewState.Loading;
             }
 
+            activeRefreshes++;
             IsRefreshing = true;
         }
 
@@ -252,11 +283,15 @@ public partial class AnnouncementsPageModel(
         {
             LoadMoreError = string.Empty;
             var response = await announcementsClient.GetFeedAsync(
-                GroupId,
+                requestedGroupId,
                 20,
                 replace ? null : nextCursorUtc,
                 replace ? null : nextCursorId,
                 cancellationToken);
+            if (!IsCurrentRequest(requestedGroupId, version))
+            {
+                return;
+            }
             if (replace)
             {
                 loadedItems.Clear();
@@ -275,6 +310,7 @@ public partial class AnnouncementsPageModel(
         }
         catch (HttpRequestException)
         {
+            if (!IsCurrentRequest(requestedGroupId, version)) return;
             if (replace)
             {
                 ApplyError(ViewState.Offline, OfflineTitle, OfflineMessage);
@@ -286,6 +322,7 @@ public partial class AnnouncementsPageModel(
         }
         catch (Exception)
         {
+            if (!IsCurrentRequest(requestedGroupId, version)) return;
             if (replace)
             {
                 ApplyError(ViewState.Error, ErrorTitle, ErrorMessage);
@@ -297,8 +334,34 @@ public partial class AnnouncementsPageModel(
         }
         finally
         {
-            IsRefreshing = false;
+            if (replace)
+            {
+                activeRefreshes--;
+                IsRefreshing = activeRefreshes > 0;
+            }
+            EndOperation();
         }
+    }
+
+    private bool IsCurrentRequest(Guid groupId, int version) => GroupId == groupId && loadVersion == version;
+
+    private void BeginOperation()
+    {
+        activeOperations++;
+        NotifyOperationState();
+    }
+
+    private void EndOperation()
+    {
+        activeOperations--;
+        NotifyOperationState();
+    }
+
+    private void NotifyOperationState()
+    {
+        OnPropertyChanged(nameof(CanChangeGroup));
+        OnPropertyChanged(nameof(CanMarkAllRead));
+        MarkAllReadCommand.NotifyCanExecuteChanged();
     }
 
     private AnnouncementItemViewModel Map(SouthBaySoccer.Contracts.Announcements.AnnouncementDto dto)

@@ -410,11 +410,13 @@ composer literally shows what players will receive.
   - **Preview:** the same AnnouncementCard used in the member feed.
   - **Post announcement:** saves to the existing database and sends a copy to the same group through Pickup Pal; no push/Firebase controls.
   - Success locks the draft, confirms posting, and offers **Write another announcement**.
-  - Recently sent and read counts remain admin-facing only.
+  - Recently sent is filtered to the selected group before the server applies the history limit; read counts remain admin-facing only.
+  - If access to the draft destination is lost, keep the draft and require explicit group selection before sending.
 - **Player group announcements.** The notification bell on Sessions opens a read-only, group-scoped
   feed. It uses cards on a plain surface rather than chat bubbles: sender + group on the left, time
   on the right, an unread dot for new items, the message body at readable size, and a divided footer
   only when the announcement carries context (a `meta-chip` and a link such as `View session`).
+  - The bell opens the group containing the newest unread announcement, falling back to the primary group when none are unread. Its badge remains the total across approved groups.
   - An approved-group selector makes every membership feed reachable; selected-group admins see **Post announcement**.
   - An **All / Unread** `SegmentedControl` filters the feed; the Unread tab carries the count.
   - Announcements are grouped under quiet **Today / Earlier** day labels.

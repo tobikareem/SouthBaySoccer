@@ -492,6 +492,42 @@ public sealed class AnnouncementHandlerTests
         result[0].RecipientCount.Should().Be(24);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetSentAnnouncements_WhenGroupFilterProvided_ScopesBeforeLimitingAndRequiresAdminAccess(bool authorized)
+    {
+        var identityUserId = Guid.NewGuid();
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = identityUserId };
+        var selectedGroup = Guid.NewGuid();
+        var otherGroup = Guid.NewGuid();
+        var links = new Mock<IPlayerGroupLinkRepository>();
+        links.Setup(x => x.ListApprovedByPlayerAsync(profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new PlayerGroupLink { PlayerProfileId = profile.Id, GroupChatId = otherGroup,
+                    Status = GroupMembershipStatus.Approved, Role = GroupMemberRole.Admin },
+                new PlayerGroupLink { PlayerProfileId = profile.Id, GroupChatId = selectedGroup,
+                    Status = GroupMembershipStatus.Approved, Role = authorized ? GroupMemberRole.Admin : GroupMemberRole.Member }
+            ]);
+        var announcements = new Mock<IAnnouncementRepository>(MockBehavior.Strict);
+        if (authorized)
+        {
+            announcements.Setup(x => x.ListSentByAuthorAsync(profile.Id,
+                    It.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(selectedGroup)),
+                    1, It.IsAny<CancellationToken>()))
+                .ReturnsAsync([new SentAnnouncementReadModel(Guid.NewGuid(), selectedGroup, "Selected",
+                    "Message", NowUtc, RecipientCount: 1, ReadCount: 0)]);
+        }
+        var handler = new GetSentAnnouncementsQueryHandler(new GetSentAnnouncementsQueryValidator(),
+            CurrentUser(identityUserId).Object, Profiles(identityUserId, profile).Object, links.Object, announcements.Object);
+
+        var result = await handler.HandleAsync(new GetSentAnnouncementsQuery(1, selectedGroup));
+
+        result.Should().HaveCount(authorized ? 1 : 0);
+        result.All(item => item.GroupChatId == selectedGroup).Should().BeTrue();
+        announcements.VerifyAll();
+    }
+
     [Fact]
     public async Task GetUnreadCount_WhenCallerIsUnauthenticated_IsRejected()
     {

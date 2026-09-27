@@ -82,7 +82,7 @@ public sealed class AnnouncementFunctions(
         return await WriteJsonAsync(
             request,
             HttpStatusCode.OK,
-            new UnreadAnnouncementsResponse(unreadCount),
+            new UnreadAnnouncementsResponse(unreadCount.UnreadCount, unreadCount.TargetGroupId),
             cancellationToken);
     }
 
@@ -94,7 +94,8 @@ public sealed class AnnouncementFunctions(
     {
         var query = HttpUtility.ParseQueryString(request.Url.Query);
         var result = await getSentAnnouncementsHandler.HandleAsync(
-            new GetSentAnnouncementsQuery(ParseOptionalInt(query["limit"], "limit") ?? DefaultSentLimit),
+            new GetSentAnnouncementsQuery(ParseOptionalInt(query["limit"], "limit") ?? DefaultSentLimit,
+                ParseOptionalGuid(query["groupId"], "groupId")),
             cancellationToken);
 
         return await WriteJsonAsync(

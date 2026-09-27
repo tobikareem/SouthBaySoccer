@@ -26,3 +26,5 @@ One line per lesson. Skim this at the start of a task; read the full entry when 
 - [deletion-and-outbox-commit-together](2026-09-19-deletion-and-outbox-commit-together.md) - Local account deletion and its durable upstream intent must share a retry-safe transaction
 
 - [announcement-outbox-idempotency-cleanup](2026-09-26-announcement-outbox-idempotency-cleanup.md) - Discard failed tracked announcement/outbox writes before shared-context idempotency cleanup saves
+
+- [announcement-concurrency-and-ios-evidence](2026-09-26-announcement-concurrency-and-ios-evidence.md) - Preserve group scope across async operations; distinguish simulator validation from fixing the historical watchdog cause

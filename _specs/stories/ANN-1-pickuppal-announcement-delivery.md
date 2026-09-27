@@ -25,3 +25,21 @@ Acceptance: authorized post saves announcement + leased intent atomically then s
 unauthorized/invalid posts and failed first commits never send; upstream failure preserves the local
 announcement and retry intent; replayed outbox rows never insert another announcement; HTTP request,
 error mapping, cancellation, and DI registration have focused tests. Use fake HTTP only for verification.
+
+## Review corrections
+
+- Once posting succeeds locally, idempotency completion uses a bounded token independent of HTTP
+  request cancellation. A retry of the same key can replay the saved response even when the caller
+  disconnects during Pickup Pal delivery.
+- A draft with a specified destination never silently falls back to another group when that group's
+  admin permission disappears. Keep its body, disable posting, and require explicit selection.
+- Recently sent is scoped to the selected authorized group on the server before applying its limit.
+  A late history response cannot replace the list for a newer selection.
+- Feed responses are scoped to their requested group and load generation. Superseded refreshes and
+  pagination cannot apply rows, unread counts, cursors, or errors to another group. The group picker
+  stays disabled until every active operation completes.
+- The total unread badge includes an additive target group ID from the same bounded unread query.
+  Tapping the bell selects a group with unread posts, falling back to the primary only when none
+  are unread. Older responses without the additive field remain readable.
+- Verify the historic iOS watchdog concern by exercising both screens in the simulator and record
+  the device, build mode, stress cases, and evidence. Do not equate a passing build with a freeze fix.

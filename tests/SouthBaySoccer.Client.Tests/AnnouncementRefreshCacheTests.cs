@@ -147,7 +147,7 @@ public sealed class AnnouncementRefreshCacheTests
             string idempotencyKey,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken) =>
+        public Task<SentAnnouncementsResponse> GetSentAsync(int limit, CancellationToken cancellationToken, Guid? groupId = null) =>
             Task.FromResult(new SentAnnouncementsResponse([]));
     }
 }

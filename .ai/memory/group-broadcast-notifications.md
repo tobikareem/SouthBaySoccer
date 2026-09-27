@@ -49,3 +49,10 @@ The authoritative design is in `documentation/mobile-wireframes.html`; the imple
 is `_specs/client-ui.md` §11.1.
 
 Related: [[mobile-wireframes-design-source]], [[client-reusable-ui]]
+
+Review safeguards: a revoked draft destination stays unselected until the admin explicitly chooses a
+group. Sent history filters the selected authorized group before limiting. Feed requests capture both
+group and generation, so stale results/errors cannot overwrite newer data. Same-group refresh is
+suppressed while marking read. The unread summary returns a capped total and newest unread group
+from one bounded query; the bell opens that group (primary fallback for zero/legacy responses).
+After a successful local post, idempotency completion uses its own bounded cancellation token.

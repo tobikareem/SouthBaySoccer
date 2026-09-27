@@ -47,7 +47,7 @@ public sealed record SentAnnouncementsResponse(IReadOnlyList<SentAnnouncementDto
 public sealed record PostAnnouncementRequest(string Body, bool SendPush);
 
 /// <summary>The caller's total unread announcement count, used by the Sessions notification bell.</summary>
-public sealed record UnreadAnnouncementsResponse(int UnreadCount);
+public sealed record UnreadAnnouncementsResponse(int UnreadCount, Guid? TargetGroupId = null);
 
 /// <summary>Result of marking a group's announcements read up to and including <paramref name="ReadThroughUtc"/>.</summary>
 public sealed record MarkAnnouncementsReadResponse(Guid GroupId, DateTime ReadThroughUtc, int UnreadCount);

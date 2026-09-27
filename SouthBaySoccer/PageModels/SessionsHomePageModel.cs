@@ -31,6 +31,7 @@ public partial class SessionsHomePageModel(
     private string? _cachedProfileRole;
     private string? _cachedGroupLabel;
     private Guid _primaryGroupId;
+    private Guid? _unreadTargetGroupId;
 
     public const string ErrorTitle = "Couldn't load your sessions";
     public const string ErrorMessage = "Something went wrong loading your home screen. Please try again.";
@@ -166,7 +167,7 @@ public partial class SessionsHomePageModel(
 
     [RelayCommand]
     private Task OpenAnnouncements() =>
-        announcementsNavigator?.GoToAnnouncementsAsync(_primaryGroupId) ?? Task.CompletedTask;
+        announcementsNavigator?.GoToAnnouncementsAsync(_unreadTargetGroupId ?? _primaryGroupId) ?? Task.CompletedTask;
 
     [RelayCommand(CanExecute = nameof(CanCreateSession))]
     private Task CreateSession() =>
@@ -404,7 +405,9 @@ public partial class SessionsHomePageModel(
 
         try
         {
-            return (await announcementsClient.GetUnreadCountAsync(cancellationToken)).UnreadCount;
+            var unread = await announcementsClient.GetUnreadCountAsync(cancellationToken);
+            _unreadTargetGroupId = unread.UnreadCount > 0 ? unread.TargetGroupId : null;
+            return unread.UnreadCount;
         }
         catch
         {
