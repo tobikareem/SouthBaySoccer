@@ -42,7 +42,9 @@ public partial class ProfilePageModel(
         "This permanently deletes your N9ja Bay profile, group memberships, and sign-in on every device. " +
         "Your Pickup Pal account is not affected. This cannot be undone.";
     public const string DeleteAccountErrorTitle = "Couldn't delete your account";
-    public const string DeleteAccountErrorMessage = "Something went wrong. Your account was not deleted. Please try again.";
+    public const string DeleteAccountErrorMessage = "We couldn't confirm your account was deleted. Please try again.";
+    public const string DeleteAccountAuthenticationMessage =
+        "Your session has expired. We couldn't confirm your account was deleted. Sign in again to complete deletion.";
     public const string DeleteAccountOfflineMessage =
         "We couldn't reach the server, so we can't confirm your account was deleted. Reconnect and try again.";
 
@@ -257,7 +259,7 @@ public partial class ProfilePageModel(
 
     // Delete account. Only offered on the signed-in player's own profile (CanEditProfile). The server
     // soft-deletes our records and revokes every session; Pickup Pal is never called. Local sign-out
-    // runs only after the server confirms, so a failed delete leaves the player signed in.
+    // follows confirmation; an authentication failure explains the unknown outcome before signing out.
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task DeleteAccount(CancellationToken cancellationToken)
     {
@@ -288,9 +290,11 @@ public partial class ProfilePageModel(
         }
         catch (HttpRequestException exception) when (exception.StatusCode == HttpStatusCode.Unauthorized)
         {
-            // The session is gone even after a refresh attempt. The usual cause is a retry after a
-            // delete that committed (revoking every refresh token) but whose response was lost, so
-            // fall through and finish signing out rather than claim the account still exists.
+            // Authentication failure cannot establish whether a prior delete committed.
+            await dialogService.ShowAlertAsync(
+                DeleteAccountErrorTitle, DeleteAccountAuthenticationMessage, "OK", CancellationToken.None);
+            await authenticationCoordinator.SignOutAsync(CancellationToken.None);
+            return;
         }
         catch (Exception exception)
         {
@@ -298,7 +302,7 @@ public partial class ProfilePageModel(
                 DeleteAccountErrorTitle,
                 // No status code means no response: the delete may or may not have committed.
                 // ApiRequestException always carries the status of a response the server sent.
-                exception is HttpRequestException { StatusCode: null }
+                exception is HttpRequestException { StatusCode: null } or OperationCanceledException
                     ? DeleteAccountOfflineMessage
                     : DeleteAccountErrorMessage,
                 "OK",

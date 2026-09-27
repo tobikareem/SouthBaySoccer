@@ -875,7 +875,8 @@
         <div class="card hero-card" style="cursor:pointer" onclick="show('super-admin-groups')"><div class="hero-kicker">Super admin</div><div class="hero-title">Groups &amp; admins</div><div style="font-size:12px;opacity:.85">Manage any group, add players directly, appoint admins.</div></div>
         <button class="btn ghost" onclick="show('leaderboard')">View season leaderboard</button>
         <!-- Own profile only. Delete account confirms first, deletes N9ja Bay data only (Pickup Pal
-             is never called), then signs out to Welcome Back. -->
+             is never called), then signs out to Welcome Back. A 401 explains that deletion is unconfirmed
+             before clearing the expired session; timeouts also show an uncertain outcome. -->
         <div data-profile-own>
           <button class="btn" style="margin-top:14px;background:var(--danger);color:#fff">Sign out</button>
           <div class="muted" style="text-align:center;margin-top:6px">Sign out to switch to a different account.</div>

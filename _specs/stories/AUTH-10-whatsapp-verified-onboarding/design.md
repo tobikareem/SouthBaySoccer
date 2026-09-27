@@ -178,3 +178,25 @@ milestone.
 
 `Infrastructure.Tests`
 - `IPickupPalOnboardingClient` sends the API key, parses both error shapes, and never logs URIs.
+
+### Account deletion review safeguards
+
+After validating a JWT, authentication performs a fresh indexed local identity existence/lockout
+check. Account deletion's permanent Identity lockout rejects previously issued access tokens on
+subsequent requests; requests already in flight are not cancelled. Do not cache active status.
+
+The client never treats 401 as deletion confirmation. It explains the uncertain outcome before
+clearing an expired session. HTTP timeouts and other ambiguous failures also use uncertain-outcome
+copy instead of claiming the account was not deleted.
+
+Passive game import reads account-deleted profiles in one batch scoped to incoming user IDs and
+phone/JID hashes. The existing soft-deleted profile joined to its anonymized `deleted:` identity is
+the deletion marker; ordinary profile merges do not qualify. An active identity-linked profile from
+explicit registration takes precedence; name matching or import-owned shells cannot undo deletion.
+Filtered indexes over deleted identity-linked profiles support the three suppression keys; deploy
+the accompanying migration through the normal controlled migration step. No upstream deletion
+request is made.
+
+Profile repository updates preserve EF property tracking rather than marking the entire loaded row
+modified. A stale import must not write IsDeleted=false over a deletion committed after its read;
+detached ordinary updates also exclude that flag. Explicit soft-delete/merge remains supported.

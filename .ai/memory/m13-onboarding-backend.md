@@ -93,7 +93,7 @@ SHA-256 hashes; nothing raw is held.
   sign-in start). Same purge-service gap as the other operational tables.
 - `DeleteUser` treats 404 as already deleted; `PickupPalUserDeletionOutboxHandler` retries failures.
 - Account deletion UI: Profile "Delete account" (trash icon, own profile only) confirms, calls
-  `DELETE profiles/me`, and signs out locally only after the server succeeds. Verified login still binds to any live pending sign-in for
+  `DELETE profiles/me`, and signs out after confirmed success. Authentication failure explains that deletion is unconfirmed before clearing the expired session; timeouts also report an uncertain outcome. Verified login still binds to any live pending sign-in for
   the redeemed user, not a pending id carried by the initiating device; fix before enabling it.
 - Migration `AddOnboardingRegistrations` drops `WhatsAppSignInChallenges` **with its data** (ephemeral
   challenge rows from the retired flow); it is not recoverable after deploy.
@@ -105,3 +105,11 @@ client still compiles against them.
 
 Related: [[pickuppal-account-creation]], [[pickuppal-phone-sign-in]], [[functions-problem-details]],
 [[m1-operational-records]]
+
+Account deletion safeguards (September 2026): authentication checks the current local identity
+lockout state after JWT validation on every request. Permanent deletion lockout rejects already
+issued access tokens on subsequent requests. The client treats 401/timeouts as unconfirmed deletion,
+never proof of success or rollback. Passive game imports query deleted identity-linked profiles in
+a batch; the anonymized `deleted:` Identity row distinguishes account deletion from profile merging.
+Only explicit registration's active identity-linked profile overrides that suppression. Deleted-side
+identity-key indexes support the lookup; apply their migration via the controlled deployment flow.

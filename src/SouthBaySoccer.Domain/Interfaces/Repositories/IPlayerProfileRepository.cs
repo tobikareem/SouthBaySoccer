@@ -82,6 +82,16 @@ public interface IPlayerProfileRepository : IRepository<PlayerProfile>
         IReadOnlyCollection<string> normalizedDisplayNames,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lists account-deletion markers matching an import's identity keys. Ordinary merged or
+    /// soft-deleted profiles are excluded; explicit re-registration can provide a new active profile.
+    /// </summary>
+    Task<IReadOnlyList<PlayerProfile>> ListAccountDeletedProfilesAsync(
+        IReadOnlyCollection<string> pickupPalUserIds,
+        IReadOnlyCollection<string> phoneNumberHashes,
+        IReadOnlyCollection<string> whatsAppJidHashes,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<PlayerDirectoryReadModel>> ListDirectoryAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -118,11 +118,25 @@ Scenario: Account deletion removes N9ja Bay data only
   And my session tokens are revoked
   And the app returns to the Welcome Back screen
 
-Scenario: A failed account deletion keeps me signed in
-  Given I am signed in
-  When I confirm "Delete account" and the request fails
-  Then I see that my account was not deleted
-  And I stay signed in on this device
+Scenario: An uncertain account deletion does not imply success or failure
+  Given I confirm "Delete account"
+  When the request times out or fails without confirming deletion
+  Then I see that deletion could not be confirmed
+  And I can retry without assuming the account still exists
+  When authentication fails
+  Then I see that deletion could not be confirmed and that I must sign in to complete it
+  And the expired local session is cleared
+
+Scenario: Deleted accounts cannot continue using issued access tokens
+  Given my account deletion committed
+  When an already-issued access token is used for another request
+  Then authentication rejects the inactive account
+
+Scenario: Passive imports respect account deletion
+  Given I deleted my account but remain on a Pickup Pal game roster
+  When that roster is imported again
+  Then no new public player profile is created for my deleted identity
+  And explicit registration can create an active profile that imports may link
 ```
 
 ## Out of scope

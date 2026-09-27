@@ -552,10 +552,9 @@ public class ProfilePageModelTests
     }
 
     [Fact]
-    public async Task DeleteAccount_WhenSessionAlreadyRevoked_SignsOutInsteadOfReportingFailure()
+    public async Task DeleteAccount_WhenAuthenticationFails_ExplainsUnknownOutcomeThenSignsOut()
     {
-        // A retry after a delete that committed but lost its response: the refresh token is revoked,
-        // so the call ends in 401. The account is gone; the device must finish signing out.
+        // A 401 can occur before deletion or after an earlier committed deletion. Never infer success.
         var profileClient = new Mock<IProfileClient>();
         profileClient
             .Setup(client => client.DeleteCurrentAccountAsync(It.IsAny<CancellationToken>()))
@@ -571,7 +570,26 @@ public class ProfilePageModelTests
 
         coordinator.Verify(c => c.SignOutAsync(It.IsAny<CancellationToken>()), Times.Once);
         dialog.Verify(d => d.ShowAlertAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+            ProfilePageModel.DeleteAccountErrorTitle, ProfilePageModel.DeleteAccountAuthenticationMessage,
+            "OK", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteAccount_WhenHttpTimeoutOccurs_ReportsUnknownOutcomeAndKeepsSession()
+    {
+        var client = new Mock<IProfileClient>();
+        client.Setup(x => x.DeleteCurrentAccountAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new TaskCanceledException("HTTP timeout", new TimeoutException()));
+        var coordinator = new Mock<IAuthenticationCoordinator>();
+        var dialog = DialogConfirming(true);
+        var model = CreatePageModel(client, authenticationCoordinator: coordinator, dialogService: dialog);
+
+        await model.DeleteAccountCommand.ExecuteAsync(null);
+
+        coordinator.Verify(x => x.SignOutAsync(It.IsAny<CancellationToken>()), Times.Never);
+        dialog.Verify(x => x.ShowAlertAsync(ProfilePageModel.DeleteAccountErrorTitle,
+            ProfilePageModel.DeleteAccountOfflineMessage, "OK", It.IsAny<CancellationToken>()), Times.Once);
+        model.IsDeletingAccount.Should().BeFalse();
     }
 
     [Fact]
