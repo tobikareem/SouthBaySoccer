@@ -43,11 +43,11 @@ public sealed record SentAnnouncementDto(
 /// <summary>The admin "Recently sent" list, newest first, across the groups the admin belongs to.</summary>
 public sealed record SentAnnouncementsResponse(IReadOnlyList<SentAnnouncementDto> Announcements);
 
-/// <summary>Request body for broadcasting one announcement to one group.</summary>
-public sealed record PostAnnouncementRequest(string Body, bool SendPush);
+/// <summary>Request body for posting one announcement to one group.</summary>
+public sealed record PostAnnouncementRequest(string Body);
 
 /// <summary>The caller's total unread announcement count, used by the Sessions notification bell.</summary>
-public sealed record UnreadAnnouncementsResponse(int UnreadCount);
+public sealed record UnreadAnnouncementsResponse(int UnreadCount, Guid? TargetGroupId = null);
 
 /// <summary>Result of marking a group's announcements read up to and including <paramref name="ReadThroughUtc"/>.</summary>
 public sealed record MarkAnnouncementsReadResponse(Guid GroupId, DateTime ReadThroughUtc, int UnreadCount);

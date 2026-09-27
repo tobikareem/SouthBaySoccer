@@ -31,6 +31,18 @@ public class SessionScreensXamlTests
         Attr(button, "IsVisible").Should().Be("{Binding CanJoin}");
     }
 
+    [Theory]
+    [InlineData("SessionDetailPage.xaml", "ViewOnlyMessage")]
+    [InlineData("GameDayPage.xaml", "SpectatorBannerText")]
+    public void NonmemberNotice_KeepsMessageWithoutJoinGroupButton(string fileName, string messageBinding)
+    {
+        var xaml = ReadXaml(fileName);
+
+        xaml.Should().Contain($"{{Binding {messageBinding}}}", "the nonmember explanation stays visible");
+        xaml.Should().NotContain("JoinGroupCommand");
+        xaml.Should().NotContain("Text=\"Join the group\"");
+    }
+
     [Fact]
     public void SchedulePage_WaitlistAction_UsesMembershipAwareVisibility()
     {
@@ -120,14 +132,12 @@ public class SessionScreensXamlTests
     // --- NFR-Accessibility: informational/interactive icons carry screen-reader descriptions ---
 
     [Fact]
-    public void SessionsHomePage_HidesDeadAnnouncementAndBroadcastEntries()
+    public void SessionsHomePage_ExposesAnnouncementsBell()
     {
-        // The bell and Broadcast buttons only popped a "Coming soon" alert (real navigation is
-        // disabled pending the iOS watchdog fix). They stay hidden until they navigate for real.
         var xaml = ReadXaml(HomePage);
 
-        xaml.Should().NotContain("FontAwesomeGlyphs.Bell");
-        xaml.Should().NotContain("OpenAnnouncementsCommand");
+        xaml.Should().Contain("FontAwesomeGlyphs.Bell");
+        xaml.Should().Contain("OpenAnnouncementsCommand");
         xaml.Should().NotContain("OpenBroadcastCommand");
     }
 

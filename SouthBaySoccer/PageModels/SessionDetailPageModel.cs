@@ -110,7 +110,6 @@ public partial class SessionDetailPageModel(
     [NotifyPropertyChangedFor(nameof(CanCancelSpot))]
     [NotifyPropertyChangedFor(nameof(ShowCancelSpot))]
     [NotifyPropertyChangedFor(nameof(IsViewOnly))]
-    [NotifyPropertyChangedFor(nameof(ShowJoinGroup))]
     private bool _isCanceled;
 
     [ObservableProperty]
@@ -140,13 +139,11 @@ public partial class SessionDetailPageModel(
     [NotifyPropertyChangedFor(nameof(CanRsvp))]
     [NotifyPropertyChangedFor(nameof(IsViewOnly))]
     [NotifyPropertyChangedFor(nameof(ViewOnlyMessage))]
-    [NotifyPropertyChangedFor(nameof(ShowJoinGroup))]
     [NotifyPropertyChangedFor(nameof(ShowCancelSpot))]
     private bool _canJoinGroup;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ViewOnlyMessage))]
-    [NotifyPropertyChangedFor(nameof(ShowJoinGroup))]
     private string? _membershipStatus;
 
     [ObservableProperty]
@@ -154,9 +151,6 @@ public partial class SessionDetailPageModel(
     private string? _groupName;
 
     public bool IsViewOnly => !CanJoinGroup && !IsCanceled;
-
-    /// <summary>Join is offered only when there is no live request yet.</summary>
-    public bool ShowJoinGroup => IsViewOnly && MembershipStatus != "Pending";
 
     public string ViewOnlyMessage => string.Format(
         MembershipStatus == "Pending" ? PendingMembershipMessage : NotMemberMessage,

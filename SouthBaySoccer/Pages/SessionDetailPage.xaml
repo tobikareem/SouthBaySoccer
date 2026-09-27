@@ -182,20 +182,13 @@
                     </VerticalStackLayout>
 
                     <!-- View-only: the game belongs to a group the player has not been admitted to. -->
-                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}" IsVisible="{Binding IsViewOnly}">
-                        <Border Style="{StaticResource NoticeSurface}">
-                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
-                                <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleInfo}" FontFamily="FontAwesomeSolid" Style="{StaticResource BrandIconLabel}"
-                                       AutomationProperties.IsInAccessibleTree="False" />
-                                <Label Grid.Column="1" Text="{Binding ViewOnlyMessage}" Style="{StaticResource TextCaption}" LineHeight="1.4" />
-                            </Grid>
-                        </Border>
-                        <Button Text="Join the group"
-                                Command="{Binding JoinGroupCommand}"
-                                Style="{StaticResource GhostButton}"
-                                IsVisible="{Binding ShowJoinGroup}"
-                                SemanticProperties.Description="Open My groups to request to join this group" />
-                    </VerticalStackLayout>
+                    <Border Style="{StaticResource NoticeSurface}" IsVisible="{Binding IsViewOnly}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                            <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleInfo}" FontFamily="FontAwesomeSolid" Style="{StaticResource BrandIconLabel}"
+                                   AutomationProperties.IsInAccessibleTree="False" />
+                            <Label Grid.Column="1" Text="{Binding ViewOnlyMessage}" Style="{StaticResource TextCaption}" LineHeight="1.4" />
+                        </Grid>
+                    </Border>
 
                     <!-- Primary RSVP toggle -->
                     <Button Text="Cancel my spot"

@@ -25,5 +25,6 @@ public interface IAnnouncementsClient
 
     Task<SentAnnouncementsResponse> GetSentAsync(
         int limit,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Guid? groupId = null);
 }
