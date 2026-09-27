@@ -60,7 +60,7 @@ public sealed class AnnouncementGroupAccessTests
         var admin = Membership("Admin group", GroupMembershipStatuses.Approved, GroupMemberRoles.Admin);
         var announcements = Announcements();
         announcements.Setup(client => client.PostAsync(admin.GroupChatId,
-                It.Is<PostAnnouncementRequest>(request => request.Body == "Kickoff at ten." && !request.SendPush),
+                It.Is<PostAnnouncementRequest>(request => request.Body == "Kickoff at ten."),
                 It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SentAnnouncementDto(Guid.NewGuid(), admin.GroupChatId, admin.GroupName,
                 "Kickoff at ten.", SentAtUtc, 0, 12));
@@ -175,7 +175,7 @@ public sealed class AnnouncementGroupAccessTests
         var announcements = Announcements();
         var sentKeys = new List<string>();
         announcements.Setup(client => client.PostAsync(second.GroupChatId,
-                It.Is<PostAnnouncementRequest>(request => request.Body == "Kickoff at ten." && !request.SendPush),
+                It.Is<PostAnnouncementRequest>(request => request.Body == "Kickoff at ten."),
                 It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Callback<Guid, PostAnnouncementRequest, string, CancellationToken>((_, _, key, _) => sentKeys.Add(key))
             .Returns(() => sentKeys.Count == 1

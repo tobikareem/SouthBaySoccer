@@ -120,11 +120,11 @@ public sealed class AnnouncementFunctions(
             request,
             nameof(PostAnnouncement),
             GetIdempotencyKey(request),
-            new { groupId, body.Body, body.SendPush },
+            new { groupId, body.Body },
             async token =>
             {
                 var result = await postAnnouncementHandler.HandleAsync(
-                    new PostAnnouncementCommand(groupId, body.Body, body.SendPush),
+                    new PostAnnouncementCommand(groupId, body.Body),
                     token);
                 return new IdempotentResponse<SentAnnouncementDto>(HttpStatusCode.Created, ToDto(result));
             },

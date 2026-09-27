@@ -227,6 +227,6 @@ public sealed class AnnouncementPickupPalDeliveryTests
                 clock.Object, Outbox.Object, Client.Object);
         }
 
-        public Task<SentAnnouncementSummary> PostAsync() => handler.HandleAsync(new PostAnnouncementCommand(Group.Id, "  Pitch changed  ", false));
+        public Task<SentAnnouncementSummary> PostAsync() => handler.HandleAsync(new PostAnnouncementCommand(Group.Id, "  Pitch changed  "));
     }
 }

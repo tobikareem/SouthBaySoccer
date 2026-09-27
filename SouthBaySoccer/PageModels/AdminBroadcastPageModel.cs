@@ -208,7 +208,7 @@ public partial class AdminBroadcastPageModel(
             attemptedComposition ??= CurrentComposition();
             var sent = await announcementsClient.PostAsync(
                 Group.GroupChatId,
-                new PostAnnouncementRequest(Body, false),
+                new PostAnnouncementRequest(Body),
                 idempotencyKey,
                 cancellationToken);
             historyVersion++;

@@ -83,12 +83,12 @@ public sealed class AnnouncementClientAndBehaviorTests
 
         await client.PostAsync(
             GroupId,
-            new PostAnnouncementRequest("Field moved.", true),
+            new PostAnnouncementRequest("Field moved."),
             key,
             CancellationToken.None);
 
         observedKey.Should().Be(key);
-        observedBody.Should().Contain("\"body\":\"Field moved.\"").And.Contain("\"sendPush\":true");
+        observedBody.Should().Contain("\"body\":\"Field moved.\"").And.NotContain("sendPush");
     }
 
     [Fact]
