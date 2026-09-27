@@ -31,7 +31,9 @@ public sealed record CareerStatsModel(
     int Assists,
     decimal AverageRating,
     int MvpAwards,
-    int Likes);
+    int Likes,
+    int Wins = 0,
+    int Losses = 0);
 
 public enum PlayerProfileRecentFormOutcome
 {

@@ -1,16 +1,58 @@
 using System.Net.Http;
 using FluentAssertions;
 using Moq;
+using SouthBaySoccer.Contracts.Common;
 using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
 public class SchedulePageModelTests
 {
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("None", false)]
+    [InlineData("Pending", false)]
+    [InlineData("Removed", false)]
+    [InlineData("Withdrawn", false)]
+    [InlineData("Declined", false)]
+    [InlineData("Approved", true)]
+    public async Task JoinWaitlist_GroupedSession_RequiresApprovedMembership(string? membershipStatus, bool mayJoin)
+    {
+        var session = new SeedState().GetDashboard().ComingUpSessions.Single() with
+        {
+            GroupChatId = Guid.NewGuid(),
+            MembershipStatus = membershipStatus,
+            CanJoin = true,
+        };
+        var client = ClientReturning(Dashboard(null, session));
+        client.Setup(x => x.JoinWaitlistAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Success);
+        var pageModel = CreatePageModel(client.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(session.Id);
+
+        pageModel.Groups.SelectMany(group => group.Sessions).Single().ShowJoinWaitlist.Should().Be(mayJoin);
+        client.Verify(x => x.JoinWaitlistAsync(session.Id, It.IsAny<CancellationToken>()),
+            mayJoin ? Times.Once() : Times.Never());
+    }
+
+    [Fact]
+    public async Task JoinWaitlist_BeforeScheduleLoads_DoesNotCallClient()
+    {
+        var client = new Mock<ISessionsClient>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(client.Object);
+
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
+
+        client.VerifyNoOtherCalls();
+    }
+
     // FixedTimeProvider pins "today" to Sun 2026-07-05 UTC, so the Sunday-start weeks are
     // Jul 5-11 (this week), Jul 12-18 (next week), and Jul 19+ falls into month groups.
     private static readonly DateTime ThisWeekStart = new(2026, 7, 6, 16, 0, 0, DateTimeKind.Utc);
@@ -54,6 +96,59 @@ public class SchedulePageModelTests
 
         pageModel.Groups.Single().Sessions.Select(session => session.Title)
             .Should().Equal("Earlier", "Later");
+    }
+
+    [Fact]
+    public async Task Appearing_SessionsAtTheSameStartTime_OrdersByGroupChatName()
+    {
+        var zulu = Summary("Zulu game", ThisWeekStart, groupChatName: "Zulu FC");
+        var ballers = Summary("Ballers game", ThisWeekStart, groupChatName: "ballers united");
+        var n9ja = Summary("N9ja game", ThisWeekStart, groupChatName: "N9ja Bay");
+        var dashboard = Dashboard(Featured(zulu), ballers, n9ja);
+        var pageModel = CreatePageModel(ClientReturning(dashboard).Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.Groups.Single().Sessions.Select(session => session.GroupChatName)
+            .Should().Equal("ballers united", "N9ja Bay", "Zulu FC");
+    }
+
+    [Fact]
+    public async Task Appearing_UngroupedSessionAtTheSameStartTime_SortsAfterGroupedSessions()
+    {
+        var ungrouped = Summary("Admin game", ThisWeekStart);
+        var grouped = Summary("Imported game", ThisWeekStart, groupChatName: "N9ja Bay");
+        var dashboard = Dashboard(Featured(ungrouped), grouped);
+        var pageModel = CreatePageModel(ClientReturning(dashboard).Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.Groups.Single().Sessions.Select(session => session.Title)
+            .Should().Equal("Imported game", "Admin game");
+    }
+
+    [Fact]
+    public async Task Appearing_SessionWithoutGroupChatName_HasGroupChatNameIsFalse()
+    {
+        var dashboard = Dashboard(Featured(Summary("Admin game", ThisWeekStart)));
+        var pageModel = CreatePageModel(ClientReturning(dashboard).Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.Groups.Single().Sessions.Single().HasGroupChatName.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Appearing_SessionWithGroupChatName_HasGroupChatNameIsTrue()
+    {
+        var dashboard = Dashboard(Featured(Summary("Imported game", ThisWeekStart, "N9ja Bay")));
+        var pageModel = CreatePageModel(ClientReturning(dashboard).Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        var session = pageModel.Groups.Single().Sessions.Single();
+        session.HasGroupChatName.Should().BeTrue();
+        session.GroupChatName.Should().Be("N9ja Bay");
     }
 
     [Fact]
@@ -122,12 +217,62 @@ public class SchedulePageModelTests
         navigator.Verify(n => n.GoToSessionAsync(sessionId), Times.Once);
     }
 
+    [Fact]
+    public async Task JoinWaitlist_FullSession_RefreshesScheduleWithActualWaitlistState()
+    {
+        var state = new SeedState();
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.JoinWaitlistAsync(
+                SeedFixtures.StanfordSessionId,
+                It.IsAny<CancellationToken>()))
+            .Returns((Guid sessionId, CancellationToken _) =>
+                Task.FromResult(state.JoinWaitlist(sessionId)));
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .Returns((CancellationToken _) => Task.FromResult(state.GetDashboard()));
+        var pageModel = CreatePageModel(sessionsClient.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
+
+        var session = pageModel.Groups
+            .SelectMany(group => group.Sessions)
+            .Single(item => item.Id == SeedFixtures.StanfordSessionId);
+        session.WaitlistCount.Should().Be(4);
+        session.IsWaitlisted.Should().BeTrue();
+        session.CanJoinWaitlist.Should().BeFalse();
+        session.StatusLabel.Should().Be("You're waitlisted");
+    }
+
+    [Fact]
+    public async Task JoinWaitlist_WhenClientRejects_ShowsActionableError()
+    {
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.JoinWaitlistAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Failure("rsvp_closed", "RSVP is closed."));
+        var pageModel = CreatePageModel(sessionsClient.Object);
+
+        sessionsClient.Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SeedState().GetDashboard());
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
+
+        pageModel.State.Should().Be(ViewState.Error);
+        pageModel.StateTitle.Should().Be("Couldn't join the waitlist");
+        pageModel.StateMessage.Should().Be("RSVP is closed.");
+    }
+
     private static SchedulePageModel CreatePageModel(
         ISessionsClient sessionsClient,
         ISessionsNavigator? navigator = null) =>
         new(
             sessionsClient,
             navigator ?? Mock.Of<ISessionsNavigator>(),
+            new ClientResponseCache(TimeProvider.System),
             new FixedTimeProvider());
 
     private static Mock<ISessionsClient> ClientReturning(SessionsDashboardDto dashboard)
@@ -154,7 +299,10 @@ public class SchedulePageModelTests
 
     private static SessionSummaryDto Featured(SessionSummaryDto summary) => summary;
 
-    private static SessionSummaryDto Summary(string title, DateTime startsAtUtc) =>
+    private static SessionSummaryDto Summary(
+        string title,
+        DateTime startsAtUtc,
+        string? groupChatName = null) =>
         new(
             Guid.NewGuid(),
             title,
@@ -168,7 +316,8 @@ public class SchedulePageModelTests
             Capacity: 20,
             IsFull: false,
             WaitlistCount: 0,
-            RelativeLabel: null);
+            RelativeLabel: null,
+            GroupChatName: groupChatName);
 
     private sealed class FixedTimeProvider : TimeProvider
     {

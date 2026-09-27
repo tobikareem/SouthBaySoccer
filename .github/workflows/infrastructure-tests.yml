@@ -1,0 +1,44 @@
+name: Infrastructure tests
+
+# Runs the LocalDB-backed Infrastructure suite, which the ubuntu test gate in release-ios.yml
+# excludes on purpose (SQL Server LocalDB is Windows-only). windows-latest ships LocalDB
+# preinstalled, so this is the one place these tests get CI enforcement.
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "tests/SouthBaySoccer.Infrastructure.Tests/**"
+      - ".github/workflows/infrastructure-tests.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/SouthBaySoccer.Infrastructure.Tests/**"
+      - ".github/workflows/infrastructure-tests.yml"
+  workflow_dispatch:
+
+env:
+  DOTNET_SDK_VERSION: '10.0.301'
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup .NET ${{ env.DOTNET_SDK_VERSION }}
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Start SQL Server LocalDB
+        run: sqllocaldb start MSSQLLocalDB
+
+      - name: Run Infrastructure tests
+        run: dotnet test tests/SouthBaySoccer.Infrastructure.Tests/SouthBaySoccer.Infrastructure.Tests.csproj --configuration Release

@@ -37,7 +37,18 @@ public sealed record SessionAdminResponse(
     DateTime CheckInClosesAtUtc,
     DateTime RsvpDeadlineUtc,
     string? OccurrenceKey,
-    string Status);
+    string Status,
+    string VenueName = "",
+    int GoingCount = 0,
+    int WaitlistCount = 0,
+    bool IsFull = false,
+    bool IsCurrentPlayerGoing = false,
+    bool IsCurrentPlayerWaitlisted = false,
+    bool CanJoinWaitlist = false,
+    string? GroupName = null,
+    Guid? GroupChatId = null,
+    string? MembershipStatus = null,
+    bool CanJoin = true);
 
 public sealed record CreateSessionAdminRequest(
     Guid SeasonId,
@@ -51,7 +62,8 @@ public sealed record CreateSessionAdminRequest(
     DateTime CheckInClosesAtUtc,
     DateTime RsvpDeadlineUtc,
     Guid? RecurrenceRuleId = null,
-    string? OccurrenceKey = null);
+    string? OccurrenceKey = null,
+    Guid? GroupChatId = null);
 
 public sealed record CancelSessionRequest(string Reason);
 

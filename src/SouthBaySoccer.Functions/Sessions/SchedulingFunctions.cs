@@ -24,6 +24,7 @@ public sealed class SchedulingFunctions(
     CreateRecurrenceRuleCommandHandler createRecurrenceRuleHandler,
     CreateSessionOccurrenceCommandHandler createSessionOccurrenceHandler,
     GetCreateSessionAdminDefaultsQueryHandler getCreateSessionAdminDefaultsHandler,
+    GameDayPickupPalRefreshService pickupPalRefreshService,
     ListManagedSessionsQueryHandler listManagedSessionsHandler,
     GetSessionForAdminEditQueryHandler getSessionForAdminEditHandler,
     CreateSessionDraftCommandHandler createSessionDraftHandler,
@@ -86,6 +87,7 @@ public sealed class SchedulingFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "sessions")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
+        await pickupPalRefreshService.RefreshIfStaleAsync(cancellationToken);
         var sessions = await listUpcomingSessionsHandler.HandleAsync(cancellationToken: cancellationToken);
         return await WriteJsonAsync(request, HttpStatusCode.OK, sessions.Select(ToResponse).ToArray(), cancellationToken);
     }
@@ -161,7 +163,8 @@ public sealed class SchedulingFunctions(
                 body.CheckInClosesAtUtc,
                 body.RsvpDeadlineUtc,
                 body.RecurrenceRuleId,
-                body.OccurrenceKey),
+                body.OccurrenceKey,
+                GroupChatId: body.GroupChatId),
             cancellationToken);
 
         return await WriteJsonAsync(request, HttpStatusCode.Created, ToResponse(session), cancellationToken);
@@ -317,7 +320,9 @@ public sealed class SchedulingFunctions(
             session.Format,
             session.Capacity,
             session.Status,
-            string.Equals(session.Status, "Canceled", StringComparison.OrdinalIgnoreCase));
+            string.Equals(session.Status, "Canceled", StringComparison.OrdinalIgnoreCase),
+            session.GroupChatId,
+            session.GroupName);
     }
 
     private static ManagedSessionEditDto ToResponse(ManagedSessionEditModel session)
@@ -341,8 +346,10 @@ public sealed class SchedulingFunctions(
                 localRsvpDeadline.TimeOfDay,
                 DayOffset(localCheckInOpen, localStart),
                 DayOffset(localCheckInClose, localStart),
-                DayOffset(localRsvpDeadline, localStart)),
-            string.Equals(session.Status, "Published", StringComparison.OrdinalIgnoreCase));
+                DayOffset(localRsvpDeadline, localStart),
+                session.GroupChatId),
+            string.Equals(session.Status, "Published", StringComparison.OrdinalIgnoreCase),
+            session.GroupName);
     }
 
     /// <summary>
@@ -369,7 +376,37 @@ public sealed class SchedulingFunctions(
             session.CheckInClosesAtUtc,
             session.RsvpDeadlineUtc,
             session.OccurrenceKey,
-            session.Status);
+            session.Status,
+            GroupName: session.GroupName,
+            GroupChatId: session.GroupChatId);
+
+    private static SessionAdminResponse ToResponse(SessionFeedModel feed) =>
+        new(
+            feed.Session.SessionId,
+            feed.Session.SeasonId,
+            feed.Session.VenueId,
+            feed.Session.RecurrenceRuleId,
+            feed.Session.Title,
+            feed.Session.Format,
+            feed.Session.Capacity,
+            feed.Session.TeamCount,
+            feed.Session.StartsAtUtc,
+            feed.Session.CheckInOpensAtUtc,
+            feed.Session.CheckInClosesAtUtc,
+            feed.Session.RsvpDeadlineUtc,
+            feed.Session.OccurrenceKey,
+            feed.Session.Status,
+            feed.VenueName,
+            feed.GoingCount,
+            feed.WaitlistCount,
+            feed.IsFull,
+            feed.IsCurrentPlayerGoing,
+            feed.IsCurrentPlayerWaitlisted,
+            feed.CanJoinWaitlist,
+            feed.GroupName,
+            feed.GroupChatId,
+            feed.MembershipStatus,
+            feed.CanJoin);
 
     private static CreateSessionDraftCommand ToDraftCommand(ContractCreateSessionCommand command) =>
         new(
@@ -383,7 +420,8 @@ public sealed class SchedulingFunctions(
             SessionAdminTimeZone.ToUtc(command.GameDateLocal.AddDays(command.CheckInCloseDayOffset), command.CheckInCloseLocal),
             SessionAdminTimeZone.ToUtc(
                 command.GameDateLocal.AddDays(command.RsvpDeadlineDayOffset),
-                command.RsvpDeadlineLocal ?? command.StartTimeLocal.Subtract(TimeSpan.FromHours(1))));
+                command.RsvpDeadlineLocal ?? command.StartTimeLocal.Subtract(TimeSpan.FromHours(1))),
+            command.GroupChatId);
 
     private static UpdateSessionAdminCommand ToUpdateCommand(Guid sessionId, ContractCreateSessionCommand command) =>
         new(
@@ -398,7 +436,8 @@ public sealed class SchedulingFunctions(
             SessionAdminTimeZone.ToUtc(command.GameDateLocal.AddDays(command.CheckInCloseDayOffset), command.CheckInCloseLocal),
             SessionAdminTimeZone.ToUtc(
                 command.GameDateLocal.AddDays(command.RsvpDeadlineDayOffset),
-                command.RsvpDeadlineLocal ?? command.StartTimeLocal.Subtract(TimeSpan.FromHours(1))));
+                command.RsvpDeadlineLocal ?? command.StartTimeLocal.Subtract(TimeSpan.FromHours(1))),
+            command.GroupChatId);
 
     private static string? ReadOptionalString(
         IDictionary<string, Microsoft.Extensions.Primitives.StringValues> query,

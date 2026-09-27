@@ -172,6 +172,113 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Announcements.Announcement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AuthorPlayerProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("GroupChatId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("PushRequested")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("RecipientCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SentAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorPlayerProfileId", "SentAtUtc")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("GroupChatId", "SentAtUtc", "Id")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("Announcements", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Announcements_RecipientCountNotNegative", "[RecipientCount] >= 0");
+                        });
+
+                    b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", true);
+                });
+
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Announcements.GroupAnnouncementReadMarker", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("GroupChatId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastReadAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("PlayerProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GroupChatId", "LastReadAtUtc")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("PlayerProfileId", "GroupChatId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("PlayerProfileId", "GroupChatId"), new[] { "LastReadAtUtc" });
+
+                    b.ToTable("GroupAnnouncementReadMarkers", (string)null);
+
+                    b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", true);
+                });
+
             modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Compliance.WaiverAcceptance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -279,6 +386,146 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("WaiverDocuments", (string)null);
+
+                    b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", true);
+                });
+
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Groups.GroupChat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("GroupName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LinkageCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Timezone")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("WhatsAppMemberCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExternalId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("GroupChats", (string)null);
+
+                    b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", true);
+                });
+
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Groups.PlayerGroupLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ApprovedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ApprovedByPlayerProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("GroupChatId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("PlayerProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("RemovedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("RemovedByPlayerProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("RequestedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlayerProfileId")
+                        .IsUnique()
+                        .HasFilter("[IsPrimary] = 1 AND [IsDeleted] = 0");
+
+                    b.HasIndex("GroupChatId", "Status")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("PlayerProfileId", "GroupChatId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("PlayerGroupLinks", (string)null);
 
                     b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", true);
                 });
@@ -404,19 +651,131 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("WhatsAppJidHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("IdentityUserId")
                         .IsUnique()
                         .HasFilter("[IdentityUserId] IS NOT NULL AND [IsDeleted] = 0");
 
+                    b.HasIndex("NormalizedDisplayName")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("NormalizedDisplayName"), new[] { "DisplayName", "PreferredPosition", "IsGuest" });
+
+                    b.HasIndex("PhoneNumberHash")
+                        .HasFilter("[PhoneNumberHash] IS NOT NULL AND [IsDeleted] = 0");
+
                     b.HasIndex("PickupPalUserId")
                         .IsUnique()
                         .HasFilter("[PickupPalUserId] IS NOT NULL AND [IsDeleted] = 0");
 
+                    b.HasIndex("WhatsAppJidHash")
+                        .HasFilter("[WhatsAppJidHash] IS NOT NULL AND [IsDeleted] = 0");
+
                     b.HasIndex("IsGuest", "IsDeleted");
 
                     b.ToTable("PlayerProfiles", (string)null);
+
+                    b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", true);
+                });
+
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Identity.PlayerRegistration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<int>("ExternalAttemptCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LastExternalError")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("PhoneMasked")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("PhoneNumberHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("PickupPalUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("PreferredPosition")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("TermsAcceptedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TermsVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PickupPalUserId")
+                        .HasFilter("[PickupPalUserId] IS NOT NULL AND [IsDeleted] = 0");
+
+                    b.HasIndex("PhoneNumberHash", "Status")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("PlayerRegistrations", (string)null);
 
                     b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", true);
                 });
@@ -985,6 +1344,12 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("ProcessedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -1006,6 +1371,65 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status", "AvailableAtUtc", "CreatedAt");
 
                     b.ToTable("OutboxMessages", (string)null);
+
+                    b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", false);
+                });
+
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Operations.PendingPhoneSignIn", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ConsumedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PhoneNumberHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("PickupPalUserId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<bool?>("RememberDevice")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PhoneNumberHash");
+
+                    b.HasIndex("PickupPalUserId", "ExpiresAtUtc");
+
+                    b.ToTable("PendingPhoneSignIns", (string)null);
 
                     b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", false);
                 });
@@ -1108,73 +1532,6 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_RefreshTokens_RevokedByNotSelf", "[RevokedByRefreshTokenId] IS NULL OR [RevokedByRefreshTokenId] <> [Id]");
                         });
-
-                    b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", false);
-                });
-
-            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Operations.WhatsAppSignInChallenge", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CallbackUriHash")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("ChallengeId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("ChallengeTokenHash")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<DateTime?>("ConsumedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<DateTime>("ExpiresAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("MaskedPhoneNumber")
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<string>("PhoneNumberHash")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<Guid?>("PlayerProfileId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChallengeTokenHash")
-                        .IsUnique();
-
-                    b.HasIndex("PhoneNumberHash", "ExpiresAtUtc");
-
-                    b.ToTable("WhatsAppSignInChallenges", (string)null);
 
                     b.HasAnnotation("SouthBaySoccer:UsesSoftDelete", false);
                 });
@@ -1513,6 +1870,11 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SessionId", "CheckedInAtUtc");
 
+                    b.HasIndex("SessionId", "Outcome")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("SessionId", "Outcome"), new[] { "PlayerProfileId" });
+
                     b.HasIndex("SessionId", "PlayerProfileId")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
@@ -1560,6 +1922,9 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .HasMaxLength(160)
                         .HasColumnType("nvarchar(160)");
 
+                    b.Property<Guid?>("PlayerProfileId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("SessionId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1571,6 +1936,8 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(128)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PlayerProfileId");
 
                     b.HasIndex("SessionId", "PickupPalParticipantId")
                         .IsUnique()
@@ -1716,6 +2083,20 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<string>("PickupPalSyncError")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("PickupPalSyncStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasDefaultValue("NotApplicable");
+
+                    b.Property<DateTime?>("PickupPalSyncedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<Guid>("PlayerProfileId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1830,12 +2211,40 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<Guid?>("GroupChatId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<string>("OccurrenceKey")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("PickupPalGameId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("PickupPalOrigin")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasDefaultValue("None");
+
+                    b.Property<string>("PickupPalSyncError")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("PickupPalSyncStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasDefaultValue("NotApplicable");
+
+                    b.Property<DateTime?>("PickupPalSyncedAtUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<Guid?>("RecurrenceRuleId")
                         .HasColumnType("uniqueidentifier");
@@ -1879,6 +2288,8 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("GroupChatId");
 
                     b.HasIndex("OccurrenceKey")
                         .IsUnique()
@@ -2012,6 +2423,9 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("AutoBalanceVersion")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("CompletedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -2021,6 +2435,9 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<long>("DraftRevision")
+                        .HasColumnType("bigint");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -2050,6 +2467,9 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SessionId", "MatchNumber")
                         .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("Status", "SessionId")
                         .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("Matches", (string)null);
@@ -2099,6 +2519,9 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.HasIndex("MatchId", "AwardType")
                         .IsUnique()
                         .HasFilter("[AwardType] = 'Mvp' AND [IsDeleted] = 0");
+
+                    b.HasIndex("AwardType", "PlayerProfileId", "MatchId")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("MatchAwards", (string)null);
 
@@ -2168,8 +2591,6 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AssistPlayerProfileId");
-
                     b.HasIndex("ReviewedByPlayerProfileId");
 
                     b.HasIndex("SubmittedByPlayerProfileId");
@@ -2178,7 +2599,15 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("MatchId", "ReviewStatus");
 
-                    b.HasIndex("PlayerProfileId", "EventType");
+                    b.HasIndex("AssistPlayerProfileId", "EventType", "ReviewStatus")
+                        .HasFilter("[IsDeleted] = 0 AND [AssistPlayerProfileId] IS NOT NULL");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("AssistPlayerProfileId", "EventType", "ReviewStatus"), new[] { "MatchId" });
+
+                    b.HasIndex("PlayerProfileId", "EventType", "ReviewStatus")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("PlayerProfileId", "EventType", "ReviewStatus"), new[] { "MatchId" });
 
                     b.ToTable("MatchEvents", null, t =>
                         {
@@ -2332,6 +2761,9 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ReceiverPlayerProfileId", "MatchId")
+                        .HasFilter("[IsDeleted] = 0");
+
                     b.HasIndex("MatchId", "GiverPlayerProfileId", "ReceiverPlayerProfileId")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
@@ -2391,11 +2823,16 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PlayerProfileId");
-
                     b.HasIndex("MatchId", "PlayerProfileId")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("MatchId", "PlayerProfileId"), new[] { "Played" });
+
+                    b.HasIndex("PlayerProfileId", "MatchId")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("PlayerProfileId", "MatchId"), new[] { "Played", "MinutesPlayed" });
 
                     b.ToTable("PlayerMatchStats", (string)null);
 
@@ -2438,6 +2875,11 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RatedPlayerProfileId", "MatchId")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("RatedPlayerProfileId", "MatchId"), new[] { "Score" });
 
                     b.HasIndex("MatchId", "VoterPlayerProfileId", "RatedPlayerProfileId")
                         .IsUnique()
@@ -2732,6 +3174,36 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Announcements.Announcement", b =>
+                {
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Identity.PlayerProfile", null)
+                        .WithMany()
+                        .HasForeignKey("AuthorPlayerProfileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Groups.GroupChat", null)
+                        .WithMany()
+                        .HasForeignKey("GroupChatId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Announcements.GroupAnnouncementReadMarker", b =>
+                {
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Groups.GroupChat", null)
+                        .WithMany()
+                        .HasForeignKey("GroupChatId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Identity.PlayerProfile", null)
+                        .WithMany()
+                        .HasForeignKey("PlayerProfileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Compliance.WaiverAcceptance", b =>
                 {
                     b.HasOne("SouthBaySoccer.Domain.Entities.Identity.PlayerProfile", null)
@@ -2743,6 +3215,21 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
                     b.HasOne("SouthBaySoccer.Domain.Entities.Compliance.WaiverDocument", null)
                         .WithMany()
                         .HasForeignKey("WaiverDocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Groups.PlayerGroupLink", b =>
+                {
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Groups.GroupChat", null)
+                        .WithMany()
+                        .HasForeignKey("GroupChatId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Identity.PlayerProfile", null)
+                        .WithMany()
+                        .HasForeignKey("PlayerProfileId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
@@ -2847,6 +3334,11 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Scheduling.PickupPalGameParticipant", b =>
                 {
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Identity.PlayerProfile", null)
+                        .WithMany()
+                        .HasForeignKey("PlayerProfileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("SouthBaySoccer.Domain.Entities.Scheduling.Session", null)
                         .WithMany()
                         .HasForeignKey("SessionId")
@@ -2880,6 +3372,11 @@ namespace SouthBaySoccer.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SouthBaySoccer.Domain.Entities.Scheduling.Session", b =>
                 {
+                    b.HasOne("SouthBaySoccer.Domain.Entities.Groups.GroupChat", null)
+                        .WithMany()
+                        .HasForeignKey("GroupChatId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("SouthBaySoccer.Domain.Entities.Scheduling.RecurrenceRule", null)
                         .WithMany()
                         .HasForeignKey("RecurrenceRuleId")

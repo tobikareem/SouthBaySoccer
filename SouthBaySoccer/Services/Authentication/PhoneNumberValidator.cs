@@ -23,6 +23,14 @@ public static partial class PhoneNumberValidator
             return false;
         }
 
+        // Players routinely type the 10-digit US form without the country code; Pickup Pal keys US
+        // users by "1XXXXXXXXXX", so assume US and prepend the "1". Must stay consistent with the
+        // backend's SignInByPhoneCommandValidator.NormalizeDigits rule.
+        if (digits.Length == 10)
+        {
+            digits = $"1{digits}";
+        }
+
         normalized = $"+{digits}";
         return true;
     }

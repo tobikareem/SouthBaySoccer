@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SouthBaySoccer.Contracts.Players;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 using ViewState = SouthBaySoccer.Controls.ViewState;
 
 namespace SouthBaySoccer.PageModels;
@@ -13,7 +14,8 @@ namespace SouthBaySoccer.PageModels;
 /// </summary>
 public partial class PlayersPageModel(
     IPlayersClient playersClient,
-    IPlayersNavigator navigator) : ObservableObject
+    IPlayersNavigator navigator,
+    IClientResponseCache responseCache) : ObservableObject
 {
     public const string EmptyTitle = "No players yet";
     public const string EmptyMessage = "The roster will appear here once players join Pickup Pal.";
@@ -28,6 +30,9 @@ public partial class PlayersPageModel(
 
     [ObservableProperty]
     private ViewState _state = ViewState.Loading;
+
+    [ObservableProperty]
+    private bool _isRefreshing;
 
     [ObservableProperty]
     private string _stateTitle = string.Empty;
@@ -62,14 +67,32 @@ public partial class PlayersPageModel(
     private Task Appearing(CancellationToken cancellationToken) => LoadPlayersAsync(cancellationToken);
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task Refresh(CancellationToken cancellationToken) => LoadPlayersAsync(cancellationToken);
+    private async Task Refresh(CancellationToken cancellationToken)
+    {
+        // An explicit pull must not be answered from the cache that serves tab switches.
+        responseCache.Invalidate("players:");
+        IsRefreshing = true;
+        try
+        {
+            await LoadPlayersAsync(cancellationToken);
+        }
+        finally
+        {
+            IsRefreshing = false;
+        }
+    }
 
     [RelayCommand]
     private Task OpenPlayer(Guid playerId) => navigator.OpenPlayerProfileAsync(playerId);
 
     private async Task LoadPlayersAsync(CancellationToken cancellationToken)
     {
-        State = ViewState.Loading;
+        // Pull-to-refresh keeps the content on screen (RefreshView shows the spinner);
+        // only non-content states swap to the full-page loading view.
+        if (State != ViewState.Content)
+        {
+            State = ViewState.Loading;
+        }
         IsBusy = true;
 
         try

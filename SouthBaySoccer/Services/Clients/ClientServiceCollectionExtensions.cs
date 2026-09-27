@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Services.Authentication;
+using SouthBaySoccer.Services.Clients.Caching;
 
 #if !RELEASE
 using SouthBaySoccer.SeedData;
@@ -21,6 +22,15 @@ public static class ClientServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(pickupPalOptions);
 
         services.AddSingleton(options);
+        // Registered for both data sources: AuthenticationCoordinator depends on the cache
+        // regardless of mode, so registering it only for API mode breaks Seed startup.
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IClientResponseCache, ClientResponseCache>();
+        // Same reason, and the same bug: AuthenticationCoordinator takes the session refresher in
+        // every mode, so an API-only registration made Seed builds throw at startup before a single
+        // page loaded. Both of its dependencies resolve under either data source — ISecureTokenStore
+        // from MauiProgram, IAuthenticationClient from whichever branch runs below.
+        services.TryAddSingleton<IAuthenticationSessionRefresher, AuthenticationSessionRefresher>();
         ClientDataSourceValidator.Validate(options, IsSeedProviderAvailable);
 
         return options.DataSource switch
@@ -32,74 +42,116 @@ public static class ClientServiceCollectionExtensions
         };
     }
 
+    // Shared config for every typed API client. The explicit timeout matters: HttpClient's default
+    // is 100 seconds, which reads as a frozen button when the backend is unreachable or cold-starting.
+    private static void ConfigureApiClient(HttpClient client, PickupPalOptions pickupPalOptions)
+    {
+        client.BaseAddress = pickupPalOptions.ApiBaseUri;
+        client.Timeout = TimeSpan.FromSeconds(30);
+    }
+
     private static IServiceCollection AddApiClients(IServiceCollection services, PickupPalOptions pickupPalOptions)
     {
         // ApiSessionsClient formats display labels in device-local time from a TimeProvider; the
         // app registers TimeProvider.System in MauiProgram, and TryAdd keeps bare test hosts working.
-        services.TryAddSingleton(TimeProvider.System);
         services.AddTransient<CorrelationIdHandler>();
         services.AddTransient<AuthenticationHandler>();
         services.AddTransient<ApiExceptionHandler>();
 
         services.AddHttpClient(
             "SouthBaySoccer.Anonymous",
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
-        services.AddHttpClient<IProfileClient, ApiProfileClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+        services.AddHttpClient<ApiProfileClient>(
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
+        services.AddTransient<IProfileClient>(provider => new CachedProfileClient(
+            provider.GetRequiredService<ApiProfileClient>(),
+            provider.GetRequiredService<IClientResponseCache>()));
 
         services.AddHttpClient<ISessionAdminClient, ApiSessionAdminClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
-        services.AddHttpClient<IPlayersClient, ApiPlayersClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+        services.AddHttpClient<ApiPlayersClient>(
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
+        services.AddTransient<IPlayersClient>(provider => new CachedPlayersClient(
+            provider.GetRequiredService<ApiPlayersClient>(),
+            provider.GetRequiredService<IClientResponseCache>()));
 
-        services.AddHttpClient<ISessionsClient, ApiSessionsClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+        // Registered by concrete type so the caching decorator owns the ISessionsClient
+        // registration; the handler pipeline below is unchanged and every real request still
+        // flows through correlation -> auth -> exception handling.
+        services.AddHttpClient<ApiSessionsClient>(
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
+        services.AddTransient<ISessionsClient>(provider => new CachedSessionsClient(
+            provider.GetRequiredService<ApiSessionsClient>(),
+            provider.GetRequiredService<IClientResponseCache>()));
 
-        services.AddHttpClient<IRosterClient, ApiRosterClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+        services.AddHttpClient<ApiRosterClient>(
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
+        services.AddTransient<IRosterClient>(provider => new CachedRosterClient(
+            provider.GetRequiredService<ApiRosterClient>(),
+            provider.GetRequiredService<IClientResponseCache>()));
 
         services.AddHttpClient<IStatsClient, ApiStatsClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
         services.AddHttpClient<ILeaderboardClient, ApiLeaderboardClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
         services.AddHttpClient<IGameDayClient, ApiGameDayClient>(
-            client => client.BaseAddress = pickupPalOptions.ApiBaseUri)
+            client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
+
+        services.AddHttpClient<ApiGroupsClient>(
+            client => ConfigureApiClient(client, pickupPalOptions))
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<AuthenticationHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+        services.AddTransient<IGroupsClient>(provider => new CachedGroupsClient(
+            provider.GetRequiredService<ApiGroupsClient>(),
+            provider.GetRequiredService<IClientResponseCache>()));
+
+        services.AddHttpClient<ApiAnnouncementsClient>(
+            client => ConfigureApiClient(client, pickupPalOptions))
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<AuthenticationHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+        services.AddTransient<IAnnouncementsClient>(provider => new CachedAnnouncementsClient(
+            provider.GetRequiredService<ApiAnnouncementsClient>(),
+            provider.GetRequiredService<IClientResponseCache>()));
 
         services.AddSingleton<IAuthenticationClient>(provider =>
             new AuthenticationClient(
                 provider.GetRequiredService<IHttpClientFactory>().CreateClient("SouthBaySoccer.Anonymous"),
                 pickupPalOptions));
-        services.AddSingleton<IAuthenticationSessionRefresher, AuthenticationSessionRefresher>();
+        services.AddSingleton<IOnboardingClient>(provider =>
+            new OnboardingClient(
+                provider.GetRequiredService<IHttpClientFactory>().CreateClient("SouthBaySoccer.Anonymous")));
 
 #if RELEASE
         return services;
@@ -117,6 +169,7 @@ public static class ClientServiceCollectionExtensions
         services.AddSingleton<SeedState>();
         services.AddSingleton<SeedGameDayState>();
         services.AddSingleton<IAuthenticationClient, SeedAuthenticationClient>();
+        services.AddSingleton<IOnboardingClient, SeedOnboardingClient>();
         services.AddSingleton<IProfileClient, SeedProfileClient>();
         return AddSeedClientsExceptProfileAndAuthentication(services);
 #endif
@@ -146,6 +199,8 @@ public static class ClientServiceCollectionExtensions
         services.TryAddSingleton<ILeaderboardClient, SeedLeaderboardClient>();
         services.TryAddSingleton<IPlayersClient, SeedPlayersClient>();
         services.TryAddSingleton<IGameDayClient, SeedGameDayClient>();
+        services.TryAddSingleton<IGroupsClient, SeedGroupsClient>();
+        services.TryAddSingleton<IAnnouncementsClient, SeedAnnouncementsClient>();
     }
 #endif
 

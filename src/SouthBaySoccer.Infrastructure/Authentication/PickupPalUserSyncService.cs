@@ -28,6 +28,23 @@ public sealed class PickupPalUserSyncService(
         var phoneNumber = NormalizePhone(user.PhoneNumber);
         var displayName = BuildDisplayName(user);
 
+        if (profile is null)
+        {
+            // A games import may already have created an unclaimed profile for this person keyed
+            // by phone hash. Claim it on first sign-in instead of creating a duplicate.
+            var phoneNumberHash = AuthenticationHashing.Sha256(phoneNumber);
+            profile = await dbContext.PlayerProfiles
+                .Where(x => x.PickupPalUserId == null
+                    && x.IdentityUserId == null
+                    && x.PhoneNumberHash == phoneNumberHash)
+                .OrderBy(x => x.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (profile is { Role: PlayerRole.Guest })
+            {
+                profile.Role = PlayerRole.Player;
+            }
+        }
+
         ApplicationIdentityUser identityUser;
         bool identityUserExists;
         if (profile?.IdentityUserId is { } existingIdentityUserId)
@@ -118,9 +135,27 @@ public sealed class PickupPalUserSyncService(
         identityUser.EmailConfirmed = !string.IsNullOrWhiteSpace(identityUser.Email);
     }
 
+    // Owners (super admins) are identified only by the configured OwnerPhoneNumbers and always
+    // win; the promotion is reversible, so a profile that is Owner without a configured owner
+    // number drops back to GameAdmin (configured admin number) or Player. A configured admin
+    // number promotes to GameAdmin unless the profile already holds an administrative role. Roles
+    // are otherwise local and never overwritten by Pickup Pal data.
     private void ApplyConfiguredAdminRole(PlayerProfile profile, string phoneNumber)
     {
-        if (configuredAdminPhoneNumberService.IsConfiguredAdminPhoneNumber(phoneNumber) &&
+        var isConfiguredAdmin = configuredAdminPhoneNumberService.IsConfiguredAdminPhoneNumber(phoneNumber);
+        if (configuredAdminPhoneNumberService.IsConfiguredOwnerPhoneNumber(phoneNumber))
+        {
+            profile.Role = PlayerRole.Owner;
+            return;
+        }
+
+        if (profile.Role == PlayerRole.Owner)
+        {
+            profile.Role = isConfiguredAdmin ? PlayerRole.GameAdmin : PlayerRole.Player;
+            return;
+        }
+
+        if (isConfiguredAdmin &&
             !IsAdministrativeRole(profile.Role))
         {
             profile.Role = PlayerRole.GameAdmin;

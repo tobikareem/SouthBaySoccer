@@ -35,6 +35,32 @@ public sealed class ConfiguredAdminPhoneNumberServiceTests
         service.IsConfiguredAdminPhoneNumberHash(hash).Should().BeTrue();
     }
 
+    [Fact]
+    public void IsConfiguredOwnerPhoneNumber_WhenOwnerNumbersConfigured_MatchesNormalizedDigitsAndHashesOnly()
+    {
+        var service = new ConfiguredAdminPhoneNumberService(
+            Options.Create(new AdminPhoneNumberOptions
+            {
+                AdminPhoneNumbers = "15163447233",
+                OwnerPhoneNumbers = "1 (650) 602-3417, 13105550123",
+            }));
+
+        service.IsConfiguredOwnerPhoneNumber("+1 650-602-3417").Should().BeTrue();
+        service.IsConfiguredOwnerPhoneNumberHash(Sha256("+13105550123")).Should().BeTrue();
+        service.IsConfiguredOwnerPhoneNumber("15163447233").Should().BeFalse("an admin number is not an owner number");
+        service.IsConfiguredAdminPhoneNumber("16506023417").Should().BeFalse("the lists are independent");
+        service.IsConfiguredOwnerPhoneNumberHash(null).Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsConfiguredOwnerPhoneNumber_WhenNothingConfigured_ReturnsFalse()
+    {
+        var service = new ConfiguredAdminPhoneNumberService(Options.Create(new AdminPhoneNumberOptions()));
+
+        service.IsConfiguredOwnerPhoneNumber("16506023417").Should().BeFalse();
+        service.IsConfiguredOwnerPhoneNumberHash(Sha256("+16506023417")).Should().BeFalse();
+    }
+
     private static string Sha256(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value.Trim())));
 }

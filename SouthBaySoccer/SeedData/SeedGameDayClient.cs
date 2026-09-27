@@ -6,10 +6,111 @@ namespace SouthBaySoccer.SeedData;
 
 public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
 {
-    public Task<GameDayContextDto?> GetTodayContextAsync(CancellationToken cancellationToken)
+    public Task<GameDayContextDto?> GetTodayContextAsync(Guid? sessionId, bool allGames, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        // Seed mode runs a single game a day, so the requested session and all-games flag are ignored.
         return Task.FromResult<GameDayContextDto?>(state.GetContext());
+    }
+
+    public Task<LastGameSummaryDto?> GetLastGameSummaryAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var draft = state.GetTeamDraft(SeedFixtures.MarinaSessionId);
+        var teams = draft.Teams
+            .Select(team =>
+            {
+                var names = draft.CheckedInPlayers.ToDictionary(p => p.Player.Id, p => p.Player.DisplayName);
+                var members = team.PlayerIds
+                    .Select((id, index) => new LastGameTeamMemberDto(
+                        id,
+                        names.GetValueOrDefault(id, "Player"),
+                        id == team.CaptainId,
+                        // Deterministic seed tallies: the captain and first pick carry the goals.
+                        id == team.CaptainId ? 2 : index == 1 ? 1 : 0,
+                        id == team.CaptainId ? 1 : 0))
+                    .ToArray();
+                return new LastGameTeamDto(team.TeamId, team.Name, team.CaptainName, "1W", members);
+            })
+            .ToArray();
+        return Task.FromResult<LastGameSummaryDto?>(new LastGameSummaryDto(
+            SeedFixtures.MarinaSessionId,
+            "Marina Field - Wednesday pickup",
+            "Bay Area Soccer",
+            "Marina Field",
+            "Wed Jul 22, 7:30 PM",
+            new DateTime(2026, 7, 23, 2, 30, 0, DateTimeKind.Utc),
+            GoingCount: 14,
+            CheckedInCount: 12,
+            TeamCount: teams.Length,
+            ResultSummary: "Team Vic 2W · Team Ade 1W 1D",
+            WaitlistCount: 5,
+            Teams: teams,
+            CanLockTeams: true,
+            CanMatchPlayers: true,
+            CanApprovePostGame: true,
+            MatchId: SeedFixtures.FeaturedMatchId,
+            CanRateTeammates: true));
+    }
+
+    public async Task<IReadOnlyList<LastGameSummaryDto>> GetRecentGameSummariesAsync(
+        CancellationToken cancellationToken)
+    {
+        var summary = await GetLastGameSummaryAsync(cancellationToken);
+        return summary is null ? [] : [summary];
+    }
+
+    public Task<IReadOnlyList<RecentGameDto>> GetRecentGamesAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<RecentGameDto>>(
+        [
+            new RecentGameDto(
+                SeedFixtures.MarinaSessionId,
+                SeedFixtures.FeaturedMatchId,
+                "Marina Field - Wednesday pickup",
+                "Marina Field",
+                "Wed Jul 22, 7:30 PM",
+                "Completed",
+                2,
+                2,
+                CanEditTeams: true),
+        ]);
+    }
+
+    public Task<IReadOnlyList<ClaimableSessionDto>> GetMyClaimableSessionsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<ClaimableSessionDto>>([]);
+    }
+
+    public Task<SessionClaimablesDto?> GetSessionClaimablesAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<SessionClaimablesDto?>(
+            new SessionClaimablesDto(sessionId, "You", AlreadyOnRoster: true, []));
+    }
+
+    public Task<ClientCommandResult> ClaimParticipantAsync(Guid sessionId, Guid participantId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(ClientCommandResult.Success);
+    }
+
+    public Task<IReadOnlyList<ClaimableParticipantDto>> GetUnlinkedParticipantsAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<ClaimableParticipantDto>>(
+        [
+            new ClaimableParticipantDto(Guid.NewGuid(), "victor", IsWaitlist: true),
+            new ClaimableParticipantDto(Guid.NewGuid(), "chidu", IsWaitlist: false),
+        ]);
+    }
+
+    public Task<ClientCommandResult> LinkParticipantAsync(Guid participantId, Guid playerProfileId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(ClientCommandResult.Success);
     }
 
     public Task<ClientCommandResult> CheckInAsync(
@@ -19,6 +120,27 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(state.CheckIn(sessionId));
+    }
+
+    public Task<ClientCommandResult> LateCheckInAsync(
+        Guid sessionId,
+        Guid playerProfileId,
+        string reason,
+        Guid idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(state.LateCheckIn(sessionId, playerProfileId, reason, idempotencyKey));
+    }
+
+    public Task<ClientCommandResult> AdminCheckInAsync(
+        Guid sessionId,
+        Guid playerProfileId,
+        Guid idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(state.AdminCheckIn(sessionId, playerProfileId));
     }
 
     public Task<CaptainAssignmentDto?> GetCaptainAssignmentAsync(
@@ -33,10 +155,13 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
         Guid sessionId,
         int captainCount,
         IReadOnlyList<Guid> captainIds,
+        long revision,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(state.AssignCaptains(sessionId, captainCount, captainIds));
+        return Task.FromResult(IsCurrent(revision)
+            ? state.AssignCaptains(sessionId, captainCount, captainIds)
+            : StaleDraft());
     }
 
     public Task<TeamDraftDto?> GetTeamDraftAsync(Guid sessionId, CancellationToken cancellationToken)
@@ -45,15 +170,150 @@ public sealed class SeedGameDayClient(SeedGameDayState state) : IGameDayClient
         return Task.FromResult<TeamDraftDto?>(state.GetTeamDraft(sessionId));
     }
 
+    public Task<ConditionalReadResult<TeamDraftDto>> GetTeamDraftIfChangedAsync(
+        Guid sessionId,
+        long revision,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var draft = state.GetTeamDraft(sessionId);
+        return Task.FromResult(draft.DraftRevision == revision
+            ? new ConditionalReadResult<TeamDraftDto>(false, revision, null, draft.DraftValidator)
+            : new ConditionalReadResult<TeamDraftDto>(true, draft.DraftRevision, draft, draft.DraftValidator));
+    }
+
+    public Task<ConditionalReadResult<TeamDraftDto>> GetTeamDraftIfChangedAsync(
+        Guid sessionId,
+        long revision,
+        string? validator,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var draft = state.GetTeamDraft(sessionId);
+        return Task.FromResult(string.Equals(draft.DraftValidator, validator, StringComparison.Ordinal)
+            ? new ConditionalReadResult<TeamDraftDto>(false, revision, null, draft.DraftValidator)
+            : new ConditionalReadResult<TeamDraftDto>(true, draft.DraftRevision, draft, draft.DraftValidator));
+    }
+
     public Task<ClientCommandResult> SaveTeamPicksAsync(
         Guid sessionId,
         Guid teamId,
         IReadOnlyList<Guid> playerIds,
+        long revision,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(state.SaveTeamPicks(sessionId, teamId, playerIds));
+        return Task.FromResult(IsCurrent(revision)
+            ? state.SaveTeamPicks(sessionId, teamId, playerIds)
+            : StaleDraft());
     }
+
+    public Task<ClientCommandResult> DraftPickAsync(
+        Guid sessionId,
+        Guid playerId,
+        long revision,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(IsCurrent(revision) ? state.DraftPick(sessionId, playerId) : StaleDraft());
+    }
+
+    public Task<ClientCommandResult> AutoBalanceTeamsAsync(
+        Guid sessionId,
+        long revision,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(IsCurrent(revision) ? state.AutoBalanceTeams(sessionId) : StaleDraft());
+    }
+
+    public Task<ClientCommandResult> LockTeamsAsync(
+        Guid sessionId,
+        long revision,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(IsCurrent(revision) ? state.LockTeams(sessionId) : StaleDraft());
+    }
+
+    public Task<ClientCommandResult> UnlockTeamsAsync(
+        Guid sessionId,
+        long revision,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(IsCurrent(revision) ? state.UnlockTeams(sessionId) : StaleDraft());
+    }
+
+    public Task<SessionTeamsDto?> GetSessionTeamsAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var draft = state.GetTeamDraft(sessionId);
+        var names = draft.CheckedInPlayers.ToDictionary(p => p.Player.Id, p => p.Player.DisplayName);
+        var teams = draft.Teams
+            .Select(team => new SessionTeamDto(
+                team.TeamId,
+                team.Name,
+                team.CaptainName,
+                false,
+                team.PlayerIds
+                    .Select(id => new SessionTeamMemberDto(
+                        id,
+                        names.TryGetValue(id, out var name) ? name : "Player",
+                        id == team.CaptainId,
+                        false))
+                    .ToArray()))
+            .ToArray();
+        var assignedIds = draft.Teams.SelectMany(team => team.PlayerIds).ToHashSet();
+        var available = draft.CheckedInPlayers
+            .Where(player => !assignedIds.Contains(player.Player.Id))
+            .OrderBy(player => player.Player.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(player => new SessionTeamMemberDto(player.Player.Id, player.Player.DisplayName, false, false))
+            .ToArray();
+        return Task.FromResult<SessionTeamsDto?>(new SessionTeamsDto(
+            draft.SessionId,
+            draft.MatchId,
+            teams,
+            IsDraftInProgress: !draft.IsLocked,
+            OnTheClockLabel: draft.OnTheClockLabel,
+            AvailablePlayers: available,
+            DraftRevision: draft.DraftRevision,
+            DraftValidator: draft.DraftValidator));
+    }
+
+    public async Task<ConditionalReadResult<SessionTeamsDto>> GetSessionTeamsIfChangedAsync(
+        Guid sessionId,
+        long revision,
+        CancellationToken cancellationToken)
+    {
+        var teams = await GetSessionTeamsAsync(sessionId, cancellationToken);
+        if (teams is null || teams.DraftRevision == revision)
+        {
+            return new ConditionalReadResult<SessionTeamsDto>(false, revision, null);
+        }
+
+        return new ConditionalReadResult<SessionTeamsDto>(true, teams.DraftRevision, teams);
+    }
+
+    public async Task<ConditionalReadResult<SessionTeamsDto>> GetSessionTeamsIfChangedAsync(
+        Guid sessionId,
+        long revision,
+        string? validator,
+        CancellationToken cancellationToken)
+    {
+        var teams = await GetSessionTeamsAsync(sessionId, cancellationToken);
+        if (teams is null || string.Equals(teams.DraftValidator, validator, StringComparison.Ordinal))
+        {
+            return new ConditionalReadResult<SessionTeamsDto>(false, revision, null, teams?.DraftValidator ?? validator);
+        }
+
+        return new ConditionalReadResult<SessionTeamsDto>(true, teams.DraftRevision, teams, teams.DraftValidator);
+    }
+
+    private bool IsCurrent(long revision) => revision == state.DraftRevision;
+
+    private static ClientCommandResult StaleDraft() =>
+        ClientCommandResult.Failure("draft_revision_conflict", "The draft changed. Reload and try again.");
 
     public Task<PostGameApprovalDto?> GetPostGameApprovalAsync(
         Guid sessionId,

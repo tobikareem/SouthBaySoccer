@@ -14,6 +14,7 @@ public sealed class ProfileEndpointMetadataTests
     [InlineData(nameof(ProfileFunctions.GetMyProfile), "profiles/me", AuthenticationPolicies.AuthenticatedPlayer)]
     [InlineData(nameof(ProfileFunctions.GetPlayerProfile), "profiles/{playerProfileId:guid}", AuthenticationPolicies.AuthenticatedPlayer)]
     [InlineData(nameof(ProfileFunctions.UpdateMyProfile), "profiles/me", AuthenticationPolicies.AuthenticatedPlayer)]
+    [InlineData(nameof(ProfileFunctions.DeleteMyProfile), "profiles/me", AuthenticationPolicies.AuthenticatedPlayer)]
     [InlineData(nameof(ProfileFunctions.CreateGuestProfile), "profiles/guests", AuthenticationPolicies.CanManagePlayers)]
     [InlineData(nameof(ProfileFunctions.CreateProfileMerge), "profiles/merges", AuthenticationPolicies.CanManagePlayers)]
     public void ProfileEndpoint_WhenMetadataResolved_RequiresExpectedPolicy(
@@ -29,6 +30,15 @@ public sealed class ProfileEndpointMetadataTests
         var trigger = GetHttpTrigger(method);
         trigger.AuthLevel.Should().Be(AuthorizationLevel.Anonymous);
         trigger.Route.Should().Be(expectedRoute);
+    }
+
+    [Fact]
+    public void DeleteMyProfile_WhenMetadataResolved_UsesDeleteVerb()
+    {
+        var method = typeof(ProfileFunctions).GetMethod(nameof(ProfileFunctions.DeleteMyProfile))
+            ?? throw new InvalidOperationException("Missing endpoint DeleteMyProfile.");
+
+        GetHttpTrigger(method).Methods.Should().Equal("delete");
     }
 
     private static HttpTriggerAttribute GetHttpTrigger(MethodInfo method) =>

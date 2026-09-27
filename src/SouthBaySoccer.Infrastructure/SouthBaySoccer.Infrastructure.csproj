@@ -26,4 +26,8 @@
     <ProjectReference Include="..\SouthBaySoccer.Domain\SouthBaySoccer.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="SouthBaySoccer.Infrastructure.Tests" />
+  </ItemGroup>
+
 </Project>

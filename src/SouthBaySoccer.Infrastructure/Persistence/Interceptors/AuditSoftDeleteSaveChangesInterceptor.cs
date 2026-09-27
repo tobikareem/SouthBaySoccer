@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Domain.Entities.Common;
+using SouthBaySoccer.Infrastructure.Caching;
 
 namespace SouthBaySoccer.Infrastructure.Persistence.Interceptors;
 
@@ -15,16 +16,42 @@ public sealed class AuditSoftDeleteSaveChangesInterceptor : SaveChangesIntercept
     private const string SystemActor = "System";
     private readonly IClock clock;
     private readonly ICurrentUser currentUser;
+    private readonly CacheEvictionQueue cacheEvictionQueue;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AuditSoftDeleteSaveChangesInterceptor"/> class.
     /// </summary>
     /// <param name="clock">The application clock used for UTC audit timestamps.</param>
     /// <param name="currentUser">The ambient request principal used for audit actor stamps.</param>
-    public AuditSoftDeleteSaveChangesInterceptor(IClock clock, ICurrentUser currentUser)
+    /// <param name="cacheEvictionQueue">Cache keys to evict once a save commits.</param>
+    public AuditSoftDeleteSaveChangesInterceptor(
+        IClock clock,
+        ICurrentUser currentUser,
+        CacheEvictionQueue cacheEvictionQueue)
     {
         this.clock = clock;
         this.currentUser = currentUser;
+        this.cacheEvictionQueue = cacheEvictionQueue;
+    }
+
+    /// <inheritdoc />
+    public override int SavedChanges(SaveChangesCompletedEventData eventData, int result)
+    {
+        cacheEvictionQueue.Flush();
+        return base.SavedChanges(eventData, result);
+    }
+
+    /// <inheritdoc />
+    // Draining here rather than in UnitOfWork covers every commit path by construction. Several
+    // services call dbContext.SaveChangesAsync directly, and any of them commits everything tracked
+    // in the shared scoped context - so an enqueued key could otherwise go durable without eviction.
+    public override ValueTask<int> SavedChangesAsync(
+        SaveChangesCompletedEventData eventData,
+        int result,
+        CancellationToken cancellationToken = default)
+    {
+        cacheEvictionQueue.Flush();
+        return base.SavedChangesAsync(eventData, result, cancellationToken);
     }
 
     /// <inheritdoc />

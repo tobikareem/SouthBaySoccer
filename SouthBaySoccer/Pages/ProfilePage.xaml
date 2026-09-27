@@ -24,7 +24,9 @@
         <c:BrandHeader
             Grid.Row="0"
             Title="{Binding Profile.DisplayName}"
-            Subtitle="{Binding Profile.Subtitle}">
+            Subtitle="{Binding Profile.Subtitle}"
+            ShowBack="{Binding IsViewingOtherPlayer}"
+            BackCommand="{Binding BackCommand}">
             <c:BrandHeader.LeadingContent>
                 <c:Avatar
                     Initials="{Binding Profile.Initials}"
@@ -42,6 +44,8 @@
             Glyph="{x:Static fonts:FontAwesomeGlyphs.User}"
             GlyphFontFamily="FontAwesomeSolid"
             RetryCommand="{Binding RefreshCommand}">
+            <RefreshView Command="{Binding RefreshCommand}"
+                         IsRefreshing="{Binding IsRefreshing, Mode=TwoWay}">
             <ScrollView>
                 <VerticalStackLayout
                     Padding="{StaticResource LayoutPadding}"
@@ -100,20 +104,20 @@
                             Grid.Row="0"
                             Grid.Column="0"
                             Value="{Binding MatchesText}"
-                            Label="Matches"
-                            SemanticProperties.Description="{Binding Profile.CareerStats.Matches, StringFormat='Matches: {0}'}" />
+                            Label="Kick off"
+                            SemanticProperties.Description="{Binding Profile.CareerStats.Matches, StringFormat='Kick off: {0}'}" />
                         <c:StatTile
                             Grid.Row="0"
                             Grid.Column="1"
-                            Value="{Binding GoalsText}"
-                            Label="Goals"
-                            SemanticProperties.Description="{Binding Profile.CareerStats.Goals, StringFormat='Goals: {0}'}" />
+                            Value="{Binding WinsText}"
+                            Label="Wins"
+                            SemanticProperties.Description="{Binding Profile.CareerStats.Wins, StringFormat='Wins: {0}'}" />
                         <c:StatTile
                             Grid.Row="0"
                             Grid.Column="2"
-                            Value="{Binding AssistsText}"
-                            Label="Assists"
-                            SemanticProperties.Description="{Binding Profile.CareerStats.Assists, StringFormat='Assists: {0}'}" />
+                            Value="{Binding LossesText}"
+                            Label="Losses"
+                            SemanticProperties.Description="{Binding Profile.CareerStats.Losses, StringFormat='Losses: {0}'}" />
                         <c:StatTile
                             Grid.Row="1"
                             Grid.Column="0"
@@ -189,13 +193,112 @@
                         IsVisible="{Binding HasActionMessage}"
                         SemanticProperties.Description="{Binding ActionMessage}" />
 
+                    <!-- GRP-1 group membership, own profile only. -->
+                    <VerticalStackLayout Spacing="{StaticResource SpaceMd}" IsVisible="{Binding CanEditProfile}">
+                        <c:SectionHeader Text="My groups" ActionText="Manage" ActionCommand="{Binding OpenMyGroupsCommand}" />
+                        <c:BrandCard>
+                            <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                                <Label Text="{Binding MyGroupsSummary}" Style="{StaticResource TextBodyStrong}" />
+                                <Label Text="{Binding MyGroupsDetail}" Style="{StaticResource TextCaption}" />
+                                <FlexLayout
+                                    BindableLayout.ItemsSource="{Binding MyGroups}"
+                                    Direction="Row"
+                                    Wrap="Wrap"
+                                    JustifyContent="Start"
+                                    AlignItems="Center">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="pageModels:MembershipRowItem">
+                                            <c:Badge
+                                                Margin="0,0,4,4"
+                                                Text="{Binding Name}"
+                                                Variant="{Binding StatusVariant}"
+                                                SemanticProperties.Description="{Binding SemanticDescription}" />
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </FlexLayout>
+                            </VerticalStackLayout>
+                        </c:BrandCard>
+
+                        <!-- Group admins only: one row per group they administer. -->
+                        <c:SectionHeader Text="Manage members" IsVisible="{Binding HasAdminGroups}" />
+                        <VerticalStackLayout
+                            BindableLayout.ItemsSource="{Binding AdminGroups}"
+                            Spacing="{StaticResource SpaceSm}"
+                            IsVisible="{Binding HasAdminGroups}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="pageModels:AdminGroupItem">
+                                    <Border Style="{StaticResource CardSurface}" Padding="0" MinimumHeightRequest="{StaticResource TouchMin}">
+                                        <c:PlayerRow
+                                            Name="{Binding Name}"
+                                            Detail="{Binding Detail}"
+                                            Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
+                                            SemanticDescription="{Binding SemanticDescription}"
+                                            TapCommand="{Binding BindingContext.OpenGroupMembersCommand, Source={x:Reference ProfilePageName}}"
+                                            TapCommandParameter="{Binding .}">
+                                            <c:PlayerRow.TrailingContent>
+                                                <Label
+                                                    Text="{x:Static fonts:FontAwesomeGlyphs.ChevronRight}"
+                                                    FontFamily="FontAwesomeSolid"
+                                                    Style="{StaticResource TextCaption}"
+                                                    VerticalTextAlignment="Center"
+                                                    TextColor="{AppThemeBinding Light={StaticResource BrandSageLight}, Dark={StaticResource BrandSageDark}}"
+                                                    AutomationProperties.IsInAccessibleTree="False" />
+                                            </c:PlayerRow.TrailingContent>
+                                        </c:PlayerRow>
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+
+                        <!-- Owners only (IsSuperAdmin from the server). -->
+                        <c:BrandCard IsHero="True" IsVisible="{Binding IsSuperAdmin}">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}" MinimumHeightRequest="{StaticResource TouchMin}"
+                                  SemanticProperties.Description="Super admin: groups and admins. Manage any group, add players directly, appoint admins."
+                                  SemanticProperties.Hint="Opens groups and admins">
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding OpenSuperAdminGroupsCommand}" />
+                                </Grid.GestureRecognizers>
+                                <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                                    <Label Text="Super admin" Style="{StaticResource TextLabel}" TextColor="White" Opacity="0.85" />
+                                    <Label Text="Groups &amp; admins" Style="{StaticResource TextBodyStrong}" TextColor="White" />
+                                    <Label Text="Manage any group, add players directly, appoint admins." Style="{StaticResource TextCaption}" TextColor="White" Opacity="0.85" />
+                                </VerticalStackLayout>
+                                <Label
+                                    Grid.Column="1"
+                                    Text="{x:Static fonts:FontAwesomeGlyphs.ChevronRight}"
+                                    FontFamily="FontAwesomeSolid"
+                                    Style="{StaticResource TextCaption}"
+                                    TextColor="White"
+                                    VerticalTextAlignment="Center"
+                                    AutomationProperties.IsInAccessibleTree="False" />
+                            </Grid>
+                        </c:BrandCard>
+                    </VerticalStackLayout>
+
                     <Button
                         Text="View season leaderboard"
                         Command="{Binding OpenLeaderboardCommand}"
                         Style="{StaticResource GhostButton}"
                         SemanticProperties.Description="View season leaderboard" />
+
+                    <!-- Sign out / switch account, own profile only. -->
+                    <VerticalStackLayout
+                        Spacing="{StaticResource SpaceXs}"
+                        IsVisible="{Binding CanEditProfile}">
+                        <Button
+                            Text="Sign out"
+                            Command="{Binding SignOutCommand}"
+                            Style="{StaticResource DangerButton}"
+                            SemanticProperties.Description="Sign out and switch account" />
+                        <Label
+                            Text="Sign out to switch to a different account."
+                            Style="{StaticResource TextCaption}"
+                            HorizontalTextAlignment="Center"
+                            Opacity="0.65" />
+                    </VerticalStackLayout>
                 </VerticalStackLayout>
             </ScrollView>
+            </RefreshView>
         </c:StateView>
     </Grid>
 </ContentPage>

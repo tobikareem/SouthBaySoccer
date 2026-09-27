@@ -2,17 +2,63 @@ using System.Net.Http;
 using FluentAssertions;
 using Moq;
 using SouthBaySoccer.Contracts.Common;
+using SouthBaySoccer.Contracts.Groups;
 using SouthBaySoccer.Contracts.Profiles;
 using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
+using SouthBaySoccer.Services;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
 public class SessionsHomePageModelTests
 {
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("None", false)]
+    [InlineData("Pending", false)]
+    [InlineData("Removed", false)]
+    [InlineData("Withdrawn", false)]
+    [InlineData("Declined", false)]
+    [InlineData("Approved", true)]
+    public async Task JoinWaitlist_GroupedSession_RequiresApprovedMembership(string? membershipStatus, bool mayJoin)
+    {
+        var session = new SeedState().GetDashboard().ComingUpSessions.Single() with
+        {
+            GroupChatId = Guid.NewGuid(),
+            MembershipStatus = membershipStatus,
+            CanJoin = true,
+        };
+        var client = new Mock<ISessionsClient>();
+        client.Setup(x => x.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with { ComingUpSessions = [session] });
+        client.Setup(x => x.JoinWaitlistAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Success);
+        var pageModel = CreatePageModel(client.Object, Mock.Of<ISessionsNavigator>());
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(session.Id);
+
+        session.CanJoinSession.Should().Be(mayJoin);
+        session.ShowJoinWaitlist.Should().Be(mayJoin);
+        client.Verify(x => x.JoinWaitlistAsync(session.Id, It.IsAny<CancellationToken>()),
+            mayJoin ? Times.Once() : Times.Never());
+    }
+
+    [Fact]
+    public async Task JoinWaitlist_BeforeDashboardLoads_DoesNotCallClient()
+    {
+        var client = new Mock<ISessionsClient>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(client.Object, Mock.Of<ISessionsNavigator>());
+
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
+
+        client.VerifyNoOtherCalls();
+    }
+
     [Fact]
     public async Task Appearing_SeedDashboard_PopulatesContentFromWireframeFixtures()
     {
@@ -36,6 +82,7 @@ public class SessionsHomePageModelTests
         comingUp.Title.Should().Be("Stanford Turf · 5v5");
         comingUp.IsFull.Should().BeTrue();
         comingUp.WaitlistCount.Should().Be(3);
+        comingUp.CanJoinWaitlist.Should().BeTrue();
         pageModel.CanManageSessions.Should().BeTrue();
     }
 
@@ -173,6 +220,45 @@ public class SessionsHomePageModelTests
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
         pageModel.Greeting.Should().Be("Good morning, Captain");
+    }
+
+    [Fact]
+    public async Task Appearing_WithLinkedGroups_UsesPrimaryGroupNameAsHeaderLabel()
+    {
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with { GroupLabel = "N9ja Bay" });
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var groupsClient = GroupsClientReturning(
+            new GroupChatDto(Guid.NewGuid(), "ext-1", "Weekend Warriors", 12, IsLinked: true, IsPrimary: false),
+            new GroupChatDto(Guid.NewGuid(), "ext-2", "Sunday League", 20, IsLinked: true, IsPrimary: true));
+        var pageModel = CreatePageModel(
+            sessionsClient.Object,
+            navigator.Object,
+            groupsClient: groupsClient.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.GroupLabel.Should().Be("Sunday League", "the header shows the player's primary group chat");
+    }
+
+    [Fact]
+    public async Task Appearing_WithNoLinkedGroups_FallsBackToDashboardGroupLabel()
+    {
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with { GroupLabel = "N9ja Bay" });
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(
+            sessionsClient.Object,
+            navigator.Object,
+            groupsClient: GroupsClientReturning().Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.GroupLabel.Should().Be("N9ja Bay");
     }
 
     [Fact]
@@ -336,6 +422,97 @@ public class SessionsHomePageModelTests
     }
 
     [Fact]
+    public async Task OpenStats_WhenPromptRequiresClaim_NavigatesToClaimSpotForTheSession()
+    {
+        var sessionId = Guid.NewGuid();
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with
+            {
+                StatsPrompt = new StatsPromptDto(
+                    Guid.Empty,
+                    "Submit your latest stats",
+                    "Find yourself on Wednesday pickup to add your goals and assists",
+                    sessionId,
+                    RequiresClaim: true),
+            });
+        var navigator = new Mock<ISessionsNavigator>();
+        navigator.Setup(item => item.GoToClaimSpotAsync(sessionId)).Returns(Task.CompletedTask);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.HasStatsPrompt.Should().BeTrue("the card shows even though this player isn't linked yet");
+        pageModel.HasLatestMatch.Should().BeFalse();
+
+        await pageModel.OpenStatsCommand.ExecuteAsync(null);
+
+        navigator.Verify(item => item.GoToClaimSpotAsync(sessionId), Times.Once);
+        navigator.Verify(item => item.GoToMatchStatsAsync(It.IsAny<Guid>()), Times.Never);
+        navigator.Verify(item => item.GoToStatsAsync(), Times.Never);
+    }
+
+    [Fact]
+    public async Task Appearing_WhenClaimPromptWasDismissed_HidesTheCard()
+    {
+        var sessionId = Guid.NewGuid();
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with
+            {
+                StatsPrompt = new StatsPromptDto(
+                    Guid.Empty,
+                    "Submit your latest stats",
+                    "Add your goals and assists",
+                    sessionId,
+                    RequiresClaim: true),
+            });
+        var dismissed = new Mock<IDismissedStatsPromptStore>();
+        dismissed.Setup(store => store.IsDismissed(sessionId)).Returns(true);
+        var pageModel = CreatePageModel(
+            sessionsClient.Object,
+            new Mock<ISessionsNavigator>().Object,
+            dismissedPromptStore: dismissed.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.HasStatsPrompt.Should().BeFalse("the player already said none of the entries were them");
+        pageModel.StatsPrompt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Appearing_WhenSubmitPromptWasDismissedForClaim_StillShowsRealSubmitCard()
+    {
+        // A real submit prompt (RequiresClaim = false) is never dismissable, so a dismissal recorded
+        // against the same session must not suppress it once the player is linked.
+        var sessionId = Guid.NewGuid();
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient
+            .Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.Dashboard with
+            {
+                StatsPrompt = new StatsPromptDto(
+                    Guid.NewGuid(),
+                    "Submit your latest stats",
+                    "Add your goals and assists",
+                    sessionId,
+                    RequiresClaim: false),
+            });
+        var dismissed = new Mock<IDismissedStatsPromptStore>();
+        dismissed.Setup(store => store.IsDismissed(sessionId)).Returns(true);
+        var pageModel = CreatePageModel(
+            sessionsClient.Object,
+            new Mock<ISessionsNavigator>().Object,
+            dismissedPromptStore: dismissed.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.HasStatsPrompt.Should().BeTrue();
+        pageModel.HasLatestMatch.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task JoinWaitlist_FullSession_CallsClientAndRefreshesDashboard()
     {
         var state = new SeedState();
@@ -352,6 +529,7 @@ public class SessionsHomePageModelTests
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
         var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
 
+        await pageModel.AppearingCommand.ExecuteAsync(null);
         await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
 
         sessionsClient.Verify(
@@ -361,15 +539,59 @@ public class SessionsHomePageModelTests
             Times.Once);
         sessionsClient.Verify(
             client => client.GetDashboardAsync(It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Exactly(2));
         pageModel.State.Should().Be(ViewState.Content);
         pageModel.ComingUpSessions.Single().WaitlistCount.Should().Be(4);
+        pageModel.ComingUpSessions.Single().IsWaitlisted.Should().BeTrue();
+        pageModel.ComingUpSessions.Single().CanJoinWaitlist.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task JoinWaitlist_HttpTimeout_ShowsErrorInsteadOfHanging()
+    {
+        // Regression: an HttpClient timeout surfaces as TaskCanceledException whose token is NOT the
+        // command's token. The old unguarded catch rethrew it out of the fire-and-forget command, so
+        // the user saw no response at all ("the button hangs"). It must land in the Error state.
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient.Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SeedState().GetDashboard());
+        sessionsClient
+            .Setup(client => client.JoinWaitlistAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new TaskCanceledException("A task was canceled (HttpClient timeout)."));
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
+
+        pageModel.State.Should().Be(ViewState.Error);
+    }
+
+    [Fact]
+    public async Task JoinWaitlist_ConnectivityFailure_ShowsOfflineState()
+    {
+        var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient.Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SeedState().GetDashboard());
+        sessionsClient
+            .Setup(client => client.JoinWaitlistAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("connection refused"));
+        var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
+        var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
+
+        pageModel.State.Should().Be(ViewState.Offline);
+        pageModel.StateTitle.Should().Be(SessionsHomePageModel.OfflineTitle);
     }
 
     [Fact]
     public async Task JoinWaitlist_ClientFailure_DoesNotRefreshDashboard()
     {
         var sessionsClient = new Mock<ISessionsClient>();
+        sessionsClient.Setup(client => client.GetDashboardAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SeedState().GetDashboard());
         sessionsClient
             .Setup(client => client.JoinWaitlistAsync(
                 It.IsAny<Guid>(),
@@ -378,23 +600,97 @@ public class SessionsHomePageModelTests
         var navigator = new Mock<ISessionsNavigator>(MockBehavior.Strict);
         var pageModel = CreatePageModel(sessionsClient.Object, navigator.Object);
 
-        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.MarinaSessionId);
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.JoinWaitlistCommand.ExecuteAsync(SeedFixtures.StanfordSessionId);
 
         sessionsClient.Verify(
             client => client.GetDashboardAsync(It.IsAny<CancellationToken>()),
-            Times.Never);
+            Times.Once);
+        pageModel.State.Should().Be(ViewState.Error);
+        pageModel.StateTitle.Should().Be("Couldn't join the waitlist");
+        pageModel.StateMessage.Should().Be("still space");
+    }
+
+    [Fact]
+    public async Task OpenBroadcast_WhenInvoked_ShowsComingSoonAndDoesNotNavigate()
+    {
+        var announcementsNavigator = new Mock<IAnnouncementsNavigator>();
+        var dialog = new Mock<IUserDialogService>();
+        var pageModel = CreatePageModel(
+            new Mock<ISessionsClient>().Object,
+            new Mock<ISessionsNavigator>().Object,
+            announcementsNavigator: announcementsNavigator.Object,
+            dialogService: dialog.Object);
+
+        await pageModel.OpenBroadcastCommand.ExecuteAsync(null);
+
+        dialog.Verify(
+            x => x.ShowAlertAsync(
+                SessionsHomePageModel.ComingSoonTitle,
+                SessionsHomePageModel.ComingSoonMessage,
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        announcementsNavigator.Verify(
+            x => x.GoToAdminBroadcastAsync(),
+            Times.Never,
+            "navigating to the broadcast page hangs the main thread until iOS terminates the app");
+    }
+
+    [Fact]
+    public async Task OpenAnnouncements_WhenInvoked_ShowsComingSoonAndDoesNotNavigate()
+    {
+        var announcementsNavigator = new Mock<IAnnouncementsNavigator>();
+        var dialog = new Mock<IUserDialogService>();
+        var pageModel = CreatePageModel(
+            new Mock<ISessionsClient>().Object,
+            new Mock<ISessionsNavigator>().Object,
+            announcementsNavigator: announcementsNavigator.Object,
+            dialogService: dialog.Object);
+
+        await pageModel.OpenAnnouncementsCommand.ExecuteAsync(null);
+
+        dialog.Verify(
+            x => x.ShowAlertAsync(
+                SessionsHomePageModel.ComingSoonTitle,
+                SessionsHomePageModel.ComingSoonMessage,
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        announcementsNavigator.Verify(
+            x => x.GoToAnnouncementsAsync(It.IsAny<Guid>()), Times.Never);
     }
 
     private static SessionsHomePageModel CreatePageModel(
         ISessionsClient sessionsClient,
         ISessionsNavigator navigator,
         IProfileClient? profileClient = null,
-        int hour = 9) =>
+        int hour = 9,
+        IDismissedStatsPromptStore? dismissedPromptStore = null,
+        IGroupsClient? groupsClient = null,
+        IAnnouncementsNavigator? announcementsNavigator = null,
+        IUserDialogService? dialogService = null) =>
         new(
             sessionsClient,
             navigator,
             profileClient ?? ProfileClientReturning("Tobi Kareem").Object,
-            new FixedTimeProvider(hour));
+            groupsClient ?? GroupsClientReturning().Object,
+            dismissedPromptStore ?? new Mock<IDismissedStatsPromptStore>().Object,
+            new ClientResponseCache(TimeProvider.System),
+            new FixedTimeProvider(hour),
+            announcementsClient: null,
+            announcementsNavigator: announcementsNavigator,
+            dialogService: dialogService);
+
+    private static Mock<IGroupsClient> GroupsClientReturning(params GroupChatDto[] groups)
+    {
+        var groupsClient = new Mock<IGroupsClient>();
+        groupsClient
+            .Setup(client => client.GetMyGroupsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MyGroupsResponse(groups.Length > 0, groups));
+
+        return groupsClient;
+    }
 
     private static Mock<IProfileClient> ProfileClientReturning(string displayName, string role = "GameAdmin")
     {

@@ -46,6 +46,9 @@ public class PickupPalGameParticipant : BaseEntity
     /// <summary>Gets or sets the session the participant belongs to.</summary>
     public Guid SessionId { get; set; }
 
+    /// <summary>Gets or sets the player profile this participant was matched or created as.</summary>
+    public Guid? PlayerProfileId { get; set; }
+
     /// <summary>Gets or sets the stable Pickup Pal participant id.</summary>
     public string PickupPalParticipantId { get; set; } = string.Empty;
 

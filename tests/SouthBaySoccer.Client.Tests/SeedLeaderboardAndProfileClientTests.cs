@@ -19,6 +19,7 @@ public class SeedLeaderboardAndProfileClientTests
                 await client.GetRankingAsync(
                     SeedFixtures.Season2026Id,
                     metric,
+                    null,
                     CancellationToken.None));
         }
 

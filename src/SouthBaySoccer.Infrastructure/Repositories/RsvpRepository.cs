@@ -34,10 +34,15 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
                 return new RsvpMutationResult(sessionId, playerProfileId, state, rsvp.Id);
             }
 
-            var confirmedCount = await dbContext.RsvpResponses
-                .CountAsync(x => x.SessionId == sessionId && x.Status == RsvpStatus.Going, token);
+            var attendance = SessionAttendanceProjection.BuildForSession(
+                sessionId,
+                await ListAttendanceEntriesAsync(sessionId, token));
+            var currentPlayerKey = SessionAttendanceProjection.ProfileKey(playerProfileId);
 
-            if (rsvp?.Status == RsvpStatus.Going || confirmedCount < session.Capacity)
+            if (SessionAttendanceProjection.CanConfirm(
+                attendance,
+                currentPlayerKey,
+                session.Capacity))
             {
                 rsvp = await UpsertRsvpAsync(rsvp, sessionId, playerProfileId, RsvpStatus.Going, token);
                 CancelWaitlist(waitlistEntry);
@@ -57,14 +62,24 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
     public Task<RsvpMutationResult> CancelAndPromoteAsync(
         Guid sessionId,
         Guid playerProfileId,
-        Func<Guid, CancellationToken, Task<bool>> isEligibleForPromotion,
+        Func<IReadOnlyCollection<Guid>, CancellationToken, Task<IReadOnlyDictionary<Guid, bool>>> checkPromotionEligibilityAsync,
         CancellationToken cancellationToken = default) =>
         ExecuteInSerializableTransactionAsync(async token =>
         {
-            _ = await GetSessionAsync(sessionId, token);
+            var session = await GetSessionAsync(sessionId, token);
 
             var rsvp = await FindRsvpAsync(sessionId, playerProfileId, token);
-            var releasedConfirmedSpot = rsvp?.Status == RsvpStatus.Going;
+            var attendanceEntries = await ListAttendanceEntriesAsync(sessionId, token);
+            var currentPlayerKey = SessionAttendanceProjection.ProfileKey(playerProfileId);
+            var attendanceBefore = SessionAttendanceProjection.BuildForSession(sessionId, attendanceEntries);
+            var attendanceAfter = SessionAttendanceProjection.BuildForSession(
+                sessionId,
+                attendanceEntries.Where(entry =>
+                    !(entry.Source == SessionAttendanceSource.Local
+                        && entry.State == SessionAttendanceState.Going
+                        && entry.IdentityKey == currentPlayerKey)));
+            var releasedConfirmedSpot = attendanceBefore.GoingKeys.Contains(currentPlayerKey)
+                && !attendanceAfter.GoingKeys.Contains(currentPlayerKey);
             if (rsvp is not null)
             {
                 rsvp.IsDeleted = true;
@@ -72,7 +87,8 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
 
             CancelWaitlist(await FindActiveWaitlistEntryAsync(sessionId, playerProfileId, token));
             var promotedEntry = releasedConfirmedSpot
-                ? await PromoteNextEligibleAsync(sessionId, isEligibleForPromotion, token)
+                && attendanceAfter.GoingKeys.Count < session.Capacity
+                ? await PromoteNextEligibleAsync(sessionId, checkPromotionEligibilityAsync, token)
                 : null;
 
             return new RsvpMutationResult(
@@ -126,11 +142,16 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
         CancellationToken cancellationToken = default) =>
         ExecuteInSerializableTransactionAsync(async token =>
         {
-            var hasConfirmedRsvp = await dbContext.RsvpResponses
-                .AnyAsync(x => x.SessionId == sessionId && x.PlayerProfileId == playerProfileId && x.Status == RsvpStatus.Going, token);
-            if (!hasConfirmedRsvp)
+            var hasConfirmedSpot = await dbContext.RsvpResponses
+                .AnyAsync(x => x.SessionId == sessionId && x.PlayerProfileId == playerProfileId && x.Status == RsvpStatus.Going, token)
+                || await dbContext.Set<PickupPalGameParticipant>()
+                    .AnyAsync(x => x.SessionId == sessionId
+                        && x.PlayerProfileId == playerProfileId
+                        && !x.IsWaitlist,
+                        token);
+            if (!hasConfirmedSpot)
             {
-                throw new InvalidOperationException("Only confirmed players can be checked in.");
+                throw new ApplicationConflictException("Only confirmed players can be checked in.");
             }
 
             var checkIn = await dbContext.CheckIns
@@ -144,6 +165,11 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
                     PlayerProfileId = playerProfileId
                 };
                 await dbContext.CheckIns.AddAsync(checkIn, token);
+            }
+            else if (string.IsNullOrWhiteSpace(lateOverrideReason)
+                && checkIn.Outcome is AttendanceOutcome.CheckedIn or AttendanceOutcome.Late)
+            {
+                return new CheckInMutationResult(checkIn);
             }
 
             checkIn.CheckedInByPlayerProfileId = checkedInByPlayerProfileId;
@@ -226,8 +252,29 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
             _ => throw new InvalidOperationException("Unsupported RSVP status.")
         };
 
-        return new RsvpMutationResult(sessionId, playerProfileId, state, rsvp.Id);
+        return new RsvpMutationResult(
+            sessionId,
+            playerProfileId,
+            state,
+            rsvp.Id,
+            PickupPalSyncStatus: rsvp.PickupPalSyncStatus);
     }
+
+    public Task<RsvpResponse?> FindRsvpForPickupPalSyncAsync(
+        Guid sessionId,
+        Guid playerProfileId,
+        CancellationToken cancellationToken = default) =>
+        // Cancel soft-deletes the row, so the global filter is bypassed on purpose; the live row
+        // (if any) sorts first, then the most recently written one.
+        dbContext.RsvpResponses
+            .IgnoreQueryFilters()
+            .Where(x => x.SessionId == sessionId && x.PlayerProfileId == playerProfileId)
+            .OrderBy(x => x.IsDeleted)
+            .ThenByDescending(x => x.UpdatedAt ?? x.CreatedAt)
+            .ThenByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public void UpdateRsvp(RsvpResponse rsvp) => dbContext.RsvpResponses.Update(rsvp);
 
     // Ordering happens on an anonymous projection before the record is constructed: EF Core cannot
     // translate member access on a positional-record projection, so OrderBy-after-construct throws
@@ -246,6 +293,34 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
             .Select(x => new RosterMemberRecord(x.Id, x.DisplayName, x.PreferredPosition, x.IsGuest, null))
             .ToArrayAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<RosterMemberRecord>> ListCheckedInRosterAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.CheckIns
+            .Where(x => x.SessionId == sessionId
+                && (x.Outcome == AttendanceOutcome.CheckedIn || x.Outcome == AttendanceOutcome.Late))
+            .Join(
+                dbContext.PlayerProfiles,
+                checkIn => checkIn.PlayerProfileId,
+                profile => profile.Id,
+                (checkIn, profile) => new
+                {
+                    profile.Id,
+                    profile.DisplayName,
+                    profile.PreferredPosition,
+                    profile.IsGuest,
+                    checkIn.Outcome
+                })
+            .OrderBy(x => x.DisplayName)
+            .ThenBy(x => x.Id)
+            .Select(x => new RosterMemberRecord(
+                x.Id,
+                x.DisplayName,
+                x.PreferredPosition,
+                x.IsGuest,
+                null))
+            .ToArrayAsync(cancellationToken);
+
     public async Task<IReadOnlyList<RosterMemberRecord>> ListActiveWaitlistRosterAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default) =>
@@ -259,6 +334,64 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
             .OrderBy(x => x.Position)
             .Select(x => new RosterMemberRecord(x.Id, x.DisplayName, x.PreferredPosition, x.IsGuest, x.Position))
             .ToArrayAsync(cancellationToken);
+
+    public async Task<GameDayAttendanceRecord> GetGameDayAttendanceAsync(
+        Guid sessionId,
+        Guid currentPlayerProfileId,
+        CancellationToken cancellationToken = default) =>
+        (await GetGameDayAttendanceBatchAsync([sessionId], currentPlayerProfileId, cancellationToken))[sessionId];
+
+    public async Task<IReadOnlyDictionary<Guid, GameDayAttendanceRecord>> GetGameDayAttendanceBatchAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        Guid currentPlayerProfileId,
+        CancellationToken cancellationToken = default)
+    {
+        var results = new Dictionary<Guid, GameDayAttendanceRecord>(sessionIds.Count);
+        if (sessionIds.Count == 0)
+        {
+            return results;
+        }
+
+        var attendanceRows = await ListAttendanceRowsAsync(sessionIds, cancellationToken);
+        var idArray = sessionIds as Guid[] ?? sessionIds.ToArray();
+        var checkInRows = await dbContext.CheckIns
+            .Where(x => idArray.Contains(x.SessionId)
+                && (x.Outcome == AttendanceOutcome.CheckedIn || x.Outcome == AttendanceOutcome.Late))
+            .Select(x => new { x.SessionId, x.PlayerProfileId, x.Outcome })
+            .ToArrayAsync(cancellationToken);
+        var attendanceBySession = attendanceRows.ToLookup(row => row.SessionId);
+        var checkInsBySession = checkInRows.ToLookup(row => row.SessionId);
+
+        foreach (var sessionId in idArray.Distinct())
+        {
+            var sessionAttendance = attendanceBySession[sessionId].ToArray();
+            // Confirmed spots count local Going rows plus linked imported participants, deduplicated
+            // by profile id — unlinked imported participants have no profile to count here, which is
+            // why the null check guards the Value access.
+            var goingIds = sessionAttendance
+                .Where(row => !row.IsWaitlist && row.PlayerProfileId is not null)
+                .Select(row => row.PlayerProfileId!.Value)
+                .ToHashSet();
+            var isWaitlisted = sessionAttendance.Any(row => row.IsWaitlist
+                && row.PlayerProfileId == currentPlayerProfileId);
+            var sessionCheckIns = checkInsBySession[sessionId].ToArray();
+            var checkedInPlayerProfileIds = sessionCheckIns
+                .Select(row => row.PlayerProfileId)
+                .Distinct()
+                .ToArray();
+
+            results[sessionId] = new GameDayAttendanceRecord(
+                goingIds.Count,
+                checkedInPlayerProfileIds.Length,
+                sessionCheckIns.Count(row => row.Outcome == AttendanceOutcome.Late),
+                goingIds.Contains(currentPlayerProfileId),
+                isWaitlisted,
+                sessionCheckIns.Any(row => row.PlayerProfileId == currentPlayerProfileId),
+                checkedInPlayerProfileIds);
+        }
+
+        return results;
+    }
 
     private async Task<T> ExecuteInSerializableTransactionAsync<T>(
         Func<CancellationToken, Task<T>> operation,
@@ -301,9 +434,23 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
     private static bool IsRetryableSqlFailure(SqlException exception) =>
         exception.Errors.Cast<SqlError>().Any(error => error.Number is 1205 or 2601 or 2627 or 3960);
 
-    private async Task<Session> GetSessionAsync(Guid sessionId, CancellationToken cancellationToken) =>
-        await dbContext.Sessions.SingleOrDefaultAsync(x => x.Id == sessionId, cancellationToken)
+    private async Task<Session> GetSessionAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        // SERIALIZABLE alone does not guarantee mutual exclusion for this method's "read who is
+        // going, decide, then insert a new RsvpResponse/WaitlistEntry" shape: two concurrent
+        // transactions can both take compatible shared range locks over the (SessionId, Status)
+        // key they read and each conclude a spot is free before either inserts. Taking an explicit
+        // update lock on the session row itself - a single, stable resource every RSVP mutation for
+        // this session already reads - forces the second transaction to block until the first
+        // commits or rolls back, regardless of how the range locks over RsvpResponses/WaitlistEntries
+        // play out. HOLDLOCK keeps it held for the life of the ambient transaction.
+        await dbContext.Database
+            .SqlQuery<int>($"SELECT TOP (1) 1 FROM Sessions WITH (UPDLOCK, HOLDLOCK) WHERE Id = {sessionId}")
+            .ToListAsync(cancellationToken);
+
+        return await dbContext.Sessions.SingleOrDefaultAsync(x => x.Id == sessionId, cancellationToken)
             ?? throw new InvalidOperationException("Session was not found.");
+    }
 
     private Task<RsvpResponse?> FindRsvpAsync(Guid sessionId, Guid playerProfileId, CancellationToken cancellationToken) =>
         dbContext.RsvpResponses.SingleOrDefaultAsync(x => x.SessionId == sessionId && x.PlayerProfileId == playerProfileId, cancellationToken);
@@ -314,6 +461,112 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
                 && x.PlayerProfileId == playerProfileId
                 && x.Status == WaitlistEntryStatus.Active,
             cancellationToken);
+
+    // Deliberately three single-session queries rather than the batched UNION below: this runs
+    // inside the serializable transaction, where `SessionId == @id` keeps a narrow index seek.
+    // A collection Contains translates to an OPENJSON join whose plan can take far wider key-range
+    // locks, which would cost more in deadlocks than the two saved round trips are worth.
+    private async Task<IReadOnlyList<SessionAttendanceEntry>> ListAttendanceEntriesAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var localGoing = await dbContext.RsvpResponses
+            .Where(x => x.SessionId == sessionId && x.Status == RsvpStatus.Going)
+            .Select(x => x.PlayerProfileId)
+            .ToArrayAsync(cancellationToken);
+        var localWaitlist = await dbContext.WaitlistEntries
+            .Where(x => x.SessionId == sessionId && x.Status == WaitlistEntryStatus.Active)
+            .Select(x => x.PlayerProfileId)
+            .ToArrayAsync(cancellationToken);
+        var imported = await dbContext.Set<PickupPalGameParticipant>()
+            .Where(x => x.SessionId == sessionId)
+            .Select(x => new
+            {
+                x.PlayerProfileId,
+                x.PickupPalParticipantId,
+                x.IsWaitlist
+            })
+            .ToArrayAsync(cancellationToken);
+
+        return localGoing
+            .Select(playerProfileId => new SessionAttendanceEntry(
+                sessionId,
+                SessionAttendanceProjection.ProfileKey(playerProfileId),
+                SessionAttendanceState.Going,
+                SessionAttendanceSource.Local))
+            .Concat(localWaitlist.Select(playerProfileId => new SessionAttendanceEntry(
+                sessionId,
+                SessionAttendanceProjection.ProfileKey(playerProfileId),
+                SessionAttendanceState.Waitlisted,
+                SessionAttendanceSource.Local)))
+            .Concat(imported.Select(participant => new SessionAttendanceEntry(
+                sessionId,
+                SessionAttendanceProjection.ParticipantKey(
+                    participant.PlayerProfileId,
+                    participant.PickupPalParticipantId),
+                participant.IsWaitlist
+                    ? SessionAttendanceState.Waitlisted
+                    : SessionAttendanceState.Going,
+                SessionAttendanceSource.Imported)))
+            .ToArray();
+    }
+
+    // One UNION ALL round trip for local Going, active waitlist, and imported participant rows
+    // across many sessions. Read-only and never used inside a transaction — see the comment on
+    // ListAttendanceEntriesAsync for why the transactional path keeps its per-session queries.
+    private async Task<IReadOnlyList<AttendanceRow>> ListAttendanceRowsAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        CancellationToken cancellationToken)
+    {
+        var idArray = sessionIds as Guid[] ?? sessionIds.ToArray();
+        var rows = await dbContext.RsvpResponses
+            .Where(x => idArray.Contains(x.SessionId) && x.Status == RsvpStatus.Going)
+            .Select(x => new
+            {
+                x.SessionId,
+                PlayerProfileId = (Guid?)x.PlayerProfileId,
+                ParticipantId = (string?)null,
+                IsWaitlist = false,
+                IsImported = false
+            })
+            .Concat(dbContext.WaitlistEntries
+                .Where(x => idArray.Contains(x.SessionId) && x.Status == WaitlistEntryStatus.Active)
+                .Select(x => new
+                {
+                    x.SessionId,
+                    PlayerProfileId = (Guid?)x.PlayerProfileId,
+                    ParticipantId = (string?)null,
+                    IsWaitlist = true,
+                    IsImported = false
+                }))
+            .Concat(dbContext.Set<PickupPalGameParticipant>()
+                .Where(x => idArray.Contains(x.SessionId))
+                .Select(x => new
+                {
+                    x.SessionId,
+                    x.PlayerProfileId,
+                    ParticipantId = (string?)x.PickupPalParticipantId,
+                    x.IsWaitlist,
+                    IsImported = true
+                }))
+            .ToArrayAsync(cancellationToken);
+
+        return rows
+            .Select(row => new AttendanceRow(
+                row.SessionId,
+                row.PlayerProfileId,
+                row.ParticipantId,
+                row.IsWaitlist,
+                row.IsImported))
+            .ToArray();
+    }
+
+    private sealed record AttendanceRow(
+        Guid SessionId,
+        Guid? PlayerProfileId,
+        string? ParticipantId,
+        bool IsWaitlist,
+        bool IsImported);
 
     private async Task<RsvpResponse> UpsertRsvpAsync(
         RsvpResponse? rsvp,
@@ -356,17 +609,28 @@ internal sealed class RsvpRepository(SouthBaySoccerDbContext dbContext, IClock c
 
     private async Task<WaitlistEntry?> PromoteNextEligibleAsync(
         Guid sessionId,
-        Func<Guid, CancellationToken, Task<bool>> isEligibleForPromotion,
+        Func<IReadOnlyCollection<Guid>, CancellationToken, Task<IReadOnlyDictionary<Guid, bool>>> checkPromotionEligibilityAsync,
         CancellationToken cancellationToken)
     {
         var entries = await dbContext.WaitlistEntries
             .Where(x => x.SessionId == sessionId && x.Status == WaitlistEntryStatus.Active)
             .OrderBy(x => x.Position)
             .ToArrayAsync(cancellationToken);
+        if (entries.Length == 0)
+        {
+            return null;
+        }
+
+        // One eligibility read for the whole waitlist. Expiring an entry is irreversible, so the
+        // verdict driving it is read here, inside the transaction, rather than handed in from a
+        // read taken before it opened.
+        var eligibility = await checkPromotionEligibilityAsync(
+            entries.Select(entry => entry.PlayerProfileId).ToArray(),
+            cancellationToken);
 
         foreach (var entry in entries)
         {
-            if (!await isEligibleForPromotion(entry.PlayerProfileId, cancellationToken))
+            if (!eligibility.TryGetValue(entry.PlayerProfileId, out var isEligible) || !isEligible)
             {
                 entry.Status = WaitlistEntryStatus.Expired;
                 continue;

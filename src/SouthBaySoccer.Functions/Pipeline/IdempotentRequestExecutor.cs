@@ -23,7 +23,8 @@ public sealed class IdempotentRequestExecutor(
         string idempotencyKey,
         object requestBody,
         Func<CancellationToken, Task<IdempotentResponse<TResponse>>> operation,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<TResponse, IReadOnlyDictionary<string, string>>? responseHeaderFactory = null)
     {
         if (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > 160)
         {
@@ -48,7 +49,15 @@ public sealed class IdempotentRequestExecutor(
                 throw new ApplicationConflictException("The idempotent request is still processing.");
             }
 
-            return await WriteStoredJsonAsync(request, (HttpStatusCode)existing.ResponseStatusCode.Value, existing.ResponseBodyJson, cancellationToken);
+            return await WriteStoredJsonAsync(
+                request,
+                (HttpStatusCode)existing.ResponseStatusCode.Value,
+                existing.ResponseBodyJson,
+                responseHeaderFactory is null
+                    ? null
+                    : responseHeaderFactory(JsonSerializer.Deserialize<TResponse>(existing.ResponseBodyJson, JsonOptions)
+                        ?? throw new InvalidOperationException("The stored idempotent response could not be read.")),
+                cancellationToken);
         }
 
         var record = await idempotencyStore.CreateAsync(
@@ -80,17 +89,30 @@ public sealed class IdempotentRequestExecutor(
             clock.UtcNow,
             cancellationToken);
 
-        return await WriteStoredJsonAsync(request, response.StatusCode, responseJson, cancellationToken);
+        return await WriteStoredJsonAsync(
+            request,
+            response.StatusCode,
+            responseJson,
+            responseHeaderFactory?.Invoke(response.Body),
+            cancellationToken);
     }
 
     private static async Task<HttpResponseData> WriteStoredJsonAsync(
         HttpRequestData request,
         HttpStatusCode statusCode,
         string responseJson,
+        IReadOnlyDictionary<string, string>? headers,
         CancellationToken cancellationToken)
     {
         var response = request.CreateResponse(statusCode);
         response.Headers.Add("Content-Type", "application/json; charset=utf-8");
+        if (headers is not null)
+        {
+            foreach (var header in headers)
+            {
+                response.Headers.Add(header.Key, header.Value);
+            }
+        }
         await response.WriteStringAsync(responseJson, cancellationToken);
         return response;
     }

@@ -61,23 +61,15 @@
                                     </DataTrigger>
                                 </controls:Badge.Triggers>
                             </controls:Badge>
-                            <Border Style="{StaticResource IconTileSurface}"
-                                    SemanticProperties.Description="Notifications">
-                                <Image HorizontalOptions="Center"
-                                       VerticalOptions="Center">
-                                    <Image.Source>
-                                        <FontImageSource Glyph="{x:Static fonts:FontAwesomeGlyphs.Bell}"
-                                                         FontFamily="FontAwesomeSolid"
-                                                         Size="{StaticResource IconMd}"
-                                                         Color="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandSpringDark}}" />
-                                    </Image.Source>
-                                </Image>
-                            </Border>
+                            <!-- The announcements bell is hidden until the iOS navigation watchdog
+                                 crash is fixed and the announcements command navigates for real; a
+                                 button whose only outcome is a "Coming soon" alert is a dead end. -->
                         </HorizontalStackLayout>
                     </Grid>
 
                     <!-- Hero featured session card -->
-                    <controls:BrandCard IsHero="True">
+                    <controls:BrandCard IsHero="True"
+                                        SemanticProperties.Description="{Binding FeaturedSession.CardSemanticDescription}">
                         <controls:BrandCard.Triggers>
                             <DataTrigger TargetType="controls:BrandCard"
                                          Binding="{Binding FeaturedSession}"
@@ -92,15 +84,15 @@
                         </controls:BrandCard.GestureRecognizers>
                         <VerticalStackLayout Spacing="{StaticResource SpaceSm}"
                                              BindingContext="{Binding FeaturedSession}"
-                                             x:DataType="sessions:SessionSummaryDto"
-                                             SemanticProperties.Description="{Binding Title}">
+                                             x:DataType="sessions:SessionSummaryDto">
                             <Label Text="{Binding RelativeLabel}"
                                    Style="{StaticResource TextLabel}"
                                    TextColor="White"
                                    Opacity="0.85" />
-                            <Label Text="{Binding Title}"
+                            <Label Text="{Binding DisplayTitle}"
                                    Style="{StaticResource TextH2}"
                                    TextColor="White"
+                                   LineBreakMode="TailTruncation"
                                    SemanticProperties.HeadingLevel="Level2" />
                             <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
                                 <Border Style="{StaticResource MetadataChip}"
@@ -142,22 +134,35 @@
                             </HorizontalStackLayout>
                             <Grid ColumnDefinitions="Auto,*,Auto"
                                   ColumnSpacing="{StaticResource SpaceSm}">
-                                <Border Style="{StaticResource MetadataChip}"
-                                        BackgroundColor="White"
-                                        HorizontalOptions="Start">
-                                    <HorizontalStackLayout Spacing="{StaticResource SpaceXs}"
-                                                           VerticalOptions="Center">
+                                <HorizontalStackLayout Spacing="{StaticResource SpaceXs}"
+                                                       HorizontalOptions="Start"
+                                                       VerticalOptions="Center">
                                         <Label Text="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}"
                                                FontFamily="FontAwesomeSolid"
                                                Style="{StaticResource MutedIconLabel}"
-                                               TextColor="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandGreenDepthDark}}" />
-                                        <Label Text="{Binding StatusLabel}"
-                                               Style="{StaticResource TextBodyStrong}"
-                                               FontSize="{StaticResource FontLabel}"
-                                               TextColor="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandGreenDepthDark}}"
-                                               VerticalTextAlignment="Center" />
-                                    </HorizontalStackLayout>
-                                </Border>
+                                               TextColor="White"
+                                               IsVisible="{Binding IsGoing}" />
+                                        <controls:Badge Text="{Binding StatusLabel}"
+                                                        Variant="Neutral">
+                                            <controls:Badge.Triggers>
+                                                <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Open">
+                                                    <Setter Property="Variant" Value="Success" />
+                                                </DataTrigger>
+                                                <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Going">
+                                                    <Setter Property="Variant" Value="Success" />
+                                                </DataTrigger>
+                                                <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Waitlisted">
+                                                    <Setter Property="Variant" Value="Warning" />
+                                                </DataTrigger>
+                                                <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Full">
+                                                    <Setter Property="Variant" Value="Danger" />
+                                                </DataTrigger>
+                                                <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Canceled">
+                                                    <Setter Property="Variant" Value="Danger" />
+                                                </DataTrigger>
+                                            </controls:Badge.Triggers>
+                                        </controls:Badge>
+                                </HorizontalStackLayout>
                                 <HorizontalStackLayout Grid.Column="2"
                                                        Spacing="{StaticResource SpaceXs}"
                                                        VerticalOptions="Center">
@@ -175,8 +180,9 @@
                         </VerticalStackLayout>
                     </controls:BrandCard>
 
-                    <!-- Stats prompt card -->
-                    <controls:BrandCard SemanticProperties.Description="{Binding StatsPromptSemanticDescription}"
+                    <!-- Stats prompt card: only shown when there is a real match to report on. -->
+                    <controls:BrandCard IsVisible="{Binding HasStatsPrompt}"
+                                        SemanticProperties.Description="{Binding StatsPromptSemanticDescription}"
                                         SemanticProperties.Hint="{Binding StatsPromptSemanticHint}">
                         <controls:BrandCard.GestureRecognizers>
                             <TapGestureRecognizer Command="{Binding OpenStatsCommand}" />
@@ -208,10 +214,13 @@
                         </Grid>
                     </controls:BrandCard>
 
-                    <!-- Admin: create-session entry, gated by the signed-in profile role -->
+                    <!-- Admin entry point, gated by the signed-in profile role. Broadcast is hidden
+                         until the iOS navigation watchdog crash is fixed and the broadcast command
+                         navigates for real; a "Coming soon" alert is a dead end. -->
                     <controls:SectionHeader
                         Text="Admin"
-                        ActionText="Create session"
+                        ActionText="Session"
+                        ActionGlyph="{x:Static fonts:FontAwesomeGlyphs.Plus}"
                         ActionCommand="{Binding CreateSessionCommand}"
                         IsVisible="{Binding CanManageSessions}" />
 
@@ -229,7 +238,7 @@
                                          Spacing="{StaticResource SpaceMd}">
                         <BindableLayout.ItemTemplate>
                             <DataTemplate x:DataType="sessions:SessionSummaryDto">
-                                <controls:BrandCard SemanticProperties.Description="{Binding Title}">
+                                <controls:BrandCard SemanticProperties.Description="{Binding CardSemanticDescription}">
                                     <controls:BrandCard.GestureRecognizers>
                                         <TapGestureRecognizer
                                             Command="{Binding Source={x:Reference SessionsHome}, Path=BindingContext.ViewSessionDetailCommand, x:DataType=ContentPage}"
@@ -238,7 +247,7 @@
                                     <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
                                         <Border Padding="{StaticResource SpaceSm}"
                                                 BackgroundColor="{AppThemeBinding Light={StaticResource DangerSurfaceLight}, Dark={StaticResource DangerSurfaceDark}}"
-                                                StrokeShape="RoundRectangle 8"
+                                                StrokeShape="{StaticResource ShapeNotice}"
                                                 IsVisible="{Binding IsCanceled}">
                                             <Label Text="Session has been cancelled"
                                                    Style="{StaticResource TextBodyStrong}"
@@ -246,17 +255,27 @@
                                                    SemanticProperties.Description="Session has been cancelled" />
                                         </Border>
                                         <Grid ColumnDefinitions="*,Auto">
-                                            <Label Text="{Binding Title}"
+                                            <Label Text="{Binding DisplayTitle}"
                                                    Style="{StaticResource TextBodyStrong}"
+                                                   LineBreakMode="TailTruncation"
                                                    VerticalOptions="Center" />
                                             <controls:Badge Grid.Column="1"
                                                             Text="{Binding StatusLabel}"
-                                                            Variant="Success">
+                                                            Variant="Neutral">
                                                 <controls:Badge.Triggers>
-                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding IsFull}" Value="True">
+                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Open">
+                                                        <Setter Property="Variant" Value="Success" />
+                                                    </DataTrigger>
+                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Going">
+                                                        <Setter Property="Variant" Value="Success" />
+                                                    </DataTrigger>
+                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Waitlisted">
+                                                        <Setter Property="Variant" Value="Warning" />
+                                                    </DataTrigger>
+                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Full">
                                                         <Setter Property="Variant" Value="Danger" />
                                                     </DataTrigger>
-                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding IsCanceled}" Value="True">
+                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Canceled">
                                                         <Setter Property="Variant" Value="Danger" />
                                                     </DataTrigger>
                                                 </controls:Badge.Triggers>
@@ -281,16 +300,23 @@
                                             </Border>
                                         </HorizontalStackLayout>
                                         <controls:CapacityBar Current="{Binding GoingCount}"
-                                                              Max="{Binding Capacity}" />
+                                                              Max="{Binding Capacity}"
+                                                              IsVisible="{Binding IsCanceled, Converter={StaticResource InvertedBool}}" />
                                         <Label Text="{Binding WaitlistCount, StringFormat='Waitlist {0}'}"
                                                Style="{StaticResource TextCaption}"
-                                               IsVisible="{Binding IsFull}" />
+                                               IsVisible="{Binding IsFull}">
+                                            <Label.Triggers>
+                                                <DataTrigger TargetType="Label" Binding="{Binding IsCanceled}" Value="True">
+                                                    <Setter Property="IsVisible" Value="False" />
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
                                         <Button Text="Join waitlist"
                                                 Style="{StaticResource GhostButton}"
-                                                IsVisible="{Binding IsFull}"
+                                                IsVisible="{Binding ShowJoinWaitlist}"
                                                 Command="{Binding Source={x:Reference SessionsHome}, Path=BindingContext.JoinWaitlistCommand, x:DataType=ContentPage}"
                                                 CommandParameter="{Binding Id}"
-                                                SemanticProperties.Description="Join the waitlist">
+                                                SemanticProperties.Description="{Binding WaitlistActionDescription}">
                                             <Button.Triggers>
                                                 <DataTrigger TargetType="Button" Binding="{Binding IsCanceled}" Value="True">
                                                     <Setter Property="IsVisible" Value="False" />

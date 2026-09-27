@@ -92,6 +92,32 @@ public class MatchStatsPageModelTests
     }
 
     [Fact]
+    public async Task Appearing_WhenServerAllowsConfirming_ExposesTheCaptainConfirmSection()
+    {
+        var client = new Mock<IStatsClient>();
+        client.Setup(service => service.GetMatchStatsAsync(It.IsAny<System.Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.MatchStats with { CanConfirmTeammates = true });
+        var pageModel = CreatePageModel(client: client);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.CanConfirmTeammates.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Appearing_WhenServerWithholdsConfirming_HidesTheCaptainConfirmSection()
+    {
+        var client = new Mock<IStatsClient>();
+        client.Setup(service => service.GetMatchStatsAsync(It.IsAny<System.Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SeedFixtures.MatchStats with { CanConfirmTeammates = false });
+        var pageModel = CreatePageModel(client: client);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.CanConfirmTeammates.Should().BeFalse("a regular player must not see the captain confirm section");
+    }
+
+    [Fact]
     public async Task ConfirmTeammate_UnconfirmedRow_MarksConfirmedOptimistically()
     {
         var playerId = SeedFixtures.MatchStats.TeammateSubmissions[1].Player.Id;

@@ -23,4 +23,6 @@ public sealed record CareerStatsDto(
     int Assists,
     decimal AverageRating,
     int MvpAwards,
-    int Likes);
+    int Likes,
+    int Wins = 0,
+    int Losses = 0);

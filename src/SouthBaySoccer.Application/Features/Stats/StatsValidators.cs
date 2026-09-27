@@ -40,6 +40,10 @@ public sealed class RecordMatchEventsCommandValidator : AbstractValidator<Record
         RuleFor(x => x.MatchId).NotEmpty();
         RuleForEach(x => x.Events).ChildRules(matchEvent =>
         {
+            matchEvent.RuleFor(x => x.PlayerProfileId).NotEmpty();
+            matchEvent.RuleFor(x => x.AssistPlayerProfileId)
+                .NotEmpty()
+                .When(x => x.AssistPlayerProfileId.HasValue);
             matchEvent.RuleFor(x => x.Minute).GreaterThanOrEqualTo(0);
             matchEvent.RuleFor(x => x.EventType).Must(x => x is MatchEventType.Goal or MatchEventType.OwnGoal or MatchEventType.YellowCard or MatchEventType.RedCard);
             matchEvent.RuleFor(x => x.AssistPlayerProfileId).Null().When(x => x.EventType != MatchEventType.Goal).WithMessage("Assists are only allowed on goal events.");
@@ -81,6 +85,29 @@ public sealed class SubmitPeerFeedbackCommandValidator : AbstractValidator<Submi
     }
 
     private static bool HaveUniqueValues<T>(IEnumerable<T> values) => values.Distinct().Count() == values.Count();
+}
+
+public sealed class SubmitMyMatchStatsCommandValidator : AbstractValidator<SubmitMyMatchStatsCommand>
+{
+    // A pickup player self-reports a plausible tally; the upper bound just stops a runaway stepper
+    // or a scripted client from writing thousands of rows.
+    private const int MaxSelfReportedTally = 50;
+
+    public SubmitMyMatchStatsCommandValidator()
+    {
+        RuleFor(x => x.MatchId).NotEmpty();
+        RuleFor(x => x.Goals).InclusiveBetween(0, MaxSelfReportedTally);
+        RuleFor(x => x.Assists).InclusiveBetween(0, MaxSelfReportedTally);
+    }
+}
+
+public sealed class ConfirmPlayerSubmissionCommandValidator : AbstractValidator<ConfirmPlayerSubmissionCommand>
+{
+    public ConfirmPlayerSubmissionCommandValidator()
+    {
+        RuleFor(x => x.MatchId).NotEmpty();
+        RuleFor(x => x.PlayerProfileId).NotEmpty();
+    }
 }
 
 public sealed class AddStatCorrectionCommandValidator : AbstractValidator<AddStatCorrectionCommand>
@@ -138,7 +165,10 @@ public sealed class GetSeasonLeaderboardQueryValidator : AbstractValidator<GetSe
 {
     public GetSeasonLeaderboardQueryValidator()
     {
-        RuleFor(x => x.SeasonId).NotEmpty();
+        // A null season means "resolve the current season"; an explicit id must be a real one.
+        RuleFor(x => x.SeasonId)
+            .Must(seasonId => seasonId is null || seasonId != Guid.Empty)
+            .WithMessage("'Season Id' must not be empty.");
         RuleFor(x => x.Metric).IsInEnum();
         RuleFor(x => x.Page).GreaterThan(0);
         RuleFor(x => x.PageSize).InclusiveBetween(1, 100);

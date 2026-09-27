@@ -5,6 +5,7 @@ using Moq;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -22,7 +23,7 @@ public sealed class ApiPlayersClientTests
         using var provider = services.BuildServiceProvider();
 
         provider.GetRequiredService<IPlayersClient>()
-            .Should().BeOfType<ApiPlayersClient>();
+            .Should().BeOfType<CachedPlayersClient>();
     }
 
     [Fact]

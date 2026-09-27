@@ -30,6 +30,11 @@ public class FontAwesomeGlyphsTests
             FontAwesomeGlyphs.MagnifyingGlass,
             FontAwesomeGlyphs.PaperPlane,
             FontAwesomeGlyphs.Lock,
+            FontAwesomeGlyphs.Check,
+            FontAwesomeGlyphs.Xmark,
+            FontAwesomeGlyphs.UserMinus,
+            FontAwesomeGlyphs.UserPlus,
+            FontAwesomeGlyphs.Crown,
         };
 
     // AUTH-7 / INV-13: every pictogram is a Font Awesome glyph from the BMP Private Use Area

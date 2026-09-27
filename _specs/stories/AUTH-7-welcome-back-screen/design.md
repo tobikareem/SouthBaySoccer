@@ -14,7 +14,7 @@ must not appear behind it (`INV-11`, fail-closed).
 
 `WelcomeBackPage` uses a vertically scrollable layout (matches the wireframe order/hierarchy):
 
-1. Green-to-Pine brand header (~`34,16,30` padding): 42-dip circular football mark, `SouthBay Soccer`
+1. Green-to-Pine brand header (~`34,16,30` padding): 42-dip circular football mark, `N9ja Bay`
    title, `Pickup soccer, organized.` subtitle, white right-side flag stripe + low-opacity circular motif.
 2. Content area, 16-dip horizontal / 20-dip top padding: `WELCOME BACK` (`TextLabel`),
    `Your next game starts here.` (`TextH1`), Pickup Pal explanatory copy (`TextCaption`).
@@ -24,7 +24,7 @@ must not appear behind it (`INV-11`, fail-closed).
 4. Full-width `Sign in with phone` action (primary brand treatment) → behavior in `AUTH-8`.
 5. `NoticeSurface` with shield-check glyph + exact security copy:
    `Password-free and secure` then
-   `Pickup Pal verifies your account. SouthBaySoccer stores only app session tokens on this device.`
+   `Pickup Pal verifies your account. N9ja Bay stores only app session tokens on this device.`
 6. Pickup Pal bot `BrandCard` (`SurfaceAlt`): `PICKUP PAL BOT` label, configured number, external-link
    glyph + `Open`, `Need help? Open the Pickup Pal bot for account support.` → behavior in `AUTH-9`.
 7. Divider with centered `not on pickup pal?`.

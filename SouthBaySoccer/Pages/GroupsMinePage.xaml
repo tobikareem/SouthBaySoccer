@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.GroupsMinePage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="GroupsMinePageName"
+    x:DataType="pageModels:GroupsMinePageModel"
+    Shell.NavBarIsVisible="False"
+    Style="{StaticResource BrandPage}"
+    Title="My groups">
+
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference GroupsMinePageName}, x:DataType=ContentPage}"
+            EventName="Appearing"
+            Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader
+            Title="My groups"
+            Subtitle="Profile"
+            ShowBack="True"
+            BackCommand="{Binding BackCommand}" />
+
+        <c:StateView
+            Grid.Row="1"
+            State="{Binding State}"
+            Title="{Binding StateTitle}"
+            Message="{Binding StateMessage}"
+            Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
+            GlyphFontFamily="FontAwesomeSolid"
+            RetryCommand="{Binding RefreshCommand}">
+            <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing, Mode=TwoWay}">
+                <ScrollView>
+                    <VerticalStackLayout Padding="{StaticResource LayoutPadding}" Spacing="{StaticResource SpaceMd}">
+
+                        <c:SectionHeader Text="Your memberships" />
+                        <c:BrandCard IsVisible="{Binding HasMemberships}">
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Memberships}" Spacing="{StaticResource SpaceXs}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="pageModels:MembershipRowItem">
+                                        <c:PlayerRow
+                                            Name="{Binding Name}"
+                                            Detail="{Binding Detail}"
+                                            Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
+                                            SemanticDescription="{Binding SemanticDescription}">
+                                            <c:PlayerRow.TrailingContent>
+                                                <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                                    <c:Badge Text="{Binding Status}" Variant="{Binding StatusVariant}" VerticalOptions="Center" />
+                                                    <Button
+                                                        Text="{Binding LeaveActionText}"
+                                                        Style="{StaticResource LinkButton}"
+                                                        IsVisible="{Binding CanLeave}"
+                                                        Command="{Binding BindingContext.LeaveCommand, Source={x:Reference GroupsMinePageName}}"
+                                                        CommandParameter="{Binding .}"
+                                                        SemanticProperties.Description="{Binding LeaveActionDescription}" />
+                                                    <Button
+                                                        Text="Request again"
+                                                        Style="{StaticResource LinkButton}"
+                                                        IsVisible="{Binding IsDeclined}"
+                                                        Command="{Binding BindingContext.RequestAgainCommand, Source={x:Reference GroupsMinePageName}}"
+                                                        CommandParameter="{Binding .}"
+                                                        SemanticProperties.Description="{Binding RequestAgainDescription}" />
+                                                </HorizontalStackLayout>
+                                            </c:PlayerRow.TrailingContent>
+                                        </c:PlayerRow>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </c:BrandCard>
+                        <Label
+                            Text="You're not in a group yet. Request one below."
+                            Style="{StaticResource TextCaption}"
+                            IsVisible="{Binding HasNoMemberships}" />
+
+                        <c:SectionHeader Text="Join another group" IsVisible="{Binding HasJoinableGroups}" />
+                        <c:BrandCard IsVisible="{Binding HasJoinableGroups}">
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding JoinableGroups}" Spacing="{StaticResource SpaceXs}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="pageModels:JoinableGroupItem">
+                                        <c:PlayerRow
+                                            Name="{Binding Name}"
+                                            Detail="{Binding Detail}"
+                                            Glyph="{x:Static fonts:FontAwesomeGlyphs.Users}"
+                                            SemanticDescription="{Binding SemanticDescription}">
+                                            <c:PlayerRow.TrailingContent>
+                                                <Button
+                                                    Text="Request"
+                                                    Style="{StaticResource GhostButton}"
+                                                    Command="{Binding BindingContext.RequestCommand, Source={x:Reference GroupsMinePageName}}"
+                                                    CommandParameter="{Binding .}"
+                                                    SemanticProperties.Description="{Binding SemanticDescription}" />
+                                            </c:PlayerRow.TrailingContent>
+                                        </c:PlayerRow>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </c:BrandCard>
+
+                        <Label
+                            Text="{Binding ActionMessage}"
+                            Style="{StaticResource TextCaption}"
+                            TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                            IsVisible="{Binding HasActionMessage}"
+                            SemanticProperties.Description="{Binding ActionMessage}" />
+
+                        <Label
+                            Text="A group admin approves requests. Games of groups you are not in are view-only."
+                            Style="{StaticResource TextCaption}"
+                            HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
+                </ScrollView>
+            </RefreshView>
+        </c:StateView>
+    </Grid>
+</ContentPage>

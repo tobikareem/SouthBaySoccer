@@ -33,6 +33,62 @@ public sealed class SchemaContractTests
     }
 
     [Fact]
+    public async Task RsvpResponses_WhenSchemaCreated_CarryPickupPalSyncColumns()
+    {
+        using var db = CreateDbContext();
+        var columns = await GetColumnsAsync(db, "RsvpResponses");
+
+        columns.Should().Contain("PickupPalSyncStatus")
+            .And.Contain("PickupPalSyncedAtUtc")
+            .And.Contain("PickupPalSyncError");
+    }
+
+    [Fact]
+    public async Task Sessions_WhenSchemaCreated_CarryGroupAndPickupPalGameColumns()
+    {
+        using var db = CreateDbContext();
+        var columns = await GetColumnsAsync(db, "Sessions");
+
+        columns.Should().Contain("GroupChatId")
+            .And.Contain("PickupPalOrigin")
+            .And.Contain("PickupPalGameId")
+            .And.Contain("PickupPalSyncStatus")
+            .And.Contain("PickupPalSyncedAtUtc")
+            .And.Contain("PickupPalSyncError");
+    }
+
+    [Fact]
+    public async Task PlayerGroupLinks_WhenSchemaCreated_CarryMembershipColumnsAndOneActiveRowPerPair()
+    {
+        using var db = CreateDbContext();
+        var columns = await GetColumnsAsync(db, "PlayerGroupLinks");
+        var indexes = await GetFilteredIndexesAsync(db, "PlayerGroupLinks");
+
+        columns.Should().Contain("Status")
+            .And.Contain("Role")
+            .And.Contain("Source")
+            .And.Contain("RequestedAtUtc")
+            .And.Contain("ApprovedAtUtc")
+            .And.Contain("ApprovedByPlayerProfileId")
+            .And.Contain("RemovedAtUtc")
+            .And.Contain("RemovedByPlayerProfileId");
+        indexes.Should().Contain(i =>
+            i.Name == "IX_PlayerGroupLinks_PlayerProfileId_GroupChatId" &&
+            i.IsUnique &&
+            i.Filter.Contains("[IsDeleted]"));
+        indexes.Should().Contain(i => i.Name == "IX_PlayerGroupLinks_GroupChatId_Status" && !i.IsUnique);
+    }
+
+    [Fact]
+    public async Task OutboxMessages_WhenSchemaCreated_UseRowVersionForWriterRaces()
+    {
+        using var db = CreateDbContext();
+        var rowVersionColumns = await GetRowVersionColumnsAsync(db);
+
+        rowVersionColumns.Should().Contain(("OutboxMessages", "RowVersion"));
+    }
+
+    [Fact]
     public async Task WaitlistEntries_WhenSchemaCreated_HasActiveFilteredUniqueness()
     {
         using var db = CreateDbContext();
@@ -76,6 +132,20 @@ public sealed class SchemaContractTests
         NormalizeSql(score).Should().Contain("[Score]>=(0)").And.Contain("[Score]<=(10)");
         indexes.Should().Contain(i =>
             i.Name == "IX_PlayerRatingVotes_MatchId_VoterPlayerProfileId_RatedPlayerProfileId" &&
+            i.IsUnique &&
+            i.Filter.Contains("[IsDeleted]"));
+    }
+
+    [Fact]
+    public async Task PlayerLikes_WhenSchemaCreated_RejectsSelfLikesAndHasActiveUniqueness()
+    {
+        using var db = CreateDbContext();
+        var selfLike = await GetCheckConstraintDefinitionAsync(db, "PlayerLikes", "CK_PlayerLikes_NoSelfLike");
+        var indexes = await GetFilteredIndexesAsync(db, "PlayerLikes");
+
+        NormalizeSql(selfLike).Should().Contain("[GiverPlayerProfileId]<>[ReceiverPlayerProfileId]");
+        indexes.Should().Contain(i =>
+            i.Name == "IX_PlayerLikes_MatchId_GiverPlayerProfileId_ReceiverPlayerProfileId" &&
             i.IsUnique &&
             i.Filter.Contains("[IsDeleted]"));
     }

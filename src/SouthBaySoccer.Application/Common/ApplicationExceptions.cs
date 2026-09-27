@@ -45,11 +45,34 @@ public sealed class ApplicationConflictException : ApplicationExceptionBase
 }
 
 /// <summary>
+/// Indicates that an optimistic-concurrency precondition no longer matches current server state.
+/// </summary>
+public sealed class ApplicationPreconditionFailedException : ApplicationExceptionBase
+{
+    public ApplicationPreconditionFailedException(string message)
+        : base(message)
+    {
+    }
+}
+
+/// <summary>
 /// Indicates that the current user is authenticated but not authorized for the requested action.
 /// </summary>
 public sealed class ApplicationForbiddenException : ApplicationExceptionBase
 {
     public ApplicationForbiddenException(string message)
+        : base(message)
+    {
+    }
+}
+
+/// <summary>
+/// Indicates that an upstream provider the request depends on (for example Pickup Pal) could not be
+/// reached or answered with a server error. Local state has already been persisted where applicable.
+/// </summary>
+public sealed class ApplicationServiceUnavailableException : ApplicationExceptionBase
+{
+    public ApplicationServiceUnavailableException(string message)
         : base(message)
     {
     }

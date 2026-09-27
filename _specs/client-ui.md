@@ -20,6 +20,10 @@ text styles, spacing), **shared styles**, and **custom XAML controls**. Grounded
 
 ## 1. Purpose & principles
 
+The native launch splash uses the existing N9ja Bay pitch logo on white (`#FFFFFF`),
+with a centered 192-by-192 base artwork area. `Resources/Splash/splash.svg` mirrors the
+app-icon foreground artwork. Do not use the default .NET splash artwork.
+
 A single, token-driven UI vocabulary so every screen looks like the wireframes and the brand,
 with zero per-page styling drift.
 
@@ -123,6 +127,13 @@ Header font Inter Semibold; body Inter Regular (registered in `MauiProgram.cs` f
 - Sizes: `TouchMin` 44; primary buttons 46 minimum; `AvatarSm` 28, `AvatarMd` 34,
   `AvatarLg` 54; `BarHeight` 8; `IconMd` 20.
 - Wireframe padding: cards 15, badges `9,5`, buttons `14,11`, rows `0,8`, segments `12,7`.
+- Layout: `LayoutPadding` (OnIdiom `12`/desktop `20`) is the page gutter; `IconSize` (21) and the
+  five Shell tab icons (`IconSessions`, `IconGameDay`, `IconStats`, `IconPlayers`, `IconProfile`)
+  also live in `BrandTokens.xaml` — migrated from the deleted sample-template dictionaries; the
+  brand system owns them now.
+
+Added for onboarding (M13.3): `IconLg` (22) for row-leading status glyphs, `HeroTileSize` (74) and
+`HeroGlyphSize` (38) for the centred hero tile on waiting/expired screens.
 
 ## 5. Shared styles (`BrandStyles.xaml`)
 
@@ -138,12 +149,32 @@ Keyed styles (and a few implicit) built only from tokens:
   - `IconButton` — square/pill icon action, minimum `TouchMin`, neutral/green visual states.
   - `IconToggleButton` — reusable off/on states for like/MVP actions; state is bound, not decided in
     code-behind.
+  - `HeroInverseButton` — white bg + `BrandGreen` text; the primary action inside a green hero card
+    (Game Day check-in), where a green button would vanish. Use this, never inline
+    `BackgroundColor="White"` on a page.
 - **Entry/Editor**: `BrandEntry` — `SurfaceAlt` bg, `BrandLine` border, `RadiusMd`, focus ring `BrandGreen`.
+- **Inputs**: `BrandEditor`, `BrandPicker`, `BrandDatePicker`, `BrandTimePicker` — same recipe as
+  `BrandEntry` (SurfaceAlt bg, Ink text, Sage placeholder/title, Inter `FontBody`, `TouchMin`
+  height). Every Editor/Picker/DatePicker/TimePicker on a product page must carry one of these;
+  a bare input falls back to platform defaults, not brand type.
+- **Baseline implicit styles** (owned here since the template dictionaries were deleted):
+  `Shell` (+derived, brand tab-bar colors), `Page` (+derived, surface bg + zero padding),
+  `CheckBox` (brand green, `TouchMin` minimums), `Switch` (brand green on-color),
+  `ActivityIndicator` (brand green).
 - **Frame/Border**: `CardSurface` (white, 1px `BrandLine`, `RadiusLg`), `TintSurface` (`BrandMist`).
+- **`SelectableChip`** — tap-to-toggle chip whose bound item exposes `IsSelected` (sign-up positions);
+  no `CollectionView` selection involved.
 - **Wireframe surfaces**: `HeroCardSurface` (Pine→Flag Green), `StatTileSurface`
   (Mist/subtle white, fine green-tinted line), `NoticeSurface` (Mist + green-tinted line),
   `IconTileSurface`, `MetadataChip`, and `StepperButton`.
 - **Slider**: `RatingSlider` — tokenized track/thumb/focus treatment for the 0–10 teammate rating.
+
+### 5.1 GRP-1 addition: `IconButtonDanger`
+
+`IconButtonDanger` is `IconButton` (44dp glyph tile) re-tokened with `DangerSurface*` /
+`Danger*` and a solid-danger pressed state. Use it for a destructive glyph action that sits inside
+a list row (decline a request, remove a member) where a full-width `DangerButton` would not fit.
+Pair it with a `SemanticProperties.Description` that names the person ("Decline Ayo N.").
 
 ## 6. Custom control catalog
 
@@ -169,6 +200,11 @@ White surface container.
 - `Text` (string), `Variant` (enum `Neutral|Success|Warning|Danger`=Neutral), `Glyph` (string?).
 - Maps Variant → token pair (e.g. Success → `BrandMist`/`BrandGreenDark`; Warning → warn bg/text). `RadiusPill`.
 - Wireframe: "Going", "Full", "guest", "Paid".
+- Game Day header mapping (via DataTriggers, never a hardcoded variant):
+  `Open`/`CheckedIn` → Success, `Closed` → Neutral, `Blocked` → Warning, spectator → Neutral
+  ("Spectator"). Spectator mode also renders the `NoticeSurface` explanation banner
+  ("You're a member of {group} — you're not on this game's list…") above read-only StatTiles and a
+  single Join CTA (`BrandCard IsTinted` + `CapacityBar` + `PrimaryButton`).
 
 ### Avatar
 - `Initials` (string), `ImageSource` (ImageSource?), `Size` (double=`AvatarMd`), `Variant` (enum `Mist|OnGreen`=Mist).
@@ -186,19 +222,42 @@ White surface container.
 - Wireframe: session capacity.
 
 ### SectionHeader
-- `Text` (string, uppercase via style), `ActionText` (string?), `ActionCommand` (ICommand?).
-- Wireframe: "Coming up", "Going · 16", "Confirm teammates · captain".
+- `Text` (string, uppercase via style), `ActionText` (string?), `ActionCommand` (ICommand?),
+  `ActionGlyph` (string?), `SecondaryActionText` (string?), `SecondaryActionCommand` (ICommand?),
+  `SecondaryActionGlyph` (string?).
+- A section may carry **two** peer actions, laid out inline on the header row. The secondary action
+  is hidden unless its text is set, so single-action headers are unaffected.
+- Glyphs are optional and ride on each button's `ImageSource`, never prepended to `Text` — the icon
+  needs the icon font while the label needs the brand text font. Assign the `FontImageSource` in
+  code, not via a XAML binding: an empty `Glyph` still reserves image space and would put a stray
+  gap in front of the label on every glyph-less header.
+- Wireframe: "Coming up", "Going · 16", "Confirm teammates · captain",
+  "Admin · Broadcast / + Session" (two actions with glyphs).
 
 ### PlayerRow
 - `LeadingContent` (View?), `Initials`/`ImageSource`, `Name` (string), `Detail` (string?),
-  `TrailingText` (string?), `TrailingContent` (View?), `TapCommand` (ICommand?).
+  `TrailingText` (string?), `TrailingContent` (View?), `TapCommand` (ICommand?),
+  `SemanticDescription` (string?, defaults to `Name`), `Glyph` (string?) + `GlyphFontFamily`
+  (default `FontAwesomeSolid`).
 - Avatar + name + subtitle + trailing; tappable. A11y: row description.
+- **Menu mode**: setting `Glyph` swaps the person avatar for an `IconTileSurface` icon tile —
+  use this for navigation/action rows (Game Day actions, recent-game rows). Never fake a person
+  avatar with made-up initials for a non-person row; leave `Glyph` unset for real people.
 - Wireframe: going/waitlist lists, confirm-teammates rows, leaderboard rows.
+- The Game Day last-game team popup uses `Detail` for compact approved tallies: repeat `⚽` once per
+  goal and `🦶` once per assist; prefix `Captain · ` for the captain. The last-game "Finish up this
+  game" section includes the existing Rate teammates route for eligible participating players.
 
 ### SegmentedControl
 - `ItemsSource` (IEnumerable), `DisplayMember` (string?), `SelectedIndex` (int, two-way), `SelectedItem` (object, two-way), `SelectionChangedCommand` (ICommand?).
 - Pill segments on `BrandMist`; selected segment = `Surface`/`BrandGreen`.
 - Wireframe: leaderboard Goals/Assists/Rating/MVP.
+- Player Game Day uses a non-admin `Today | Recent games` segment when a current game and history
+  both exist. `Today` remains the default and retains the live Game Day context. `Recent games`
+  lists at most the player's three newest attended games, newest first, and reuses the existing
+  summary, team-sheet popup, and eligible `Finish up this game` actions for the selected game.
+  Group membership by itself does not add an unattended game to this history. The admin
+  `My games | All games today` scope remains separate and applies only to the Today view.
 
 ### CounterStepper
 - `Value` (int, two-way), `Minimum` (int=0), `Maximum` (int=99), `Step` (int=1), `Glyph` (string?), `Caption` (string?).
@@ -211,6 +270,22 @@ White surface container.
   `GlyphFontFamily` (string, defaults to body font), `RetryCommand` (ICommand?), `Body` (View,
   content property — shown when `Content`).
 - Standardizes the loading/empty/populated/error/offline states required by architecture §6.
+
+### WhatsAppHandoffCard
+Prefilled-message card plus `WhatsAppButton` used by every WhatsApp handoff (sign-up start,
+sign-in verify). Shows the exact text the app will place in WhatsApp; nothing sends until the
+player taps inside WhatsApp.
+- `Label` ("Message we'll send to the bot"), `MessageText`, `Hint`, `ButtonText`
+  ("Continue with WhatsApp"), `ContinueCommand`, `IsBusy`.
+- Wireframe: `signup-start`, `signin-verify`.
+
+### LinkExpiryCard
+Countdown card for a bot link's 15-minute lifetime: label, `Badge` (warning → danger at zero), a
+brand-coloured `ProgressBar` for the remaining time (`CapacityBar` is for headcounts; its colour
+and description semantics invert for a countdown), and a note. Presentational only; the page model
+ticks it.
+- `RemainingText` ("14:32"), `RemainingPercent` (0–100), `Note`.
+- Wireframe: `signup-waiting`, `signin-waiting`.
 
 ### (Styles, not controls)
 PrimaryButton / GhostButton / WhatsAppButton are **styles** (§5), applied to MAUI `Button`. Bottom
@@ -303,6 +378,129 @@ Scenario: Product UI follows the authoritative wireframe
 | Goals/assists +/- entry | `CounterStepper` |
 | RSVP / Submit / WhatsApp buttons | `PrimaryButton` / `GhostButton` / `WhatsAppButton` |
 | Loading / empty / error / offline | `StateView` |
+| WhatsApp handoff (prefilled `!!register` / `!!login`) | `WhatsAppHandoffCard` |
+| Bot link countdown | `LinkExpiryCard` |
+| Sign-up numbered steps, verify account row | `Avatar` (initials) + `TextBodyStrong`/`TextCaption` |
+| Position chips (sign-up) | horizontal `CollectionView` (`SelectionMode=None`) of `SelectableChip` + `TapGestureRecognizer` |
+| Terms / remember-device toggles | `ToggleRow` |
+| Group selection (sign-in) & Stats group filter | `LinkGroupPage` (multi-select `CollectionView`, see §11.2) / `Picker` |
+| Membership status pills (Approved / Pending / Declined) | `Badge` — `Success` / `Warning` / `Danger` via `GroupMembershipPresentation.StatusVariant`, never a hardcoded variant per page |
+| "My groups" memberships, joinable groups, admin group rows | `PlayerRow` in menu mode (`Glyph=Users`) inside `BrandCard`; `LinkButton` (Leave / Cancel / Request again), `GhostButton` (Request) in `TrailingContent` |
+| Pending-request approve / decline, member remove | `PlayerRow` (initials avatar) + `IconButton` (check) / `IconButtonDanger` (xmark, user-minus) in `TrailingContent` |
+| Super-admin "Add member" search | `CardSurface` + `MagnifyingGlass` + `BrandEntry` (same block as the Players directory search) + `BrandCard` of `PlayerRow` results with a `GhostButton` "Add" |
+| Profile "Super admin" card | `BrandCard IsHero` with a `TapGestureRecognizer`, shown only when the server sets `IsSuperAdmin` |
+| Create Session group choice | `BrandCard` + `Picker` (`BrandPicker`) over approved memberships; single membership shown as text |
+| View-only game for non-members (session detail, Game Day) | `NoticeSurface` message only (no in-screen join action; membership requests live in My groups) |
+| Admin entry points on Sessions | `SectionHeader` with two actions ("Broadcast", "+ Session"), gated by `CanManageSessions` |
+| Admin broadcast composer | `BrandHeader` + fixed-audience `MetadataChip` + styled `Editor` + `AnnouncementCard` preview + `ToggleRow` + `PushPreview` + docked `PrimaryButton` |
+| Push notification preview | `PushPreview` (dark surface, app name, group title, 2-line clamped body) |
+| Admin "Recently sent" read receipts | `BrandCard` + compact rows + `Badge` (`ok` / `warn` by read ratio) |
+| Player group announcements | `BrandHeader` + `SegmentedControl` (All / Unread) + `AnnouncementCard` feed + `StateView` empty state |
+
+## 11.1 Admin broadcasts and player notifications
+
+Group announcements use two connected client surfaces. Both are built from one shared
+`AnnouncementCard` template — the admin preview and the player feed row are the same control, so the
+composer literally shows what players will receive.
+
+- **Admin broadcast composer.** An admin-only page in four ordered blocks: *audience → message →
+  how it lands → send*.
+  - **Audience** is stated, not chosen: a single read-only chip showing the admin's own group chat
+    and its member count. An admin broadcasts to the group they run and nowhere else, so there is
+    nothing to select between, and a picker implied a reach they do not have. Resolve it from the
+    player's primary group link, falling back to their only linked group when no primary is flagged.
+    The chip is presentation, not the security boundary — `PostAnnouncementCommandHandler` already
+    rejects a post to a group the caller is not linked to, and that check stays authoritative.
+    With no audience to change, the preview, push preview, and CTA recipient count are fixed for the
+    session; the empty state ("Link a group chat before you can broadcast") covers an unlinked admin.
+  - **Message** is a styled `Editor` with the character counter sitting on the label line
+    (`104 / 500`), programmatically associated with the editor.
+  - **How it lands** shows the `AnnouncementCard` preview, a `ToggleRow` switch for the push
+    notification, and — only while the toggle is on — a `PushPreview` rendering the OS-level
+    notification. Toggling push must show/hide that preview.
+  - **Send** is a docked `PrimaryButton` pinned to the bottom of the scroll (`sticky`-equivalent:
+    a bottom-anchored row over a fade), labelled with the exact recipient count
+    ("Broadcast to 24 members"), with the "cannot be edited after sending" caption beneath it.
+  - A **Recently sent** list gives admins the read receipts (`24/24`, `14/18` badges — `ok` at full
+    read, `warn` below). Read counts are admin-facing only.
+  - The composer states that delivery is in-app, not WhatsApp.
+- **Player group announcements.** The notification bell on Sessions opens a read-only, group-scoped
+  feed. It uses cards on a plain surface rather than chat bubbles: sender + group on the left, time
+  on the right, an unread dot for new items, the message body at readable size, and a divided footer
+  only when the announcement carries context (a `meta-chip` and a link such as `View session`).
+  - An **All / Unread** `SegmentedControl` filters the feed; the Unread tab carries the count.
+  - Announcements are grouped under quiet **Today / Earlier** day labels.
+  - **Mark all read** clears the unread cards, the bell dot, and the unread count together.
+  - When no announcement matches the filter, `StateView`'s empty state renders "You're all caught up."
+  - Players never see read counts — that data belongs to the admin surface.
+
+Broadcast submission validates a non-empty message at the Application/PageModel boundary and exposes
+an inline accessible error. While sending, the CTA is disabled and the operation uses an idempotency
+key. Success locks the audience, message, and push option; retryable failure or offline state preserves
+the draft and offers Retry through `StateView`. The visible label, character counter, and validation
+message are semantically associated with the editor.
+
+The feed reads as a calm announcement list, not member-to-member chat and not WhatsApp delivery.
+Use the standard `Editor`, `BrandCard`, badge, avatar, and button styles; the audience row, toggle
+row, push preview, and announcement card are shared controls, never page-local XAML. The audience
+row is a `radiogroup` and the push row a `switch` for accessibility, and the unread dot is paired
+with an accessible unread-count description on the bell.
+
+## 11.2 Group membership with approval (GRP-1) & group-scoped leaderboard
+
+Players belong to WhatsApp group chats mirrored from the read-only Pickup Pal API into our own
+database. A player can belong to many groups; joining is a **request** a group admin approves, and
+the server auto-approves a request when Pickup Pal already lists the player in that WhatsApp group.
+The client never decides an outcome — it renders the status the server returns. Wireframe screens:
+`groups-choose`, `groups-result`, `groups-mine`, `group-members`, `super-admin-groups`, plus the
+"My groups" / "Manage members" / "Super admin" section on `profile`.
+
+- **`LinkGroupPage` (route `//link-group`, blocking, multi-select).** Shown after sign-in when the
+  player has no Approved membership (`AuthenticationNavigator` still gates on the legacy
+  `IGroupsClient.GetMyGroupsAsync().IsLinked`, which now means "at least one Approved
+  membership"). `ShellContent` outside the `TabBar`, nav bar + tab bar hidden, hardware back
+  swallowed. Layout: `StateView` → `CollectionView SelectionMode=Multiple` whose `SelectedItems`
+  binds to `LinkGroupPageModel.SelectedGroups`; each `CardSurface` row carries an
+  `InputTransparent` `CheckBox` mirroring `GroupChoiceItem.IsSelected` plus the `Selected` VSM
+  tint; a "N selected" caption and a `PrimaryButton` "Continue" enabled only with ≥1 selection.
+  Requests already Pending from an earlier visit are listed in a tinted `BrandCard` above the
+  choices. After `RequestMembershipsAsync` succeeds the page swaps to the outcome view
+  (`BrandHeader` "You're in" / "Requests sent" / "Waiting for approval" + a `BrandCard` of rows
+  with `CircleCheck` or `Clock` glyph and a status `Badge`) and a `PrimaryButton` "See upcoming
+  sessions" routes to `//sessions` via `IGroupLinkNavigator` — also when every request is Pending,
+  since games of groups the player is not in are view-only.
+- **Session participation.** Grouped games require explicit `Approved` membership and server
+  `CanJoin` for RSVP/join-waitlist visibility across detail, Home, Schedule, and Game Day. Hidden
+  actions are also guarded in their commands. Detail uses a separate `GhostButton` "Cancel my
+  spot" for a nonmember's already-held Going/waitlist spot; it cannot create intent. Cancellation
+  depends on the RSVP window, not remaining capacity. `SessionDetailDto.IsRsvpAvailable` denotes
+  that window and `IsWaitlisted` preserves the existing waitlist intent in API and Seed modes.
+- **`GroupsMinePage` (route `my-groups`, Profile → "Manage").** `BrandHeader` with back;
+  "Your memberships" `BrandCard` of menu-mode `PlayerRow`s with a status `Badge` and a
+  `LinkButton` "Leave" (Approved) / "Cancel" (Pending) / "Request again" (Declined); "Join another
+  group" `BrandCard` of remaining groups (including Withdrawn requests and Removed memberships)
+  with a `GhostButton` "Request". Leave asks for
+  confirmation through `IUserDialogService`. Every write invalidates the `groups:` cache prefix and
+  reloads; failures surface as an inline danger caption and keep the lists on screen.
+- **`GroupMembersPage` (route `group-members?groupId=…`).** `BrandHeader` titled with the group;
+  member / pending count `Badge`s; "Pending requests" rows with `IconButton` approve and
+  `IconButtonDanger` decline; "Members" rows with an `IconButtonDanger` remove. Super-admin extras
+  are shown only when the response says `CanAppointAdmins`: an "Add member" name search (≥2
+  characters, at most 64; input containing `@` or four or more digits is rejected before any
+  HTTP request, in both the page model and API client) whose results
+  exclude players already in the group, and a `LinkButton` "Make admin" / "Remove admin" per member.
+- **`SuperAdminGroupsPage` (route `super-admin-groups`).** Every group as a tappable menu-mode
+  `PlayerRow` card with "N members · M pending requests" and a warning `Badge` count, opening
+  `GroupMembersPage`. Reached only from the Profile hero card the server unlocks with
+  `IsSuperAdmin`.
+- **Profile section (own profile only).** `SectionHeader` "My groups" with a "Manage" action, a
+  `BrandCard` summary (names, "1 approved · 1 pending", one status `Badge` per group), "Manage
+  members" rows for groups the player administers, and the hero "Super admin" card.
+- **Stats leaderboard group filter.** Unchanged: a `Picker` bound to the player's linked groups
+  plus an "All groups" aggregate, defaulting to the primary group, threaded to
+  `stats/leaderboards?groupId=…`.
+- **Deferred.** View-only rendering of other groups' games waits on session DTO fields that do
+  not exist yet; session and game-day pages are untouched by GRP-1.
 
 ## 12. Out of scope / dependencies
 

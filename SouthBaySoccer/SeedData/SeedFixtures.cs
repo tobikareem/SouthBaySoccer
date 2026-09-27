@@ -65,7 +65,8 @@ public static class SeedFixtures
             20,
             false,
             0,
-            "Next match · in 2 days"),
+            "Next match · in 2 days",
+            GroupChatName: "N9ja Bay"),
         new StatsPromptDto(
             FeaturedMatchId,
             "Submit your latest stats",
@@ -86,7 +87,8 @@ public static class SeedFixtures
                 20,
                 true,
                 3,
-                null)),
+                null,
+                GroupChatName: "South Bay Ballers")),
         CanManageSessions: true);
 
     public static IReadOnlyList<VenueDto> Venues { get; } = ReadOnly(
@@ -228,7 +230,8 @@ public static class SeedFixtures
         ReadOnly(
             new TeammateStatSubmissionDto(Players[2], 1, 2, true),
             new TeammateStatSubmissionDto(Players[3], 1, 0, false),
-            new TeammateStatSubmissionDto(Players[4], 2, 0, false)));
+            new TeammateStatSubmissionDto(Players[4], 2, 0, false)),
+        CanConfirmTeammates: true);
 
     public static IReadOnlyList<RateableTeammateDto> RateableTeammates { get; } = ReadOnly(
         new RateableTeammateDto(Players[1], "2 goals", 9, false, false),

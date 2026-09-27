@@ -2,6 +2,7 @@ using FluentValidation;
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Common;
+using SouthBaySoccer.Application.Features.Groups;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
@@ -15,13 +16,19 @@ public sealed class SubmitRsvpCommandHandler(
     IPlayerProfileRepository playerProfileRepository,
     ISessionRepository sessionRepository,
     IPlayerSessionEligibilityService eligibilityService,
-    IRsvpRepository rsvpRepository)
+    IRsvpRepository rsvpRepository,
+    IRsvpPickupPalSyncService pickupPalSyncService,
+    IGroupMembershipGate groupMembershipGate)
 {
     public async Task<RsvpResultModel> HandleAsync(SubmitRsvpCommand command, CancellationToken cancellationToken = default)
     {
         await validator.ValidateAndThrowAsync(command, cancellationToken);
         var profile = await GetCurrentProfileAsync(currentUser, playerProfileRepository, cancellationToken);
         var session = await GetOpenSessionAsync(sessionRepository, command.SessionId, clock.UtcNow, cancellationToken);
+
+        // Every submitted intent requires membership. DELETE RSVP remains available separately
+        // so a player whose membership ended can release an existing spot without submitting one.
+        await groupMembershipGate.EnsureCanJoinAsync(session, profile.Id, cancellationToken);
 
         var eligibility = await eligibilityService.CheckAsync(profile.Id, session.Id, cancellationToken);
         if (!eligibility.IsEligible)
@@ -30,7 +37,9 @@ public sealed class SubmitRsvpCommandHandler(
         }
 
         var result = await rsvpRepository.SubmitRsvpAsync(session.Id, profile.Id, command.Status, cancellationToken);
-        return RsvpMapper.ToModel(result);
+        // Runs after the local transaction committed and never fails the RSVP (RSVP-9).
+        var pickupPalSync = await pickupPalSyncService.SyncAfterLocalWriteAsync(session.Id, profile.Id, cancellationToken);
+        return RsvpMapper.ToModel(result, pickupPalSync);
     }
 
     internal static async Task<SouthBaySoccer.Domain.Entities.Identity.PlayerProfile> GetCurrentProfileAsync(
@@ -72,21 +81,33 @@ public sealed class CancelRsvpCommandHandler(
     IPlayerProfileRepository playerProfileRepository,
     ISessionRepository sessionRepository,
     IPlayerSessionEligibilityService eligibilityService,
-    IRsvpRepository rsvpRepository)
+    IRsvpRepository rsvpRepository,
+    IRsvpPickupPalSyncService pickupPalSyncService)
 {
     public async Task<RsvpResultModel> HandleAsync(CancelRsvpCommand command, CancellationToken cancellationToken = default)
     {
         var profile = await SubmitRsvpCommandHandler.GetCurrentProfileAsync(currentUser, playerProfileRepository, cancellationToken);
         var session = await SubmitRsvpCommandHandler.GetOpenSessionAsync(sessionRepository, command.SessionId, clock.UtcNow, cancellationToken);
 
+        // The whole waitlist is evaluated in one batched compliance read instead of two queries per
+        // candidate, but still inside the repository's transaction so an expiry never acts on a
+        // verdict that was read before the transaction opened.
         var result = await rsvpRepository.CancelAndPromoteAsync(
             session.Id,
             profile.Id,
-            async (candidatePlayerProfileId, token) =>
-                (await eligibilityService.CheckAsync(candidatePlayerProfileId, session.Id, token)).IsEligible,
+            (candidatePlayerProfileIds, token) =>
+                eligibilityService.CheckManyAsync(candidatePlayerProfileIds, session.Id, token),
             cancellationToken);
 
-        return RsvpMapper.ToModel(result);
+        // Runs after the local transaction committed and never fails the cancel (RSVP-9). The
+        // player promoted from the local waitlist is now Going and is pushed too, best effort.
+        var pickupPalSync = await pickupPalSyncService.SyncAfterLocalWriteAsync(session.Id, profile.Id, cancellationToken);
+        if (result.PromotedPlayerProfileId is { } promotedPlayerProfileId)
+        {
+            await pickupPalSyncService.SyncAfterLocalWriteAsync(session.Id, promotedPlayerProfileId, cancellationToken);
+        }
+
+        return RsvpMapper.ToModel(result, pickupPalSync);
     }
 }
 
@@ -108,7 +129,8 @@ public sealed class AdminOverrideRsvpCommandHandler(
     IValidator<AdminOverrideRsvpCommand> validator,
     IPlayerProfileRepository playerProfileRepository,
     ISessionRepository sessionRepository,
-    IRsvpRepository rsvpRepository)
+    IRsvpRepository rsvpRepository,
+    IRsvpPickupPalSyncService pickupPalSyncService)
 {
     public async Task<RsvpResultModel> HandleAsync(AdminOverrideRsvpCommand command, CancellationToken cancellationToken = default)
     {
@@ -126,7 +148,9 @@ public sealed class AdminOverrideRsvpCommandHandler(
             command.Reason,
             cancellationToken);
 
-        return RsvpMapper.ToModel(result);
+        // Runs after the local transaction committed and never fails the override (RSVP-9).
+        var pickupPalSync = await pickupPalSyncService.SyncAfterLocalWriteAsync(command.SessionId, command.PlayerProfileId, cancellationToken);
+        return RsvpMapper.ToModel(result, pickupPalSync);
     }
 }
 
@@ -144,6 +168,10 @@ public sealed class CheckInPlayerCommandHandler(
         var adminProfile = await SubmitRsvpCommandHandler.GetCurrentProfileAsync(currentUser, playerProfileRepository, cancellationToken);
         var session = await sessionRepository.GetByIdAsync(command.SessionId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Session was not found.");
+        if (session.Status != SessionStatus.Published)
+        {
+            throw new ApplicationConflictException("Check-in is not available for this session.");
+        }
         var nowUtc = clock.UtcNow;
         var lateOverrideReason = string.IsNullOrWhiteSpace(command.LateOverrideReason)
             ? null
@@ -157,12 +185,13 @@ public sealed class CheckInPlayerCommandHandler(
 
         var effectiveLateOverrideReason = isOutsideCheckInWindow ? lateOverrideReason : null;
 
+        var effectiveOutcome = isOutsideCheckInWindow ? AttendanceOutcome.Late : command.Outcome;
         var result = await rsvpRepository.RecordCheckInAsync(
             command.SessionId,
             command.PlayerProfileId,
             adminProfile.Id,
             nowUtc,
-            command.Outcome,
+            effectiveOutcome,
             effectiveLateOverrideReason,
             cancellationToken);
         var checkIn = result.CheckIn;
@@ -177,6 +206,78 @@ public sealed class CheckInPlayerCommandHandler(
             result.AdminOverrideId.HasValue,
             result.AdminOverrideId,
             result.LateOverrideReason);
+    }
+}
+
+public sealed class SelfCheckInCommandHandler(
+    ICurrentUser currentUser,
+    IClock clock,
+    IPlayerProfileRepository playerProfileRepository,
+    ISessionRepository sessionRepository,
+    IPlayerSessionEligibilityService eligibilityService,
+    IRsvpRepository rsvpRepository,
+    IGroupMembershipGate groupMembershipGate)
+{
+    public async Task<CheckInResultModel> HandleAsync(
+        SelfCheckInCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var profile = await SubmitRsvpCommandHandler.GetCurrentProfileAsync(
+            currentUser,
+            playerProfileRepository,
+            cancellationToken);
+        var session = await sessionRepository.GetByIdAsync(command.SessionId, cancellationToken)
+            ?? throw new ApplicationNotFoundException("Session was not found.");
+        if (session.Status != SessionStatus.Published)
+        {
+            throw new ApplicationConflictException("Check-in is not available for this session.");
+        }
+
+        // GRP-1: self check-in is a group-scoped action (admin check-in is not gated).
+        await groupMembershipGate.EnsureCanJoinAsync(session, profile.Id, cancellationToken);
+
+        var nowUtc = clock.UtcNow;
+        if (nowUtc < session.CheckInOpensAtUtc || nowUtc > session.CheckInClosesAtUtc)
+        {
+            throw new ApplicationConflictException("Self check-in is outside the session check-in window.");
+        }
+
+        var attendance = await rsvpRepository.GetGameDayAttendanceAsync(
+            session.Id,
+            profile.Id,
+            cancellationToken);
+        // Going and waitlisted players may both self check in (a waitlisted player who arrives often
+        // takes a no-show's place); only someone with no confirmed spot at all is turned away.
+        if (!attendance.IsCurrentPlayerGoing && !attendance.IsCurrentPlayerWaitlisted)
+        {
+            throw new ApplicationConflictException("A Going or waitlist spot is required to check in.");
+        }
+
+        var eligibility = await eligibilityService.CheckAsync(profile.Id, session.Id, cancellationToken);
+        if (!eligibility.IsEligible)
+        {
+            throw new ApplicationConflictException(eligibility.Reason ?? "Player is not eligible to check in.");
+        }
+
+        var result = await rsvpRepository.RecordCheckInAsync(
+            session.Id,
+            profile.Id,
+            profile.Id,
+            nowUtc,
+            AttendanceOutcome.CheckedIn,
+            cancellationToken: cancellationToken);
+        var checkIn = result.CheckIn;
+
+        return new CheckInResultModel(
+            checkIn.Id,
+            checkIn.SessionId,
+            checkIn.PlayerProfileId,
+            checkIn.CheckedInByPlayerProfileId!.Value,
+            checkIn.CheckedInAtUtc,
+            checkIn.Outcome.ToString(),
+            false,
+            null,
+            null);
     }
 }
 

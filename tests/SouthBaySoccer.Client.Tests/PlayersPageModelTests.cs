@@ -7,6 +7,7 @@ using SouthBaySoccer.Controls;
 using SouthBaySoccer.PageModels;
 using SouthBaySoccer.SeedData;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -134,9 +135,36 @@ public class PlayersPageModelTests
         pageModel.State.Should().Be(ViewState.Content);
         pageModel.Players.Should().HaveCount(directory.Players.Count);
         pageModel.IsBusy.Should().BeFalse();
+        pageModel.IsRefreshing.Should().BeFalse("the pull spinner must clear when the refresh completes");
         client.Verify(
             service => service.GetDirectoryAsync(It.IsAny<CancellationToken>()),
             Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task Refresh_TogglesIsRefreshingWhileTheRequestIsInFlight()
+    {
+        var requestStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<Contracts.Players.PlayerDirectoryDto>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var directory = await new SeedPlayersClient().GetDirectoryAsync(CancellationToken.None);
+        var client = new Mock<IPlayersClient>();
+        client.Setup(service => service.GetDirectoryAsync(It.IsAny<CancellationToken>()))
+            .Returns<CancellationToken>(async _ =>
+            {
+                requestStarted.TrySetResult();
+                return await release.Task;
+            });
+        var pageModel = CreatePageModel(client: client);
+
+        var refresh = pageModel.RefreshCommand.ExecuteAsync(null);
+        await requestStarted.Task;
+        pageModel.IsRefreshing.Should().BeTrue("the pull spinner stays visible while the request runs");
+
+        release.SetResult(directory);
+        await refresh;
+
+        pageModel.IsRefreshing.Should().BeFalse();
     }
 
     [Fact]
@@ -192,7 +220,8 @@ public class PlayersPageModelTests
         Mock<IPlayersNavigator>? navigator = null) =>
         new(
             (client ?? SeedPlayersClient()).Object,
-            (navigator ?? Navigator()).Object);
+            (navigator ?? Navigator()).Object,
+            new ClientResponseCache(TimeProvider.System));
 
     private static Mock<IPlayersClient> SeedPlayersClient()
     {

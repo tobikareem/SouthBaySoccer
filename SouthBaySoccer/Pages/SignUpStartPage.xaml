@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.SignUpStartPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    x:DataType="pageModels:SignUpStartPageModel"
+    NavigationPage.HasNavigationBar="False"
+    Style="{StaticResource BrandPage}"
+    Title="{x:Static pageModels:SignUpStartPageModel.Title}">
+
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader Title="{x:Static pageModels:SignUpStartPageModel.Title}"
+                       Subtitle="{x:Static pageModels:SignUpStartPageModel.StepLabel}"
+                       ShowBack="True"
+                       BackCommand="{Binding GoBackCommand}" />
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="{StaticResource WelcomeContentPadding}"
+                                 Spacing="{StaticResource SpaceMd}">
+                <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                    <Label Text="{x:Static pageModels:SignUpStartPageModel.Heading}"
+                           Style="{StaticResource TextH1}"
+                           SemanticProperties.HeadingLevel="Level1" />
+                    <Label Text="{x:Static pageModels:SignUpStartPageModel.Description}"
+                           Style="{StaticResource TextCaption}"
+                           LineHeight="1.5" />
+                </VerticalStackLayout>
+
+                <Border Style="{StaticResource CardSurface}">
+                    <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceMd}">
+                            <c:Avatar Initials="1" Size="{StaticResource AvatarMd}" Description="Step one" />
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                                <Label Text="{x:Static pageModels:SignUpStartPageModel.Step1Title}" Style="{StaticResource TextBodyStrong}" />
+                                <Label Text="{x:Static pageModels:SignUpStartPageModel.Step1Detail}" Style="{StaticResource TextCaption}" />
+                            </VerticalStackLayout>
+                        </Grid>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceMd}">
+                            <c:Avatar Initials="2" Size="{StaticResource AvatarMd}" Description="Step two" />
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                                <Label Text="{x:Static pageModels:SignUpStartPageModel.Step2Title}" Style="{StaticResource TextBodyStrong}" />
+                                <Label Text="{x:Static pageModels:SignUpStartPageModel.Step2Detail}" Style="{StaticResource TextCaption}" />
+                            </VerticalStackLayout>
+                        </Grid>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceMd}">
+                            <c:Avatar Initials="3" Size="{StaticResource AvatarMd}" Description="Step three" />
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                                <Label Text="{x:Static pageModels:SignUpStartPageModel.Step3Title}" Style="{StaticResource TextBodyStrong}" />
+                                <Label Text="{x:Static pageModels:SignUpStartPageModel.Step3Detail}" Style="{StaticResource TextCaption}" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <c:WhatsAppHandoffCard MessageText="{Binding MessageText}"
+                                       Hint="{Binding SendHint}"
+                                       ContinueCommand="{Binding ContinueWithWhatsAppCommand}"
+                                       IsBusy="{Binding IsBusy}" />
+
+                <Border Style="{StaticResource NoticeSurface}">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.Lock}"
+                               FontFamily="FontAwesomeSolid"
+                               FontSize="{StaticResource IconMd}"
+                               TextColor="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandSpringDark}}"
+                               SemanticProperties.Description="Why WhatsApp" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
+                            <Label Text="{x:Static pageModels:SignUpStartPageModel.WhyHeading}" Style="{StaticResource TextBodyStrong}" />
+                            <Label Text="{x:Static pageModels:SignUpStartPageModel.WhyMessage}" Style="{StaticResource TextCaption}" LineHeight="1.4" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </Border>
+
+                <Label Text="{Binding StatusMessage}"
+                       Style="{StaticResource TextCaption}"
+                       TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                       HorizontalTextAlignment="Center"
+                       IsVisible="{Binding HasStatusMessage}" />
+
+                <HorizontalStackLayout HorizontalOptions="Center" Spacing="{StaticResource SpaceXs}">
+                    <Label Text="Already on Pickup Pal?" Style="{StaticResource TextCaption}" VerticalTextAlignment="Center" />
+                    <Button Text="Sign in" Command="{Binding SignInCommand}" Style="{StaticResource LinkButton}"
+                            SemanticProperties.Description="Go back to sign in" />
+                </HorizontalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 SouthBaySoccer is the operating app for our **pickup soccer games** — the software that runs paid
 pickup sessions for the South Bay group (and the future Pickup Soccer LLC). It exists to let
 organizers collect dues, schedule recurring game days, manage who is coming (RSVP with capacity and
-waitlists), gate play behind payment and signed waivers, run game-day check-in and team balancing,
+waitlists), gate play behind payment, run game-day check-in and team balancing,
 and record core player stats.
 
 Product/MVP scope, in priority order:
@@ -16,7 +16,9 @@ Product/MVP scope, in priority order:
    for payment state** — sync via signed webhooks; never treat the database as the payment authority.
 3. Sessions (game days) with RSVP intent states (Going / Maybe / Not Going / Waitlisted), capacity
    caps, automatic waitlist promotion, deadline locking, and separate check-in/attendance outcomes.
-4. Digital waiver + code-of-conduct acceptance (timestamped) required before a player can RSVP.
+4. *(Deferred, 2026-09-16)* Digital waiver + code-of-conduct acceptance. **There is currently no
+   waiver requirement**: nothing gates RSVP on a waiver, and no product screen mentions one. The
+   Compliance entities and `waivers/*` endpoints stay in the code but dormant.
 5. Admin dashboard: paid/unpaid members, upcoming sessions, RSVP counts, attendance.
 6. Game-day check-in, manual or skill/position-balanced team assignment, and basic stat recording
    (goals, assists, matches played, wins, MVP).

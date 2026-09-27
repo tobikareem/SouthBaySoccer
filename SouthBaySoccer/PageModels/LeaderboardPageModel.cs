@@ -13,6 +13,7 @@ namespace SouthBaySoccer.PageModels;
 /// </summary>
 public partial class LeaderboardPageModel(
     ILeaderboardClient leaderboardClient,
+    IGroupsClient groupsClient,
     ILeaderboardNavigator navigator,
     LeaderboardOptions options) : ObservableObject
 {
@@ -25,6 +26,9 @@ public partial class LeaderboardPageModel(
 
     [ObservableProperty]
     private ViewState _state = ViewState.Loading;
+
+    [ObservableProperty]
+    private bool _isRefreshing;
 
     [ObservableProperty]
     private string _stateTitle = string.Empty;
@@ -45,17 +49,50 @@ public partial class LeaderboardPageModel(
     private LeaderboardMetric _selectedMetric = LeaderboardMetric.Goals;
 
     [ObservableProperty]
-    private IReadOnlyList<LeaderboardRowItem> _rankings = [];
+    [NotifyPropertyChangedFor(nameof(HasGroups))]
+    private IReadOnlyList<LeaderboardGroupOption> _groups = [];
 
     [ObservableProperty]
+    private LeaderboardGroupOption? _selectedGroup;
+
+    /// <summary>True once the group filter has options to show (linked groups plus "All").</summary>
+    public bool HasGroups => Groups.Count > 1;
+
+    // Guards the initial group population so setting SelectedGroup for the first time does not
+    // trigger a redundant reload before the very first ranking load runs.
+    private bool _suppressGroupReload;
+    private bool _groupsLoaded;
+
+    [ObservableProperty]
+    private IReadOnlyList<LeaderboardRowItem> _rankings = [];
+
+    /// <summary>
+    /// True when the season has no rankings for the selected metric. Rendered as an inline
+    /// placeholder under the metric tabs (per the wireframe) rather than a full-screen empty
+    /// state, so the Goals/Assists/Rating/MVP tabs stay visible and switchable.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasRankings))]
+    private bool _isEmpty;
+
+    /// <summary>True when there is at least one ranking row to render.</summary>
+    public bool HasRankings => !IsEmpty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNote))]
     private string _note = string.Empty;
+
+    public bool HasNote => !string.IsNullOrWhiteSpace(Note);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSelectMetric))]
+    [NotifyPropertyChangedFor(nameof(CanSelectGroup))]
     [NotifyCanExecuteChangedFor(nameof(SelectMetricCommand))]
     private bool _isBusy;
 
     public bool CanSelectMetric => !IsBusy;
+
+    public bool CanSelectGroup => !IsBusy;
 
     partial void OnSelectedMetricIndexChanged(int value)
     {
@@ -65,11 +102,72 @@ public partial class LeaderboardPageModel(
         }
     }
 
-    [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task Appearing(CancellationToken cancellationToken) => LoadRankingAsync(cancellationToken);
+    partial void OnSelectedGroupChanged(LeaderboardGroupOption? value)
+    {
+        // Reload when the player picks a different group, but not while we are seeding the list or a
+        // load is already running.
+        if (_suppressGroupReload || IsBusy)
+        {
+            return;
+        }
+
+        _ = LoadRankingAsync(CancellationToken.None);
+    }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private Task Refresh(CancellationToken cancellationToken) => LoadRankingAsync(cancellationToken);
+    private async Task Appearing(CancellationToken cancellationToken)
+    {
+        await LoadGroupsAsync(cancellationToken);
+        await LoadRankingAsync(cancellationToken);
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task Refresh(CancellationToken cancellationToken)
+    {
+        IsRefreshing = true;
+        try
+        {
+            await LoadRankingAsync(cancellationToken);
+        }
+        finally
+        {
+            IsRefreshing = false;
+        }
+    }
+
+    // Loads the player's linked groups once and seeds the filter with an "All" aggregate plus each
+    // group, defaulting to the player's primary group. A failure here is non-fatal — the leaderboard
+    // still loads on the aggregate view.
+    private async Task LoadGroupsAsync(CancellationToken cancellationToken)
+    {
+        if (_groupsLoaded)
+        {
+            return;
+        }
+
+        try
+        {
+            var myGroups = await groupsClient.GetMyGroupsAsync(cancellationToken);
+            var groupOptions = new List<LeaderboardGroupOption> { LeaderboardGroupOption.All };
+            groupOptions.AddRange(myGroups.Groups.Select(group =>
+                new LeaderboardGroupOption(group.Id, group.GroupName, group.IsPrimary)));
+
+            _suppressGroupReload = true;
+            Groups = groupOptions;
+            SelectedGroup = groupOptions.FirstOrDefault(option => option.IsPrimary) ?? LeaderboardGroupOption.All;
+            _suppressGroupReload = false;
+            _groupsLoaded = true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // Leave the filter empty (hidden) and fall back to the aggregate leaderboard.
+            _suppressGroupReload = false;
+        }
+    }
 
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanSelectMetric))]
     private Task SelectMetric(LeaderboardMetricOption? metric, CancellationToken cancellationToken)
@@ -87,7 +185,12 @@ public partial class LeaderboardPageModel(
 
     private async Task LoadRankingAsync(CancellationToken cancellationToken)
     {
-        State = ViewState.Loading;
+        // Pull-to-refresh keeps the content on screen (RefreshView shows the spinner);
+        // only non-content states swap to the full-page loading view.
+        if (State != ViewState.Content)
+        {
+            State = ViewState.Loading;
+        }
         IsBusy = true;
 
         try
@@ -95,6 +198,7 @@ public partial class LeaderboardPageModel(
             var ranking = await leaderboardClient.GetRankingAsync(
                 options.SeasonId,
                 SelectedMetric,
+                SelectedGroup?.Id,
                 cancellationToken);
 
             ApplyRanking(ranking);
@@ -119,16 +223,20 @@ public partial class LeaderboardPageModel(
 
     private void ApplyRanking(LeaderboardDto ranking)
     {
-        Season = ranking.SeasonLabel;
-        SelectedMetric = ranking.Metric;
-        Rankings = ranking.Rows.Select(row => LeaderboardRowItem.From(row, ranking.Metric)).ToArray();
-        Note = ranking.Note;
-
-        if (Rankings.Count == 0)
+        // The unknown-season client fallback carries a blank label; keep the last known one so
+        // the badge never renders empty.
+        if (!string.IsNullOrWhiteSpace(ranking.SeasonLabel))
         {
-            ApplyNonContentState(ViewState.Empty, EmptyTitle, EmptyMessage);
-            return;
+            Season = ranking.SeasonLabel;
         }
+        SelectedMetric = ranking.Metric;
+        // Top 5 only, even if the server returns more.
+        Rankings = ranking.Rows
+            .Take(5)
+            .Select(row => LeaderboardRowItem.From(row, ranking.Metric))
+            .ToArray();
+        Note = ranking.Note;
+        IsEmpty = Rankings.Count == 0;
 
         StateTitle = string.Empty;
         StateMessage = string.Empty;
@@ -139,6 +247,7 @@ public partial class LeaderboardPageModel(
     {
         Rankings = [];
         Note = string.Empty;
+        IsEmpty = false;
         StateTitle = title;
         StateMessage = message;
         State = state;
@@ -150,6 +259,15 @@ public sealed class LeaderboardOptions
     public Guid SeasonId { get; init; } = Guid.Parse("40000000-0000-0000-0000-000000000001");
 
     public string SeasonLabel { get; init; } = "Season 2026";
+}
+
+/// <summary>
+/// One option in the leaderboard group filter. A null <see cref="Id"/> is the "All" aggregate across
+/// every group; otherwise it is the internal group-chat id passed to the leaderboard query.
+/// </summary>
+public sealed record LeaderboardGroupOption(Guid? Id, string Name, bool IsPrimary = false)
+{
+    public static LeaderboardGroupOption All { get; } = new(null, "All groups");
 }
 
 public sealed record LeaderboardMetricOption(LeaderboardMetric Metric, string Label)
@@ -181,12 +299,31 @@ public sealed record LeaderboardRowItem(
             row.Player.Id,
             row.Player.Initials,
             row.Player.DisplayName,
-            $"{row.Player.Position} Â· {row.Appearances.ToString(CultureInfo.InvariantCulture)} apps",
+            BuildDetail(row),
             row.Rank == 1 ? Fonts.FontAwesomeGlyphs.Trophy : row.Rank.ToString(CultureInfo.InvariantCulture),
             row.Rank == 1 ? "FontAwesomeSolid" : "InterSemibold",
             row.Rank == 1 ? "Leader" : $"Rank {row.Rank.ToString(CultureInfo.InvariantCulture)}",
             FormatValue(row.Value, metric),
             row.Rank == 1);
+
+    // Detail reads "{field position} · {n} apps", dropping the position when absent (imported players
+    // often carry none). The rank is already shown as the numbered leading indicator, so it is not
+    // repeated here as an ordinal. The separator is an explicit · so a file-encoding round-trip can
+    // never mangle it into "Â·".
+    private static string BuildDetail(LeaderboardRowDto row)
+    {
+        var appearances = row.Appearances;
+        var parts = new List<string>(2);
+        if (!string.IsNullOrWhiteSpace(row.Player.Position))
+        {
+            parts.Add(row.Player.Position.Trim());
+        }
+
+        parts.Add(appearances == 1
+            ? "1 app"
+            : $"{appearances.ToString(CultureInfo.InvariantCulture)} apps");
+        return string.Join(" · ", parts);
+    }
 
     private static string FormatValue(decimal value, LeaderboardMetric metric) =>
         metric == LeaderboardMetric.Rating

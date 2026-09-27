@@ -1,5 +1,7 @@
 using FluentValidation;
+using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Common;
+using SouthBaySoccer.Application.Features.Groups;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
@@ -11,6 +13,8 @@ public sealed class CreateSessionCommandHandler(
     ISeasonRepository seasonRepository,
     IVenueRepository venueRepository,
     ISessionRepository sessionRepository,
+    SessionGroupResolver groupResolver,
+    ISessionPickupPalSyncService pickupPalSyncService,
     IUnitOfWork unitOfWork)
 {
     public async Task<SessionModel> HandleAsync(CreateSessionCommand command, CancellationToken cancellationToken = default)
@@ -30,10 +34,16 @@ public sealed class CreateSessionCommandHandler(
         await EnsureNotDuplicateAsync(
             sessionRepository, command.VenueId, command.Title, command.StartsAtUtc, cancellationToken);
 
+        var group = await groupResolver.ResolveAsync(command.GroupChatId, cancellationToken);
         var session = CreateSession(command);
+        session.GroupChatId = group?.Id;
         await sessionRepository.AddAsync(session, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return SchedulingMappers.ToModel(session);
+
+        // A session created directly as Published with a group is mirrored to Pickup Pal the same
+        // way a publish is; drafts and app-only sessions are NotApplicable inside the service.
+        await pickupPalSyncService.SyncAfterLocalWriteAsync(session.Id, cancellationToken);
+        return SchedulingMappers.ToModel(session, group);
     }
 
     private async Task EnsureParentsExistAsync(Guid seasonId, Guid venueId, CancellationToken cancellationToken)
@@ -84,19 +94,64 @@ public sealed class CreateSessionCommandHandler(
 }
 
 public sealed class ListUpcomingSessionsQueryHandler(
+    ICurrentUser currentUser,
     SouthBaySoccer.Application.Abstractions.Time.IClock clock,
-    ISessionRepository sessionRepository)
+    IPlayerProfileRepository playerProfileRepository,
+    ISessionRepository sessionRepository,
+    IGroupMembershipGate groupMembershipGate)
 {
-    public async Task<IReadOnlyList<SessionModel>> HandleAsync(int take = 25, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<SessionFeedModel>> HandleAsync(
+        int take = 25,
+        CancellationToken cancellationToken = default)
     {
+        var identityUserId = currentUser.UserId ?? throw new ApplicationUnauthenticatedException();
+        var profile = await playerProfileRepository.FindByIdentityUserIdAsync(identityUserId, cancellationToken)
+            ?? throw new ApplicationNotFoundException("Player profile was not found.");
         var boundedTake = Math.Clamp(take, 1, 100);
-        var sessions = await sessionRepository.ListUpcomingAsync(clock.UtcNow, boundedTake, cancellationToken);
-        return sessions.Select(SchedulingMappers.ToModel).ToArray();
+        var sessions = await sessionRepository.ListUpcomingFeedAsync(
+            clock.UtcNow,
+            boundedTake,
+            profile.Id,
+            cancellationToken);
+
+        // GRP-1: every group's games are listed; the caller's standing in each game's group only
+        // decides whether they may join (RSVP / waitlist), never whether they see it.
+        var accessBySessionId = await groupMembershipGate.ResolveAccessAsync(
+            sessions.Select(record => record.Session).ToArray(),
+            profile.Id,
+            cancellationToken);
+
+        return sessions.Select(record =>
+        {
+            var access = accessBySessionId[record.Session.Id];
+            var isFull = record.GoingCount >= record.Session.Capacity;
+            var canJoinWaitlist = record.Session.Status == SessionStatus.Published
+                && clock.UtcNow < record.Session.RsvpDeadlineUtc
+                && isFull
+                && !record.IsCurrentPlayerGoing
+                && !record.IsCurrentPlayerWaitlisted
+                && access.CanJoin;
+            return new SessionFeedModel(
+                SchedulingMappers.ToModel(record.Session),
+                record.VenueName,
+                record.GoingCount,
+                record.WaitlistCount,
+                isFull,
+                record.IsCurrentPlayerGoing,
+                record.IsCurrentPlayerWaitlisted,
+                canJoinWaitlist,
+                record.GroupName ?? access.GroupName,
+                access.GroupChatId,
+                access.MembershipStatus?.ToString(),
+                access.CanJoin);
+        }).ToArray();
     }
 }
 
 public sealed class CancelSessionCommandHandler(
     ISessionRepository sessionRepository,
+    SessionGroupResolver groupResolver,
+    ISessionPickupPalSyncService pickupPalSyncService,
     IUnitOfWork unitOfWork)
 {
     public async Task<SessionModel> HandleAsync(CancelSessionCommand command, CancellationToken cancellationToken = default)
@@ -112,12 +167,18 @@ public sealed class CancelSessionCommandHandler(
         session.Status = SessionStatus.Canceled;
         sessionRepository.Update(session);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return SchedulingMappers.ToModel(session);
+
+        // Local first: the cancellation is committed; a game the app created is terminated on
+        // Pickup Pal afterwards (imported games are Pickup Pal's and are left alone).
+        await pickupPalSyncService.SyncAfterLocalWriteAsync(session.Id, cancellationToken);
+        var group = await groupResolver.FindAsync(session.GroupChatId, cancellationToken);
+        return SchedulingMappers.ToModel(session, group);
     }
 }
 
 public sealed class DeleteSessionCommandHandler(
     ISessionRepository sessionRepository,
+    ISessionPickupPalSyncService pickupPalSyncService,
     IUnitOfWork unitOfWork)
 {
     public async Task HandleAsync(DeleteSessionCommand command, CancellationToken cancellationToken = default)
@@ -127,6 +188,7 @@ public sealed class DeleteSessionCommandHandler(
 
         sessionRepository.SoftDelete(session);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        await pickupPalSyncService.SyncAfterLocalWriteAsync(session.Id, cancellationToken);
     }
 }
 

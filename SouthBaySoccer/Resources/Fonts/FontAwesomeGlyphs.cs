@@ -32,9 +32,25 @@ public static class FontAwesomeGlyphs
 
     // ADMIN-4 create-session glyphs (Font Awesome 6 Free Solid).
     public const string CirclePlus = "\uf055";
+    /// <summary>Bullhorn \u2014 the broadcast/announcement action.</summary>
+    public const string Bullhorn = "\uf0a1";
+    /// <summary>Bare plus \u2014 additive actions that sit inline next to a label, where CirclePlus reads too heavy.</summary>
+    public const string Plus = "\uf067";
     public const string MagnifyingGlass = "\uf002";
     public const string PaperPlane = "\uf1d8";
     public const string Lock = "\uf023";
+
+    // GRP-1 group membership glyphs (Font Awesome 6 Free Solid).
+    /// <summary>Check \u2014 approve a pending membership request.</summary>
+    public const string Check = "\uf00c";
+    /// <summary>Xmark \u2014 decline a pending membership request.</summary>
+    public const string Xmark = "\uf00d";
+    /// <summary>User minus \u2014 remove a current member.</summary>
+    public const string UserMinus = "\uf503";
+    /// <summary>User plus \u2014 request to join / add a member.</summary>
+    public const string UserPlus = "\uf234";
+    /// <summary>Crown \u2014 group admin role.</summary>
+    public const string Crown = "\uf521";
 }
 
 

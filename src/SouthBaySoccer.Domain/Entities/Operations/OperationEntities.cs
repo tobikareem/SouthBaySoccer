@@ -4,7 +4,25 @@ using SouthBaySoccer.Domain.Enumerations;
 namespace SouthBaySoccer.Domain.Entities.Operations;
 
 /// <summary>Represents a durable transactional outbox message.</summary>
-public class OutboxMessage : BaseEntity { public string MessageType { get; set; } = string.Empty; public string PayloadJson { get; set; } = string.Empty; public OutboxMessageStatus Status { get; set; } public DateTime AvailableAtUtc { get; set; } public int AttemptCount { get; set; } public string? LockToken { get; set; } public DateTime? LockedUntilUtc { get; set; } public DateTime? ProcessedAtUtc { get; set; } public string? DeadLetterReason { get; set; } public string? CorrelationId { get; set; } public string? IdempotencyKey { get; set; } }
+public class OutboxMessage : BaseEntity
+{
+    public string MessageType { get; set; } = string.Empty;
+    public string PayloadJson { get; set; } = string.Empty;
+    public OutboxMessageStatus Status { get; set; }
+    public DateTime AvailableAtUtc { get; set; }
+    public int AttemptCount { get; set; }
+    public string? LockToken { get; set; }
+    public DateTime? LockedUntilUtc { get; set; }
+    public DateTime? ProcessedAtUtc { get; set; }
+    public string? DeadLetterReason { get; set; }
+    public string? CorrelationId { get; set; }
+    public string? IdempotencyKey { get; set; }
+    /// <summary>
+    /// Gets or sets the SQL row version. The immediate RSVP path and the timer processor can both
+    /// touch a row; a stale write fails as a concurrency conflict and the loser skips its settle.
+    /// </summary>
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+}
 /// <summary>Represents a logical notification message.</summary>
 public class NotificationMessage : BaseEntity { public Guid? OutboxMessageId { get; set; } public Guid? AlertInstanceId { get; set; } public Guid? SessionId { get; set; } public string TemplateKey { get; set; } = string.Empty; public NotificationChannel Channel { get; set; } public string? Subject { get; set; } public string PayloadJson { get; set; } = string.Empty; public NotificationStatus Status { get; set; } public DateTime? ScheduledForUtc { get; set; } public int Priority { get; set; } public string? IdempotencyKey { get; set; } }
 /// <summary>Represents a snapshotted notification recipient.</summary>
@@ -19,8 +37,6 @@ public class AlertInstance : BaseEntity { public Guid AlertRuleId { get; set; } 
 public class AuditLogEntry : BaseEntity { public AuditActorType ActorType { get; set; } public string? ActorId { get; set; } public Guid? ActorPlayerProfileId { get; set; } public string Action { get; set; } = string.Empty; public string? EntityName { get; set; } public Guid? EntityId { get; set; } public string? DetailsJson { get; set; } public DateTime OccurredAtUtc { get; set; } }
 /// <summary>Represents a stored idempotency key for replayable HTTP commands.</summary>
 public class IdempotencyKey : BaseEntity { public Guid? IdentityUserId { get; set; } public Guid? PlayerProfileId { get; set; } public string OperationName { get; set; } = string.Empty; public string Key { get; set; } = string.Empty; public string RequestHash { get; set; } = string.Empty; public int? ResponseStatusCode { get; set; } public string? ResponseBodyHash { get; set; } public string? ResponseBodyJson { get; set; } public DateTime? CompletedAtUtc { get; set; } public DateTime ExpiresAtUtc { get; set; } }
-/// <summary>Represents a WhatsApp one-time sign-in challenge.</summary>
-public class WhatsAppSignInChallenge : BaseEntity { public Guid? PlayerProfileId { get; set; } public string ChallengeId { get; set; } = string.Empty; public string ChallengeTokenHash { get; set; } = string.Empty; public string? PhoneNumberHash { get; set; } public string? MaskedPhoneNumber { get; set; } public string CallbackUriHash { get; set; } = string.Empty; public DateTime ExpiresAtUtc { get; set; } public DateTime? ConsumedAtUtc { get; set; } }
 /// <summary>Represents a hashed refresh token and its rotation family.</summary>
 public class RefreshToken : BaseEntity
 {

@@ -39,7 +39,7 @@
       <Extensions>
         <uap:Extension Category="windows.protocol">
           <uap:Protocol Name="southbaysoccer">
-            <uap:DisplayName>SouthBaySoccer sign in</uap:DisplayName>
+            <uap:DisplayName>N9ja Bay sign in</uap:DisplayName>
           </uap:Protocol>
         </uap:Extension>
       </Extensions>

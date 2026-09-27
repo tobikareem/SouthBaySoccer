@@ -1,5 +1,6 @@
 using SouthBaySoccer.Application.Abstractions.Authentication;
 using SouthBaySoccer.Application.Common;
+using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 
@@ -44,11 +45,32 @@ public sealed class GetSessionRosterQueryHandler(
         var localWaitlist = await rsvpRepository.ListActiveWaitlistRosterAsync(session.Id, cancellationToken);
         var imported = await gameRepository.ListParticipantsAsync(session.Id, cancellationToken);
 
+        // A player who RSVP'd in-app can also arrive as an imported participant linked to the same
+        // profile; the local entry wins so nobody is listed twice.
+        var localProfileIds = localGoing.Select(member => member.PlayerProfileId)
+            .Concat(localWaitlist.Select(member => member.PlayerProfileId))
+            .ToHashSet();
+        var dedupedImported = imported
+            .Where(participant => participant.PlayerProfileId is not { } linkedId || !localProfileIds.Contains(linkedId))
+            .ToArray();
+
+        // Once a participant is linked, the profile is the identity: the roster shows the player's
+        // registered name, not the WhatsApp handle the import captured.
+        var linkedProfileIds = dedupedImported
+            .Where(participant => participant.PlayerProfileId is not null)
+            .Select(participant => participant.PlayerProfileId!.Value)
+            .Distinct()
+            .ToArray();
+        var linkedProfiles = linkedProfileIds.Length == 0
+            ? new Dictionary<Guid, PlayerProfile>()
+            : (await playerProfileRepository.ListProfilesAsync(linkedProfileIds, cancellationToken))
+                .ToDictionary(profile => profile.Id);
+
         var going = localGoing
             .Select(member => ToModel(member, currentProfileId))
-            .Concat(imported
+            .Concat(dedupedImported
                 .Where(participant => !participant.IsWaitlist)
-                .Select(ToImportedModel))
+                .Select(participant => ToImportedModel(participant, currentProfileId, linkedProfiles)))
             .ToArray();
 
         // Waitlist numbering is display-only: the local waitlist keeps its true promotion order and
@@ -57,9 +79,9 @@ public sealed class GetSessionRosterQueryHandler(
         var waitlistPosition = 0;
         var waitlist = localWaitlist
             .Select(member => ToModel(member, currentProfileId))
-            .Concat(imported
+            .Concat(dedupedImported
                 .Where(participant => participant.IsWaitlist)
-                .Select(ToImportedModel))
+                .Select(participant => ToImportedModel(participant, currentProfileId, linkedProfiles)))
             .Select(member => member with { WaitlistPosition = ++waitlistPosition })
             .ToArray();
 
@@ -86,14 +108,24 @@ public sealed class GetSessionRosterQueryHandler(
             IsCurrentPlayer: currentProfileId == member.PlayerProfileId,
             member.WaitlistPosition);
 
-    // Imported participants have no player profile. Their stable row id is surfaced as the roster
-    // entry id so multiple imported guests don't collapse onto one shared key on the client.
-    private static RosterMemberModel ToImportedModel(PickupPalGameParticipant participant) =>
-        new(
-            participant.Id,
-            participant.DisplayName,
-            string.Empty,
+    // An imported participant surfaces its linked player profile when the import resolved one;
+    // unlinked participants fall back to their stable row id so multiple imported guests don't
+    // collapse onto one shared key on the client. A linked row is named after its profile, falling
+    // back to the imported name when that profile has none.
+    private static RosterMemberModel ToImportedModel(
+        PickupPalGameParticipant participant,
+        Guid? currentProfileId,
+        IReadOnlyDictionary<Guid, PlayerProfile> linkedProfiles)
+    {
+        var profile = participant.PlayerProfileId is { } profileId
+            ? linkedProfiles.GetValueOrDefault(profileId)
+            : null;
+        return new RosterMemberModel(
+            participant.PlayerProfileId ?? participant.Id,
+            string.IsNullOrWhiteSpace(profile?.DisplayName) ? participant.DisplayName : profile.DisplayName,
+            profile?.PreferredPosition ?? string.Empty,
             participant.IsGuest,
-            IsCurrentPlayer: false,
+            IsCurrentPlayer: participant.PlayerProfileId is { } linkedId && currentProfileId == linkedId,
             WaitlistPosition: null);
+    }
 }

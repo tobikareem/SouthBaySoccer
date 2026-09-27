@@ -40,13 +40,16 @@ public sealed record ManagedSessionDto(
     string Format,
     int Capacity,
     string StatusLabel,
-    bool IsCanceled = false);
+    bool IsCanceled = false,
+    Guid? GroupChatId = null,
+    string? GroupName = null);
 
 /// <summary>Editable session details loaded into the admin create/update form.</summary>
 public sealed record ManagedSessionEditDto(
     Guid SessionId,
     CreateSessionCommand Command,
-    bool IsPublished);
+    bool IsPublished,
+    string? GroupName = null);
 
 /// <summary>
 /// Command carrying the admin-entered, venue-local session details for create/publish. The backend
@@ -59,7 +62,9 @@ public sealed record ManagedSessionEditDto(
 /// explicitly — rather than always re-deriving the date from <see cref="GameDateLocal"/> — lets an
 /// edit round-trip preserve a deadline set the evening before the game instead of silently coercing it
 /// onto game day. All three default to 0 (same day as the game), which covers the common case and
-/// keeps existing callers source-compatible.
+/// keeps existing callers source-compatible. <see cref="GroupChatId"/> selects the WhatsApp group
+/// whose Pickup Pal game mirrors the session; when omitted the backend uses the acting admin's only
+/// linked group, if they have exactly one, and otherwise keeps the session app-only.
 /// </remarks>
 public sealed record CreateSessionCommand(
     DateTime GameDateLocal,
@@ -74,7 +79,8 @@ public sealed record CreateSessionCommand(
     TimeSpan? RsvpDeadlineLocal = null,
     int CheckInOpenDayOffset = 0,
     int CheckInCloseDayOffset = 0,
-    int RsvpDeadlineDayOffset = 0);
+    int RsvpDeadlineDayOffset = 0,
+    Guid? GroupChatId = null);
 
 /// <summary>
 /// Result of a create-draft or publish operation. Mirrors <c>ClientCommandResult</c> but also carries

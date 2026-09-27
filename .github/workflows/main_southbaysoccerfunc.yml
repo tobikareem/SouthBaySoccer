@@ -1,52 +1,117 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/azure/functions-action
-# More GitHub Actions for Azure: https://github.com/Azure/actions
+# Controlled Azure Functions production release for N9ja Bay.
+#
+# Required GitHub environment: azure-production
+# Recommended environment protection: release/azure only, with a required reviewer.
+#
+# Required secrets:
+#   AZUREAPPSERVICE_CLIENTID_62D0DC8C01BF41908CB05DCAFAF3CF98
+#   AZUREAPPSERVICE_TENANTID_AEB21ED7D78B470DBB5D197EBF879290
+#   AZUREAPPSERVICE_SUBSCRIPTIONID_B9A074AFD32E48828B7CC7E164A67A16
+#   AZURE_SQL_MIGRATION_CONNECTION_STRING
+#
+# The SQL secret must represent the deployment/migration identity, not the Function App runtime
+# identity. EF applies only migrations absent from __EFMigrationsHistory, so an up-to-date database
+# is a no-op. The identity must be authorized in Azure SQL, and the runner must have network access
+# through the SQL firewall/private network. Migrations remain outside Function startup to avoid
+# scale-out races. Production migrations in this pipeline must be backward-compatible expand
+# changes; destructive contract migrations require a separate reviewed rollout.
 
-name: Build and deploy dotnet core project to Azure Function App - SouthBaySoccerFunc
+name: Release SouthBaySoccer Functions to Azure
 
 on:
   push:
     branches:
-      - main
+      - release/azure
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: release-azure-production
+  cancel-in-progress: false
+
 env:
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'src/SouthBaySoccer.Functions'
-  AZURE_FUNCTIONAPP_PROJECT: 'src/SouthBaySoccer.Functions/SouthBaySoccer.Functions.csproj'
-  DOTNET_VERSION: '10.0.x' # set this to the dotnet version to use
+  AZURE_FUNCTIONAPP_NAME: SouthBaySoccerFunc
+  AZURE_FUNCTIONAPP_PROJECT: src/SouthBaySoccer.Functions/SouthBaySoccer.Functions.csproj
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: artifacts/functions
+  DOTNET_VERSION: '10.0.302'
+  DOTNET_EF_VERSION: '10.0.10'
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 30
 
     steps:
-      - name: 'Checkout GitHub Action'
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Setup DotNet ${{ env.DOTNET_VERSION }} Environment
-        uses: actions/setup-dotnet@v4
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: 'Resolve Project Dependencies Using Dotnet'
-        shell: bash
-        run: |
-          dotnet publish '${{ env.AZURE_FUNCTIONAPP_PROJECT }}' --configuration Release --output '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
-      
+      - name: Build Azure Functions
+        run: dotnet build "${{ env.AZURE_FUNCTIONAPP_PROJECT }}" --configuration Release
+
+      - name: Test infrastructure migrations
+        run: dotnet test tests/SouthBaySoccer.Infrastructure.Tests/SouthBaySoccer.Infrastructure.Tests.csproj --configuration Release
+
+      - name: Test Azure Functions
+        run: dotnet test tests/SouthBaySoccer.Functions.Tests/SouthBaySoccer.Functions.Tests.csproj --configuration Release
+
+  migrate-and-deploy:
+    needs: validate
+    if: github.ref == 'refs/heads/release/azure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: azure-production
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Publish Azure Functions package
+        run: >
+          dotnet publish "${{ env.AZURE_FUNCTIONAPP_PROJECT }}"
+          --configuration Release
+          --output "${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}"
+
+      - name: Install EF Core migration tool
+        run: dotnet tool install --global dotnet-ef --version "${{ env.DOTNET_EF_VERSION }}"
+
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@1384c340ab2dda50fed2bee3041d1d87018aa5e8 # v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_62D0DC8C01BF41908CB05DCAFAF3CF98 }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_AEB21ED7D78B470DBB5D197EBF879290 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_B9A074AFD32E48828B7CC7E164A67A16 }}
 
-      - name: 'Run Azure Functions Action'
-        uses: Azure/functions-action@v1
-        id: fa
+      - name: Apply pending Azure SQL migrations
+        shell: pwsh
+        env:
+          ConnectionStrings__SouthBaySoccerDb: ${{ secrets.AZURE_SQL_MIGRATION_CONNECTION_STRING }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:ConnectionStrings__SouthBaySoccerDb)) {
+              throw "AZURE_SQL_MIGRATION_CONNECTION_STRING is not configured in the azure-production environment."
+          }
+
+          Write-Host "Applying controlled EF migrations for commit $env:GITHUB_SHA."
+          ./PwScripts/UpdateEfDatabase.ps1 -Target SqlServer
+
+      - name: Deploy Azure Functions
+        id: deploy
+        uses: Azure/functions-action@c9cc8ee93d1285e2a17312cc8357dc1775955272 # v1
         with:
-          app-name: 'SouthBaySoccerFunc'
-          slot-name: 'Production'
-          package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
-          
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          slot-name: Production
+          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}

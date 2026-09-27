@@ -41,6 +41,90 @@ public sealed class GetSessionRosterQueryHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenImportedParticipantIsLinkedToProfile_SurfacesProfileAndDedupes()
+    {
+        var linkedProfileId = Guid.NewGuid();
+        var handler = CreateHandler(
+            localGoing: [new RosterMemberRecord(CurrentProfileId, "Tobi Kareem", "Midfielder", false, null)],
+            localWaitlist: [],
+            imported:
+            [
+                // Same person as the local RSVP — linked to the same profile; must not show twice.
+                Participant(Guid.NewGuid(), "Tobi K", isWaitlist: false, order: 0, playerProfileId: CurrentProfileId),
+                Participant(Guid.NewGuid(), "Mark A", isWaitlist: false, order: 1, playerProfileId: linkedProfileId),
+            ]);
+
+        var roster = await handler.HandleAsync(SessionId);
+
+        roster.Going.Select(member => member.DisplayName).Should().Equal("Tobi Kareem", "Mark A");
+        roster.Going[1].PlayerProfileId.Should().Be(
+            linkedProfileId, "a linked imported participant surfaces its player profile id");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenCurrentPlayerOnlyAppearsAsImportedParticipant_MarksCurrentPlayer()
+    {
+        var handler = CreateHandler(
+            localGoing: [],
+            localWaitlist: [],
+            imported:
+            [
+                Participant(Guid.NewGuid(), "Tobi K", isWaitlist: false, order: 0, playerProfileId: CurrentProfileId),
+            ]);
+
+        var roster = await handler.HandleAsync(SessionId);
+
+        roster.Going.Should().ContainSingle().Which.IsCurrentPlayer.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenImportedParticipantIsLinked_UsesProfileDisplayName()
+    {
+        var linkedProfileId = Guid.NewGuid();
+        var handler = CreateHandler(
+            localGoing: [],
+            localWaitlist: [],
+            imported:
+            [
+                // Imported under a WhatsApp handle, later matched to a real profile by an admin.
+                Participant(Guid.NewGuid(), "tob8", isWaitlist: true, order: 0, playerProfileId: linkedProfileId),
+            ],
+            linkedProfiles:
+            [
+                new PlayerProfile
+                {
+                    Id = linkedProfileId,
+                    DisplayName = "Tobi Kareem",
+                    PreferredPosition = "Midfielder",
+                },
+            ]);
+
+        var roster = await handler.HandleAsync(SessionId);
+
+        var member = roster.Waitlist.Should().ContainSingle().Subject;
+        member.DisplayName.Should().Be("Tobi Kareem");
+        member.PreferredPosition.Should().Be("Midfielder");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenLinkedProfileHasNoDisplayName_KeepsImportedName()
+    {
+        var linkedProfileId = Guid.NewGuid();
+        var handler = CreateHandler(
+            localGoing: [],
+            localWaitlist: [],
+            imported:
+            [
+                Participant(Guid.NewGuid(), "tob8", isWaitlist: false, order: 0, playerProfileId: linkedProfileId),
+            ],
+            linkedProfiles: [new PlayerProfile { Id = linkedProfileId, DisplayName = " " }]);
+
+        var roster = await handler.HandleAsync(SessionId);
+
+        roster.Going.Should().ContainSingle().Which.DisplayName.Should().Be("tob8");
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenSessionUnknown_ThrowsNotFound()
     {
         var handler = CreateHandler([], [], [], sessionExists: false);
@@ -69,12 +153,14 @@ public sealed class GetSessionRosterQueryHandlerTests
         string displayName,
         bool isWaitlist,
         int order,
-        bool isGuest = false) =>
+        bool isGuest = false,
+        Guid? playerProfileId = null) =>
         new()
         {
             Id = id,
             SessionId = SessionId,
             PickupPalParticipantId = $"p-{order}",
+            PlayerProfileId = playerProfileId,
             DisplayName = displayName,
             IsGuest = isGuest,
             IsWaitlist = isWaitlist,
@@ -86,7 +172,8 @@ public sealed class GetSessionRosterQueryHandlerTests
         IReadOnlyList<RosterMemberRecord> localWaitlist,
         IReadOnlyList<PickupPalGameParticipant> imported,
         bool sessionExists = true,
-        bool authenticated = true)
+        bool authenticated = true,
+        IReadOnlyList<PlayerProfile>? linkedProfiles = null)
     {
         var sessionRepository = new Mock<ISessionRepository>();
         sessionRepository
@@ -110,6 +197,10 @@ public sealed class GetSessionRosterQueryHandlerTests
         profileRepository
             .Setup(x => x.FindByIdentityUserIdAsync(CurrentUserId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PlayerProfile { Id = CurrentProfileId, DisplayName = "Tobi Kareem" });
+        profileRepository
+            .Setup(x => x.ListProfilesAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyCollection<Guid> ids, CancellationToken _) =>
+                (linkedProfiles ?? []).Where(profile => ids.Contains(profile.Id)).ToArray());
 
         var currentUser = new Mock<ICurrentUser>();
         currentUser.SetupGet(x => x.UserId).Returns(authenticated ? CurrentUserId : null);

@@ -13,14 +13,85 @@ public interface IPlayerProfileRepository : IRepository<PlayerProfile>
     Task<PlayerProfile?> FindByIdentityUserIdAsync(Guid identityUserId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Finds a profile by its linked Pickup Pal user id.
+    /// </summary>
+    Task<PlayerProfile?> FindByPickupPalUserIdAsync(string pickupPalUserId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Finds a profile by its phone number hash.
+    /// </summary>
+    Task<PlayerProfile?> FindByPhoneNumberHashAsync(string phoneNumberHash, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Finds a profile by its WhatsApp identity hash.
+    /// </summary>
+    Task<PlayerProfile?> FindByWhatsAppJidHashAsync(string whatsAppJidHash, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Finds a profile by id, including guest profiles.
     /// </summary>
     Task<PlayerProfile?> FindProfileAsync(Guid playerProfileId, CancellationToken cancellationToken = default);
 
+    /// <summary>Lists a bounded set of profiles by id for server-side projections.</summary>
+    Task<IReadOnlyList<PlayerProfile>> ListProfilesAsync(
+        IReadOnlyCollection<Guid> playerProfileIds,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Lists active player profiles for the public player directory.
     /// </summary>
+    /// <summary>
+    /// Finds a profile by normalized display name, but only when the name is unambiguous. Returns
+    /// null when nobody or more than one person matches, so a shared nickname never silently links
+    /// two different players together.
+    /// </summary>
+    Task<PlayerProfile?> FindSingleByNormalizedDisplayNameAsync(
+        string normalizedDisplayName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the profiles carrying the given Pickup Pal user ids in one query.
+    /// </summary>
+    Task<IReadOnlyList<PlayerProfile>> ListByPickupPalUserIdsAsync(
+        IReadOnlyCollection<string> pickupPalUserIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the profiles carrying the given phone-number hashes in one query, oldest first, so a
+    /// caller resolving a hash to one profile picks the same row the single-hash lookup would.
+    /// </summary>
+    Task<IReadOnlyList<PlayerProfile>> ListByPhoneNumberHashesAsync(
+        IReadOnlyCollection<string> phoneNumberHashes,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the profiles carrying the given WhatsApp JID hashes in one query, oldest first, so a
+    /// caller resolving a hash to one profile picks the same row the single-hash lookup would.
+    /// </summary>
+    Task<IReadOnlyList<PlayerProfile>> ListByWhatsAppJidHashesAsync(
+        IReadOnlyCollection<string> whatsAppJidHashes,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the profiles carrying the given normalized display names in one query, oldest first.
+    /// Callers must apply the same ambiguity rule as
+    /// <see cref="FindSingleByNormalizedDisplayNameAsync"/>: a name matching more than one profile
+    /// resolves to nobody, so a shared nickname never links two different players.
+    /// </summary>
+    Task<IReadOnlyList<PlayerProfile>> ListByNormalizedDisplayNamesAsync(
+        IReadOnlyCollection<string> normalizedDisplayNames,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<PlayerDirectoryReadModel>> ListDirectoryAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists up to <paramref name="take"/> profiles whose display name contains the fragment,
+    /// by name. The fragment is a name only; callers must never pass phone numbers or emails.
+    /// </summary>
+    Task<IReadOnlyList<PlayerProfile>> SearchByDisplayNameAsync(
+        string normalizedFragment,
+        int take,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Finds the active emergency contact for a profile.

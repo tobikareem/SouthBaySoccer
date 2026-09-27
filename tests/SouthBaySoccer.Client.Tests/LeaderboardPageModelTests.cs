@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Xml.Linq;
 using FluentAssertions;
 using Moq;
+using SouthBaySoccer.Contracts.Groups;
 using SouthBaySoccer.Contracts.Leaderboards;
 using SouthBaySoccer.Contracts.Players;
 using SouthBaySoccer.Controls;
@@ -21,6 +22,7 @@ public class LeaderboardPageModelTests
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
         pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsEmpty.Should().BeFalse();
         pageModel.Season.Should().Be("Season 2026");
         pageModel.Metrics.Select(metric => metric.Label)
             .Should().Equal("Goals", "Assists", "Rating", "MVP");
@@ -31,6 +33,21 @@ public class LeaderboardPageModelTests
         pageModel.Rankings[0].RankFontFamily.Should().Be("FontAwesomeSolid");
         pageModel.Rankings[1].RankFontFamily.Should().Be("InterSemibold");
         pageModel.Note.Should().Contain("ties use fewer appearances");
+    }
+
+    [Fact]
+    public async Task Appearing_LeaderboardRows_ShowRankPositionAndAppearancesCleanly()
+    {
+        var pageModel = CreatePageModel();
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.Rankings.Count.Should().BeLessThanOrEqualTo(5, "each metric shows only its top 5");
+        pageModel.Rankings[0].Detail.Should().NotContainAny("1st", "2nd", "3rd",
+            "the rank is already shown as the numbered leading indicator, so it is not repeated as an ordinal");
+        pageModel.Rankings[0].Detail.Should().MatchRegex(@"\b\d+ apps?$", "and ends with the appearance count");
+        pageModel.Rankings.Should().OnlyContain(row => !row.Detail.Contains("Â"),
+            "the middle-dot separator must not be mojibake");
     }
 
     [Theory]
@@ -49,6 +66,7 @@ public class LeaderboardPageModelTests
             client.Setup(service => service.GetRankingAsync(
                     SeedFixtures.Season2026Id,
                     metric,
+                    It.IsAny<Guid?>(),
                     It.IsAny<CancellationToken>()))
                 .ReturnsAsync(SeedFixtures.Leaderboards[metric]);
         }
@@ -62,7 +80,45 @@ public class LeaderboardPageModelTests
         client.Verify(service => service.GetRankingAsync(
             SeedFixtures.Season2026Id,
             expectedMetric,
+            It.IsAny<Guid?>(),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Appearing_WhenPlayerHasNoLinkedGroups_DefaultsToAllAndHidesFilter()
+    {
+        var groups = new Mock<IGroupsClient>();
+        groups.Setup(service => service.GetMyGroupsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MyGroupsResponse(IsLinked: true, []));
+        var pageModel = CreatePageModel(groupsClient: groups);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+
+        pageModel.SelectedGroup.Should().Be(LeaderboardGroupOption.All);
+        pageModel.HasGroups.Should().BeFalse("only the 'All' option exists, so the filter stays hidden");
+    }
+
+    [Fact]
+    public async Task Appearing_DefaultsToPrimaryGroup_AndSwitchingGroupReloadsWithGroupId()
+    {
+        var groupId = Guid.NewGuid();
+        var groups = new Mock<IGroupsClient>();
+        groups.Setup(service => service.GetMyGroupsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MyGroupsResponse(
+                IsLinked: true,
+                [new GroupChatDto(groupId, "ext@g.us", "Bay Area Soccer", 349, IsLinked: true, IsPrimary: true)]));
+        var client = SeedLeaderboardClient();
+        var pageModel = CreatePageModel(client: client, groupsClient: groups);
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        pageModel.SelectedGroup!.Id.Should().Be(groupId, "the leaderboard defaults to the player's primary group");
+
+        pageModel.SelectedGroup = LeaderboardGroupOption.All;
+
+        client.Verify(service => service.GetRankingAsync(
+            It.IsAny<Guid>(), It.IsAny<LeaderboardMetric>(), groupId, It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+        client.Verify(service => service.GetRankingAsync(
+            It.IsAny<Guid>(), It.IsAny<LeaderboardMetric>(), (Guid?)null, It.IsAny<CancellationToken>()), Times.AtLeastOnce);
     }
 
     [Fact]
@@ -79,12 +135,13 @@ public class LeaderboardPageModelTests
     }
 
     [Fact]
-    public async Task Appearing_EmptyRanking_ShowsEmptyState()
+    public async Task Appearing_EmptyRanking_StaysInContentWithInlinePlaceholder()
     {
         var client = new Mock<ILeaderboardClient>();
         client.Setup(service => service.GetRankingAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<LeaderboardMetric>(),
+                It.IsAny<Guid?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new LeaderboardDto(
                 SeedFixtures.Season2026Id,
@@ -96,8 +153,10 @@ public class LeaderboardPageModelTests
 
         await pageModel.AppearingCommand.ExecuteAsync(null);
 
-        pageModel.State.Should().Be(ViewState.Empty);
-        pageModel.StateTitle.Should().Be(LeaderboardPageModel.EmptyTitle);
+        // Content, not a full-screen empty state: the metric tabs must stay visible (wireframe)
+        // with the inline "no rankings yet" placeholder shown under them.
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsEmpty.Should().BeTrue();
         pageModel.Rankings.Should().BeEmpty();
     }
 
@@ -108,6 +167,7 @@ public class LeaderboardPageModelTests
         client.Setup(service => service.GetRankingAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<LeaderboardMetric>(),
+                It.IsAny<Guid?>(),
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException());
         var pageModel = CreatePageModel(client: client);
@@ -125,6 +185,7 @@ public class LeaderboardPageModelTests
         client.Setup(service => service.GetRankingAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<LeaderboardMetric>(),
+                It.IsAny<Guid?>(),
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException());
         var pageModel = CreatePageModel(client: client);
@@ -147,9 +208,11 @@ public class LeaderboardPageModelTests
             Attribute(element, "Style") == "{StaticResource TextH1}");
         page.Descendants().Should().Contain(element =>
             element.Name.LocalName == "Badge" &&
-            Attribute(element, "Text") == "{Binding Season}" &&
-            Attribute(element, "Glyph") != null &&
-            Attribute(element, "Glyph")!.Contains("FontAwesomeGlyphs.ChevronRight"));
+            Attribute(element, "Text") == "{Binding Season}");
+        // The season chevron badge is now a group filter: a Picker bound to the player's groups.
+        page.Descendants().Should().Contain(element =>
+            element.Name.LocalName == "Picker" &&
+            Attribute(element, "SelectedItem") == "{Binding SelectedGroup, Mode=TwoWay}");
         page.Descendants().Should().Contain(element => element.Name.LocalName == "SegmentedControl");
         page.Descendants().Should().Contain(element => element.Name.LocalName == "PlayerRow");
         page.Descendants().Should().Contain(element =>
@@ -162,13 +225,35 @@ public class LeaderboardPageModelTests
         page.ToString().Should().NotContain("#");
     }
 
+    [Fact]
+    public async Task Refresh_ReloadsRankingAndClearsIsRefreshing()
+    {
+        var pageModel = CreatePageModel();
+
+        await pageModel.AppearingCommand.ExecuteAsync(null);
+        await pageModel.RefreshCommand.ExecuteAsync(null);
+
+        pageModel.State.Should().Be(ViewState.Content);
+        pageModel.IsRefreshing.Should().BeFalse("the pull spinner must clear when the refresh completes");
+    }
+
     private static LeaderboardPageModel CreatePageModel(
         Mock<ILeaderboardClient>? client = null,
-        Mock<ILeaderboardNavigator>? navigator = null) =>
+        Mock<ILeaderboardNavigator>? navigator = null,
+        Mock<IGroupsClient>? groupsClient = null) =>
         new(
             (client ?? SeedLeaderboardClient()).Object,
+            (groupsClient ?? GroupsClient()).Object,
             (navigator ?? Navigator()).Object,
             new LeaderboardOptions { SeasonId = SeedFixtures.Season2026Id });
+
+    private static Mock<IGroupsClient> GroupsClient()
+    {
+        var client = new Mock<IGroupsClient>();
+        client.Setup(service => service.GetMyGroupsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MyGroupsResponse(IsLinked: true, []));
+        return client;
+    }
 
     private static Mock<ILeaderboardClient> SeedLeaderboardClient()
     {
@@ -178,6 +263,7 @@ public class LeaderboardPageModelTests
             client.Setup(service => service.GetRankingAsync(
                     SeedFixtures.Season2026Id,
                     metric,
+                    It.IsAny<Guid?>(),
                     It.IsAny<CancellationToken>()))
                 .ReturnsAsync(SeedFixtures.Leaderboards[metric]);
         }

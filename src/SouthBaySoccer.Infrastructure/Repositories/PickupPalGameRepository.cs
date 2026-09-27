@@ -13,6 +13,24 @@ internal sealed class PickupPalGameRepository(SouthBaySoccerDbContext dbContext)
         dbContext.Set<PickupPalGameSnapshot>()
             .SingleOrDefaultAsync(x => x.PickupPalGameId == pickupPalGameId, cancellationToken);
 
+    public async Task<IReadOnlyList<PickupPalGameSnapshot>> ListSnapshotsByGameIdsAsync(
+        IReadOnlyCollection<string> pickupPalGameIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (pickupPalGameIds.Count == 0)
+        {
+            return [];
+        }
+
+        // Ordered so that a game id with more than one snapshot row resolves deterministically to
+        // the oldest; the single-id lookup used SingleOrDefault and simply threw on duplicates.
+        var idArray = pickupPalGameIds as string[] ?? pickupPalGameIds.ToArray();
+        return await dbContext.Set<PickupPalGameSnapshot>()
+            .Where(x => idArray.Contains(x.PickupPalGameId))
+            .OrderBy(x => x.CreatedAt)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task AddSnapshotAsync(
         PickupPalGameSnapshot snapshot,
         CancellationToken cancellationToken = default) =>
@@ -39,6 +57,11 @@ internal sealed class PickupPalGameRepository(SouthBaySoccerDbContext dbContext)
             incomingParticipantIds.Add(participant.PickupPalParticipantId);
             if (existingByParticipantId.TryGetValue(participant.PickupPalParticipantId, out var row))
             {
+                // An import never unlinks a row. A participant carrying no identity key resolves to
+                // null on every pass, so assigning it straight across wiped the link an admin made
+                // through Match (or a player made through claim) the next time anyone opened Sessions
+                // or Game Day. Import evidence (user id / phone hash) still wins when it resolves.
+                row.PlayerProfileId = participant.PlayerProfileId ?? row.PlayerProfileId;
                 row.DisplayName = participant.DisplayName;
                 row.IsGuest = participant.IsGuest;
                 row.IsWaitlist = participant.IsWaitlist;
@@ -67,4 +90,44 @@ internal sealed class PickupPalGameRepository(SouthBaySoccerDbContext dbContext)
             .Where(x => x.SessionId == sessionId)
             .OrderBy(x => x.DisplayOrder)
             .ToArrayAsync(cancellationToken);
+
+    public Task<PickupPalGameParticipant?> FindParticipantAsync(
+        Guid participantId,
+        CancellationToken cancellationToken = default) =>
+        dbContext.Set<PickupPalGameParticipant>()
+            .SingleOrDefaultAsync(x => x.Id == participantId, cancellationToken);
+
+    public void UpdateParticipant(PickupPalGameParticipant participant) =>
+        dbContext.Set<PickupPalGameParticipant>().Update(participant);
+
+    public async Task<int> ReassignParticipantLinksAsync(
+        Guid sourcePlayerProfileId,
+        Guid targetPlayerProfileId,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await dbContext.Set<PickupPalGameParticipant>()
+            .Where(x => x.PlayerProfileId == sourcePlayerProfileId)
+            .ToArrayAsync(cancellationToken);
+        foreach (var row in rows)
+        {
+            row.PlayerProfileId = targetPlayerProfileId;
+        }
+
+        return rows.Length;
+    }
+
+    public async Task<IReadOnlyList<PickupPalGameParticipant>> ListLinkedParticipantsByDisplayNamesAsync(
+        IReadOnlyCollection<string> displayNames,
+        CancellationToken cancellationToken = default)
+    {
+        if (displayNames.Count == 0)
+        {
+            return [];
+        }
+
+        var nameArray = displayNames as string[] ?? displayNames.ToArray();
+        return await dbContext.Set<PickupPalGameParticipant>()
+            .Where(x => x.PlayerProfileId != null && nameArray.Contains(x.DisplayName))
+            .ToArrayAsync(cancellationToken);
+    }
 }

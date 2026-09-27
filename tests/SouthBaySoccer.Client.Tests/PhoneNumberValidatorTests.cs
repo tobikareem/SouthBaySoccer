@@ -8,6 +8,11 @@ public class PhoneNumberValidatorTests
     [Theory]
     [InlineData("+1 (516) 344-7233", "+15163447233")]
     [InlineData("+44 20 7946 0958", "+442079460958")]
+    // 10-digit US numbers typed without the country code get "1" prepended so the Pickup Pal
+    // lookup (keyed by "1XXXXXXXXXX") still matches.
+    [InlineData("5163447233", "+15163447233")]
+    [InlineData("(516) 344-7233", "+15163447233")]
+    [InlineData("15163447233", "+15163447233")]
     public void TryNormalize_ValidInternationalNumber_ReturnsE164Digits(
         string input,
         string expected)

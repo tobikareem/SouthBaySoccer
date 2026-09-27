@@ -26,9 +26,42 @@ public class Session : BaseEntity
     public string? OccurrenceKey { get; set; }
     public SessionStatus Status { get; set; }
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
+    /// <summary>Gets or sets the WhatsApp group chat this session belongs to, or null for an app-only session.</summary>
+    public Guid? GroupChatId { get; set; }
+
+    /// <summary>Gets or sets who created the Pickup Pal game this session mirrors, if any.</summary>
+    public PickupPalOrigin PickupPalOrigin { get; set; } = PickupPalOrigin.None;
+
+    /// <summary>
+    /// Gets or sets the Pickup Pal game id. This is the game link; <see cref="OccurrenceKey"/> only
+    /// mirrors it (<c>pickuppal:{gameId}</c>) when the session has no other occurrence key.
+    /// </summary>
+    public string? PickupPalGameId { get; set; }
+
+    /// <summary>Gets or sets whether the Pickup Pal game reflects the local session (create, update, or terminate).</summary>
+    public PickupPalSyncStatus PickupPalSyncStatus { get; set; } = PickupPalSyncStatus.NotApplicable;
+
+    /// <summary>Gets or sets when the Pickup Pal game last matched the local session (UTC).</summary>
+    public DateTime? PickupPalSyncedAtUtc { get; set; }
+
+    /// <summary>Gets or sets the safe error code of the last failed or pending push. Never a Pickup Pal payload.</summary>
+    public string? PickupPalSyncError { get; set; }
 }
 /// <summary>Represents explicit attendance intent for a session.</summary>
-public class RsvpResponse : BaseEntity { public Guid SessionId { get; set; } public Guid PlayerProfileId { get; set; } public RsvpStatus Status { get; set; } public byte[] RowVersion { get; set; } = Array.Empty<byte>(); }
+public class RsvpResponse : BaseEntity
+{
+    public Guid SessionId { get; set; }
+    public Guid PlayerProfileId { get; set; }
+    public RsvpStatus Status { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+    /// <summary>Gets or sets whether this RSVP has been mirrored onto the Pickup Pal roster of an imported game.</summary>
+    public PickupPalSyncStatus PickupPalSyncStatus { get; set; } = PickupPalSyncStatus.NotApplicable;
+    /// <summary>Gets or sets when the Pickup Pal roster last matched this RSVP (UTC).</summary>
+    public DateTime? PickupPalSyncedAtUtc { get; set; }
+    /// <summary>Gets or sets the safe error code of the last failed or pending push. Never a Pickup Pal payload.</summary>
+    public string? PickupPalSyncError { get; set; }
+}
 /// <summary>Represents ordered waitlist state for a full session.</summary>
 public class WaitlistEntry : BaseEntity { public Guid SessionId { get; set; } public Guid PlayerProfileId { get; set; } public int Position { get; set; } public WaitlistEntryStatus Status { get; set; } }
 /// <summary>Represents actual session check-in.</summary>

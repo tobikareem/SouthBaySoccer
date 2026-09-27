@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <title>N9ja Bay — South Bay Pitch app icon</title>
+  <rect width="512" height="512" fill="#FFFFFF"/>
+  <defs>
+    <clipPath id="pitch-clip">
+      <circle cx="256" cy="256" r="166"/>
+    </clipPath>
+  </defs>
+
+  <circle cx="256" cy="256" r="166" fill="#008751"/>
+  <rect x="217" y="90" width="78" height="332" fill="#FFFFFF" clip-path="url(#pitch-clip)"/>
+  <circle cx="256" cy="256" r="148" fill="none" stroke="#FFFFFF" stroke-width="11"/>
+  <line x1="256" y1="108" x2="256" y2="404" stroke="#008751" stroke-width="9"/>
+  <path d="M108 200 H163 V312 H108" fill="none" stroke="#FFFFFF" stroke-width="11"/>
+  <path d="M404 200 H349 V312 H404" fill="none" stroke="#FFFFFF" stroke-width="11"/>
+  <circle cx="256" cy="256" r="47" fill="#FFFFFF" stroke="#008751" stroke-width="9"/>
+
+  <circle cx="256" cy="256" r="27" fill="#FFFFFF" stroke="#008751" stroke-width="6"/>
+  <path d="M256 239 L268 248 L264 263 L248 263 L244 248 Z" fill="#008751"/>
+  <path d="M256 239 L256 229 M268 248 L278 245 M264 263 L271 273 M248 263 L241 273 M244 248 L234 245"
+        fill="none" stroke="#008751" stroke-width="5" stroke-linecap="round"/>
+</svg>

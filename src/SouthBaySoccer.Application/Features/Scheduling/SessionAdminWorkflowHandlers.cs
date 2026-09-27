@@ -94,7 +94,8 @@ public sealed class GetCreateSessionAdminDefaultsQueryHandler(
 public sealed class ListManagedSessionsQueryHandler(
     IClock clock,
     ISessionRepository sessionRepository,
-    IVenueRepository venueRepository)
+    IVenueRepository venueRepository,
+    IGroupChatRepository groupChatRepository)
 {
     public async Task<IReadOnlyList<ManagedSessionModel>> HandleAsync(
         int take = 50,
@@ -103,6 +104,9 @@ public sealed class ListManagedSessionsQueryHandler(
         var sessions = await sessionRepository.ListManagedAsync(clock.UtcNow, Math.Clamp(take, 1, 100), cancellationToken);
         var venues = await venueRepository.ListActiveAsync(cancellationToken);
         var venueNames = venues.ToDictionary(x => x.Id, x => x.Name);
+        var groupIds = sessions.Select(x => x.GroupChatId).OfType<Guid>().Distinct().ToArray();
+        var groupNames = (await groupChatRepository.ListByIdsAsync(groupIds, cancellationToken))
+            .ToDictionary(x => x.Id, x => x.GroupName);
 
         return sessions
             .Select(session => new ManagedSessionModel(
@@ -112,14 +116,17 @@ public sealed class ListManagedSessionsQueryHandler(
                 venueNames.TryGetValue(session.VenueId, out var venueName) ? venueName : "Unknown venue",
                 session.Format,
                 session.Capacity,
-                session.Status.ToString()))
+                session.Status.ToString(),
+                session.GroupChatId,
+                session.GroupChatId is { } groupId ? groupNames.GetValueOrDefault(groupId) : null))
             .ToArray();
     }
 }
 
 public sealed class GetSessionForAdminEditQueryHandler(
     ISessionRepository sessionRepository,
-    IVenueRepository venueRepository)
+    IVenueRepository venueRepository,
+    SessionGroupResolver groupResolver)
 {
     public async Task<ManagedSessionEditModel> HandleAsync(
         Guid sessionId,
@@ -129,6 +136,7 @@ public sealed class GetSessionForAdminEditQueryHandler(
             ?? throw new ApplicationNotFoundException("Session was not found.");
 
         var venue = await venueRepository.GetByIdAsync(session.VenueId, cancellationToken);
+        var group = await groupResolver.FindAsync(session.GroupChatId, cancellationToken);
 
         return new ManagedSessionEditModel(
             session.Id,
@@ -141,7 +149,9 @@ public sealed class GetSessionForAdminEditQueryHandler(
             session.CheckInOpensAtUtc,
             session.CheckInClosesAtUtc,
             session.RsvpDeadlineUtc,
-            session.Status.ToString());
+            session.Status.ToString(),
+            session.GroupChatId,
+            group?.GroupName);
     }
 }
 
@@ -150,6 +160,7 @@ public sealed class CreateSessionDraftCommandHandler(
     ISeasonRepository seasonRepository,
     IVenueRepository venueRepository,
     ISessionRepository sessionRepository,
+    SessionGroupResolver groupResolver,
     IUnitOfWork unitOfWork)
 {
     public async Task<SessionModel> HandleAsync(
@@ -167,6 +178,9 @@ public sealed class CreateSessionDraftCommandHandler(
             createCommand.Title,
             createCommand.StartsAtUtc,
             cancellationToken);
+        // Drafts carry their group from the start so Publish can create the Pickup Pal game
+        // without a second round trip; drafts themselves never push.
+        var group = await groupResolver.ResolveAsync(command.GroupChatId, cancellationToken);
         var session = new Session
         {
             Id = Guid.NewGuid(),
@@ -183,11 +197,12 @@ public sealed class CreateSessionDraftCommandHandler(
             RsvpDeadlineUtc = createCommand.RsvpDeadlineUtc,
             OccurrenceKey = null,
             Status = SessionStatus.Draft,
+            GroupChatId = group?.Id,
         };
 
         await sessionRepository.AddAsync(session, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return SchedulingMappers.ToModel(session);
+        return SchedulingMappers.ToModel(session, group);
     }
 
     internal static CreateSessionCommand ToCreateSessionCommand(
@@ -206,7 +221,8 @@ public sealed class CreateSessionDraftCommandHandler(
             command.CheckInOpensAtUtc,
             command.CheckInClosesAtUtc,
             command.RsvpDeadlineUtc,
-            Status: status);
+            Status: status,
+            GroupChatId: command.GroupChatId);
 
     /// <summary>Derives "&lt;Weekday&gt; pickup" from the session's venue-local start date.</summary>
     private static string WeekdayPickupTitle(DateTime startsAtUtc) =>
@@ -245,6 +261,8 @@ public sealed class UpdateSessionAdminCommandHandler(
     ISeasonRepository seasonRepository,
     IVenueRepository venueRepository,
     ISessionRepository sessionRepository,
+    SessionGroupResolver groupResolver,
+    ISessionPickupPalSyncService pickupPalSyncService,
     IUnitOfWork unitOfWork)
 {
     public async Task<SessionModel> HandleAsync(
@@ -270,12 +288,28 @@ public sealed class UpdateSessionAdminCommandHandler(
                 command.StartsAtUtc,
                 command.CheckInOpensAtUtc,
                 command.CheckInClosesAtUtc,
-                command.RsvpDeadlineUtc),
+                command.RsvpDeadlineUtc,
+                command.GroupChatId),
             season.Id,
             venue.Id,
             session.Status);
 
         await validator.ValidateAndThrowAsync(createCommand, cancellationToken);
+
+        // An explicit group replaces the association; a missing one keeps what the session already
+        // has (the current client never sends it, so a group can never be cleared), and only an
+        // unlinked session falls back to the admin's single group. Once the Pickup Pal game exists
+        // the group is fixed: the game lives in that WhatsApp group.
+        if (command.GroupChatId is { } requestedGroupId
+            && !string.IsNullOrWhiteSpace(session.PickupPalGameId)
+            && requestedGroupId != session.GroupChatId)
+        {
+            throw new ApplicationConflictException("The group cannot change once the Pickup Pal game exists.");
+        }
+
+        var group = command.GroupChatId is not null || session.GroupChatId is null
+            ? await groupResolver.ResolveAsync(command.GroupChatId, cancellationToken)
+            : await groupResolver.FindAsync(session.GroupChatId, cancellationToken);
 
         session.SeasonId = createCommand.SeasonId;
         session.VenueId = createCommand.VenueId;
@@ -287,15 +321,22 @@ public sealed class UpdateSessionAdminCommandHandler(
         session.CheckInOpensAtUtc = createCommand.CheckInOpensAtUtc;
         session.CheckInClosesAtUtc = createCommand.CheckInClosesAtUtc;
         session.RsvpDeadlineUtc = createCommand.RsvpDeadlineUtc;
+        session.GroupChatId = group?.Id ?? session.GroupChatId;
 
         sessionRepository.Update(session);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return SchedulingMappers.ToModel(session);
+
+        // Local first: a published session with an app-created game pushes location, capacity,
+        // and start to Pickup Pal; drafts and imported games are NotApplicable inside the service.
+        await pickupPalSyncService.SyncAfterLocalWriteAsync(session.Id, cancellationToken);
+        return SchedulingMappers.ToModel(session, group);
     }
 }
 
 public sealed class PublishSessionCommandHandler(
     ISessionRepository sessionRepository,
+    SessionGroupResolver groupResolver,
+    ISessionPickupPalSyncService pickupPalSyncService,
     IUnitOfWork unitOfWork)
 {
     public async Task<SessionModel> HandleAsync(
@@ -318,6 +359,11 @@ public sealed class PublishSessionCommandHandler(
         session.Status = SessionStatus.Published;
         sessionRepository.Update(session);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return SchedulingMappers.ToModel(session);
+
+        // Local first: the publish is committed, then the Pickup Pal game is created for a session
+        // with a group (app-only sessions stay app-only; failures leave a pending outbox row).
+        await pickupPalSyncService.SyncAfterLocalWriteAsync(session.Id, cancellationToken);
+        var group = await groupResolver.FindAsync(session.GroupChatId, cancellationToken);
+        return SchedulingMappers.ToModel(session, group);
     }
 }

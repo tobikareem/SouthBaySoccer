@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="SouthBaySoccer.Pages.SignInVerifyPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:fonts="clr-namespace:Fonts"
+    xmlns:pageModels="clr-namespace:SouthBaySoccer.PageModels"
+    x:DataType="pageModels:SignInVerifyPageModel"
+    NavigationPage.HasNavigationBar="False"
+    Style="{StaticResource BrandPage}"
+    Title="{x:Static pageModels:SignInVerifyPageModel.Title}">
+
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader Title="{x:Static pageModels:SignInVerifyPageModel.Title}"
+                       Subtitle="{x:Static pageModels:SignInVerifyPageModel.StepLabel}"
+                       ShowBack="True"
+                       BackCommand="{Binding GoBackCommand}" />
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="{StaticResource WelcomeContentPadding}"
+                                 Spacing="{StaticResource SpaceMd}">
+                <Border Style="{StaticResource CardSurface}"
+                        BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceAltLight}, Dark={StaticResource SurfaceAltDark}}">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceMd}">
+                        <c:Avatar Initials="{Binding Initials}" Size="{StaticResource AvatarMd}" Description="{Binding DisplayName}" />
+                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                            <Label Text="{Binding DisplayName}" Style="{StaticResource TextBodyStrong}" />
+                            <Label Text="{Binding AccountLine}" Style="{StaticResource TextCaption}" />
+                        </VerticalStackLayout>
+                        <Label Grid.Column="2" Text="{x:Static fonts:FontAwesomeGlyphs.CircleCheck}" FontFamily="FontAwesomeSolid"
+                               FontSize="{StaticResource IconLg}" TextColor="{AppThemeBinding Light={StaticResource BrandGreenLight}, Dark={StaticResource BrandGreenDarkTheme}}"
+                               VerticalTextAlignment="Center" SemanticProperties.Description="Account found" />
+                    </Grid>
+                </Border>
+
+                <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                    <Label Text="{x:Static pageModels:SignInVerifyPageModel.Heading}"
+                           Style="{StaticResource TextH1}"
+                           SemanticProperties.HeadingLevel="Level1" />
+                    <Label Text="{x:Static pageModels:SignInVerifyPageModel.Description}"
+                           Style="{StaticResource TextCaption}"
+                           LineHeight="1.5" />
+                </VerticalStackLayout>
+
+                <c:WhatsAppHandoffCard MessageText="{Binding MessageText}"
+                                       Hint="{Binding SendHint}"
+                                       ContinueCommand="{Binding ContinueWithWhatsAppCommand}"
+                                       IsBusy="{Binding IsBusy}" />
+
+                <Label Text="{Binding StatusMessage}"
+                       Style="{StaticResource TextCaption}"
+                       TextColor="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}"
+                       HorizontalTextAlignment="Center"
+                       IsVisible="{Binding HasStatusMessage}" />
+
+                <c:ToggleRow Glyph="{x:Static fonts:FontAwesomeGlyphs.Lock}"
+                             GlyphFontFamily="FontAwesomeSolid"
+                             Title="{x:Static pageModels:SignInVerifyPageModel.RememberTitle}"
+                             Subtitle="{x:Static pageModels:SignInVerifyPageModel.RememberDetail}"
+                             IsToggled="{Binding RememberDevice, Mode=TwoWay}" />
+
+                <Border Style="{StaticResource NoticeSurface}">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                        <Label Text="{x:Static fonts:FontAwesomeGlyphs.ShieldHalved}"
+                               FontFamily="FontAwesomeSolid"
+                               FontSize="{StaticResource IconMd}"
+                               TextColor="{AppThemeBinding Light={StaticResource BrandGreenDepthLight}, Dark={StaticResource BrandSpringDark}}"
+                               SemanticProperties.Description="Why the extra step" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="{StaticResource SpaceXs}">
+                            <Label Text="{x:Static pageModels:SignInVerifyPageModel.WhyHeading}" Style="{StaticResource TextBodyStrong}" />
+                            <Label Text="{x:Static pageModels:SignInVerifyPageModel.WhyMessage}" Style="{StaticResource TextCaption}" LineHeight="1.4" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </Border>
+
+                <HorizontalStackLayout HorizontalOptions="Center" Spacing="{StaticResource SpaceXs}">
+                    <Label Text="Not you?" Style="{StaticResource TextCaption}" VerticalTextAlignment="Center" />
+                    <Button Text="Use a different number" Command="{Binding UseDifferentNumberCommand}" Style="{StaticResource LinkButton}"
+                            SemanticProperties.Description="Use a different phone number" />
+                </HorizontalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

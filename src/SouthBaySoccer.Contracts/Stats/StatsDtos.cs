@@ -11,7 +11,8 @@ public sealed record MatchStatsDto(
     int Goals,
     int Assists,
     bool IsPendingConfirmation,
-    IReadOnlyList<TeammateStatSubmissionDto> TeammateSubmissions);
+    IReadOnlyList<TeammateStatSubmissionDto> TeammateSubmissions,
+    bool CanConfirmTeammates = false);
 
 public sealed record TeammateStatSubmissionDto(
     PlayerSummaryDto Player,
@@ -94,6 +95,8 @@ public sealed record SubmitPeerFeedbackRequest(
     Guid? MvpPlayerProfileId);
 
 public sealed record PlayerRatingRequest(Guid RatedPlayerProfileId, int Score);
+
+public sealed record SubmitMatchStatsRequest(int Goals, int Assists);
 
 public sealed record ReviewMatchEventRequest(bool Approved, string? Note);
 

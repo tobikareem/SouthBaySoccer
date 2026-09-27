@@ -26,12 +26,20 @@ public sealed class CreateProfileMergeCommandHandler(
         var target = await playerProfileRepository.FindProfileAsync(command.TargetPlayerProfileId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Target player profile was not found.");
 
-        if (!source.IsGuest || source.IdentityUserId is not null)
+        // What makes a merge safe is that the source has no login attached, so nobody loses the
+        // ability to sign in. Requiring IsGuest as well was too narrow: an imported roster entry for
+        // a real player is not flagged a guest, yet it is exactly the duplicate that needs merging.
+        if (source.IdentityUserId is not null)
         {
-            throw new ApplicationConflictException("Source profile must be an unclaimed guest profile.");
+            throw new ApplicationConflictException("Source profile must be an unclaimed profile.");
         }
 
-        if (target.IsGuest || target.IdentityUserId is null)
+        if (source.Id == target.Id)
+        {
+            throw new ApplicationConflictException("A profile cannot be merged into itself.");
+        }
+
+        if (target.IdentityUserId is null)
         {
             throw new ApplicationConflictException("Target profile must be a claimed player profile.");
         }

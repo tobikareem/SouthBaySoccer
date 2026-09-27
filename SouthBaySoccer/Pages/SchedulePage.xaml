@@ -64,7 +64,7 @@
                                                 <controls:BrandCard>
                                                     <SemanticProperties.Description>
                                                         <MultiBinding StringFormat="{}{0} — {1}">
-                                                            <Binding Path="Title" />
+                                                            <Binding Path="DisplayTitle" />
                                                             <Binding Path="StatusLabel" />
                                                         </MultiBinding>
                                                     </SemanticProperties.Description>
@@ -82,7 +82,7 @@
                                                     </controls:BrandCard.GestureRecognizers>
                                                     <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
                                                         <Grid ColumnDefinitions="*,Auto">
-                                                            <Label Text="{Binding Title}"
+                                                            <Label Text="{Binding DisplayTitle}"
                                                                    Style="{StaticResource TextBodyStrong}"
                                                                    VerticalOptions="Center">
                                                                 <Label.Triggers>
@@ -95,19 +95,35 @@
                                                             </Label>
                                                             <controls:Badge Grid.Column="1"
                                                                             Text="{Binding StatusLabel}"
-                                                                            Variant="Success">
+                                                                            Variant="Neutral">
                                                                 <controls:Badge.Triggers>
-                                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding IsFull}" Value="True">
+                                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Open">
+                                                                        <Setter Property="Variant" Value="Success" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Going">
+                                                                        <Setter Property="Variant" Value="Success" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Waitlisted">
+                                                                        <Setter Property="Variant" Value="Warning" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Full">
                                                                         <Setter Property="Variant" Value="Danger" />
                                                                     </DataTrigger>
-                                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding IsCanceled}" Value="True">
+                                                                    <DataTrigger TargetType="controls:Badge" Binding="{Binding CardStatus}" Value="Canceled">
                                                                         <Setter Property="Variant" Value="Danger" />
                                                                     </DataTrigger>
                                                                 </controls:Badge.Triggers>
                                                             </controls:Badge>
                                                         </Grid>
-                                                        <HorizontalStackLayout Spacing="{StaticResource SpaceSm}">
-                                                            <Border Style="{StaticResource MetadataChip}">
+                                                        <!-- FlexLayout, not HorizontalStackLayout: the
+                                                             group chat chip makes four chips, which
+                                                             clip on a narrow phone. Wrap="Wrap" lets
+                                                             the row spill onto a second line. -->
+                                                        <FlexLayout Direction="Row"
+                                                                    Wrap="Wrap"
+                                                                    JustifyContent="Start"
+                                                                    AlignItems="Center">
+                                                            <Border Style="{StaticResource MetadataChip}" Margin="0,0,8,4">
                                                                 <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
                                                                     <Label Text="{x:Static fonts:FontAwesomeGlyphs.Calendar}"
                                                                            FontFamily="FontAwesomeSolid"
@@ -115,7 +131,7 @@
                                                                     <Label Text="{Binding DateLabel}" Style="{StaticResource TextCaption}" />
                                                                 </HorizontalStackLayout>
                                                             </Border>
-                                                            <Border Style="{StaticResource MetadataChip}">
+                                                            <Border Style="{StaticResource MetadataChip}" Margin="0,0,8,4">
                                                                 <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
                                                                     <Label Text="{x:Static fonts:FontAwesomeGlyphs.Clock}"
                                                                            FontFamily="FontAwesomeSolid"
@@ -123,7 +139,7 @@
                                                                     <Label Text="{Binding TimeLabel}" Style="{StaticResource TextCaption}" />
                                                                 </HorizontalStackLayout>
                                                             </Border>
-                                                            <Border Style="{StaticResource MetadataChip}">
+                                                            <Border Style="{StaticResource MetadataChip}" Margin="0,0,8,4">
                                                                 <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
                                                                     <Label Text="{x:Static fonts:FontAwesomeGlyphs.Users}"
                                                                            FontFamily="FontAwesomeSolid"
@@ -131,10 +147,37 @@
                                                                     <Label Text="{Binding Format}" Style="{StaticResource TextCaption}" />
                                                                 </HorizontalStackLayout>
                                                             </Border>
-                                                        </HorizontalStackLayout>
+                                                            <Border Style="{StaticResource MetadataChip}"
+                                                                    Margin="0,0,8,4"
+                                                                    IsVisible="{Binding HasGroupChatName}"
+                                                                    SemanticProperties.Description="{Binding GroupChatName, StringFormat='Group chat {0}'}">
+                                                                <HorizontalStackLayout Spacing="{StaticResource SpaceXs}">
+                                                                    <Label Text="{x:Static fonts:FontAwesomeGlyphs.WhatsApp}"
+                                                                           FontFamily="FontAwesomeBrands"
+                                                                           Style="{StaticResource TextCaption}" />
+                                                                    <Label Text="{Binding GroupChatName}"
+                                                                           Style="{StaticResource TextCaption}"
+                                                                           LineBreakMode="TailTruncation" />
+                                                                </HorizontalStackLayout>
+                                                            </Border>
+                                                        </FlexLayout>
                                                         <controls:CapacityBar Current="{Binding GoingCount}"
                                                                               Max="{Binding Capacity}"
                                                                               IsVisible="{Binding IsCanceled, Converter={StaticResource InvertedBool}}" />
+                                                        <Grid ColumnDefinitions="*,Auto"
+                                                              IsVisible="{Binding IsCanceled, Converter={StaticResource InvertedBool}}">
+                                                            <Label Text="{Binding WaitlistCount, StringFormat='Waitlist {0}'}"
+                                                                   Style="{StaticResource TextCaption}"
+                                                                   IsVisible="{Binding IsFull}"
+                                                                   VerticalOptions="Center" />
+                                                            <Button Grid.Column="1"
+                                                                    Text="Join waitlist"
+                                                                    Style="{StaticResource GhostButton}"
+                                                                    IsVisible="{Binding ShowJoinWaitlist}"
+                                                                    Command="{Binding Source={x:Reference ScheduleRoot}, Path=BindingContext.JoinWaitlistCommand, x:DataType=ContentPage}"
+                                                                    CommandParameter="{Binding Id}"
+                                                                    SemanticProperties.Description="{Binding WaitlistActionDescription}" />
+                                                        </Grid>
                                                         <Label Text="{Binding DeadlineLabel}"
                                                                Style="{StaticResource TextCaption}"
                                                                HorizontalOptions="End"

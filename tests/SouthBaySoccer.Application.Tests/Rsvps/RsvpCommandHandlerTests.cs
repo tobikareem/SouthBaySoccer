@@ -22,7 +22,7 @@ public sealed class RsvpCommandHandlerTests
         var eligibilityService = new Mock<IPlayerSessionEligibilityService>();
         eligibilityService
             .Setup(x => x.CheckAsync(profile.Id, session.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new PlayerSessionEligibilityResult(false, "Waiver required."));
+            .ReturnsAsync(new PlayerSessionEligibilityResult(false, "Payment required."));
         var rsvpRepository = new Mock<IRsvpRepository>();
         var handler = CreateSubmitHandler(profile, session, eligibilityService.Object, rsvpRepository.Object);
 
@@ -88,9 +88,60 @@ public sealed class RsvpCommandHandlerTests
             x => x.CancelAndPromoteAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<Guid>(),
-                It.IsAny<Func<Guid, CancellationToken, Task<bool>>>(),
+                It.IsAny<Func<IReadOnlyCollection<Guid>, CancellationToken, Task<IReadOnlyDictionary<Guid, bool>>>>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenCanceling_ResolvesWholeWaitlistEligibilityInOneBatchedCall()
+    {
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = "Ada" };
+        var session = FutureSession();
+        var eligibleCandidateId = Guid.NewGuid();
+        var ineligibleCandidateId = Guid.NewGuid();
+        var rsvpRepository = new Mock<IRsvpRepository>();
+        IReadOnlyDictionary<Guid, bool>? verdicts = null;
+        rsvpRepository
+            .Setup(x => x.CancelAndPromoteAsync(
+                session.Id,
+                profile.Id,
+                It.IsAny<Func<IReadOnlyCollection<Guid>, CancellationToken, Task<IReadOnlyDictionary<Guid, bool>>>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(async (
+                Guid _,
+                Guid _,
+                Func<IReadOnlyCollection<Guid>, CancellationToken, Task<IReadOnlyDictionary<Guid, bool>>> check,
+                CancellationToken token) =>
+            {
+                verdicts = await check([eligibleCandidateId, ineligibleCandidateId], token);
+                return new RsvpMutationResult(session.Id, profile.Id, RsvpMutationState.Canceled);
+            });
+        var eligibilityService = new Mock<IPlayerSessionEligibilityService>();
+        eligibilityService
+            .Setup(x => x.CheckManyAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(),
+                session.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, bool>
+            {
+                [eligibleCandidateId] = true,
+                [ineligibleCandidateId] = false
+            });
+        var handler = CreateCancelHandler(profile, session, rsvpRepository.Object, eligibilityService.Object);
+
+        await handler.HandleAsync(new CancelRsvpCommand(session.Id));
+
+        eligibilityService.Verify(
+            x => x.CheckManyAsync(
+                It.Is<IReadOnlyCollection<Guid>>(ids =>
+                    ids.Contains(eligibleCandidateId) && ids.Contains(ineligibleCandidateId)),
+                session.Id,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        verdicts.Should().NotBeNull();
+        verdicts![eligibleCandidateId].Should().BeTrue();
+        verdicts[ineligibleCandidateId].Should().BeFalse();
     }
 
     [Fact]
@@ -183,6 +234,160 @@ public sealed class RsvpCommandHandlerTests
         result.LateOverrideReason.Should().Be("traffic at gate");
     }
 
+    [Theory]
+    [InlineData(19, 30)]
+    [InlineData(19, 45)]
+    public async Task HandleAsync_WhenSelfCheckInIsAtWindowBoundary_RecordsAuthenticatedPlayer(
+        int hour,
+        int minute)
+    {
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = "Ada" };
+        var session = FutureSession();
+        var nowUtc = Utc(2026, 7, 7, hour, minute);
+        var checkIn = new CheckIn
+        {
+            Id = Guid.NewGuid(),
+            SessionId = session.Id,
+            PlayerProfileId = profile.Id,
+            CheckedInByPlayerProfileId = profile.Id,
+            CheckedInAtUtc = nowUtc,
+            Outcome = AttendanceOutcome.CheckedIn
+        };
+        var rsvpRepository = new Mock<IRsvpRepository>();
+        rsvpRepository
+            .Setup(x => x.GetGameDayAttendanceAsync(session.Id, profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GameDayAttendanceRecord(1, 0, 0, true, false, false, []));
+        rsvpRepository
+            .Setup(x => x.RecordCheckInAsync(
+                session.Id,
+                profile.Id,
+                profile.Id,
+                nowUtc,
+                AttendanceOutcome.CheckedIn,
+                null,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CheckInMutationResult(checkIn));
+        var handler = CreateSelfCheckInHandler(
+            profile,
+            session,
+            nowUtc,
+            EligibleService(),
+            rsvpRepository.Object);
+
+        var result = await handler.HandleAsync(new SelfCheckInCommand(session.Id));
+
+        result.PlayerProfileId.Should().Be(profile.Id);
+        result.CheckedInByPlayerProfileId.Should().Be(profile.Id);
+        result.CheckedInAtUtc.Should().Be(nowUtc);
+        result.Outcome.Should().Be(nameof(AttendanceOutcome.CheckedIn));
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenWaitlistedPlayerSelfChecksIn_RecordsAttendance()
+    {
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = "Wade" };
+        var session = FutureSession();
+        var nowUtc = Utc(2026, 7, 7, 19, 30);
+        var checkIn = new CheckIn
+        {
+            Id = Guid.NewGuid(),
+            SessionId = session.Id,
+            PlayerProfileId = profile.Id,
+            CheckedInByPlayerProfileId = profile.Id,
+            CheckedInAtUtc = nowUtc,
+            Outcome = AttendanceOutcome.CheckedIn
+        };
+        var rsvpRepository = new Mock<IRsvpRepository>();
+        rsvpRepository
+            // IsCurrentPlayerGoing = false, IsCurrentPlayerWaitlisted = true.
+            .Setup(x => x.GetGameDayAttendanceAsync(session.Id, profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GameDayAttendanceRecord(20, 0, 0, false, true, false, []));
+        rsvpRepository
+            .Setup(x => x.RecordCheckInAsync(
+                session.Id, profile.Id, profile.Id, nowUtc, AttendanceOutcome.CheckedIn, null,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CheckInMutationResult(checkIn));
+        var handler = CreateSelfCheckInHandler(profile, session, nowUtc, EligibleService(), rsvpRepository.Object);
+
+        var result = await handler.HandleAsync(new SelfCheckInCommand(session.Id));
+
+        result.PlayerProfileId.Should().Be(profile.Id);
+        result.Outcome.Should().Be(nameof(AttendanceOutcome.CheckedIn));
+        rsvpRepository.Verify(
+            x => x.RecordCheckInAsync(
+                session.Id, profile.Id, profile.Id, nowUtc, AttendanceOutcome.CheckedIn, null,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenSelfCheckInIsOutsideWindow_DoesNotReadAttendanceOrMutate()
+    {
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = "Ada" };
+        var session = FutureSession();
+        var rsvpRepository = new Mock<IRsvpRepository>();
+        var handler = CreateSelfCheckInHandler(
+            profile,
+            session,
+            Utc(2026, 7, 7, 19, 46),
+            EligibleService(),
+            rsvpRepository.Object);
+
+        var act = () => handler.HandleAsync(new SelfCheckInCommand(session.Id));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("Self check-in is outside the session check-in window.");
+        rsvpRepository.Verify(
+            x => x.GetGameDayAttendanceAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        rsvpRepository.Verify(
+            x => x.RecordCheckInAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<AttendanceOutcome>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenSelfCheckInEligibilityFails_DoesNotMutate()
+    {
+        var profile = new PlayerProfile { Id = Guid.NewGuid(), IdentityUserId = Guid.NewGuid(), DisplayName = "Ada" };
+        var session = FutureSession();
+        var eligibilityService = new Mock<IPlayerSessionEligibilityService>();
+        eligibilityService
+            .Setup(x => x.CheckAsync(profile.Id, session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlayerSessionEligibilityResult(false, "Payment required."));
+        var rsvpRepository = new Mock<IRsvpRepository>();
+        rsvpRepository
+            .Setup(x => x.GetGameDayAttendanceAsync(session.Id, profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GameDayAttendanceRecord(1, 0, 0, true, false, false, []));
+        var handler = CreateSelfCheckInHandler(
+            profile,
+            session,
+            Utc(2026, 7, 7, 19, 35),
+            eligibilityService.Object,
+            rsvpRepository.Object);
+
+        var act = () => handler.HandleAsync(new SelfCheckInCommand(session.Id));
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("Payment required.");
+        rsvpRepository.Verify(
+            x => x.RecordCheckInAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<AttendanceOutcome>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static SubmitRsvpCommandHandler CreateSubmitHandler(
         PlayerProfile profile,
         Session session,
@@ -209,13 +414,16 @@ public sealed class RsvpCommandHandlerTests
             playerProfileRepository.Object,
             sessionRepository.Object,
             playerSessionEligibilityService,
-            rsvpRepository);
+            rsvpRepository,
+            Mock.Of<IRsvpPickupPalSyncService>(),
+            new TestSupport.OpenGroupMembershipGate());
     }
 
     private static CancelRsvpCommandHandler CreateCancelHandler(
         PlayerProfile profile,
         Session session,
-        IRsvpRepository rsvpRepository)
+        IRsvpRepository rsvpRepository,
+        IPlayerSessionEligibilityService? playerSessionEligibilityService = null)
     {
         var currentUser = new Mock<ICurrentUser>();
         currentUser.SetupGet(x => x.UserId).Returns(profile.IdentityUserId);
@@ -235,8 +443,9 @@ public sealed class RsvpCommandHandlerTests
             clock.Object,
             playerProfileRepository.Object,
             sessionRepository.Object,
-            Mock.Of<IPlayerSessionEligibilityService>(),
-            rsvpRepository);
+            playerSessionEligibilityService ?? Mock.Of<IPlayerSessionEligibilityService>(),
+            rsvpRepository,
+            Mock.Of<IRsvpPickupPalSyncService>());
     }
 
 
@@ -267,6 +476,37 @@ public sealed class RsvpCommandHandlerTests
             sessionRepository.Object,
             rsvpRepository);
     }
+
+    private static SelfCheckInCommandHandler CreateSelfCheckInHandler(
+        PlayerProfile profile,
+        Session session,
+        DateTime nowUtc,
+        IPlayerSessionEligibilityService eligibilityService,
+        IRsvpRepository rsvpRepository)
+    {
+        var currentUser = new Mock<ICurrentUser>();
+        currentUser.SetupGet(x => x.UserId).Returns(profile.IdentityUserId);
+        var playerProfileRepository = new Mock<IPlayerProfileRepository>();
+        playerProfileRepository
+            .Setup(x => x.FindByIdentityUserIdAsync(profile.IdentityUserId!.Value, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(profile);
+        var sessionRepository = new Mock<ISessionRepository>();
+        sessionRepository
+            .Setup(x => x.GetByIdAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(nowUtc);
+
+        return new SelfCheckInCommandHandler(
+            currentUser.Object,
+            clock.Object,
+            playerProfileRepository.Object,
+            sessionRepository.Object,
+            eligibilityService,
+            rsvpRepository,
+            new TestSupport.OpenGroupMembershipGate());
+    }
+
     private static IPlayerSessionEligibilityService EligibleService()
     {
         var service = new Mock<IPlayerSessionEligibilityService>();

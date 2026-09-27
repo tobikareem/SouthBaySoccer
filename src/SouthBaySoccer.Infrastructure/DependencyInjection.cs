@@ -2,20 +2,27 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using SouthBaySoccer.Application.Abstractions.Authentication;
+using SouthBaySoccer.Application.Abstractions.Caching;
 using SouthBaySoccer.Application.Abstractions.Maps;
 using SouthBaySoccer.Application.Abstractions.Payments;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Features.Authentication;
+using SouthBaySoccer.Application.Features.Groups;
 using SouthBaySoccer.Application.Features.Idempotency;
+using SouthBaySoccer.Application.Features.Onboarding;
 using SouthBaySoccer.Application.Features.Scheduling;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
 using SouthBaySoccer.Infrastructure.Authentication;
+using SouthBaySoccer.Infrastructure.Authentication.Onboarding;
+using SouthBaySoccer.Infrastructure.Groups;
 using SouthBaySoccer.Infrastructure.Identity;
 using SouthBaySoccer.Infrastructure.Idempotency;
 using SouthBaySoccer.Infrastructure.Maps;
+using SouthBaySoccer.Infrastructure.Caching;
 using SouthBaySoccer.Infrastructure.Persistence;
 using SouthBaySoccer.Infrastructure.Persistence.Interceptors;
 using SouthBaySoccer.Infrastructure.Payments;
@@ -48,30 +55,77 @@ public static class DependencyInjection
                 .UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure())
                 .AddInterceptors(serviceProvider.GetRequiredService<AuditSoftDeleteSaveChangesInterceptor>());
         });
+        services.AddMemoryCache();
+        services.AddScoped<CacheEvictionQueue>();
+        services.AddScoped<IReadThroughCache, MemoryReadThroughCache>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IPlayerProfileRepository, PlayerProfileRepository>();
         services.AddScoped<IWaiverRepository, WaiverRepository>();
-        services.AddScoped<ISeasonRepository, SeasonRepository>();
-        services.AddScoped<IVenueRepository, VenueRepository>();
+        // Reference lists read on nearly every request path, decorated with a short cache that the
+        // unit of work invalidates after a successful commit.
+        services.AddScoped<SeasonRepository>();
+        services.AddScoped<ISeasonRepository>(provider => new CachedSeasonRepository(
+            provider.GetRequiredService<SeasonRepository>(),
+            provider.GetRequiredService<IMemoryCache>(),
+            provider.GetRequiredService<CacheEvictionQueue>()));
+        services.AddScoped<VenueRepository>();
+        services.AddScoped<IVenueRepository>(provider => new CachedVenueRepository(
+            provider.GetRequiredService<VenueRepository>(),
+            provider.GetRequiredService<IMemoryCache>(),
+            provider.GetRequiredService<CacheEvictionQueue>()));
         services.AddScoped<ISessionRepository, SessionRepository>();
         services.AddScoped<IRsvpRepository, RsvpRepository>();
         services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<IStatsRepository, StatsRepository>();
+        services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         services.TryAddScoped<IPaymentGateway, UnavailablePaymentGateway>();
         services.AddScoped<IIdempotencyStore, EfIdempotencyStore>();
         services.TryAddSingleton<IMapsService, UnavailableMapsService>();
         services.AddScoped<IIdentityService, IdentityService>();
-        services.AddScoped<IWhatsAppChallengeService, WhatsAppChallengeService>();
-        services.AddSingleton<IWhatsAppChallengeTokenGenerator, WhatsAppChallengeTokenGenerator>();
-        services.AddSingleton<IWhatsAppChallengeDeliverySender, UnavailableWhatsAppChallengeDeliverySender>();
         services.AddScoped<IWhatsAppIdentityResolver, WhatsAppIdentityResolver>();
-        services.AddHttpClient<IPickupPalUserClient, PickupPalUserClient>();
-        services.AddHttpClient<IPickupPalGamesClient, PickupPalGamesClient>();
+        services.AddScoped<IPlayerRegistrationRepository, PlayerRegistrationRepository>();
+        services.AddScoped<IPendingPhoneSignInRepository, PendingPhoneSignInRepository>();
+        services.AddScoped<IOutboxMessageRepository, OutboxMessageRepository>();
+        services.AddSingleton<IOnboardingPolicy, ConfiguredOnboardingPolicy>();
+        services.AddScoped<ILocalAccountDeletionService, LocalAccountDeletionService>();
+        services.AddScoped<IRefreshTokenRevocationService, RefreshTokenRevocationService>();
+        // Caps replace HttpClient's 100-second default so a slow Pickup Pal cannot hang requests.
+        // The games client stays inside the import path's 5s budget; the user and group clients sit
+        // on interactive sign-in/link flows, where 10s leaves headroom for the provider's own cold
+        // starts while staying well under the mobile client's 30s timeout.
+        // URI-logging ban on every Pickup Pal client: the factory's default LoggingHttpMessageHandler
+        // records the outbound request URI (phone digits, registration tokens, emails, user and
+        // game ids) at Information level, so it is removed here (RemoveAllLoggers) and no other
+        // message handlers are ever attached. Tests guard both.
+        services.AddHttpClient<IPickupPalUserClient, PickupPalUserClient>(client =>
+                client.Timeout = TimeSpan.FromSeconds(10))
+            .RemoveAllLoggers();
+        services.AddHttpClient<IPickupPalOnboardingClient, PickupPalOnboardingClient>(client =>
+                client.Timeout = TimeSpan.FromSeconds(10))
+            .RemoveAllLoggers();
+        services.AddHttpClient<IPickupPalGamesClient, PickupPalGamesClient>(client =>
+                client.Timeout = TimeSpan.FromSeconds(5))
+            .RemoveAllLoggers();
+        // Registered by concrete type so the caching decorator below owns the IPickupPalGroupClient
+        // registration; the typed HttpClient plumbing is unchanged.
+        services.AddHttpClient<PickupPalGroupClient>(client =>
+                client.Timeout = TimeSpan.FromSeconds(10))
+            .RemoveAllLoggers();
+        services.AddScoped<IPickupPalGroupClient>(provider => new CachedPickupPalGroupClient(
+            provider.GetRequiredService<PickupPalGroupClient>(),
+            provider.GetRequiredService<IMemoryCache>(),
+            provider.GetRequiredService<IClock>()));
         services.AddScoped<IPickupPalGameRepository, PickupPalGameRepository>();
+        services.AddScoped<IGroupChatRepository, GroupChatRepository>();
+        services.AddScoped<IPlayerGroupLinkRepository, PlayerGroupLinkRepository>();
+        services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
+        services.AddScoped<IGroupAnnouncementReadMarkerRepository, GroupAnnouncementReadMarkerRepository>();
         services.AddSingleton<IConfiguredAdminPhoneNumberService, ConfiguredAdminPhoneNumberService>();
         services.AddScoped<IPickupPalUserSyncService, PickupPalUserSyncService>();
         services.AddScoped<IAuthenticationTokenIssuer, AuthenticationTokenIssuer>();
-        services.AddScoped<ITokenService, JwtTokenService>();
+        // Stateless after construction (immutable options + clock), so one instance serves all
+        // requests instead of rebuilding the signing-key index per authenticated request.
+        services.AddSingleton<ITokenService, JwtTokenService>();
         services.AddScoped<IRefreshTokenExchangeService, RefreshTokenExchangeService>();
         services.AddSingleton<IRefreshTokenHasher, RefreshTokenHasher>();
         services.AddSingleton<IRefreshTokenSecretGenerator, RefreshTokenSecretGenerator>();
@@ -84,7 +138,15 @@ public static class DependencyInjection
             .AddIdentityCore<ApplicationIdentityUser>(options =>
             {
                 options.SignIn.RequireConfirmedAccount = true;
-                options.User.RequireUniqueEmail = true;
+                // Many players sign up on Pickup Pal's WhatsApp bot without ever setting an email,
+                // so ApplicationIdentityUser.NormalizedEmail is legitimately null for them. EF
+                // Core's default null-safe query translation treats two null NormalizedEmail values
+                // as equal, so Identity's built-in RequireUniqueEmail check throws
+                // "Sequence contains more than one element" the moment a second such player signs
+                // in or registers. Email uniqueness for players who do provide one is already
+                // enforced against Pickup Pal itself before local sync (see
+                // RegisterWithWhatsAppCommandHandler.IsEmailAvailableAsync).
+                options.User.RequireUniqueEmail = false;
                 options.User.AllowedUserNameCharacters += ":";
                 options.Password.RequiredLength = 10;
                 options.Password.RequireDigit = true;
@@ -101,4 +163,3 @@ public static class DependencyInjection
         return services;
     }
 }
-

@@ -11,6 +11,50 @@ namespace SouthBaySoccer.Client.Tests;
 // phones (NFR-Accessibility).
 public class SessionScreensXamlTests
 {
+    [Fact]
+    public void SessionsHomePage_WaitlistAction_UsesMembershipAwareVisibility()
+    {
+        var buttons = LoadXaml(HomePage).Descendants()
+            .Where(element => (Attr(element, "Command") ?? string.Empty).Contains("JoinWaitlistCommand"))
+            .ToArray();
+
+        buttons.Should().NotBeEmpty();
+        buttons.Should().OnlyContain(button => Attr(button, "IsVisible") == "{Binding ShowJoinWaitlist}");
+    }
+
+    [Fact]
+    public void GameDayPage_JoinAction_UsesMembershipAwareVisibility()
+    {
+        var button = LoadXaml("GameDayPage.xaml").Descendants()
+            .Single(element => Attr(element, "Command") == "{Binding JoinCommand}");
+
+        Attr(button, "IsVisible").Should().Be("{Binding CanJoin}");
+    }
+
+    [Theory]
+    [InlineData("SessionDetailPage.xaml", "ViewOnlyMessage")]
+    [InlineData("GameDayPage.xaml", "SpectatorBannerText")]
+    public void NonmemberNotice_KeepsMessageWithoutJoinGroupButton(string fileName, string messageBinding)
+    {
+        var xaml = ReadXaml(fileName);
+
+        xaml.Should().Contain($"{{Binding {messageBinding}}}", "the nonmember explanation stays visible");
+        xaml.Should().NotContain("JoinGroupCommand");
+        xaml.Should().NotContain("Text=\"Join the group\"");
+    }
+
+    [Fact]
+    public void SchedulePage_WaitlistAction_UsesMembershipAwareVisibility()
+    {
+        var document = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "Client", "XamlAll", "Pages", "SchedulePage.xaml"));
+        var buttons = document.Descendants()
+            .Where(element => (Attr(element, "Command") ?? string.Empty).Contains("JoinWaitlistCommand"))
+            .ToArray();
+
+        buttons.Should().NotBeEmpty();
+        buttons.Should().OnlyContain(button => Attr(button, "IsVisible") == "{Binding ShowJoinWaitlist}");
+    }
+
     private const string HomePage = "SessionsHomePage.xaml";
     private const string DetailPage = "SessionDetailPage.xaml";
 
@@ -88,10 +132,15 @@ public class SessionScreensXamlTests
     // --- NFR-Accessibility: informational/interactive icons carry screen-reader descriptions ---
 
     [Fact]
-    public void SessionsHomePage_NotificationsControlExposesSemanticDescription()
+    public void SessionsHomePage_HidesDeadAnnouncementAndBroadcastEntries()
     {
-        ReadXaml(HomePage)
-            .Should().Contain("SemanticProperties.Description=\"Notifications\"");
+        // The bell and Broadcast buttons only popped a "Coming soon" alert (real navigation is
+        // disabled pending the iOS watchdog fix). They stay hidden until they navigate for real.
+        var xaml = ReadXaml(HomePage);
+
+        xaml.Should().NotContain("FontAwesomeGlyphs.Bell");
+        xaml.Should().NotContain("OpenAnnouncementsCommand");
+        xaml.Should().NotContain("OpenBroadcastCommand");
     }
 
     [Fact]
@@ -100,7 +149,6 @@ public class SessionScreensXamlTests
         var xaml = ReadXaml(HomePage);
 
         xaml.Should().Contain("FontAwesomeGlyphs.CircleCheck");
-        xaml.Should().Contain("FontAwesomeGlyphs.Bell");
         xaml.Should().Contain("View details");
         xaml.Should().Contain("FontAwesomeGlyphs.ArrowRight");
         xaml.Should().Contain("FontAwesomeGlyphs.ChartColumn");
@@ -108,14 +156,33 @@ public class SessionScreensXamlTests
     }
 
     [Fact]
-    public void SessionsHomePage_StatsCard_IsAlwaysVisibleAndNavigatesThroughPageModel()
+    public void SessionsHomePage_SessionCardsAnnounceDisplayTitleAndStatus()
+    {
+        var sessionCards = Elements(LoadXaml(HomePage), "BrandCard")
+            .Where(card => card
+                .Descendants()
+                .Where(element => element.Name.LocalName == "TapGestureRecognizer")
+                .Select(element => Attr(element, "Command"))
+                .Any(command => command?.Contains("ViewSessionDetailCommand", StringComparison.Ordinal) == true))
+            .ToArray();
+
+        sessionCards.Should().HaveCount(2);
+        sessionCards.Should().OnlyContain(card =>
+            (Attr(card, "SemanticProperties.Description") ?? string.Empty)
+                .Contains("CardSemanticDescription", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void SessionsHomePage_StatsCard_ShowsForAnyPromptAndNavigatesThroughPageModel()
     {
         var xaml = ReadXaml(HomePage);
 
         xaml.Should().Contain("SemanticProperties.Description=\"{Binding StatsPromptSemanticDescription}\"");
         xaml.Should().Contain("SemanticProperties.Hint=\"{Binding StatsPromptSemanticHint}\"");
         xaml.Should().Contain("Command=\"{Binding OpenStatsCommand}\"");
-        xaml.Should().NotContain("IsVisible=\"{Binding HasStatsPrompt}\"");
+        // The card is shown whenever the server sends a prompt - a submit target or a claim - so an
+        // unlinked player is prompted too, rather than the card only appearing for a resolved match.
+        xaml.Should().Contain("IsVisible=\"{Binding HasStatsPrompt}\"");
     }
 
     [Fact]

@@ -18,12 +18,17 @@ public interface IRsvpRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Cancels the player's active RSVP or waitlist state and promotes the next eligible waitlist entry.
+    /// Cancels the player's active RSVP or waitlist state and promotes the next eligible waitlist
+    /// entry. <paramref name="checkPromotionEligibilityAsync"/> is invoked at most once with every
+    /// active waitlist candidate and must return a verdict per candidate; candidates it omits are
+    /// treated as ineligible. Evaluating the whole waitlist in one call keeps the compliance read
+    /// inside the transaction — so an expiry is never written from a stale verdict — while costing
+    /// one query instead of one per candidate.
     /// </summary>
     Task<RsvpMutationResult> CancelAndPromoteAsync(
         Guid sessionId,
         Guid playerProfileId,
-        Func<Guid, CancellationToken, Task<bool>> isEligibleForPromotion,
+        Func<IReadOnlyCollection<Guid>, CancellationToken, Task<IReadOnlyDictionary<Guid, bool>>> checkPromotionEligibilityAsync,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -65,9 +70,29 @@ public interface IRsvpRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Finds the player's most recent RSVP row for a session <b>including soft-deleted rows</b>, so
+    /// the Pickup Pal sync outcome of a cancellation (which soft-deletes the row) can still be
+    /// recorded on it. Returns null when the player never had an RSVP row for the session.
+    /// </summary>
+    Task<RsvpResponse?> FindRsvpForPickupPalSyncAsync(
+        Guid sessionId,
+        Guid playerProfileId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Marks an RSVP row as modified (used to persist its Pickup Pal sync columns).</summary>
+    void UpdateRsvp(RsvpResponse rsvp);
+
+    /// <summary>
     /// Lists the session's confirmed (Going) players with their profile display data.
     /// </summary>
     Task<IReadOnlyList<RosterMemberRecord>> ListGoingRosterAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists only players whose active attendance outcome is CheckedIn or Late.
+    /// </summary>
+    Task<IReadOnlyList<RosterMemberRecord>> ListCheckedInRosterAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default);
 
@@ -76,6 +101,21 @@ public interface IRsvpRepository
     /// </summary>
     Task<IReadOnlyList<RosterMemberRecord>> ListActiveWaitlistRosterAsync(
         Guid sessionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the compact attendance projection used by the Game Day screen.</summary>
+    Task<GameDayAttendanceRecord> GetGameDayAttendanceAsync(
+        Guid sessionId,
+        Guid currentPlayerProfileId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the game-day attendance projection for several sessions in two batched queries.
+    /// Every requested session id is present in the result, including sessions with no attendance.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, GameDayAttendanceRecord>> GetGameDayAttendanceBatchAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        Guid currentPlayerProfileId,
         CancellationToken cancellationToken = default);
 }
 
@@ -89,6 +129,16 @@ public sealed record RosterMemberRecord(
     bool IsGuest,
     int? WaitlistPosition);
 
+/// <summary>Server-side attendance and eligibility facts for one session.</summary>
+public sealed record GameDayAttendanceRecord(
+    int GoingCount,
+    int CheckedInCount,
+    int LateCount,
+    bool IsCurrentPlayerGoing,
+    bool IsCurrentPlayerWaitlisted,
+    bool IsCurrentPlayerCheckedIn,
+    IReadOnlyList<Guid> CheckedInPlayerProfileIds);
+
 /// <summary>
 /// Represents the result of mutating or reading RSVP state.
 /// </summary>
@@ -99,7 +149,8 @@ public sealed record RsvpMutationResult(
     Guid? RsvpResponseId = null,
     Guid? WaitlistEntryId = null,
     int? WaitlistPosition = null,
-    Guid? PromotedPlayerProfileId = null);
+    Guid? PromotedPlayerProfileId = null,
+    PickupPalSyncStatus PickupPalSyncStatus = PickupPalSyncStatus.NotApplicable);
 
 /// <summary>
 /// Represents a check-in write and optional admin override audit row.

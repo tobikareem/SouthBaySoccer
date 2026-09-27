@@ -14,7 +14,11 @@ public sealed class ShellLeaderboardNavigator : ILeaderboardNavigator
             return Shell.Current.GoToAsync("//profile");
         }
 
-        return Shell.Current.GoToAsync($"//profile?playerId={playerId}");
+        // Push a profile *detail* page rather than switching to the Profile tab. Routing another
+        // player through "//profile" reuses the tab's cached page model, so its requestedPlayerId
+        // survives and tapping the Profile tab afterwards keeps showing that player. Mirrors
+        // ShellPlayersNavigator.
+        return Shell.Current.GoToAsync($"player-profile?playerId={playerId}");
     }
 }
 

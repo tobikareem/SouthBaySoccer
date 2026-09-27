@@ -19,6 +19,7 @@ public sealed class RsvpEndpointMetadataTests
     [InlineData(nameof(RsvpFunctions.GetSessionRoster), "sessions/{sessionId:guid}/roster", AuthenticationPolicies.AuthenticatedPlayer)]
     [InlineData(nameof(RsvpFunctions.AdminOverrideRsvp), "sessions/{sessionId:guid}/rsvp/admin-override", AuthenticationPolicies.CanManageSessions)]
     [InlineData(nameof(RsvpFunctions.CheckInPlayer), "sessions/{sessionId:guid}/check-ins", AuthenticationPolicies.CanCheckInPlayers)]
+    [InlineData(nameof(RsvpFunctions.SelfCheckIn), "sessions/{sessionId:guid}/check-ins/me", AuthenticationPolicies.AuthenticatedPlayer)]
     [InlineData(nameof(RsvpFunctions.RecordNoShows), "sessions/{sessionId:guid}/check-ins/no-shows", AuthenticationPolicies.CanCheckInPlayers)]
     public void RsvpEndpoint_WhenMetadataResolved_RequiresExpectedPolicy(
         string methodName,
@@ -33,6 +34,20 @@ public sealed class RsvpEndpointMetadataTests
         var trigger = GetHttpTrigger(method);
         trigger.AuthLevel.Should().Be(AuthorizationLevel.Anonymous);
         trigger.Route.Should().Be(expectedRoute);
+    }
+
+    [Fact]
+    public void RsvpResponseContract_WhenReflected_ExposesAdditivePickupPalSyncWithDefault()
+    {
+        // RSVP-9 is additive: the MAUI client constructs and deserializes the seven original
+        // positional fields and must keep compiling and parsing without the new one.
+        var property = typeof(RsvpResponseDto).GetProperty(nameof(RsvpResponseDto.PickupPalSync));
+        property.Should().NotBeNull();
+        property!.PropertyType.Should().Be(typeof(string));
+        var constructor = typeof(RsvpResponseDto).GetConstructors().Single();
+        var parameter = constructor.GetParameters().Single(p => p.Name == nameof(RsvpResponseDto.PickupPalSync));
+        parameter.HasDefaultValue.Should().BeTrue();
+        parameter.DefaultValue.Should().Be("NotApplicable");
     }
 
     [Fact]

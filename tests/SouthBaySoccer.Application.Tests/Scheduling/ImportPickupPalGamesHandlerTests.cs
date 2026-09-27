@@ -1,7 +1,10 @@
+using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using SouthBaySoccer.Application.Abstractions.Time;
 using SouthBaySoccer.Application.Features.Scheduling;
+using SouthBaySoccer.Domain.Entities.Groups;
+using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Enumerations;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
@@ -28,6 +31,8 @@ public sealed class ImportPickupPalGamesHandlerTests
         context.AddedSession!.Status.Should().Be(SessionStatus.Published);
         context.AddedSession.Capacity.Should().Be(10);
         context.AddedSession.StartsAtUtc.Should().Be(GameStartUtc);
+        context.AddedSession.CheckInOpensAtUtc.Should().Be(GameStartUtc.AddMinutes(-10));
+        context.AddedSession.CheckInClosesAtUtc.Should().Be(GameStartUtc.AddMinutes(5));
         context.AddedSession.RsvpDeadlineUtc.Should().Be(GameStartUtc.AddHours(-1));
         context.AddedSession.OccurrenceKey.Should().Be("pickuppal:game-1");
         context.AddedSnapshot.Should().NotBeNull();
@@ -37,6 +42,68 @@ public sealed class ImportPickupPalGamesHandlerTests
         context.ReplacedParticipants![0].DisplayName.Should().Be("Mark A");
         context.ReplacedParticipants[1].IsWaitlist.Should().BeTrue();
         context.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenGameGroupMatchesTheCatalogue_AttachesSessionToGroupWithoutPersistingTheId()
+    {
+        var context = new TestContext();
+        var group = new GroupChat { Id = Guid.NewGuid(), ExternalId = "fire-fc@g.us", GroupName = "Fire FC" };
+        context.GroupChatRepository
+            .Setup(x => x.ListByExternalIdsAsync(
+                It.Is<IReadOnlyCollection<string>>(ids => ids.Contains("fire-fc@g.us")),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([group]);
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame() with { GroupExternalId = "fire-fc@g.us" }]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedSession!.GroupChatId.Should().Be(group.Id);
+        context.AddedSnapshot!.SanitizedGameJson.Should().NotContain("fire-fc@g.us", "the group id never lands on the snapshot");
+        context.GroupChatRepository.Verify(x => x.AddAsync(It.IsAny<GroupChat>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenGameGroupIsUnknown_CreatesGroupBeforeAttachingSession()
+    {
+        var context = new TestContext();
+        context.GroupChatRepository
+            .Setup(x => x.ListByExternalIdsAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame() with { GroupExternalId = "unknown@g.us" }]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedSession!.GroupChatId.Should().NotBeNull();
+        context.GroupChatRepository.Verify(x => x.AddAsync(
+            It.Is<GroupChat>(group => group.Id == context.AddedSession.GroupChatId
+                && group.ExternalId == "unknown@g.us" && group.GroupName == SampleGame().GroupName),
+            It.IsAny<CancellationToken>()), Times.Once);
+        context.AddedSnapshot!.SanitizedGameJson.Should().NotContain("unknown@g.us");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenMultipleGamesShareUnknownGroup_CreatesOneGroupForThePass()
+    {
+        var context = new TestContext();
+        var game = SampleGame() with { GroupExternalId = "new-group@g.us" };
+        context.GroupChatRepository
+            .Setup(x => x.ListByExternalIdsAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        context.GamesClient.Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([game, game with { Id = "another-game" }]);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.ImportedCount.Should().Be(2);
+        context.GroupChatRepository.Verify(x => x.AddAsync(
+            It.Is<GroupChat>(group => group.ExternalId == "new-group@g.us"),
+            It.IsAny<CancellationToken>()), Times.Once);
+        context.AddedSession!.GroupChatId.Should().NotBeNull();
     }
 
     [Fact]
@@ -68,6 +135,157 @@ public sealed class ImportPickupPalGamesHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenGameIsImported_MarksTheSessionAsPickupPalOwned()
+    {
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame()]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedSession!.PickupPalOrigin.Should().Be(PickupPalOrigin.Imported);
+        context.AddedSession.PickupPalGameId.Should().Be("game-1");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenSessionWasCreatedByTheApp_KeepsAppOwnershipAndFields()
+    {
+        // The app published this session and created the game itself (SES-7): a re-import must
+        // recognise it by its occurrence key, keep CreatedByApp, and leave the admin's fields and
+        // venue alone (the game's location is our own "name, address" string).
+        var existing = new Session
+        {
+            Id = Guid.NewGuid(),
+            VenueId = Guid.NewGuid(),
+            Capacity = 20,
+            Title = "Caribbean Park - Friday pickup",
+            Format = "9v9",
+            StartsAtUtc = GameStartUtc.AddHours(1),
+            OccurrenceKey = "pickuppal:game-1",
+            Status = SessionStatus.Canceled,
+            PickupPalOrigin = PickupPalOrigin.CreatedByApp,
+            PickupPalGameId = "game-1",
+        };
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame()]);
+        context.SessionRepository
+            .Setup(x => x.FindByOccurrenceKeyAsync("pickuppal:game-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.ImportedCount.Should().Be(1);
+        context.AddedSession.Should().BeNull("the app-created session is adopted, not duplicated");
+        existing.PickupPalOrigin.Should().Be(PickupPalOrigin.CreatedByApp);
+        existing.PickupPalGameId.Should().Be("game-1");
+        existing.Capacity.Should().Be(20, "the app owns the fields of a game it created");
+        existing.Title.Should().Be("Caribbean Park - Friday pickup");
+        existing.StartsAtUtc.Should().Be(GameStartUtc.AddHours(1));
+        existing.Status.Should().Be(SessionStatus.Canceled, "re-import never republishes an app-canceled session");
+        context.VenueAddCount.Should().Be(0, "no venue is derived from our own location string");
+        context.AddedSnapshot.Should().NotBeNull("the roster snapshot still refreshes");
+        context.AddedSnapshot!.SessionId.Should().Be(existing.Id);
+        context.SessionRepository.Verify(x => x.Update(existing), Times.Never, "the identity was already confirmed, so no session write is issued");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAppCreatedSessionKeepsItsRecurrenceKey_LinksByGameIdWithoutRewritingTheKey()
+    {
+        var recurrenceKey = $"{Guid.NewGuid():N}:20260724T043000Z";
+        var existing = new Session
+        {
+            Id = Guid.NewGuid(),
+            VenueId = Guid.NewGuid(),
+            Capacity = 20,
+            Title = "Caribbean Park - Friday pickup",
+            StartsAtUtc = GameStartUtc,
+            OccurrenceKey = recurrenceKey,
+            Status = SessionStatus.Published,
+            PickupPalOrigin = PickupPalOrigin.CreatedByApp,
+            PickupPalGameId = "game-1",
+        };
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame()]);
+        context.SessionRepository
+            .Setup(x => x.ListByPickupPalGameIdsAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([existing]);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.ImportedCount.Should().Be(1);
+        context.AddedSession.Should().BeNull("the session is found by its game id, not its occurrence key");
+        existing.OccurrenceKey.Should().Be(recurrenceKey, "the recurrence key stays the dedupe key");
+        existing.PickupPalGameId.Should().Be("game-1");
+        context.SessionRepository.Verify(x => x.Update(existing), Times.Never, "nothing on the session changed");
+        context.AddedSnapshot.Should().NotBeNull();
+        context.AddedSnapshot!.SessionId.Should().Be(existing.Id);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAppCreatedSessionIsDeleted_SkipsTheGameInsteadOfResurrectingIt()
+    {
+        // The admin deleted the session and its game is being terminated (immediately or from the
+        // outbox); the active feed may still list the game for a while.
+        var deleted = new Session
+        {
+            Id = Guid.NewGuid(),
+            OccurrenceKey = "pickuppal:game-1",
+            Status = SessionStatus.Published,
+            PickupPalOrigin = PickupPalOrigin.CreatedByApp,
+            PickupPalGameId = "game-1",
+            IsDeleted = true,
+        };
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame()]);
+        context.SessionRepository
+            .Setup(x => x.FindByOccurrenceKeyAsync("pickuppal:game-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(deleted);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.ImportedCount.Should().Be(0);
+        result.SkippedCount.Should().Be(1);
+        context.AddedSession.Should().BeNull();
+        context.AddedSnapshot.Should().BeNull();
+        context.SessionRepository.Verify(x => x.Update(It.IsAny<Session>()), Times.Never);
+        context.UnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenImportedSessionIsDeleted_CreatesAFreshSessionForTheGame()
+    {
+        var deleted = new Session
+        {
+            Id = Guid.NewGuid(),
+            OccurrenceKey = "pickuppal:game-1",
+            Status = SessionStatus.Published,
+            PickupPalOrigin = PickupPalOrigin.Imported,
+            PickupPalGameId = "game-1",
+            IsDeleted = true,
+        };
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame()]);
+        context.SessionRepository
+            .Setup(x => x.FindByOccurrenceKeyAsync("pickuppal:game-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(deleted);
+
+        var result = await context.CreateHandler().HandleAsync();
+
+        result.ImportedCount.Should().Be(1);
+        context.AddedSession.Should().NotBeNull("a deleted imported session is never resurrected");
+        context.AddedSession!.Id.Should().NotBe(deleted.Id);
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenOnlyAStartTimeCoincides_CreatesNewSessionInsteadOfAdopting()
     {
         // No snapshot and no occurrence-key match: a manual session that merely shares the start
@@ -85,11 +303,11 @@ public sealed class ImportPickupPalGamesHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_WhenGameStartIsInThePast_ImportsAsDraftWithWarning()
+    public async Task HandleAsync_WhenActiveGameHasStarted_RemainsPublishedForGameDay()
     {
         var context = new TestContext();
-        // Clock is 2026-07-22 08:00 UTC; a start an hour earlier is in the past but still covered by
-        // the active season, so the game imports but must not auto-publish.
+        // Pickup Pal returned this game from its active feed. Game Day may first be opened at or
+        // shortly after kickoff, so the imported session must remain available.
         var pastGame = SampleGame() with { StartsAtUtc = new DateTime(2026, 7, 22, 7, 0, 0, DateTimeKind.Utc) };
         context.GamesClient
             .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
@@ -98,9 +316,9 @@ public sealed class ImportPickupPalGamesHandlerTests
         var result = await context.CreateHandler().HandleAsync();
 
         result.ImportedCount.Should().Be(1);
-        result.Warnings.Should().ContainSingle(warning => warning.Contains("draft") && warning.Contains("past"));
+        result.Warnings.Should().BeEmpty();
         context.AddedSession.Should().NotBeNull();
-        context.AddedSession!.Status.Should().Be(SessionStatus.Draft);
+        context.AddedSession!.Status.Should().Be(SessionStatus.Published);
     }
 
     [Fact]
@@ -181,6 +399,421 @@ public sealed class ImportPickupPalGamesHandlerTests
         context.AddedVenue.Locality.Should().Be("Imported from Pickup Pal");
     }
 
+    [Fact]
+    public async Task HandleAsync_WhenParticipantsCarryIdentity_CreatesProfilesAndLinksParticipants()
+    {
+        var context = new TestContext();
+        var game = SampleGame() with
+        {
+            Participants =
+            [
+                new PickupPalGameParticipantInfo(
+                    "p-1", "Mark A", false, false, GameStartUtc.AddDays(-2),
+                    UserId: "pp-user-1", PhoneNumberHash: "hash-mark", MaskedPhoneNumber: "+******1111"),
+                new PickupPalGameParticipantInfo(
+                    "p-2", "tope", true, true, GameStartUtc.AddDays(-1),
+                    WhatsAppJidHash: "jid-hash-tope"),
+            ],
+        };
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([game]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedProfiles.Should().HaveCount(2);
+        var mark = context.AddedProfiles[0];
+        mark.DisplayName.Should().Be("Mark A");
+        mark.PickupPalUserId.Should().Be("pp-user-1");
+        mark.PhoneNumberHash.Should().Be("hash-mark");
+        mark.MaskedPhoneNumber.Should().Be("+******1111");
+        mark.Role.Should().Be(PlayerRole.Player);
+        mark.IsGuest.Should().BeFalse();
+        var tope = context.AddedProfiles[1];
+        tope.WhatsAppJidHash.Should().Be("jid-hash-tope");
+        tope.Role.Should().Be(PlayerRole.Guest);
+        tope.IsGuest.Should().BeTrue();
+        context.ReplacedParticipants.Should().HaveCount(2);
+        context.ReplacedParticipants![0].PlayerProfileId.Should().Be(mark.Id);
+        context.ReplacedParticipants[1].PlayerProfileId.Should().Be(tope.Id);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenParticipantHasNoIdentity_LeavesParticipantUnlinked()
+    {
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SampleGame()]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedProfiles.Should().BeEmpty("a participant with no stable identity cannot be deduplicated");
+        context.ReplacedParticipants.Should().OnlyContain(participant => participant.PlayerProfileId == null);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenKeylessHandleWasPreviouslyMatched_ReusesTheConfirmedLink()
+    {
+        // "addguest tob8" imports with no identity keys. Once an admin has matched (or the player
+        // has claimed) "tob8" on any game, later imports of the same handle reuse that link instead
+        // of arriving unlinked again — and never overwrite the profile's registered name.
+        var tobi = new PlayerProfile
+        {
+            Id = Guid.NewGuid(),
+            DisplayName = "Tobi Kareem",
+            NormalizedDisplayName = "TOBI KAREEM",
+        };
+        var context = new TestContext();
+        context.KnownProfiles.Add(tobi);
+        context.LinkedParticipantHistory.Add(new PickupPalGameParticipant
+        {
+            Id = Guid.NewGuid(),
+            SessionId = Guid.NewGuid(),
+            PickupPalParticipantId = "pp-old",
+            PlayerProfileId = tobi.Id,
+            DisplayName = "tob8",
+        });
+        var game = SampleGame() with
+        {
+            Participants = [new PickupPalGameParticipantInfo("p-1", "tob8", true, true, GameStartUtc.AddDays(-1))],
+        };
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([game]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedProfiles.Should().BeEmpty("the confirmed alias resolves to the existing profile");
+        context.ReplacedParticipants.Should().ContainSingle()
+            .Which.PlayerProfileId.Should().Be(tobi.Id);
+        tobi.DisplayName.Should().Be("Tobi Kareem", "an alias link must not rename the profile after its handle");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenKeylessHandleWasLinkedToTwoProfiles_StaysUnlinked()
+    {
+        // Two different people were each matched from the handle "victor" at some point; the alias
+        // is ambiguous, so a human has to decide again.
+        var context = new TestContext();
+        foreach (var profileId in (Guid[])[Guid.NewGuid(), Guid.NewGuid()])
+        {
+            context.LinkedParticipantHistory.Add(new PickupPalGameParticipant
+            {
+                Id = Guid.NewGuid(),
+                SessionId = Guid.NewGuid(),
+                PickupPalParticipantId = $"pp-{profileId:N}",
+                PlayerProfileId = profileId,
+                DisplayName = "victor",
+            });
+        }
+
+        var game = SampleGame() with
+        {
+            Participants = [new PickupPalGameParticipantInfo("p-1", "victor", true, true, GameStartUtc.AddDays(-1))],
+        };
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([game]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.ReplacedParticipants.Should().ContainSingle()
+            .Which.PlayerProfileId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenProfileMatchesByPhoneHash_BackfillsKeysWithoutCreating()
+    {
+        var existing = new PlayerProfile
+        {
+            Id = Guid.NewGuid(),
+            DisplayName = "Old Name",
+            NormalizedDisplayName = "OLD NAME",
+            PhoneNumberHash = "hash-mark",
+            MaskedPhoneNumber = "+******1111",
+        };
+        var context = new TestContext();
+        context.PlayerProfileRepository
+            .Setup(x => x.FindByPhoneNumberHashAsync("hash-mark", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+        var game = SampleGame() with
+        {
+            Participants =
+            [
+                new PickupPalGameParticipantInfo(
+                    "p-1", "Mark A", false, false, GameStartUtc.AddDays(-2),
+                    UserId: "pp-user-1", PhoneNumberHash: "hash-mark", WhatsAppJidHash: "jid-hash-mark"),
+            ],
+        };
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([game]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedProfiles.Should().BeEmpty();
+        existing.PickupPalUserId.Should().Be("pp-user-1");
+        existing.WhatsAppJidHash.Should().Be("jid-hash-mark");
+        existing.DisplayName.Should().Be("Mark A", "an import-owned profile follows the Pickup Pal name");
+        context.PlayerProfileRepository.Verify(x => x.Update(existing), Times.Once);
+        context.ReplacedParticipants![0].PlayerProfileId.Should().Be(existing.Id);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenProfileIsIdentityLinked_KeepsItsDisplayName()
+    {
+        var claimed = new PlayerProfile
+        {
+            Id = Guid.NewGuid(),
+            IdentityUserId = Guid.NewGuid(),
+            DisplayName = "Chosen Name",
+            NormalizedDisplayName = "CHOSEN NAME",
+            PickupPalUserId = "pp-user-1",
+        };
+        var context = new TestContext();
+        context.PlayerProfileRepository
+            .Setup(x => x.FindByPickupPalUserIdAsync("pp-user-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(claimed);
+        var game = SampleGame() with
+        {
+            Participants =
+            [
+                new PickupPalGameParticipantInfo(
+                    "p-1", "Mark A", false, false, GameStartUtc.AddDays(-2), UserId: "pp-user-1"),
+            ],
+        };
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([game]);
+
+        await context.CreateHandler().HandleAsync();
+
+        claimed.DisplayName.Should().Be("Chosen Name", "sign-in sync owns the name of a claimed profile");
+        context.ReplacedParticipants![0].PlayerProfileId.Should().Be(claimed.Id);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenSamePersonIsOnTwoGames_CreatesOneProfile()
+    {
+        var context = new TestContext();
+        var participant = new PickupPalGameParticipantInfo(
+            "p-1", "Mark A", false, false, GameStartUtc.AddDays(-2), PhoneNumberHash: "hash-mark");
+        var gameOne = SampleGame() with { Participants = [participant] };
+        var gameTwo = SampleGame() with
+        {
+            Id = "game-2",
+            StartsAtUtc = GameStartUtc.AddDays(1),
+            Participants = [participant with { Id = "p-9" }],
+        };
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([gameOne, gameTwo]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedProfiles.Should().HaveCount(1, "profiles pending save must be reused within one pass");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenNamesCarryEmojiOrPunctuation_CleansThemForStorage()
+    {
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PickupPalGame(
+                "game-1", GameStartUtc, "Field", 10, "active", "Fire FC",
+                [
+                    new PickupPalGameParticipantInfo("p-1", "Jojo\U0001F98D", false, false, GameStartUtc.AddDays(-2)),
+                    new PickupPalGameParticipantInfo("p-2", "\u2026", false, false, GameStartUtc.AddDays(-2)),
+                    new PickupPalGameParticipantInfo("p-3", "\u2018M", false, false, GameStartUtc.AddDays(-2)),
+                    new PickupPalGameParticipantInfo("p-4", "Ad\u00E9day\u1ECD", false, false, GameStartUtc.AddDays(-2)),
+                ])]);
+
+        await context.CreateHandler().HandleAsync();
+
+        // Trailing/leading emoji and punctuation are trimmed, a name with no letters falls back to
+        // Guest, and accented/non-Latin letters are preserved.
+        context.ReplacedParticipants!.Select(p => p.DisplayName)
+            .Should().Equal("Jojo", "Guest", "M", "Ad\u00E9day\u1ECD");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenDisplayNameMatchesTwoProfiles_TreatsNameAsAmbiguousAndCreatesNewProfile()
+    {
+        var context = new TestContext();
+        var game = SampleGame() with
+        {
+            Participants =
+            [
+                new PickupPalGameParticipantInfo(
+                    "p-1", "Mark A", false, false, GameStartUtc.AddDays(-2), WhatsAppJidHash: "jid-mark")
+            ],
+        };
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([game]);
+        var firstNamesake = new PlayerProfile { Id = Guid.NewGuid(), DisplayName = "Mark A", NormalizedDisplayName = "MARK A" };
+        var secondNamesake = new PlayerProfile { Id = Guid.NewGuid(), DisplayName = "Mark A", NormalizedDisplayName = "MARK A" };
+        context.PlayerProfileRepository
+            .Setup(x => x.ListByNormalizedDisplayNamesAsync(
+                It.IsAny<IReadOnlyCollection<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([firstNamesake, secondNamesake]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedProfiles.Should().HaveCount(1, "a shared name must never link the import to either namesake");
+        context.AddedProfiles[0].Id.Should().NotBe(firstNamesake.Id).And.NotBe(secondNamesake.Id);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenGamePayloadIsUnchanged_SkipsTheSnapshotWrite()
+    {
+        var game = SampleGame();
+        var session = new Session { Id = Guid.NewGuid(), StartsAtUtc = GameStartUtc };
+        var snapshot = new PickupPalGameSnapshot
+        {
+            Id = Guid.NewGuid(),
+            PickupPalGameId = game.Id,
+            SessionId = session.Id,
+            StartsAtUtc = game.StartsAtUtc,
+            Location = game.Location,
+            MaxPlayers = game.MaxPlayers,
+            Status = game.Status,
+            GroupName = game.GroupName,
+            SanitizedGameJson = JsonSerializer.Serialize(game, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+        };
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([game]);
+        context.GameRepository
+            .Setup(x => x.FindSnapshotByGameIdAsync(game.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(snapshot);
+        context.SessionRepository
+            .Setup(x => x.GetByIdAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.GameRepository.Verify(
+            x => x.UpdateSnapshot(It.IsAny<PickupPalGameSnapshot>()),
+            Times.Never,
+            "an idle game must not rewrite its whole sanitized payload every pass");
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenTwoGamesShareOneNewLocation_CreatesTheVenueOnce()
+    {
+        var context = new TestContext();
+        var gameOne = SampleGame();
+        var gameTwo = SampleGame() with
+        {
+            Id = "game-2",
+            StartsAtUtc = GameStartUtc.AddDays(1),
+            Participants = [],
+        };
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([gameOne, gameTwo]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.VenueAddCount.Should().Be(
+            1,
+            "a venue added earlier in the pass is not yet queryable, so it must be reused from memory");
+    }
+
+    [Theory]
+    [InlineData("MARK A ")]
+    [InlineData("mark a")]
+    public async Task HandleAsync_WhenStoredNameDiffersFromRequestByCaseOrTrailingSpace_StillLinksTheExistingProfile(
+        string storedNormalizedDisplayName)
+    {
+        var context = new TestContext();
+        var game = SampleGame() with
+        {
+            Participants =
+            [
+                new PickupPalGameParticipantInfo(
+                    "p-1", "Mark A", false, false, GameStartUtc.AddDays(-2), WhatsAppJidHash: "jid-mark")
+            ],
+        };
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([game]);
+        // SQL Server's IN comparison ignores case and trailing spaces under the default collation,
+        // so the row comes back from the batch query even though its stored key is not byte-equal
+        // to the requested one. Matching on the requested key is what keeps the link.
+        var existing = new PlayerProfile
+        {
+            Id = Guid.NewGuid(),
+            DisplayName = "Mark A",
+            NormalizedDisplayName = storedNormalizedDisplayName,
+        };
+        context.PlayerProfileRepository
+            .Setup(x => x.ListByNormalizedDisplayNamesAsync(
+                It.IsAny<IReadOnlyCollection<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([existing]);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.AddedProfiles.Should().BeEmpty("the existing profile must be reused, not duplicated");
+        context.ReplacedParticipants.Should().ContainSingle()
+            .Which.PlayerProfileId.Should().Be(existing.Id);
+    }
+
+    [Theory]
+    [InlineData("location")]
+    [InlineData("maxPlayers")]
+    [InlineData("status")]
+    [InlineData("groupName")]
+    [InlineData("startsAt")]
+    public async Task HandleAsync_WhenAnySnapshotFieldChanges_WritesTheSnapshot(string changedField)
+    {
+        var storedGame = SampleGame();
+        var incomingGame = changedField switch
+        {
+            "location" => storedGame with { Location = "a different field" },
+            "maxPlayers" => storedGame with { MaxPlayers = storedGame.MaxPlayers + 2 },
+            "status" => storedGame with { Status = "cancelled" },
+            "groupName" => storedGame with { GroupName = "Ice FC" },
+            _ => storedGame with { StartsAtUtc = storedGame.StartsAtUtc.AddMinutes(30) },
+        };
+        var session = new Session { Id = Guid.NewGuid(), StartsAtUtc = GameStartUtc };
+        var snapshot = new PickupPalGameSnapshot
+        {
+            Id = Guid.NewGuid(),
+            PickupPalGameId = storedGame.Id,
+            SessionId = session.Id,
+            StartsAtUtc = storedGame.StartsAtUtc,
+            Location = storedGame.Location,
+            MaxPlayers = storedGame.MaxPlayers,
+            Status = storedGame.Status,
+            GroupName = storedGame.GroupName,
+            SanitizedGameJson = JsonSerializer.Serialize(storedGame, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+        };
+        var context = new TestContext();
+        context.GamesClient
+            .Setup(x => x.GetActiveGamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([incomingGame]);
+        context.GameRepository
+            .Setup(x => x.FindSnapshotByGameIdAsync(storedGame.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(snapshot);
+        context.SessionRepository
+            .Setup(x => x.GetByIdAsync(session.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+
+        await context.CreateHandler().HandleAsync();
+
+        context.GameRepository.Verify(
+            x => x.UpdateSnapshot(snapshot),
+            Times.Once,
+            $"a change to {changedField} must not be dropped by the unchanged-payload skip");
+    }
+
     private static PickupPalGame SampleGame() =>
         new(
             "game-1",
@@ -202,7 +835,11 @@ public sealed class ImportPickupPalGamesHandlerTests
 
         public Mock<ISessionRepository> SessionRepository { get; } = new();
 
+        public Mock<IPlayerProfileRepository> PlayerProfileRepository { get; } = new();
+
         public Mock<IUnitOfWork> UnitOfWork { get; } = new();
+
+        public List<PlayerProfile> AddedProfiles { get; } = [];
 
         public Session? AddedSession { get; private set; }
 
@@ -210,7 +847,11 @@ public sealed class ImportPickupPalGamesHandlerTests
 
         public Venue? AddedVenue { get; private set; }
 
+        public int VenueAddCount { get; private set; }
+
         public IReadOnlyList<PickupPalGameParticipant>? ReplacedParticipants { get; private set; }
+
+        public Mock<IGroupChatRepository> GroupChatRepository { get; } = new();
 
         private readonly Mock<ISeasonRepository> _seasonRepository = new();
         private readonly Mock<IVenueRepository> _venueRepository = new();
@@ -227,9 +868,18 @@ public sealed class ImportPickupPalGamesHandlerTests
             _venueRepository
                 .Setup(x => x.ListActiveAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Array.Empty<Venue>());
+            // The import resolves venues by name against a live read, never the cached active list:
+            // a stale miss there would insert a duplicate venue rather than just serve stale data.
+            _venueRepository
+                .Setup(x => x.ListByNamesAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<Venue>());
             _venueRepository
                 .Setup(x => x.AddAsync(It.IsAny<Venue>(), It.IsAny<CancellationToken>()))
-                .Callback<Venue, CancellationToken>((venue, _) => AddedVenue = venue)
+                .Callback<Venue, CancellationToken>((venue, _) =>
+                {
+                    AddedVenue = venue;
+                    VenueAddCount++;
+                })
                 .Returns(Task.CompletedTask);
             SessionRepository
                 .Setup(x => x.AddAsync(It.IsAny<Session>(), It.IsAny<CancellationToken>()))
@@ -247,17 +897,115 @@ public sealed class ImportPickupPalGamesHandlerTests
                 .Callback<Guid, IReadOnlyList<PickupPalGameParticipant>, CancellationToken>(
                     (_, participants, _) => ReplacedParticipants = participants)
                 .Returns(Task.CompletedTask);
+            PlayerProfileRepository
+                .Setup(x => x.AddAsync(It.IsAny<PlayerProfile>(), It.IsAny<CancellationToken>()))
+                .Callback<PlayerProfile, CancellationToken>((profile, _) => AddedProfiles.Add(profile))
+                .Returns(Task.CompletedTask);
             UnitOfWork.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+            ConfigureBatchLookupDefaults();
+        }
+
+        // The handler prefetches every lookup in batches. Fan each batch back out to the
+        // single-key stubs so tests keep describing one snapshot, session, or profile at a time,
+        // and so a test that never stubs a key still sees "no match" rather than a null result.
+        private void ConfigureBatchLookupDefaults()
+        {
+            GameRepository
+                .Setup(x => x.ListSnapshotsByGameIdsAsync(
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns((IReadOnlyCollection<string> gameIds, CancellationToken token) =>
+                    ResolveManyAsync(gameIds, id => GameRepository.Object.FindSnapshotByGameIdAsync(id, token)));
+            SessionRepository
+                .Setup(x => x.ListByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+                .Returns((IReadOnlyCollection<Guid> ids, CancellationToken token) =>
+                    ResolveManyAsync(ids, id => SessionRepository.Object.GetByIdAsync(id, token)));
+            SessionRepository
+                .Setup(x => x.ListByOccurrenceKeysAsync(
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns((IReadOnlyCollection<string> keys, CancellationToken token) =>
+                    ResolveManyAsync(keys, key => SessionRepository.Object.FindByOccurrenceKeyAsync(key, token)));
+            SessionRepository
+                .Setup(x => x.ListByPickupPalGameIdsAsync(
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<Session>());
+            PlayerProfileRepository
+                .Setup(x => x.ListByPickupPalUserIdsAsync(
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns((IReadOnlyCollection<string> ids, CancellationToken token) =>
+                    ResolveManyAsync(ids, id => PlayerProfileRepository.Object.FindByPickupPalUserIdAsync(id, token)));
+            PlayerProfileRepository
+                .Setup(x => x.ListByPhoneNumberHashesAsync(
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns((IReadOnlyCollection<string> hashes, CancellationToken token) =>
+                    ResolveManyAsync(hashes, hash => PlayerProfileRepository.Object.FindByPhoneNumberHashAsync(hash, token)));
+            PlayerProfileRepository
+                .Setup(x => x.ListByWhatsAppJidHashesAsync(
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns((IReadOnlyCollection<string> hashes, CancellationToken token) =>
+                    ResolveManyAsync(hashes, hash => PlayerProfileRepository.Object.FindByWhatsAppJidHashAsync(hash, token)));
+            PlayerProfileRepository
+                .Setup(x => x.ListByNormalizedDisplayNamesAsync(
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns((IReadOnlyCollection<string> names, CancellationToken token) =>
+                    ResolveManyAsync(names, name => PlayerProfileRepository.Object.FindSingleByNormalizedDisplayNameAsync(name, token)));
+            GameRepository
+                .Setup(x => x.ListLinkedParticipantsByDisplayNamesAsync(
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyCollection<string> names, CancellationToken _) =>
+                    LinkedParticipantHistory
+                        .Where(row => names.Contains(row.DisplayName, StringComparer.OrdinalIgnoreCase))
+                        .ToArray());
+            PlayerProfileRepository
+                .Setup(x => x.ListProfilesAsync(
+                    It.IsAny<IReadOnlyCollection<Guid>>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyCollection<Guid> ids, CancellationToken _) =>
+                    KnownProfiles.Where(profile => ids.Contains(profile.Id)).ToArray());
+        }
+
+        /// <summary>Previously linked participant rows the confirmed-alias lookup can find.</summary>
+        public List<PickupPalGameParticipant> LinkedParticipantHistory { get; } = [];
+
+        /// <summary>Profiles resolvable by id (for the confirmed-alias lookup).</summary>
+        public List<PlayerProfile> KnownProfiles { get; } = [];
+
+        private static async Task<IReadOnlyList<TResult>> ResolveManyAsync<TKey, TResult>(
+            IReadOnlyCollection<TKey> keys,
+            Func<TKey, Task<TResult?>> resolve)
+            where TResult : class
+        {
+            var results = new List<TResult>(keys.Count);
+            foreach (var key in keys)
+            {
+                var result = await (resolve(key) ?? Task.FromResult<TResult?>(null));
+                if (result is not null)
+                {
+                    results.Add(result);
+                }
+            }
+
+            return results;
         }
 
         public ImportPickupPalGamesCommandHandler CreateHandler() =>
+            new(GamesClient.Object, CreateImportService(), UnitOfWork.Object);
+
+        public PickupPalGameImportService CreateImportService() =>
             new(
-                GamesClient.Object,
                 GameRepository.Object,
                 SessionRepository.Object,
                 _seasonRepository.Object,
                 _venueRepository.Object,
-                UnitOfWork.Object,
+                PlayerProfileRepository.Object,
+                GroupChatRepository.Object,
                 _clock.Object);
     }
 }

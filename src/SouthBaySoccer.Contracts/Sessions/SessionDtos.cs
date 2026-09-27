@@ -1,5 +1,15 @@
 namespace SouthBaySoccer.Contracts.Sessions;
 
+public enum SessionCardStatus
+{
+    Open,
+    Going,
+    Waitlisted,
+    Full,
+    Closed,
+    Canceled
+}
+
 public sealed record SessionsDashboardDto(
     string GroupLabel,
     string Greeting,
@@ -26,12 +36,54 @@ public sealed record SessionSummaryDto(
     int WaitlistCount,
     string? RelativeLabel,
     bool IsCanceled = false,
-    string? DeadlineLabel = null);
+    string? DeadlineLabel = null,
+    bool IsGoing = false,
+    bool IsWaitlisted = false,
+    bool CanJoinWaitlist = false,
+    bool IsRsvpClosed = false,
+    string? GroupChatName = null,
+    Guid? GroupChatId = null,
+    string? MembershipStatus = null,
+    bool CanJoin = true)
+{
+    /// <summary>
+    /// Whether this session carries a WhatsApp group chat name. Sessions an organizer created by
+    /// hand have none, so the schedule card hides the group chip rather than rendering it blank.
+    /// </summary>
+    public bool HasGroupChatName => !string.IsNullOrWhiteSpace(GroupChatName);
+
+    public string DisplayTitle =>
+        string.IsNullOrWhiteSpace(Venue)
+            ? Title
+            : string.IsNullOrWhiteSpace(Format)
+                ? Venue
+                : $"{Venue} · {Format}";
+
+    public SessionCardStatus CardStatus =>
+        IsCanceled ? SessionCardStatus.Canceled
+            : IsGoing ? SessionCardStatus.Going
+            : IsWaitlisted ? SessionCardStatus.Waitlisted
+            : IsFull ? SessionCardStatus.Full
+            : IsRsvpClosed ? SessionCardStatus.Closed
+            : SessionCardStatus.Open;
+
+    public string CardSemanticDescription => $"{DisplayTitle} — {StatusLabel}";
+
+    public string WaitlistActionDescription => $"Join the waitlist for {DisplayTitle}";
+
+    /// <summary>A grouped session requires explicit approval even if an older response defaults CanJoin to true.</summary>
+    public bool CanJoinSession => CanJoin && (GroupChatId is null || MembershipStatus == "Approved");
+
+    /// <summary>Visibility and command guard for the waitlist action.</summary>
+    public bool ShowJoinWaitlist => CanJoinWaitlist && CanJoinSession;
+}
 
 public sealed record StatsPromptDto(
     Guid MatchId,
     string Title,
-    string Caption);
+    string Caption,
+    Guid SessionId = default,
+    bool RequiresClaim = false);
 
 public sealed record SessionDetailDto(
     Guid Id,
@@ -47,4 +99,13 @@ public sealed record SessionDetailDto(
     bool IsFull,
     bool IsRsvpAvailable,
     bool IsGoing,
-    bool IsCanceled = false);
+    bool IsCanceled = false,
+    Guid? GroupChatId = null,
+    string? GroupName = null,
+    string? MembershipStatus = null,
+    bool CanJoin = true,
+    bool IsWaitlisted = false)
+{
+    /// <summary>A grouped session requires explicit approval even if an older response defaults CanJoin to true.</summary>
+    public bool CanJoinSession => CanJoin && (GroupChatId is null || MembershipStatus == "Approved");
+}

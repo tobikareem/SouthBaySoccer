@@ -1,3 +1,4 @@
+using SouthBaySoccer.Domain.Entities.Groups;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 
 namespace SouthBaySoccer.Application.Features.Scheduling;
@@ -10,7 +11,7 @@ internal static class SchedulingMappers
     public static VenueModel ToModel(Venue venue) =>
         new(venue.Id, venue.Name, venue.Locality, venue.Address, venue.MapsProviderReference);
 
-    public static SessionModel ToModel(Session session) =>
+    public static SessionModel ToModel(Session session, GroupChat? group = null) =>
         new(
             session.Id,
             session.SeasonId,
@@ -25,7 +26,9 @@ internal static class SchedulingMappers
             session.CheckInClosesAtUtc,
             session.RsvpDeadlineUtc,
             session.OccurrenceKey,
-            session.Status.ToString());
+            session.Status.ToString(),
+            session.GroupChatId,
+            group?.GroupName);
 
     public static RecurrenceRuleModel ToModel(RecurrenceRule recurrenceRule) =>
         new(recurrenceRule.Id, recurrenceRule.Name, recurrenceRule.TimeZoneId, recurrenceRule.Rule);

@@ -26,6 +26,11 @@ public sealed class StatsFunctions(
     GetPlayerStatsQueryHandler getPlayerStatsHandler,
     GetMyPlayerStatsQueryHandler getMyPlayerStatsHandler,
     GetPlayerRecentFormQueryHandler getPlayerRecentFormHandler,
+    GetMyMatchStatsQueryHandler getMyMatchStatsHandler,
+    GetRateableTeammatesQueryHandler getRateableTeammatesHandler,
+    SubmitMyMatchStatsCommandHandler submitMyMatchStatsHandler,
+    ConfirmPlayerSubmissionCommandHandler confirmPlayerSubmissionHandler,
+    GetPendingStatSubmissionQueryHandler getPendingStatSubmissionHandler,
     IdempotentRequestExecutor idempotentRequestExecutor)
 {
     [Function(nameof(CreateMatch))]
@@ -161,6 +166,153 @@ public sealed class StatsFunctions(
             cancellationToken);
     }
 
+    [Function(nameof(GetMyMatchStats))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> GetMyMatchStats(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "stats/matches/{matchId:guid}/me")] HttpRequestData request,
+        Guid matchId,
+        CancellationToken cancellationToken)
+    {
+        var model = await getMyMatchStatsHandler.HandleAsync(new GetMyMatchStatsQuery(matchId), cancellationToken);
+        var response = request.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(
+            new MatchStatsDto(
+                model.MatchId,
+                model.CurrentPlayerProfileId,
+                model.MatchSubtitle,
+                model.Goals,
+                model.Assists,
+                model.IsPendingConfirmation,
+                model.TeammateSubmissions
+                    .Select(submission => new TeammateStatSubmissionDto(
+                        new Contracts.Players.PlayerSummaryDto(
+                            submission.PlayerProfileId,
+                            submission.DisplayName,
+                            ToInitials(submission.DisplayName),
+                            submission.PreferredPosition,
+                            submission.IsGuest),
+                        submission.Goals,
+                        submission.Assists,
+                        submission.IsConfirmed))
+                    .ToArray(),
+                model.CanConfirmTeammates),
+            cancellationToken);
+        return response;
+    }
+
+    [Function(nameof(GetRateableTeammates))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> GetRateableTeammates(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "stats/matches/{matchId:guid}/rateable-teammates")] HttpRequestData request,
+        Guid matchId,
+        CancellationToken cancellationToken)
+    {
+        var teammates = await getRateableTeammatesHandler.HandleAsync(
+            new GetRateableTeammatesQuery(matchId),
+            cancellationToken);
+        var response = request.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(
+            teammates
+                .Select(teammate => new RateableTeammateDto(
+                    new Contracts.Players.PlayerSummaryDto(
+                        teammate.PlayerProfileId,
+                        teammate.DisplayName,
+                        ToInitials(teammate.DisplayName),
+                        teammate.PreferredPosition,
+                        teammate.IsGuest),
+                    teammate.Detail,
+                    // Rating/like/MVP start unset; the rater's own choices live client-side until submit.
+                    0,
+                    false,
+                    false))
+                .ToArray(),
+            cancellationToken);
+        return response;
+    }
+
+    [Function(nameof(SubmitMyMatchStats))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> SubmitMyMatchStats(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "stats/matches/{matchId:guid}/submissions")] HttpRequestData request,
+        Guid matchId,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadRequiredJsonAsync<SubmitMatchStatsRequest>(request, cancellationToken);
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(SubmitMyMatchStats),
+            GetIdempotencyKey(request),
+            new { matchId, body.Goals, body.Assists },
+            async token =>
+            {
+                var result = await submitMyMatchStatsHandler.HandleAsync(
+                    new SubmitMyMatchStatsCommand(matchId, body.Goals, body.Assists),
+                    token);
+                return new IdempotentResponse<StatMutationResponse>(HttpStatusCode.OK, ToResponse(result));
+            },
+            cancellationToken);
+    }
+
+    [Function(nameof(ConfirmPlayerSubmission))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> ConfirmPlayerSubmission(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "stats/matches/{matchId:guid}/submissions/{playerProfileId:guid}/confirm")] HttpRequestData request,
+        Guid matchId,
+        Guid playerProfileId,
+        CancellationToken cancellationToken)
+    {
+        return await idempotentRequestExecutor.ExecuteAsync(
+            request,
+            nameof(ConfirmPlayerSubmission),
+            GetIdempotencyKey(request),
+            new { matchId, playerProfileId },
+            async token =>
+            {
+                var result = await confirmPlayerSubmissionHandler.HandleAsync(
+                    new ConfirmPlayerSubmissionCommand(matchId, playerProfileId),
+                    token);
+                return new IdempotentResponse<StatMutationResponse>(HttpStatusCode.OK, ToResponse(result));
+            },
+            cancellationToken);
+    }
+
+    [Function(nameof(GetPendingStatSubmission))]
+    [RequirePolicy(AuthenticationPolicies.AuthenticatedPlayer)]
+    public async Task<HttpResponseData> GetPendingStatSubmission(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "stats/submissions/pending")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var prompt = await getPendingStatSubmissionHandler.HandleAsync(
+            new GetPendingStatSubmissionQuery(),
+            cancellationToken);
+        if (prompt is null)
+        {
+            return request.CreateResponse(HttpStatusCode.NoContent);
+        }
+
+        var response = request.CreateResponse(HttpStatusCode.OK);
+        await response.WriteAsJsonAsync(
+            new Contracts.Sessions.StatsPromptDto(
+                prompt.MatchId,
+                prompt.Title,
+                prompt.Caption,
+                prompt.SessionId,
+                prompt.RequiresClaim),
+            cancellationToken);
+        return response;
+    }
+
+    private static string ToInitials(string displayName)
+    {
+        var initials = string.Concat(
+            displayName
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Take(2)
+                .Select(part => char.ToUpperInvariant(part[0])));
+
+        return string.IsNullOrWhiteSpace(initials) ? "SB" : initials;
+    }
+
     [Function(nameof(LockMatchStats))]
     [RequirePolicy(AuthenticationPolicies.CanRecordStats)]
     public async Task<HttpResponseData> LockMatchStats(
@@ -216,10 +368,11 @@ public sealed class StatsFunctions(
         var query = QueryHelpers.ParseQuery(request.Url.Query);
         var result = await getSeasonLeaderboardHandler.HandleAsync(
             new GetSeasonLeaderboardQuery(
-                ReadRequiredGuid(query, "seasonId"),
+                ReadOptionalGuid(query, "seasonId"),
                 ToDomainMetric(ReadMetric(query)),
                 ReadOptionalInt(query, "page", 1),
-                ReadOptionalInt(query, "pageSize", 25)),
+                ReadOptionalInt(query, "pageSize", 25),
+                ReadOptionalGuid(query, "groupId")),
             cancellationToken);
 
         return await WriteJsonAsync(request, HttpStatusCode.OK, ToResponse(result), cancellationToken);

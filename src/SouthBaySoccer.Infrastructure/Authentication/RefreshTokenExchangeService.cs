@@ -157,10 +157,19 @@ public sealed class RefreshTokenExchangeService : IRefreshTokenExchangeService
             DeviceId = request.DeviceId ?? currentToken.DeviceId,
             UserAgentHash = HashOptional(request.UserAgent) ?? currentToken.UserAgentHash,
             IpAddressHash = HashOptional(request.IpAddress) ?? currentToken.IpAddressHash,
-            ExpiresAtUtc = now.Add(tokenLifetime),
+            // A rotation keeps the family's own lifetime (a 12-hour session token does not become
+            // a 30-day one by refreshing); the configured lifetime is only the fallback for rows
+            // whose audit stamps cannot express one.
+            ExpiresAtUtc = now.Add(ResolveFamilyLifetime(currentToken)),
             CreatedAt = now,
             CreatedBy = currentToken.IdentityUserId.ToString(),
         };
+    }
+
+    private TimeSpan ResolveFamilyLifetime(RefreshToken currentToken)
+    {
+        var lifetime = currentToken.ExpiresAtUtc - currentToken.CreatedAt;
+        return lifetime > TimeSpan.Zero ? lifetime : tokenLifetime;
     }
 
     private async Task RevokeFamilyForReuseAsync(

@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "WF2MPD5GKS.com.pickupsoccer.n9jabay",
+        "paths": ["/register", "/register/*", "/login", "/login/*"]
+      }
+    ]
+  }
+}

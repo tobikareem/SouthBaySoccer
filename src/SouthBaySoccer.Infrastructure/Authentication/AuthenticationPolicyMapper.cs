@@ -26,6 +26,13 @@ public static class AuthenticationPolicyMapper
 
     private static void AddRolePolicies(PlayerRole role, ISet<string> policies)
     {
+        if (role is PlayerRole.Owner)
+        {
+            // Super admins: only the configured owners (GRP-1).
+            policies.Add("IsSuperAdmin");
+            policies.Add("CanManageGroupMembers");
+        }
+
         if (role is PlayerRole.Owner or PlayerRole.Admin)
         {
             policies.Add("CanManagePlayers");

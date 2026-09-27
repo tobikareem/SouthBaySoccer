@@ -12,6 +12,14 @@ public interface IPickupPalGameRepository
         string pickupPalGameId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lists the snapshots for the given Pickup Pal game ids in one query. Game ids with no
+    /// snapshot are simply absent from the result.
+    /// </summary>
+    Task<IReadOnlyList<PickupPalGameSnapshot>> ListSnapshotsByGameIdsAsync(
+        IReadOnlyCollection<string> pickupPalGameIds,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Adds a new game snapshot.</summary>
     Task AddSnapshotAsync(PickupPalGameSnapshot snapshot, CancellationToken cancellationToken = default);
 
@@ -30,5 +38,33 @@ public interface IPickupPalGameRepository
     /// <summary>Lists the session's imported participants ordered by join order.</summary>
     Task<IReadOnlyList<PickupPalGameParticipant>> ListParticipantsAsync(
         Guid sessionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Finds a single imported participant row by its id, or null.</summary>
+    Task<PickupPalGameParticipant?> FindParticipantAsync(
+        Guid participantId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Marks an existing participant row as modified (e.g. after linking it to a profile).</summary>
+    void UpdateParticipant(PickupPalGameParticipant participant);
+
+    /// <summary>
+    /// Re-points every participant row linked to one profile onto another, across all sessions.
+    /// Used when a duplicate import-owned profile merges into the player's real profile, so their
+    /// whole roster history follows the merge. Returns the number of rows moved.
+    /// </summary>
+    Task<int> ReassignParticipantLinksAsync(
+        Guid sourcePlayerProfileId,
+        Guid targetPlayerProfileId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists participant rows across all sessions that are linked to a profile and whose display
+    /// name is one of the given names. Every linked row records a confirmed identity — either an
+    /// import key match or a human match/claim — so the import reuses them as aliases: once "tob8"
+    /// has been linked to a player, later keyless imports of the same handle resolve to that player.
+    /// </summary>
+    Task<IReadOnlyList<PickupPalGameParticipant>> ListLinkedParticipantsByDisplayNamesAsync(
+        IReadOnlyCollection<string> displayNames,
         CancellationToken cancellationToken = default);
 }

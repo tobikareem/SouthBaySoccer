@@ -20,6 +20,11 @@ public class PlayerProfile : BaseEntity
     public string? PhoneNumberHash { get; set; }
     /// <summary>Gets or sets the optional masked phone display value.</summary>
     public string? MaskedPhoneNumber { get; set; }
+    /// <summary>
+    /// Gets or sets the optional WhatsApp identity hash used to deduplicate players imported from
+    /// Pickup Pal games. Only the hash is ever stored — never a raw WhatsApp identifier.
+    /// </summary>
+    public string? WhatsAppJidHash { get; set; }
     /// <summary>Gets or sets the optional profile photo URI.</summary>
     public string? PhotoUri { get; set; }
     /// <summary>Gets or sets a value indicating whether this profile is a guest.</summary>

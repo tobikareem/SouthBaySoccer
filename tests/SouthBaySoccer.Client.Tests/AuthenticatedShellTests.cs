@@ -30,6 +30,15 @@ public class AuthenticatedShellTests
     private static List<XElement> ShellContents(XDocument shell) =>
         shell.Descendants().Where(element => element.Name.LocalName == "ShellContent").ToList();
 
+    // The five bottom tabs live inside the TabBar. Other ShellContents (e.g. the blocking
+    // link-group route) are declared outside it and are intentionally excluded here.
+    private static List<XElement> TabBarContents(XDocument shell) =>
+        shell.Descendants()
+            .Single(element => element.Name.LocalName == "TabBar")
+            .Elements()
+            .Where(element => element.Name.LocalName == "ShellContent")
+            .ToList();
+
     private static string? Attribute(XElement element, string name) =>
         element.Attribute(name)?.Value;
 
@@ -48,7 +57,7 @@ public class AuthenticatedShellTests
     [Fact]
     public void AppShell_Tabs_AreSessionsGameDayStatsPlayersProfileInOrder()
     {
-        var contents = ShellContents(LoadXaml("AppShell.xaml"));
+        var contents = TabBarContents(LoadXaml("AppShell.xaml"));
 
         contents.Select(content => Attribute(content, "Route"))
             .Should().Equal("sessions", "gameday", "stats", "players", "profile");
@@ -78,7 +87,7 @@ public class AuthenticatedShellTests
     [Fact]
     public void AppShell_Tabs_HaveStableAutomationIdsAndSemanticNames()
     {
-        var contents = ShellContents(LoadXaml("AppShell.xaml"));
+        var contents = TabBarContents(LoadXaml("AppShell.xaml"));
 
         contents.Select(content => Attribute(content, "AutomationId"))
             .Should().Equal("SessionsTab", "GameDayTab", "StatsTab", "PlayersTab", "ProfileTab");
@@ -89,7 +98,9 @@ public class AuthenticatedShellTests
     [Fact]
     public void AppShell_TabIcons_UseTypedFontAwesomeSolidResources()
     {
-        var styles = LoadXaml("AppStyles.xaml");
+        // The tab icon set migrated into the brand tokens when the sample-template dictionaries
+        // were deleted; BrandTokens.xaml owns it now.
+        var styles = LoadXaml("BrandTokens.xaml");
         var expectedGlyphs = new Dictionary<string, string>
         {
             ["IconSessions"] = "FontAwesomeGlyphs.CalendarDays",
@@ -160,7 +171,11 @@ public class AuthenticatedShellTests
         var source = LoadSource("AuthenticationNavigator.cs");
 
         source.Should().Contain("window.Page = shell");
-        source.Should().Contain("GoToAsync(\"//sessions\")");
+        // After the shell loads the navigator routes to //sessions, or to the blocking //link-group
+        // step first when the player belongs to no group yet.
+        source.Should().Contain("\"//sessions\"");
+        source.Should().Contain("\"//link-group\"");
+        source.Should().Contain("shell.GoToAsync(route)");
         source.Should().NotContain("PushAsync(");
     }
 

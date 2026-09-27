@@ -9,9 +9,23 @@
                Style="{StaticResource TextLabel}"
                VerticalTextAlignment="Center"
                SemanticProperties.HeadingLevel="Level2" />
-        <Button Grid.Column="1"
-                Text="{Binding ActionText, Source={x:Reference Root}}"
-                Command="{Binding ActionCommand, Source={x:Reference Root}}"
-                Style="{StaticResource LinkButton}" />
+        <!-- Actions sit inline on the header row instead of stacking beneath it, so a section can
+             offer two entry points without spending a second row of vertical space. The optional
+             glyph rides on the button's ImageSource rather than being prepended to Text, so the icon
+             keeps the icon font while the label keeps the brand text font. -->
+        <HorizontalStackLayout Grid.Column="1"
+                               Spacing="{StaticResource SpaceSm}"
+                               VerticalOptions="Center">
+            <Button x:Name="ActionButton"
+                    Text="{Binding ActionText, Source={x:Reference Root}}"
+                    Command="{Binding ActionCommand, Source={x:Reference Root}}"
+                    ContentLayout="Left,6"
+                    Style="{StaticResource LinkButton}" />
+            <Button x:Name="SecondaryActionButton"
+                    Text="{Binding SecondaryActionText, Source={x:Reference Root}}"
+                    Command="{Binding SecondaryActionCommand, Source={x:Reference Root}}"
+                    ContentLayout="Left,6"
+                    Style="{StaticResource LinkButton}" />
+        </HorizontalStackLayout>
     </Grid>
 </ContentView>

@@ -51,8 +51,8 @@ public sealed class ApiProfileClient(HttpClient httpClient) : IProfileClient
             profile.DisplayName,
             profile.PreferredPosition,
             ToInitials(profile.DisplayName),
-            new CareerStatsDto(0, 0, 0, 0, 0, 0),
-            Array.Empty<MatchResult>(),
+            profile.CareerStats ?? new CareerStatsDto(0, 0, 0, 0, 0, 0),
+            profile.RecentForm ?? Array.Empty<MatchResult>(),
             profile.IsGuest ? "Guest profile" : null,
             profile.Role);
 

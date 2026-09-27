@@ -7,9 +7,8 @@ the `home` screen in
 [`../../../documentation/mobile-wireframes.html`](../../../documentation/mobile-wireframes.html).
 This screen's Font Awesome contract implements `INV-13`.
 
-The screen is the first authenticated route inside the signed-in Shell, hosting the Sessions tab. In
-this UI-first phase it binds to a **seed** `ISessionsClient`, swapped for the typed API client at
-M11.1 with no page or page-model change ([`../../design.md`](../../design.md) §12).
+The screen is the first authenticated route inside the signed-in Shell, hosting the Sessions tab.
+It binds to `ISessionsClient`; seed and API implementations return the same dashboard projection.
 
 ## Screen composition
 
@@ -80,7 +79,8 @@ seed-backed `ISessionsClient` abstraction and a navigation service — never on 
 - `FeaturedSession` — the next-match hero projection.
 - `StatsPrompt` — the latest-match stats prompt projection.
 - `ComingUpSessions` — remaining session cards (title, badge variant/text, date/time,
-  current/max capacity, waitlist count, `IsFull`, `IsCanceled`);
+  current/max capacity, waitlist count, `IsFull`, `IsCanceled`, `IsGoing`, `IsWaitlisted`, and
+  server-derived `CanJoinWaitlist`);
 - `DuesStatus` — the player's dues badge state;
 - `IsBusy` — request-in-flight flag driving the `StateView` Loading state;
 - `State` — drives the `StateView` (Loading / Empty / Error / Offline / Content);
@@ -95,6 +95,23 @@ sessions, then maps successful results to `Content` so the stats entry point rem
 when there are no upcoming sessions, `Error` on a recoverable failure,
 or `Offline` when connectivity is unavailable. Navigation commands route through Shell to the Session
 detail and Match stats screens; tab switching is Shell `TabBar` navigation, not a command.
+
+## Server feed
+
+`GET /api/sessions` is authenticated and bounded. Each row carries session/venue metadata plus
+de-duplicated Going and waitlist counts from local RSVP state and persisted Pickup Pal participants,
+the current player's Going/waitlisted state, `IsFull`, and `CanJoinWaitlist`. The endpoint refreshes
+Pickup Pal through the shared throttled importer before reading; provider failures fall back to the
+last persisted snapshot. `CanJoinWaitlist` is true only for a published, full session before its
+RSVP deadline when the caller is neither Going nor already waitlisted.
+
+The same attendance projection governs both the feed and the serializable RSVP capacity decision.
+Linked profiles are represented once across both lists: local state wins over imported Pickup Pal
+state, and Going wins over Waitlist within the same source. This prevents the feed from advertising
+a full game while the RSVP transaction admits an over-capacity player.
+
+Sessions home and See schedule consume this same projection. See schedule adds the same
+`JoinWaitlistCommand`, refreshes after success, and never derives counts or permissions locally.
 
 ## States
 

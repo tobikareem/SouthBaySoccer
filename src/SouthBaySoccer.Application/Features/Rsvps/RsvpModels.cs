@@ -9,7 +9,8 @@ public sealed record RsvpResultModel(
     Guid? RsvpResponseId,
     Guid? WaitlistEntryId,
     int? WaitlistPosition,
-    Guid? PromotedPlayerProfileId);
+    Guid? PromotedPlayerProfileId,
+    PickupPalSyncStatus PickupPalSync = PickupPalSyncStatus.NotApplicable);
 
 public sealed record SubmitRsvpCommand(
     Guid SessionId,
@@ -27,6 +28,8 @@ public sealed record CheckInPlayerCommand(
     Guid PlayerProfileId,
     AttendanceOutcome Outcome,
     string? LateOverrideReason = null);
+
+public sealed record SelfCheckInCommand(Guid SessionId);
 
 public sealed record RecordNoShowsCommand(Guid SessionId);
 

@@ -104,6 +104,21 @@ public sealed class JwtTokenServiceTests
             .WithMessage("*active JWT signing key id must be present*");
     }
 
+    [Fact]
+    public async Task IssueAndValidateAccessToken_WhenCalledConcurrentlyOnSharedInstance_AllTokensValidate()
+    {
+        var service = CreateService(NowUtc);
+        var userId = Guid.NewGuid();
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 50).Select(_ => Task.Run(() =>
+        {
+            var issued = service.IssueAccessToken(new AccessTokenIssueRequest(userId, ["Player"], ["CanManageSessions"]));
+            return service.ValidateAccessToken(issued.Token);
+        })));
+
+        results.Should().OnlyContain(result => result.IsValid && result.UserId == userId);
+    }
+
     private static JwtTokenService CreateService(
         DateTime nowUtc,
         string issuer = "southbay-soccer-auth",

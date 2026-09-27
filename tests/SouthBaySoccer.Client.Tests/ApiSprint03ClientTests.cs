@@ -4,10 +4,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using SouthBaySoccer.Configuration;
 using SouthBaySoccer.Contracts.Common;
+using SouthBaySoccer.Contracts.GameDay;
 using SouthBaySoccer.Contracts.Leaderboards;
+using SouthBaySoccer.Contracts.Sessions;
 using SouthBaySoccer.Contracts.Stats;
 using SouthBaySoccer.Services.Authentication;
 using SouthBaySoccer.Services.Clients;
+using SouthBaySoccer.Services.Clients.Caching;
 
 namespace SouthBaySoccer.Client.Tests;
 
@@ -27,8 +30,9 @@ public sealed class ApiSprint03ClientTests
             new PickupPalOptions());
         using var provider = services.BuildServiceProvider();
 
-        provider.GetRequiredService<ISessionsClient>().Should().BeOfType<ApiSessionsClient>();
-        provider.GetRequiredService<IRosterClient>().Should().BeOfType<ApiRosterClient>();
+        // API mode resolves the caching decorator, which wraps the real Api client.
+        provider.GetRequiredService<ISessionsClient>().Should().BeOfType<CachedSessionsClient>();
+        provider.GetRequiredService<IRosterClient>().Should().BeOfType<CachedRosterClient>();
         provider.GetRequiredService<IStatsClient>().Should().BeOfType<ApiStatsClient>();
         provider.GetRequiredService<ILeaderboardClient>().Should().BeOfType<ApiLeaderboardClient>();
         provider.GetRequiredService<IGameDayClient>().Should().BeOfType<ApiGameDayClient>();
@@ -41,15 +45,14 @@ public sealed class ApiSprint03ClientTests
         var client = CreateSessionsClient(request =>
         {
             requests.Add(request);
-            return request.RequestUri!.PathAndQuery.Contains("/rsvp/me")
-                ? new HttpResponseMessage(HttpStatusCode.NoContent)
-                : JsonResponse(SessionsJson);
+            return JsonResponse(SessionsJson);
         });
 
         var dashboard = await client.GetDashboardAsync(CancellationToken.None);
 
         requests[0].Method.Should().Be(HttpMethod.Get);
         requests[0].RequestUri!.PathAndQuery.Should().Be("/sessions");
+        dashboard.GroupLabel.Should().Be("N9ja Bay");
         var featured = dashboard.FeaturedSession;
         featured.Should().NotBeNull();
         featured!.Id.Should().Be(SessionId);
@@ -64,12 +67,37 @@ public sealed class ApiSprint03ClientTests
     }
 
     [Fact]
+    public async Task ApiSessionsClient_GetDashboardAsync_WhenSessionCarriesGroupName_MapsGroupChatName()
+    {
+        var client = CreateSessionsClient(_ => JsonResponse(SessionsJson));
+
+        var dashboard = await client.GetDashboardAsync(CancellationToken.None);
+
+        dashboard.FeaturedSession!.GroupChatName.Should().Be("N9ja Bay");
+        dashboard.FeaturedSession.HasGroupChatName.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_GetDashboardAsync_WhenSessionsShareStartTime_OrdersByGroupName()
+    {
+        var client = CreateSessionsClient(_ => JsonResponse(SameStartTimeSessionsJson));
+
+        var dashboard = await client.GetDashboardAsync(CancellationToken.None);
+
+        // The featured card takes the first session; the rest keep the same ordering contract.
+        dashboard.FeaturedSession!.GroupChatName.Should().Be("Ballers United");
+        dashboard.ComingUpSessions.Select(session => session.GroupChatName)
+            .Should().Equal("N9ja Bay", null);
+    }
+
+    [Fact]
     public async Task ApiSessionsClient_GetDashboardAsync_WhenCallerIsGoing_MarksFeaturedSession()
     {
-        var client = CreateSessionsClient(request =>
-            request.RequestUri!.PathAndQuery.Contains("/rsvp/me")
-                ? JsonResponse(GoingRsvpJson)
-                : JsonResponse(SessionsJson));
+        var client = CreateSessionsClient(_ => JsonResponse(
+            SessionsJson.Replace(
+                "\"isCurrentPlayerGoing\": false",
+                "\"isCurrentPlayerGoing\": true",
+                StringComparison.Ordinal)));
 
         var dashboard = await client.GetDashboardAsync(CancellationToken.None);
 
@@ -79,10 +107,11 @@ public sealed class ApiSprint03ClientTests
     [Fact]
     public async Task ApiSessionsClient_GetSessionAsync_WhenCallerIsGoing_SetsIsGoing()
     {
-        var client = CreateSessionsClient(request =>
-            request.RequestUri!.PathAndQuery.Contains("/rsvp/me")
-                ? JsonResponse(GoingRsvpJson)
-                : JsonResponse(SessionsJson));
+        var client = CreateSessionsClient(_ => JsonResponse(
+            SessionsJson.Replace(
+                "\"isCurrentPlayerGoing\": false",
+                "\"isCurrentPlayerGoing\": true",
+                StringComparison.Ordinal)));
 
         var detail = await client.GetSessionAsync(SessionId, CancellationToken.None);
 
@@ -91,6 +120,141 @@ public sealed class ApiSprint03ClientTests
         detail.IsRsvpAvailable.Should().BeTrue();
         detail.DeadlineLabel.Should().Be("closes 2d 3h");
         detail.DateTimeLabel.Should().Be("Sat Jul 25 · 4:00 PM");
+    }
+
+    // Regression: the mapping used to drop the server's group access fields, so every session
+    // defaulted to CanJoin = true and a non-member saw an enabled RSVP button on another group's game.
+    [Fact]
+    public async Task ApiSessionsClient_GetSessionAsync_WhenCallerIsNotAGroupMember_MapsGroupAccess()
+    {
+        var client = CreateSessionsClient(_ => JsonResponse(NonMemberSessionJson));
+
+        var detail = await client.GetSessionAsync(SessionId, CancellationToken.None);
+
+        detail.Should().NotBeNull();
+        detail!.CanJoin.Should().BeFalse();
+        detail.GroupChatId.Should().Be(GroupChatId);
+        detail.GroupName.Should().Be("Morning Pick Up Soccer");
+        detail.MembershipStatus.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_GetSessionAsync_WhenGroupedPayloadOmitsAccessFlag_StillDeniesJoining()
+    {
+        // Keep the production PascalCase field names and remove only the optional flag.
+        // The constant fixture is a nonempty JSON array of session objects.
+        var nodes = System.Text.Json.Nodes.JsonNode.Parse(NonMemberSessionJson)!.AsArray();
+        nodes[0]!.AsObject().Remove("CanJoin");
+        var client = CreateSessionsClient(_ => JsonResponse(nodes.ToJsonString()));
+
+        var detail = await client.GetSessionAsync(SessionId, CancellationToken.None);
+
+        detail!.GroupChatId.Should().Be(GroupChatId);
+        detail.CanJoinSession.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_GetSessionAsync_WhenFullAndWaitlisted_PreservesOpenWindowForCancellation()
+    {
+        // The constant fixture is a nonempty JSON array of session objects.
+        var nodes = System.Text.Json.Nodes.JsonNode.Parse(NonMemberSessionJson)!.AsArray();
+        nodes[0]!["IsFull"] = true;
+        nodes[0]!["IsCurrentPlayerWaitlisted"] = true;
+        var client = CreateSessionsClient(_ => JsonResponse(nodes.ToJsonString()));
+
+        var detail = await client.GetSessionAsync(SessionId, CancellationToken.None);
+
+        detail!.IsRsvpAvailable.Should().BeTrue();
+        detail.IsWaitlisted.Should().BeTrue();
+        detail.CanJoinSession.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_GetDashboardAsync_WhenCallerIsPendingInTheGroup_MapsGroupAccess()
+    {
+        var json = NonMemberSessionJson.Replace(
+            "\"MembershipStatus\": null", "\"MembershipStatus\": \"Pending\"", StringComparison.Ordinal);
+        var client = CreateSessionsClient(_ => JsonResponse(json));
+
+        var dashboard = await client.GetDashboardAsync(CancellationToken.None);
+
+        dashboard.FeaturedSession!.CanJoin.Should().BeFalse();
+        dashboard.FeaturedSession.GroupChatId.Should().Be(GroupChatId);
+        dashboard.FeaturedSession.MembershipStatus.Should().Be("Pending");
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_GetDashboardAsync_WhenFeedIsFull_MapsCountsAndJoinWaitlist()
+    {
+        var json = SessionsJson
+            .Replace("\"goingCount\": 16", "\"goingCount\": 20", StringComparison.Ordinal)
+            .Replace("\"waitlistCount\": 0", "\"waitlistCount\": 3", StringComparison.Ordinal)
+            .Replace("\"isFull\": false", "\"isFull\": true", StringComparison.Ordinal)
+            .Replace("\"canJoinWaitlist\": false", "\"canJoinWaitlist\": true", StringComparison.Ordinal);
+        var client = CreateSessionsClient(_ => JsonResponse(json));
+
+        var dashboard = await client.GetDashboardAsync(CancellationToken.None);
+
+        dashboard.FeaturedSession!.GoingCount.Should().Be(20);
+        dashboard.FeaturedSession.WaitlistCount.Should().Be(3);
+        dashboard.FeaturedSession.IsFull.Should().BeTrue();
+        dashboard.FeaturedSession.CanJoinWaitlist.Should().BeTrue();
+        dashboard.FeaturedSession.StatusLabel.Should().Be("Full");
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_GetDashboardAsync_WhenRsvpDeadlinePassed_LabelsSessionClosed()
+    {
+        var closedJson = SessionsJson.Replace(
+            "\"rsvpDeadlineUtc\": \"2026-07-25T15:00:00Z\"",
+            "\"rsvpDeadlineUtc\": \"2026-07-22T02:00:00Z\"",
+            StringComparison.Ordinal);
+        var client = CreateSessionsClient(_ => JsonResponse(closedJson));
+
+        var dashboard = await client.GetDashboardAsync(CancellationToken.None);
+
+        dashboard.FeaturedSession!.StatusLabel.Should().Be("RSVP closed");
+        dashboard.FeaturedSession.CanJoinWaitlist.Should().BeFalse();
+        dashboard.FeaturedSession.CardStatus.Should().Be(SessionCardStatus.Closed);
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_GetDashboardAsync_UsesVenueAndFormatDisplayTitle()
+    {
+        var client = CreateSessionsClient(_ => JsonResponse(SessionsJson));
+
+        var dashboard = await client.GetDashboardAsync(CancellationToken.None);
+
+        dashboard.FeaturedSession!.DisplayTitle.Should().Be("Marina Field · 7v7");
+        dashboard.FeaturedSession.CardSemanticDescription.Should()
+            .Be("Marina Field · 7v7 — Open");
+        dashboard.FeaturedSession.WaitlistActionDescription.Should()
+            .Be("Join the waitlist for Marina Field · 7v7");
+    }
+
+    [Fact]
+    public void SessionSummaryDto_CanceledStateTakesVisualPrecedence()
+    {
+        var session = new SessionSummaryDto(
+            SessionId,
+            "Saturday pickup",
+            "Marina Field",
+            "7v7",
+            new DateTime(2026, 7, 25, 16, 0, 0, DateTimeKind.Utc),
+            "Jul 25",
+            "4:00 PM",
+            "Cancelled",
+            20,
+            20,
+            true,
+            3,
+            null,
+            IsCanceled: true,
+            IsGoing: true,
+            IsWaitlisted: true,
+            IsRsvpClosed: true);
+
+        session.CardStatus.Should().Be(SessionCardStatus.Canceled);
     }
 
     [Fact]
@@ -125,14 +289,30 @@ public sealed class ApiSprint03ClientTests
                 : JsonResponse(GoingRsvpJson);
         }));
 
-        var firstAttempt = async () => await client.SetRsvpIntentAsync(SessionId, isGoing: true, CancellationToken.None);
-        await firstAttempt.Should().ThrowAsync<HttpRequestException>();
+        // A 5xx is an actionable failure result (not a thrown exception) so page models can show a
+        // real error instead of an unobserved crash — but it must NOT clear the idempotency key.
+        var firstAttempt = await client.SetRsvpIntentAsync(SessionId, isGoing: true, CancellationToken.None);
+        firstAttempt.IsSuccess.Should().BeFalse();
         (await client.SetRsvpIntentAsync(SessionId, isGoing: true, CancellationToken.None))
             .IsSuccess.Should().BeTrue();
         await client.SetRsvpIntentAsync(SessionId, isGoing: true, CancellationToken.None);
 
         keys[1].Should().Be(keys[0], "a retry after a failed attempt must replay the same key");
         keys[2].Should().NotBe(keys[0], "a new operation after success must use a fresh key");
+    }
+
+    [Fact]
+    public async Task ApiSessionsClient_JoinWaitlistAsync_ConnectivityFailure_PropagatesForOfflineState()
+    {
+        // Load-bearing contract: a connectivity fault (HttpRequestException with NO status code) must
+        // propagate — not be converted to a Failure result — so page models can show Offline.
+        var client = new ApiSessionsClient(
+            CreateHttpClient(_ => throw new HttpRequestException("connection refused")),
+            TimeProvider.System);
+
+        var act = async () => await client.JoinWaitlistAsync(SessionId, CancellationToken.None);
+
+        await act.Should().ThrowAsync<HttpRequestException>();
     }
 
     [Fact]
@@ -207,37 +387,46 @@ public sealed class ApiSprint03ClientTests
                 """);
         }));
 
-        var leaderboard = await client.GetRankingAsync(seasonId, LeaderboardMetric.Goals, CancellationToken.None);
+        var leaderboard = await client.GetRankingAsync(seasonId, LeaderboardMetric.Goals, null, CancellationToken.None);
 
         leaderboard.SeasonId.Should().Be(seasonId);
         observed!.Method.Should().Be(HttpMethod.Get);
+        // seasonId is deliberately omitted: the server resolves the current season, so the seed
+        // fixture id passed by the page model never reaches the wire.
         observed.RequestUri!.PathAndQuery.Should()
-            .Be($"/stats/leaderboards?seasonId={seasonId:D}&metric=Goals&page=1&pageSize=25");
+            .Be("/stats/leaderboards?metric=Goals&page=1&pageSize=5");
     }
 
     [Fact]
-    public async Task ApiLeaderboardClient_GetRankingAsync_WhenSeasonUnknown_ReturnsEmptyLeaderboard()
+    public async Task ApiLeaderboardClient_GetRankingAsync_WhenServerReturnsBadRequest_Throws()
     {
-        var seasonId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        // The server now resolves the current season itself and returns an empty leaderboard when
+        // none is active, so a 400 is a genuine validation failure — it must surface, not be
+        // swallowed as an empty leaderboard.
         var client = new ApiLeaderboardClient(CreatePipelineClient(_ =>
-            ProblemResponse(HttpStatusCode.BadRequest, "Query parameter 'seasonId' is invalid.")));
-
-        var leaderboard = await client.GetRankingAsync(seasonId, LeaderboardMetric.Goals, CancellationToken.None);
-
-        leaderboard.SeasonId.Should().Be(seasonId);
-        leaderboard.Metric.Should().Be(LeaderboardMetric.Goals);
-        leaderboard.Rows.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task ApiLeaderboardClient_GetRankingAsync_WhenBadRequestIsNotSeasonRelated_Throws()
-    {
-        var client = new ApiLeaderboardClient(CreatePipelineClient(_ =>
-            ProblemResponse(HttpStatusCode.BadRequest, "Metric is invalid.")));
+            ProblemResponse(HttpStatusCode.BadRequest, "Query parameter 'metric' is invalid.")));
 
         var act = async () => await client.GetRankingAsync(
             Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
             LeaderboardMetric.Goals,
+            null,
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<ApiRequestException>();
+    }
+
+    [Fact]
+    public async Task ApiLeaderboardClient_GetRankingAsync_WhenServerReturnsNotFound_Throws()
+    {
+        // A 404 could be a missing route or resource — it must surface, not render as an empty
+        // leaderboard.
+        var client = new ApiLeaderboardClient(CreatePipelineClient(_ =>
+            ProblemResponse(HttpStatusCode.NotFound, "The requested resource was not found.")));
+
+        var act = async () => await client.GetRankingAsync(
+            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            LeaderboardMetric.Goals,
+            null,
             CancellationToken.None);
 
         await act.Should().ThrowAsync<ApiRequestException>();
@@ -281,22 +470,20 @@ public sealed class ApiSprint03ClientTests
         var client = new ApiGameDayClient(CreateHttpClient(request =>
         {
             requests.Add(request);
-            return request.RequestUri!.PathAndQuery == "/profiles/me"
-                ? JsonResponse(MyProfileJson)
-                : JsonResponse(
-                    """
-                    {
-                      "checkInId": "77777777-7777-7777-7777-777777777777",
-                      "sessionId": "11111111-1111-1111-1111-111111111111",
-                      "playerProfileId": "22222222-2222-2222-2222-222222222222",
-                      "checkedInByPlayerProfileId": "22222222-2222-2222-2222-222222222222",
-                      "checkedInAtUtc": "2026-07-25T15:50:00Z",
-                      "outcome": "CheckedIn",
-                      "isLateOverride": false,
-                      "adminOverrideId": null,
-                      "lateOverrideReason": null
-                    }
-                    """);
+            return JsonResponse(
+                """
+                {
+                  "checkInId": "77777777-7777-7777-7777-777777777777",
+                  "sessionId": "11111111-1111-1111-1111-111111111111",
+                  "playerProfileId": "22222222-2222-2222-2222-222222222222",
+                  "checkedInByPlayerProfileId": "22222222-2222-2222-2222-222222222222",
+                  "checkedInAtUtc": "2026-07-25T15:50:00Z",
+                  "outcome": "CheckedIn",
+                  "isLateOverride": false,
+                  "adminOverrideId": null,
+                  "lateOverrideReason": null
+                }
+                """);
         }));
 
         ClientCommandResult result = await client.CheckInAsync(
@@ -305,14 +492,454 @@ public sealed class ApiSprint03ClientTests
             CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        requests.Should().HaveCount(2);
-        requests[0].Method.Should().Be(HttpMethod.Get);
-        requests[0].RequestUri!.PathAndQuery.Should().Be("/profiles/me");
-        requests[1].Method.Should().Be(HttpMethod.Post);
-        requests[1].RequestUri!.PathAndQuery.Should().Be($"/sessions/{SessionId}/check-ins");
-        requests[1].Headers.GetValues("Idempotency-Key").Single()
+        requests.Should().ContainSingle();
+        requests[0].Method.Should().Be(HttpMethod.Post);
+        requests[0].RequestUri!.PathAndQuery.Should().Be($"/sessions/{SessionId}/check-ins/me");
+        requests[0].Headers.GetValues("Idempotency-Key").Single()
             .Should().Be(idempotencyKey.ToString("N"));
     }
+
+    [Fact]
+    public async Task ApiGameDayClient_GetTodayContextAsync_UsesGameDayProjection()
+    {
+        HttpRequestMessage? observed = null;
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            return JsonResponse(
+                $$"""
+                {
+                  "sessionId": "{{SessionId}}",
+                  "matchId": "00000000-0000-0000-0000-000000000000",
+                  "title": "Game Day",
+                  "venue": "Marina Field",
+                  "dateLabel": "Wed Jul 22",
+                  "gameStartLabel": "7:40 PM",
+                  "checkInWindowLabel": "7:10 PM - 7:40 PM",
+                  "checkInCloseLabel": "closes 7:40 PM",
+                  "status": 0,
+                  "statusLabel": "Open",
+                  "isSelfCheckInAvailable": true,
+                  "primaryActionText": "Check in at field",
+                  "blockReason": null,
+                  "rsvpIntentLabel": "Going",
+                  "isCurrentPlayerGoing": true,
+                  "isCurrentPlayerCheckedIn": false,
+                  "goingCount": 20,
+                  "checkedInCount": 7,
+                  "lateCount": 0,
+                  "canAssignCaptains": false,
+                  "canDraftTeam": false,
+                  "canApprovePostGame": false,
+                  "canLateCheckIn": false,
+                  "lateCheckInPlayers": []
+                }
+                """);
+        }));
+
+        var context = await client.GetTodayContextAsync(null, false, CancellationToken.None);
+
+        context.Should().NotBeNull();
+        context!.SessionId.Should().Be(SessionId);
+        context.GameStartLabel.Should().Be("7:40 PM");
+        observed!.Method.Should().Be(HttpMethod.Get);
+        observed.RequestUri!.PathAndQuery.Should().Be("/game-day/today");
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_GetTodayContextAsync_WhenNoContent_ReturnsNull()
+    {
+        var client = new ApiGameDayClient(CreateHttpClient(_ =>
+            new HttpResponseMessage(HttpStatusCode.NoContent)));
+
+        var context = await client.GetTodayContextAsync(null, false, CancellationToken.None);
+
+        context.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_GetRecentGameSummariesAsync_UsesPlayerHistoryRoute()
+    {
+        HttpRequestMessage? observed = null;
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            return JsonResponse("[]");
+        }));
+
+        var summaries = await client.GetRecentGameSummariesAsync(CancellationToken.None);
+
+        summaries.Should().BeEmpty();
+        observed!.Method.Should().Be(HttpMethod.Get);
+        observed.RequestUri!.PathAndQuery.Should().Be("/game-day/recent-summaries");
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_LateCheckInAsync_SendsAuditedAdminOverride()
+    {
+        HttpRequestMessage? observed = null;
+        string? observedBody = null;
+        var idempotencyKey = Guid.NewGuid();
+        var playerId = Guid.NewGuid();
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            observedBody = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse("{}");
+        }));
+
+        var result = await client.LateCheckInAsync(
+            SessionId,
+            playerId,
+            "Traffic delay",
+            idempotencyKey,
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        observed!.Method.Should().Be(HttpMethod.Post);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/sessions/{SessionId}/check-ins");
+        observed.Headers.GetValues("Idempotency-Key").Single()
+            .Should().Be(idempotencyKey.ToString("N"));
+        observedBody.Should().Contain(playerId.ToString()).And.Contain("Late").And.Contain("Traffic delay");
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_AdminCheckInAsync_SendsInWindowCheckedInWithIdempotencyKey()
+    {
+        HttpRequestMessage? observed = null;
+        string? observedBody = null;
+        var idempotencyKey = Guid.NewGuid();
+        var playerId = Guid.NewGuid();
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            observedBody = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse("{}");
+        }));
+
+        var result = await client.AdminCheckInAsync(
+            SessionId,
+            playerId,
+            idempotencyKey,
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        observed!.Method.Should().Be(HttpMethod.Post);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/sessions/{SessionId}/check-ins");
+        observed.Headers.GetValues("Idempotency-Key").Single()
+            .Should().Be(idempotencyKey.ToString("N"));
+        observedBody.Should().Contain(playerId.ToString()).And.Contain("CheckedIn");
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_GetCaptainAssignmentAsync_UsesSessionCaptainProjection()
+    {
+        HttpRequestMessage? observed = null;
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            return JsonResponse(
+                $$"""
+                {
+                  "sessionId": "{{SessionId}}",
+                  "matchId": "22222222-2222-2222-2222-222222222222",
+                  "captainCount": 2,
+                  "availableCaptainCounts": [2, 3, 4],
+                  "selectedCaptainIds": [],
+                  "checkedInPlayers": []
+                }
+                """);
+        }));
+
+        var result = await client.GetCaptainAssignmentAsync(SessionId, CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result!.AvailableCaptainCounts.Should().Equal(2, 3, 4);
+        observed!.Method.Should().Be(HttpMethod.Get);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/game-day/sessions/{SessionId}/captains");
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_AssignCaptainsAsync_SendsDesiredTopologyWithIdempotencyKey()
+    {
+        HttpRequestMessage? observed = null;
+        string? body = null;
+        var captainIds = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse("{}");
+        }));
+
+        var result = await client.AssignCaptainsAsync(SessionId, 2, captainIds, 7, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        observed!.Method.Should().Be(HttpMethod.Put);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/game-day/sessions/{SessionId}/captains");
+        observed.Headers.Contains("Idempotency-Key").Should().BeTrue();
+        observed.Headers.GetValues("If-Match").Should().ContainSingle().Which.Should().Be("\"draft-7\"");
+        body.Should().Contain("captainCount").And.Contain(captainIds[0].ToString());
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_AssignCaptainsAsync_ReusesKeyAfterAmbiguousServerFailure()
+    {
+        var keys = new List<string>();
+        var attempts = 0;
+        var captainIds = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            keys.Add(request.Headers.GetValues("Idempotency-Key").Single());
+            attempts++;
+            return attempts == 1
+                ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                : JsonResponse("{}");
+        }));
+
+        var first = async () => await client.AssignCaptainsAsync(
+            SessionId,
+            2,
+            captainIds,
+            7,
+            CancellationToken.None);
+        await first.Should().ThrowAsync<HttpRequestException>();
+        var retry = await client.AssignCaptainsAsync(SessionId, 2, captainIds, 7, CancellationToken.None);
+
+        retry.IsSuccess.Should().BeTrue();
+        keys.Should().HaveCount(2);
+        keys[1].Should().Be(keys[0]);
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_SaveTeamPicksAsync_UsesResourceScopedTeamRoute()
+    {
+        HttpRequestMessage? observed = null;
+        string? body = null;
+        var teamId = Guid.NewGuid();
+        var playerId = Guid.NewGuid();
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse("{}");
+        }));
+
+        var result = await client.SaveTeamPicksAsync(
+            SessionId,
+            teamId,
+            [playerId],
+            7,
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        observed!.Method.Should().Be(HttpMethod.Put);
+        observed.RequestUri!.PathAndQuery.Should()
+            .Be($"/game-day/sessions/{SessionId}/teams/{teamId}/picks");
+        observed.Headers.Contains("Idempotency-Key").Should().BeTrue();
+        observed.Headers.GetValues("If-Match").Should().ContainSingle().Which.Should().Be("\"draft-7\"");
+        body.Should().Contain(playerId.ToString());
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_LockTeamsAsync_UsesAdminLockRouteWithIdempotencyKey()
+    {
+        HttpRequestMessage? observed = null;
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            return JsonResponse("{}");
+        }));
+
+        var result = await client.LockTeamsAsync(SessionId, 7, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        observed!.Method.Should().Be(HttpMethod.Post);
+        observed.RequestUri!.PathAndQuery.Should().Be($"/game-day/sessions/{SessionId}/teams/lock");
+        observed.Headers.Contains("Idempotency-Key").Should().BeTrue();
+        observed.Headers.GetValues("If-Match").Should().ContainSingle().Which.Should().Be("\"draft-7\"");
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_GetTeamDraftIfChangedAsync_NotModifiedReturnsNoPayload()
+    {
+        HttpRequestMessage? observed = null;
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            return new HttpResponseMessage(HttpStatusCode.NotModified);
+        }));
+
+        var result = await client.GetTeamDraftIfChangedAsync(SessionId, 7, CancellationToken.None);
+
+        result.Changed.Should().BeFalse();
+        result.Revision.Should().Be(7);
+        result.Value.Should().BeNull();
+        observed!.Headers.GetValues("If-None-Match").Should().ContainSingle().Which.Should().Be("\"draft-7\"");
+    }
+
+    [Fact]
+    public async Task ApiGameDayClient_GetTeamDraftIfChangedAsync_EqualRevisionOkResponseIsUnchanged()
+    {
+        var client = new ApiGameDayClient(CreateHttpClient(_ =>
+        {
+            var response = JsonResponse(
+                $$"""
+                {
+                  "sessionId": "{{SessionId}}",
+                  "matchId": "22222222-2222-2222-2222-222222222222",
+                  "teamId": "33333333-3333-3333-3333-333333333333",
+                  "teamName": "Team One",
+                  "captainName": "Captain",
+                  "canPickPlayers": true,
+                  "isLocked": false,
+                  "teamCount": 2,
+                  "checkedInPlayers": [],
+                  "teams": [],
+                  "draftRevision": 7,
+                  "draftValidator": "\"draft-7-roster-ABCDEF0123456789\""
+                }
+                """);
+            response.Headers.ETag = new System.Net.Http.Headers.EntityTagHeaderValue("\"draft-7-roster-ABCDEF0123456789\"");
+            return response;
+        }));
+
+        var result = await client.GetTeamDraftIfChangedAsync(
+            SessionId,
+            7,
+            "\"draft-7-roster-ABCDEF0123456789\"",
+            CancellationToken.None);
+
+        result.Changed.Should().BeFalse();
+        result.Revision.Should().Be(7);
+        result.Value.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("approve")]
+    [InlineData("result")]
+    [InlineData("publish")]
+    public async Task ApiGameDayClient_PostGameMutation_UsesExpectedRouteAndIdempotencyKey(string operation)
+    {
+        HttpRequestMessage? observed = null;
+        var resourceId = Guid.NewGuid();
+        var client = new ApiGameDayClient(CreateHttpClient(request =>
+        {
+            observed = request;
+            return JsonResponse("{}");
+        }));
+
+        var result = operation switch
+        {
+            "approve" => await client.ApproveStatAsync(SessionId, resourceId, CancellationToken.None),
+            "result" => await client.SaveTeamResultAsync(
+                SessionId,
+                new TeamResultUpdateDto(resourceId, 1, 0, 0),
+                CancellationToken.None),
+            _ => await client.PublishPostGameAsync(SessionId, CancellationToken.None),
+        };
+
+        result.IsSuccess.Should().BeTrue();
+        observed!.Headers.Contains("Idempotency-Key").Should().BeTrue();
+        observed.RequestUri!.PathAndQuery.Should().Be(operation switch
+        {
+            "approve" => $"/game-day/sessions/{SessionId}/post-game/events/{resourceId}/approve",
+            "result" => $"/game-day/sessions/{SessionId}/post-game/results/{resourceId}",
+            _ => $"/game-day/sessions/{SessionId}/post-game/publish",
+        });
+    }
+
+    // Three published sessions kicking off at the same instant, deliberately returned out of group
+    // order (and with one ungrouped) so the client's tie-break ordering is what fixes the sequence.
+    private const string SameStartTimeSessionsJson =
+        """
+        [
+          {
+            "sessionId": "55555555-5555-5555-5555-555555555555",
+            "seasonId": "22222222-2222-2222-2222-222222222222",
+            "venueId": "33333333-3333-3333-3333-333333333333",
+            "recurrenceRuleId": null,
+            "title": "Zulu pickup",
+            "format": "7v7",
+            "capacity": 20,
+            "teamCount": 2,
+            "startsAtUtc": "2026-07-25T16:00:00Z",
+            "checkInOpensAtUtc": "2026-07-25T15:45:00Z",
+            "checkInClosesAtUtc": "2026-07-25T16:05:00Z",
+            "rsvpDeadlineUtc": "2026-07-25T15:00:00Z",
+            "occurrenceKey": null,
+            "status": "Published",
+            "venueName": "Marina Field"
+          },
+          {
+            "sessionId": "66666666-6666-6666-6666-666666666666",
+            "seasonId": "22222222-2222-2222-2222-222222222222",
+            "venueId": "33333333-3333-3333-3333-333333333333",
+            "recurrenceRuleId": null,
+            "title": "N9ja pickup",
+            "format": "7v7",
+            "capacity": 20,
+            "teamCount": 2,
+            "startsAtUtc": "2026-07-25T16:00:00Z",
+            "checkInOpensAtUtc": "2026-07-25T15:45:00Z",
+            "checkInClosesAtUtc": "2026-07-25T16:05:00Z",
+            "rsvpDeadlineUtc": "2026-07-25T15:00:00Z",
+            "occurrenceKey": null,
+            "status": "Published",
+            "venueName": "Marina Field",
+            "groupName": "N9ja Bay"
+          },
+          {
+            "sessionId": "77777777-7777-7777-7777-777777777777",
+            "seasonId": "22222222-2222-2222-2222-222222222222",
+            "venueId": "33333333-3333-3333-3333-333333333333",
+            "recurrenceRuleId": null,
+            "title": "Ballers pickup",
+            "format": "7v7",
+            "capacity": 20,
+            "teamCount": 2,
+            "startsAtUtc": "2026-07-25T16:00:00Z",
+            "checkInOpensAtUtc": "2026-07-25T15:45:00Z",
+            "checkInClosesAtUtc": "2026-07-25T16:05:00Z",
+            "rsvpDeadlineUtc": "2026-07-25T15:00:00Z",
+            "occurrenceKey": null,
+            "status": "Published",
+            "venueName": "Marina Field",
+            "groupName": "Ballers United"
+          }
+        ]
+        """;
+
+    private static readonly Guid GroupChatId = Guid.Parse("88888888-8888-8888-8888-888888888888");
+
+    // PascalCase, exactly as the Functions host serializes it in production.
+    private const string NonMemberSessionJson =
+        """
+        [
+          {
+            "SessionId": "11111111-1111-1111-1111-111111111111",
+            "SeasonId": "22222222-2222-2222-2222-222222222222",
+            "VenueId": "33333333-3333-3333-3333-333333333333",
+            "RecurrenceRuleId": null,
+            "Title": "Saturday evening 7v7",
+            "Format": "7v7",
+            "Capacity": 20,
+            "TeamCount": 2,
+            "StartsAtUtc": "2026-07-25T16:00:00Z",
+            "CheckInOpensAtUtc": "2026-07-25T15:45:00Z",
+            "CheckInClosesAtUtc": "2026-07-25T16:05:00Z",
+            "RsvpDeadlineUtc": "2026-07-25T15:00:00Z",
+            "OccurrenceKey": null,
+            "Status": "Published",
+            "VenueName": "Mountain View",
+            "GoingCount": 10,
+            "GroupName": "Morning Pick Up Soccer",
+            "GroupChatId": "88888888-8888-8888-8888-888888888888",
+            "MembershipStatus": null,
+            "CanJoin": false
+          }
+        ]
+        """;
 
     private const string SessionsJson =
         """
@@ -331,7 +958,15 @@ public sealed class ApiSprint03ClientTests
             "checkInClosesAtUtc": "2026-07-25T16:05:00Z",
             "rsvpDeadlineUtc": "2026-07-25T15:00:00Z",
             "occurrenceKey": null,
-            "status": "Published"
+            "status": "Published",
+            "venueName": "Marina Field",
+            "goingCount": 16,
+            "waitlistCount": 0,
+            "isFull": false,
+            "isCurrentPlayerGoing": false,
+            "isCurrentPlayerWaitlisted": false,
+            "canJoinWaitlist": false,
+            "groupName": "N9ja Bay"
           },
           {
             "sessionId": "44444444-4444-4444-4444-444444444444",

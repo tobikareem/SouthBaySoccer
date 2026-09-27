@@ -14,7 +14,7 @@ internal sealed class SeasonRepository(SouthBaySoccerDbContext dbContext) : ISea
         dbContext.Seasons.SingleOrDefaultAsync(x => x.Name == name, cancellationToken);
 
     public async Task<IReadOnlyList<Season>> ListActiveAsync(CancellationToken cancellationToken = default) =>
-        await dbContext.Seasons.OrderByDescending(x => x.StartsAtUtc).Take(100).ToArrayAsync(cancellationToken);
+        await dbContext.Seasons.AsNoTracking().OrderByDescending(x => x.StartsAtUtc).Take(100).ToArrayAsync(cancellationToken);
 
     public async Task AddAsync(Season entity, CancellationToken cancellationToken = default) =>
         await dbContext.Seasons.AddAsync(entity, cancellationToken);

@@ -11,3 +11,7 @@ The app's brand is the Nigerian flag: green and white. Primary green is Flag Gre
 **How to apply:** Use these exact hex values for any UI theme, document, or image. Full guidance in `skills/brand-design-kit/SKILL.md`.
 
 Related: [[project-root-and-skills]]
+
+Native launch splash: `Resources/Splash/splash.svg` mirrors the N9ja Bay pitch app-icon
+foreground, on white with `MauiSplashScreen BaseSize="192,192"`. Splash changes require a
+new native build; they are not delivered by backend configuration.

@@ -21,8 +21,9 @@ public sealed class JwtTokenService : ITokenService
 
     private readonly JwtTokenOptions options;
     private readonly IClock clock;
-    private readonly Dictionary<string, JwtSigningKeyOptions> signingKeys;
+    private readonly Dictionary<string, byte[]> signingKeyBytes;
     private readonly JwtSigningKeyOptions activeSigningKey;
+    private readonly byte[] activeSigningKeyBytes;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JwtTokenService"/> class.
@@ -33,8 +34,13 @@ public sealed class JwtTokenService : ITokenService
     {
         this.options = options.Value;
         this.clock = clock;
-        signingKeys = BuildSigningKeyIndex(this.options.SigningKeys);
+        var signingKeys = BuildSigningKeyIndex(this.options.SigningKeys);
         activeSigningKey = ResolveActiveSigningKey(this.options, signingKeys);
+        signingKeyBytes = signingKeys.ToDictionary(
+            pair => pair.Key,
+            pair => Encoding.UTF8.GetBytes(pair.Value.Secret),
+            StringComparer.Ordinal);
+        activeSigningKeyBytes = signingKeyBytes[activeSigningKey.KeyId];
         ValidateOptions(this.options);
     }
 
@@ -70,7 +76,7 @@ public sealed class JwtTokenService : ITokenService
         var encodedHeader = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(header, JsonOptions));
         var encodedPayload = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions));
         var unsignedToken = $"{encodedHeader}.{encodedPayload}";
-        var signature = Sign(unsignedToken, activeSigningKey.Secret);
+        var signature = Sign(unsignedToken, activeSigningKeyBytes);
 
         return new IssuedAccessToken($"{unsignedToken}.{signature}", expiresAtUtc, activeSigningKey.KeyId);
     }
@@ -110,13 +116,13 @@ public sealed class JwtTokenService : ITokenService
                 return AccessTokenValidationResult.Failed("unsupported_algorithm");
             }
 
-            if (!TryGetString(headerDocument.RootElement, "kid", out var keyId) || !signingKeys.TryGetValue(keyId, out var signingKey))
+            if (!TryGetString(headerDocument.RootElement, "kid", out var keyId) || !signingKeyBytes.TryGetValue(keyId, out var keyBytes))
             {
                 return AccessTokenValidationResult.Failed("unknown_key");
             }
 
             var unsignedToken = $"{parts[0]}.{parts[1]}";
-            if (!IsSignatureValid(unsignedToken, parts[2], signingKey.Secret))
+            if (!IsSignatureValid(unsignedToken, parts[2], keyBytes))
             {
                 return AccessTokenValidationResult.Failed("invalid_signature");
             }
@@ -301,25 +307,12 @@ public sealed class JwtTokenService : ITokenService
         return element.TryGetProperty(propertyName, out var property) && property.TryGetInt64(out value);
     }
 
-    private static string Sign(string unsignedToken, string secret)
-    {
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
-        return Base64UrlEncode(hmac.ComputeHash(Encoding.ASCII.GetBytes(unsignedToken)));
-    }
+    private static string Sign(string unsignedToken, byte[] signingKey) =>
+        Base64UrlEncode(HMACSHA256.HashData(signingKey, Encoding.ASCII.GetBytes(unsignedToken)));
 
-    private static bool IsSignatureValid(string unsignedToken, string signature, string secret)
+    private static bool IsSignatureValid(string unsignedToken, string signature, byte[] signingKey)
     {
-        string expectedSignature;
-        try
-        {
-            expectedSignature = Sign(unsignedToken, secret);
-        }
-        catch (FormatException)
-        {
-            return false;
-        }
-
-        var expectedBytes = Encoding.ASCII.GetBytes(expectedSignature);
+        var expectedBytes = Encoding.ASCII.GetBytes(Sign(unsignedToken, signingKey));
         var suppliedBytes = Encoding.ASCII.GetBytes(signature);
         return expectedBytes.Length == suppliedBytes.Length && CryptographicOperations.FixedTimeEquals(expectedBytes, suppliedBytes);
     }

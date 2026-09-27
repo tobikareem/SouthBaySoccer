@@ -2,6 +2,11 @@ namespace SouthBaySoccer.Contracts.Rsvps;
 
 public sealed record SubmitRsvpRequest(string Status);
 
+/// <param name="PickupPalSync">
+/// Whether the RSVP was mirrored onto the Pickup Pal roster of an imported game:
+/// <c>NotApplicable</c> (app-only session or no Pickup Pal id), <c>Synced</c>, <c>Pending</c>
+/// (retry scheduled), or <c>Failed</c>. Additive; older clients ignore it.
+/// </param>
 public sealed record RsvpResponseDto(
     Guid SessionId,
     Guid PlayerProfileId,
@@ -9,7 +14,8 @@ public sealed record RsvpResponseDto(
     Guid? RsvpResponseId,
     Guid? WaitlistEntryId,
     int? WaitlistPosition,
-    Guid? PromotedPlayerProfileId);
+    Guid? PromotedPlayerProfileId,
+    string PickupPalSync = "NotApplicable");
 
 public sealed record AdminOverrideRsvpRequest(
     Guid PlayerProfileId,

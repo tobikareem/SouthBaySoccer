@@ -10,6 +10,14 @@ public sealed class AuthenticationSessionRefresher(
     private static readonly TimeSpan RefreshSkew = TimeSpan.FromMinutes(1);
     private readonly SemaphoreSlim refreshLock = new(1, 1);
 
+    // Read-through copy of the stored access token. Secure storage stays the durable record - this
+    // only avoids paying two platform-keystore decrypts on every single HTTP request, which is the
+    // fixed cost every screen load multiplies. Written under refreshLock or as a same-value cache
+    // fill, so a torn read is not possible.
+    private volatile CachedAccessToken? cachedAccessToken;
+
+    public void InvalidateCachedToken() => cachedAccessToken = null;
+
     public async Task<string?> GetValidAccessTokenAsync(
         bool forceRefresh = false,
         CancellationToken cancellationToken = default)
@@ -45,6 +53,9 @@ public sealed class AuthenticationSessionRefresher(
             {
                 var tokens = await authenticationClient.RefreshAsync(refreshToken, cancellationToken);
                 await tokenStore.StoreAsync(tokens);
+                cachedAccessToken = new CachedAccessToken(
+                    tokens.AccessToken,
+                    tokens.AccessTokenExpiresAtUtc.ToUniversalTime());
                 return tokens.AccessToken;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -55,6 +66,7 @@ public sealed class AuthenticationSessionRefresher(
             {
                 // The server itself rejected the refresh (e.g. 400 invalid grant) - the refresh token
                 // is genuinely dead, so clear it and force a fresh sign-in.
+                cachedAccessToken = null;
                 await tokenStore.ClearAsync();
                 return null;
             }
@@ -63,6 +75,7 @@ public sealed class AuthenticationSessionRefresher(
                 // ApiExceptionHandler passes 401 through unchanged (see its class docs) so a rejected
                 // refresh token surfaces here as a plain HttpRequestException with StatusCode populated
                 // by EnsureSuccessStatusCode. This is auth/refresh's explicit refusal - clear the token.
+                cachedAccessToken = null;
                 await tokenStore.ClearAsync();
                 return null;
             }
@@ -95,6 +108,11 @@ public sealed class AuthenticationSessionRefresher(
 
     private async Task<string?> GetUnexpiredAccessTokenAsync()
     {
+        if (cachedAccessToken is { } cached)
+        {
+            return IsUsable(cached.ExpiresAtUtc) ? cached.Token : null;
+        }
+
         var accessToken = await tokenStore.GetAccessTokenAsync();
         if (string.IsNullOrWhiteSpace(accessToken))
         {
@@ -102,9 +120,17 @@ public sealed class AuthenticationSessionRefresher(
         }
 
         var expiresAtUtc = await tokenStore.GetAccessTokenExpiresAtUtcAsync();
-        return expiresAtUtc is not null
-               && expiresAtUtc.Value.ToUniversalTime() > DateTime.UtcNow.Add(RefreshSkew)
-            ? accessToken
-            : null;
+        if (expiresAtUtc is null)
+        {
+            return null;
+        }
+
+        cachedAccessToken = new CachedAccessToken(accessToken, expiresAtUtc.Value.ToUniversalTime());
+        return IsUsable(expiresAtUtc.Value.ToUniversalTime()) ? accessToken : null;
     }
+
+    private static bool IsUsable(DateTime expiresAtUtc) =>
+        expiresAtUtc > DateTime.UtcNow.Add(RefreshSkew);
+
+    private sealed record CachedAccessToken(string Token, DateTime ExpiresAtUtc);
 }

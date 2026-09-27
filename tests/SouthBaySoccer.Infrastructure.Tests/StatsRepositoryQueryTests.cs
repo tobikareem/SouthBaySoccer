@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using SouthBaySoccer.Application.Abstractions.Time;
+using SouthBaySoccer.Application.Common;
+using SouthBaySoccer.Domain.Entities.Groups;
 using SouthBaySoccer.Domain.Entities.Identity;
 using SouthBaySoccer.Domain.Entities.Scheduling;
 using SouthBaySoccer.Domain.Entities.Stats;
@@ -32,15 +34,482 @@ public sealed class StatsRepositoryQueryTests
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
         var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
-        var (season, ada, tunde) = await SeedGoalLeaderboardAsync(db);
+        var (season, ada, tunde, _) = await SeedGoalLeaderboardAsync(db);
 
-        var rows = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, skip: 0, take: 10);
+        var rows = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, skip: 0, take: 10, groupChatId: null);
 
         rows.Select(x => x.PlayerProfileId).Should().StartWith([tunde.Id, ada.Id]);
         rows.Single(x => x.PlayerProfileId == tunde.Id).Goals.Should().Be(2);
         rows.Single(x => x.PlayerProfileId == ada.Id).Goals.Should().Be(2);
         rows.Single(x => x.PlayerProfileId == ada.Id).Assists.Should().Be(1);
         rows.Should().NotContain(x => x.Goals > 2);
+    }
+
+    [Fact]
+    public async Task ListSeasonLeaderboardAsync_WhenGroupFilterApplied_RestrictsToGroupMembers()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+        var (season, ada, tunde, _) = await SeedGoalLeaderboardAsync(db);
+
+        // Link only Tunde to the group; Ada is a member of no group.
+        var group = new GroupChat
+        {
+            Id = Guid.NewGuid(),
+            ExternalId = $"{Guid.NewGuid():N}@g.us",
+            GroupName = "Bay Area Soccer",
+            Status = "SUBSCRIBED",
+        };
+        await db.GroupChats.AddAsync(group);
+        await db.PlayerGroupLinks.AddAsync(new PlayerGroupLink
+        {
+            Id = Guid.NewGuid(),
+            PlayerProfileId = tunde.Id,
+            GroupChatId = group.Id,
+            IsPrimary = true,
+            // The leaderboard's group filter only counts approved members (GRP-1); a link left at
+            // its default Pending status would silently exclude this seeded player.
+            Status = GroupMembershipStatus.Approved,
+            RequestedAtUtc = DateTime.UtcNow,
+            ApprovedAtUtc = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
+        var groupRows = await repository.ListSeasonLeaderboardAsync(
+            season.Id, StatLeaderboardMetric.Goals, skip: 0, take: 10, groupChatId: group.Id);
+        var allRows = await repository.ListSeasonLeaderboardAsync(
+            season.Id, StatLeaderboardMetric.Goals, skip: 0, take: 10, groupChatId: null);
+
+        groupRows.Select(x => x.PlayerProfileId).Should().Equal(tunde.Id);
+        allRows.Select(x => x.PlayerProfileId).Should().Contain([ada.Id, tunde.Id]);
+    }
+
+    [Fact]
+    public async Task ListSeasonLeaderboardAsync_AssemblesEveryAggregateFromItsOwnFactTable()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (season, ada, tunde, bola) = await SeedGoalLeaderboardAsync(db);
+        var seasonMatchIds = await db.Matches
+            .Join(db.Sessions, match => match.SessionId, session => session.Id, (match, session) => new { match, session })
+            .Where(x => x.session.SeasonId == season.Id)
+            .OrderBy(x => x.match.CompletedAtUtc)
+            .Select(x => x.match.Id)
+            .ToArrayAsync();
+        var firstMatchId = seasonMatchIds[0];
+        // Ratings, likes and awards each come from a separate table and are now assembled by their
+        // own grouped query, so each needs facts that differ from the others to be distinguishable.
+        await db.PlayerRatingVotes.AddRangeAsync(
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = firstMatchId, VoterPlayerProfileId = tunde.Id, RatedPlayerProfileId = ada.Id, Score = 8 },
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = firstMatchId, VoterPlayerProfileId = bola.Id, RatedPlayerProfileId = ada.Id, Score = 6 });
+        await db.PlayerLikes.AddAsync(
+            new PlayerLike { Id = Guid.NewGuid(), MatchId = firstMatchId, GiverPlayerProfileId = bola.Id, ReceiverPlayerProfileId = ada.Id });
+        await db.MatchAwards.AddAsync(
+            new MatchAward { Id = Guid.NewGuid(), MatchId = firstMatchId, PlayerProfileId = ada.Id, AwardType = MatchAwardType.Mvp });
+        await db.SaveChangesAsync();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+
+        var rows = await repository.ListSeasonLeaderboardAsync(
+            season.Id,
+            StatLeaderboardMetric.Rating,
+            skip: 0,
+            take: 25,
+            groupChatId: null);
+
+        var adaRow = rows.Single(row => row.PlayerProfileId == ada.Id);
+        adaRow.Appearances.Should().Be(2);
+        adaRow.Goals.Should().Be(2, "the second match's goal is still Pending review");
+        adaRow.Assists.Should().Be(1);
+        adaRow.AverageRating.Should().Be(7m);
+        adaRow.RatingVoteCount.Should().Be(2);
+        adaRow.Likes.Should().Be(1);
+        adaRow.MvpAwards.Should().Be(1);
+        adaRow.Value.Should().Be(7m, "the requested metric is Rating");
+        rows.Single(row => row.PlayerProfileId == tunde.Id).AverageRating
+            .Should().Be(0m, "a player with no votes must not inherit another player's average");
+    }
+
+    [Fact]
+    public async Task GetPlayerStatsAsync_ForOnePlayer_MatchesThatPlayersLeaderboardRow()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (season, ada, _, _) = await SeedGoalLeaderboardAsync(db);
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+
+        var summary = await repository.GetPlayerStatsAsync(ada.Id, season.Id);
+        var leaderboardRow = (await repository.ListSeasonLeaderboardAsync(
+                season.Id,
+                StatLeaderboardMetric.Goals,
+                skip: 0,
+                take: 25,
+                groupChatId: null))
+            .Single(row => row.PlayerProfileId == ada.Id);
+
+        summary.Should().NotBeNull();
+        summary!.Appearances.Should().Be(leaderboardRow.Appearances);
+        summary.Goals.Should().Be(leaderboardRow.Goals);
+        summary.Assists.Should().Be(leaderboardRow.Assists);
+        summary.AverageRating.Should().Be(leaderboardRow.AverageRating);
+        summary.Likes.Should().Be(leaderboardRow.Likes);
+        summary.MvpAwards.Should().Be(leaderboardRow.MvpAwards);
+    }
+
+    [Fact]
+    public async Task ListSeasonLeaderboardAsync_WhenPaging_ReturnsDisjointPagesInRankOrder()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (season, _, _, bola) = await SeedGoalLeaderboardAsync(db);
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+
+        var allRows = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, 0, 25, null);
+        var firstPage = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, 0, 2, null);
+        var secondPage = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, 2, 2, null);
+
+        firstPage.Should().HaveCount(2);
+        firstPage.Select(x => x.PlayerProfileId).Should().Equal(allRows.Take(2).Select(x => x.PlayerProfileId));
+        secondPage.Select(x => x.PlayerProfileId).Should().Equal(allRows.Skip(2).Take(2).Select(x => x.PlayerProfileId));
+        firstPage.Select(x => x.PlayerProfileId).Should().NotIntersectWith(secondPage.Select(x => x.PlayerProfileId));
+    }
+
+    [Fact]
+    public async Task ListSeasonLeaderboardAsync_WhenScorerDidNotPlayThatMatch_WithholdsCreditAndKeepsThemOffTheBoard()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (season, _, _, bola) = await SeedGoalLeaderboardAsync(db);
+        var firstMatchId = await db.Matches
+            .Join(db.Sessions, match => match.SessionId, session => session.Id, (match, session) => new { match, session })
+            .Where(x => x.session.SeasonId == season.Id)
+            .OrderBy(x => x.match.CompletedAtUtc)
+            .Select(x => x.match.Id)
+            .FirstAsync();
+        // A ghost has an approved goal but no Played participation row, which is exactly what the
+        // PlayerMatchStats semi-join exists to reject. Every other seeded player plays every match,
+        // so without this case the guard could be deleted and the suite would stay green.
+        var ghost = CreatePlayer("Ghost Scorer", "Forward");
+        await db.PlayerProfiles.AddAsync(ghost);
+        await db.MatchEvents.AddAsync(Goal(firstMatchId, ghost.Id, null, MatchEventReviewStatus.Approved));
+        await db.SaveChangesAsync();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+
+        var rows = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, 0, 25, null);
+
+        rows.Should().NotContain(row => row.PlayerProfileId == ghost.Id,
+            "the leaderboard is driven by players with a Played participation row");
+        var ghostSummary = await repository.GetPlayerStatsAsync(ghost.Id, season.Id);
+        ghostSummary!.Goals.Should().Be(0, "a goal in a match the player did not play earns no credit");
+    }
+
+    [Fact]
+    public async Task ListSeasonLeaderboardAsync_WhenPlayerOnlyScoredAnOwnGoal_CreditsThemWithNoGoals()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (season, _, _, bola) = await SeedGoalLeaderboardAsync(db);
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+
+        var rows = await repository.ListSeasonLeaderboardAsync(season.Id, StatLeaderboardMetric.Goals, 0, 25, null);
+
+        // Bola's only seeded event is an OwnGoal; scorer credit must never include it.
+        rows.Single(row => row.PlayerProfileId == bola.Id).Goals.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ListPlayerRatingAggregatesAsync_SumsVotesFromSettledMatchesForRequestedPlayersOnly()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+        var season = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2026, 1, 1), EndsAtUtc = Utc(2026, 12, 31) };
+        var venue = new Venue { Id = Guid.NewGuid(), Name = $"Venue {Guid.NewGuid():N}", Locality = "Torrance" };
+        var rated = CreatePlayer("Rated Player", "Forward");
+        var other = CreatePlayer("Other Player", "Forward");
+        var voter = CreatePlayer("Voter", "Midfielder");
+        var settledSession = CreateSession(season.Id, venue.Id, teamCount: 2, startsAtUtc: Utc(2026, 7, 7));
+        var draftSession = CreateSession(season.Id, venue.Id, teamCount: 2, startsAtUtc: Utc(2026, 7, 14));
+        var settled = new SoccerMatch { Id = Guid.NewGuid(), SessionId = settledSession.Id, MatchNumber = 1, Status = MatchStatus.Locked };
+        var draft = new SoccerMatch { Id = Guid.NewGuid(), SessionId = draftSession.Id, MatchNumber = 1, Status = MatchStatus.Draft };
+        await db.Seasons.AddAsync(season);
+        await db.Venues.AddAsync(venue);
+        await db.PlayerProfiles.AddRangeAsync(rated, other, voter);
+        await db.Sessions.AddRangeAsync(settledSession, draftSession);
+        await db.Matches.AddRangeAsync(settled, draft);
+        await db.PlayerRatingVotes.AddRangeAsync(
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = settled.Id, VoterPlayerProfileId = voter.Id, RatedPlayerProfileId = rated.Id, Score = 8 },
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = settled.Id, VoterPlayerProfileId = other.Id, RatedPlayerProfileId = rated.Id, Score = 6 },
+            // A vote on a still-draft match must not count.
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = draft.Id, VoterPlayerProfileId = voter.Id, RatedPlayerProfileId = rated.Id, Score = 1 },
+            // A vote for a player outside the requested set must not appear.
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = settled.Id, VoterPlayerProfileId = rated.Id, RatedPlayerProfileId = voter.Id, Score = 9 });
+        await db.SaveChangesAsync();
+
+        var aggregates = await repository.ListPlayerRatingAggregatesAsync([rated.Id, other.Id]);
+
+        var row = aggregates.Should().ContainSingle().Subject;
+        row.PlayerProfileId.Should().Be(rated.Id);
+        row.SumOfScores.Should().Be(14m);
+        row.VoteCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task ReplaceAllTeamAssignmentsAsync_MovesPlayersWithoutTouchingTeamsOrRetainedRows()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+        var season = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2026, 1, 1), EndsAtUtc = Utc(2026, 12, 31) };
+        var venue = new Venue { Id = Guid.NewGuid(), Name = $"Venue {Guid.NewGuid():N}", Locality = "Torrance" };
+        var session = CreateSession(season.Id, venue.Id, teamCount: 2, startsAtUtc: Utc(2026, 7, 7));
+        var match = new SoccerMatch { Id = Guid.NewGuid(), SessionId = session.Id, MatchNumber = 1, Status = MatchStatus.Draft };
+        var captainA = CreatePlayer("Captain A", "Forward");
+        var captainB = CreatePlayer("Captain B", "Forward");
+        var mover = CreatePlayer("Mover", "Midfielder");
+        var stayer = CreatePlayer("Stayer", "Defender");
+        var leaver = CreatePlayer("Leaver", "Forward");
+        var joiner = CreatePlayer("Joiner", "Midfielder");
+        var teamA = new MatchTeam { Id = Guid.NewGuid(), MatchId = match.Id, TeamNumber = 1, Name = "Team A", CaptainPlayerProfileId = captainA.Id };
+        var teamB = new MatchTeam { Id = Guid.NewGuid(), MatchId = match.Id, TeamNumber = 2, Name = "Team B", CaptainPlayerProfileId = captainB.Id };
+        await db.Seasons.AddAsync(season);
+        await db.Venues.AddAsync(venue);
+        await db.PlayerProfiles.AddRangeAsync(captainA, captainB, mover, stayer, leaver, joiner);
+        await db.Sessions.AddAsync(session);
+        await db.Matches.AddAsync(match);
+        await db.MatchTeams.AddRangeAsync(teamA, teamB);
+        foreach (var (teamId, playerId) in new[]
+        {
+            (teamA.Id, captainA.Id), (teamA.Id, mover.Id), (teamA.Id, stayer.Id),
+            (teamB.Id, captainB.Id), (teamB.Id, leaver.Id),
+        })
+        {
+            await db.TeamAssignments.AddAsync(new TeamAssignment { Id = Guid.NewGuid(), MatchId = match.Id, MatchTeamId = teamId, PlayerProfileId = playerId });
+            await db.PlayerMatchStats.AddAsync(new PlayerMatchStats { Id = Guid.NewGuid(), MatchId = match.Id, PlayerProfileId = playerId, Played = true, Started = true, MinutesPlayed = playerId == stayer.Id ? 42 : null });
+        }
+
+        await db.SaveChangesAsync();
+        var stayerAssignmentId = (await db.TeamAssignments.SingleAsync(x => x.PlayerProfileId == stayer.Id)).Id;
+
+        // New deal: mover A->B, leaver dropped, joiner added to A, captains and stayer unchanged.
+        await repository.ReplaceAllTeamAssignmentsAsync(match.Id, new Dictionary<Guid, IReadOnlyList<Guid>>
+        {
+            [teamA.Id] = [captainA.Id, stayer.Id, joiner.Id],
+            [teamB.Id] = [captainB.Id, mover.Id],
+        });
+        await db.SaveChangesAsync();
+
+        (await db.MatchTeams.CountAsync(x => x.MatchId == match.Id)).Should().Be(2, "team rows are never rebuilt");
+        var live = await db.TeamAssignments.Where(x => x.MatchId == match.Id).ToArrayAsync();
+        live.Single(x => x.PlayerProfileId == mover.Id).MatchTeamId.Should().Be(teamB.Id);
+        live.Single(x => x.PlayerProfileId == stayer.Id).Id.Should().Be(stayerAssignmentId, "an unchanged assignment is reused, not churned");
+        live.Should().NotContain(x => x.PlayerProfileId == leaver.Id);
+        live.Single(x => x.PlayerProfileId == joiner.Id).MatchTeamId.Should().Be(teamA.Id);
+        var participants = await db.PlayerMatchStats.Where(x => x.MatchId == match.Id).ToArrayAsync();
+        participants.Should().NotContain(x => x.PlayerProfileId == leaver.Id);
+        participants.Single(x => x.PlayerProfileId == stayer.Id).MinutesPlayed.Should().Be(42, "retained players keep their recorded facts");
+        participants.Single(x => x.PlayerProfileId == joiner.Id).Played.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ReassignProfileStatsAsync_WhenSourceProfileCaptainsATeam_RepointsTheCaptaincy()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+        var season = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2026, 1, 1), EndsAtUtc = Utc(2026, 12, 31) };
+        var venue = new Venue { Id = Guid.NewGuid(), Name = $"Venue {Guid.NewGuid():N}", Locality = "Torrance" };
+        var duplicate = CreatePlayer("Desire Duplicate", "Forward");
+        var claimed = CreatePlayer("Desire Asinya", "Forward");
+        var session = CreateSession(season.Id, venue.Id, teamCount: 2, startsAtUtc: Utc(2026, 7, 7));
+        var match = new SoccerMatch { Id = Guid.NewGuid(), SessionId = session.Id, MatchNumber = 1, Status = MatchStatus.Draft };
+        var team = new MatchTeam
+        {
+            Id = Guid.NewGuid(),
+            MatchId = match.Id,
+            TeamNumber = 1,
+            Name = "Team Desire",
+            CaptainPlayerProfileId = duplicate.Id,
+        };
+        await db.Seasons.AddAsync(season);
+        await db.Venues.AddAsync(venue);
+        await db.PlayerProfiles.AddRangeAsync(duplicate, claimed);
+        await db.Sessions.AddAsync(session);
+        await db.Matches.AddAsync(match);
+        await db.MatchTeams.AddAsync(team);
+        await db.TeamAssignments.AddAsync(new TeamAssignment { Id = Guid.NewGuid(), MatchId = match.Id, MatchTeamId = team.Id, PlayerProfileId = duplicate.Id });
+        await db.SaveChangesAsync();
+
+        await repository.ReassignProfileStatsAsync(duplicate.Id, claimed.Id);
+        await db.SaveChangesAsync();
+
+        // The merge bug: assignments moved but the captaincy stayed on the retired profile, which
+        // broke captain preselection and hid the Lock button.
+        var storedTeam = await db.MatchTeams.SingleAsync(x => x.Id == team.Id);
+        storedTeam.CaptainPlayerProfileId.Should().Be(claimed.Id);
+        (await db.TeamAssignments.SingleAsync(x => x.MatchTeamId == team.Id)).PlayerProfileId.Should().Be(claimed.Id);
+    }
+
+    [Fact]
+    public async Task ReassignProfileStatsAsync_WhenClaimedProfileIsAssignedElsewhere_KeepsCaptainOnTheirTeam()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+        var season = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2026, 1, 1), EndsAtUtc = Utc(2026, 12, 31) };
+        var venue = new Venue { Id = Guid.NewGuid(), Name = $"Venue {Guid.NewGuid():N}", Locality = "Torrance" };
+        var duplicate = CreatePlayer("Desire Duplicate", "Forward");
+        var claimed = CreatePlayer("Desire Asinya", "Forward");
+        var session = CreateSession(season.Id, venue.Id, teamCount: 2, startsAtUtc: Utc(2026, 7, 7));
+        var match = new SoccerMatch { Id = Guid.NewGuid(), SessionId = session.Id, MatchNumber = 1, Status = MatchStatus.Draft };
+        var captainTeam = new MatchTeam
+        {
+            Id = Guid.NewGuid(),
+            MatchId = match.Id,
+            TeamNumber = 1,
+            Name = "Team Desire",
+            CaptainPlayerProfileId = duplicate.Id,
+        };
+        var otherTeam = new MatchTeam { Id = Guid.NewGuid(), MatchId = match.Id, TeamNumber = 2, Name = "Team Other" };
+        await db.Seasons.AddAsync(season);
+        await db.Venues.AddAsync(venue);
+        await db.PlayerProfiles.AddRangeAsync(duplicate, claimed);
+        await db.Sessions.AddAsync(session);
+        await db.Matches.AddAsync(match);
+        await db.MatchTeams.AddRangeAsync(captainTeam, otherTeam);
+        await db.TeamAssignments.AddRangeAsync(
+            new TeamAssignment { Id = Guid.NewGuid(), MatchId = match.Id, MatchTeamId = captainTeam.Id, PlayerProfileId = duplicate.Id },
+            new TeamAssignment { Id = Guid.NewGuid(), MatchId = match.Id, MatchTeamId = otherTeam.Id, PlayerProfileId = claimed.Id });
+        await db.SaveChangesAsync();
+
+        await repository.ReassignProfileStatsAsync(duplicate.Id, claimed.Id);
+        await db.SaveChangesAsync();
+
+        var storedCaptainTeam = await db.MatchTeams.SingleAsync(x => x.Id == captainTeam.Id);
+        var activeAssignment = await db.TeamAssignments.SingleAsync(x => x.MatchId == match.Id && x.PlayerProfileId == claimed.Id);
+        storedCaptainTeam.CaptainPlayerProfileId.Should().Be(claimed.Id);
+        activeAssignment.MatchTeamId.Should().Be(captainTeam.Id);
+    }
+
+    [Fact]
+    public async Task ReassignProfileStatsAsync_WhenProfilesCaptainDifferentTeams_RejectsTheMerge()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+        var season = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2026, 1, 1), EndsAtUtc = Utc(2026, 12, 31) };
+        var venue = new Venue { Id = Guid.NewGuid(), Name = $"Venue {Guid.NewGuid():N}", Locality = "Torrance" };
+        var duplicate = CreatePlayer("Duplicate Captain", "Forward");
+        var claimed = CreatePlayer("Claimed Captain", "Forward");
+        var session = CreateSession(season.Id, venue.Id, teamCount: 2, startsAtUtc: Utc(2026, 7, 7));
+        var match = new SoccerMatch { Id = Guid.NewGuid(), SessionId = session.Id, MatchNumber = 1, Status = MatchStatus.Draft };
+        var sourceTeam = new MatchTeam { Id = Guid.NewGuid(), MatchId = match.Id, TeamNumber = 1, Name = "Source Team", CaptainPlayerProfileId = duplicate.Id };
+        var targetTeam = new MatchTeam { Id = Guid.NewGuid(), MatchId = match.Id, TeamNumber = 2, Name = "Target Team", CaptainPlayerProfileId = claimed.Id };
+        await db.Seasons.AddAsync(season);
+        await db.Venues.AddAsync(venue);
+        await db.PlayerProfiles.AddRangeAsync(duplicate, claimed);
+        await db.Sessions.AddAsync(session);
+        await db.Matches.AddAsync(match);
+        await db.MatchTeams.AddRangeAsync(sourceTeam, targetTeam);
+        await db.TeamAssignments.AddRangeAsync(
+            new TeamAssignment { Id = Guid.NewGuid(), MatchId = match.Id, MatchTeamId = sourceTeam.Id, PlayerProfileId = duplicate.Id },
+            new TeamAssignment { Id = Guid.NewGuid(), MatchId = match.Id, MatchTeamId = targetTeam.Id, PlayerProfileId = claimed.Id });
+        await db.SaveChangesAsync();
+
+        var act = () => repository.ReassignProfileStatsAsync(duplicate.Id, claimed.Id);
+
+        await act.Should().ThrowAsync<ApplicationConflictException>()
+            .WithMessage("*captain different teams*");
+        db.ChangeTracker.HasChanges().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ReassignProfileStatsAsync_WhenFeedbackBecomesSelfOrCollides_SoftDeletesInvalidRows()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var repository = scope.ServiceProvider.GetRequiredService<IStatsRepository>();
+        var season = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2026, 1, 1), EndsAtUtc = Utc(2026, 12, 31) };
+        var venue = new Venue { Id = Guid.NewGuid(), Name = $"Venue {Guid.NewGuid():N}", Locality = "Torrance" };
+        var source = CreatePlayer("Duplicate Player", "Forward");
+        var target = CreatePlayer("Canonical Player", "Forward");
+        var teammate = CreatePlayer("Teammate", "Midfielder");
+        var session = CreateSession(season.Id, venue.Id, teamCount: 2, startsAtUtc: Utc(2026, 7, 7));
+        var match = new SoccerMatch { Id = Guid.NewGuid(), SessionId = session.Id, MatchNumber = 1, Status = MatchStatus.InProgress };
+        await db.Seasons.AddAsync(season);
+        await db.Venues.AddAsync(venue);
+        await db.PlayerProfiles.AddRangeAsync(source, target, teammate);
+        await db.Sessions.AddAsync(session);
+        await db.Matches.AddAsync(match);
+
+        var sourceRatesTarget = new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = match.Id, VoterPlayerProfileId = source.Id, RatedPlayerProfileId = target.Id, Score = 7 };
+        var targetRatesSource = new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = match.Id, VoterPlayerProfileId = target.Id, RatedPlayerProfileId = source.Id, Score = 8 };
+        var sourceRatesTeammate = new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = match.Id, VoterPlayerProfileId = source.Id, RatedPlayerProfileId = teammate.Id, Score = 5 };
+        var targetRatesTeammate = new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = match.Id, VoterPlayerProfileId = target.Id, RatedPlayerProfileId = teammate.Id, Score = 9 };
+        var teammateRatesSource = new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = match.Id, VoterPlayerProfileId = teammate.Id, RatedPlayerProfileId = source.Id, Score = 6 };
+        var teammateRatesTarget = new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = match.Id, VoterPlayerProfileId = teammate.Id, RatedPlayerProfileId = target.Id, Score = 10 };
+        await db.PlayerRatingVotes.AddRangeAsync(
+            sourceRatesTarget,
+            targetRatesSource,
+            sourceRatesTeammate,
+            targetRatesTeammate,
+            teammateRatesSource,
+            teammateRatesTarget);
+
+        var sourceLikesTarget = new PlayerLike { Id = Guid.NewGuid(), MatchId = match.Id, GiverPlayerProfileId = source.Id, ReceiverPlayerProfileId = target.Id };
+        var targetLikesSource = new PlayerLike { Id = Guid.NewGuid(), MatchId = match.Id, GiverPlayerProfileId = target.Id, ReceiverPlayerProfileId = source.Id };
+        var sourceLikesTeammate = new PlayerLike { Id = Guid.NewGuid(), MatchId = match.Id, GiverPlayerProfileId = source.Id, ReceiverPlayerProfileId = teammate.Id };
+        var targetLikesTeammate = new PlayerLike { Id = Guid.NewGuid(), MatchId = match.Id, GiverPlayerProfileId = target.Id, ReceiverPlayerProfileId = teammate.Id };
+        var teammateLikesSource = new PlayerLike { Id = Guid.NewGuid(), MatchId = match.Id, GiverPlayerProfileId = teammate.Id, ReceiverPlayerProfileId = source.Id };
+        var teammateLikesTarget = new PlayerLike { Id = Guid.NewGuid(), MatchId = match.Id, GiverPlayerProfileId = teammate.Id, ReceiverPlayerProfileId = target.Id };
+        await db.PlayerLikes.AddRangeAsync(
+            sourceLikesTarget,
+            targetLikesSource,
+            sourceLikesTeammate,
+            targetLikesTeammate,
+            teammateLikesSource,
+            teammateLikesTarget);
+        await db.SaveChangesAsync();
+
+        await repository.ReassignProfileStatsAsync(source.Id, target.Id);
+        await db.SaveChangesAsync();
+
+        var activeVotes = await db.PlayerRatingVotes.Where(row => row.MatchId == match.Id).ToArrayAsync();
+        activeVotes.Should().HaveCount(2);
+        activeVotes.Should().ContainSingle(row =>
+            row.VoterPlayerProfileId == target.Id
+            && row.RatedPlayerProfileId == teammate.Id
+            && row.Score == targetRatesTeammate.Score);
+        activeVotes.Should().ContainSingle(row =>
+            row.VoterPlayerProfileId == teammate.Id
+            && row.RatedPlayerProfileId == target.Id
+            && row.Score == teammateRatesTarget.Score);
+        activeVotes.Should().OnlyContain(row => row.VoterPlayerProfileId != row.RatedPlayerProfileId);
+
+        var activeLikes = await db.PlayerLikes.Where(row => row.MatchId == match.Id).ToArrayAsync();
+        activeLikes.Should().HaveCount(2);
+        activeLikes.Should().ContainSingle(row =>
+            row.GiverPlayerProfileId == target.Id
+            && row.ReceiverPlayerProfileId == teammate.Id);
+        activeLikes.Should().ContainSingle(row =>
+            row.GiverPlayerProfileId == teammate.Id
+            && row.ReceiverPlayerProfileId == target.Id);
+        activeLikes.Should().OnlyContain(row => row.GiverPlayerProfileId != row.ReceiverPlayerProfileId);
+
+        (await db.PlayerRatingVotes.IgnoreQueryFilters().CountAsync(row => row.MatchId == match.Id && row.IsDeleted)).Should().Be(4);
+        (await db.PlayerLikes.IgnoreQueryFilters().CountAsync(row => row.MatchId == match.Id && row.IsDeleted)).Should().Be(4);
     }
 
     private ServiceProvider CreateServiceProvider()
@@ -53,7 +522,7 @@ public sealed class StatsRepositoryQueryTests
         return services.BuildServiceProvider();
     }
 
-    private static async Task<(Season Season, PlayerProfile Ada, PlayerProfile Tunde)> SeedGoalLeaderboardAsync(SouthBaySoccerDbContext db)
+    private static async Task<(Season Season, PlayerProfile Ada, PlayerProfile Tunde, PlayerProfile Bola)> SeedGoalLeaderboardAsync(SouthBaySoccerDbContext db)
     {
         var season = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2026, 1, 1), EndsAtUtc = Utc(2026, 12, 31) };
         var otherSeason = new Season { Id = Guid.NewGuid(), Name = $"Season {Guid.NewGuid():N}", StartsAtUtc = Utc(2025, 1, 1), EndsAtUtc = Utc(2025, 12, 31) };
@@ -89,7 +558,7 @@ public sealed class StatsRepositoryQueryTests
             Goal(otherMatch.Id, ada.Id, null, MatchEventReviewStatus.Approved));
 
         await db.SaveChangesAsync();
-        return (season, ada, tunde);
+        return (season, ada, tunde, bola);
     }
 
     private static async Task AddTeamsAndParticipantsAsync(SouthBaySoccerDbContext db, SoccerMatch match, params PlayerProfile[] players)

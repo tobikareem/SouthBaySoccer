@@ -22,6 +22,9 @@ public partial class CounterStepper
     public static readonly BindableProperty CaptionProperty =
         BindableProperty.Create(nameof(Caption), typeof(string), typeof(CounterStepper), null,
             propertyChanged: static (bindable, _, _) => ((CounterStepper)bindable).RefreshButtons());
+    public static readonly BindableProperty SemanticCaptionProperty =
+        BindableProperty.Create(nameof(SemanticCaption), typeof(string), typeof(CounterStepper), null,
+            propertyChanged: static (bindable, _, _) => ((CounterStepper)bindable).RefreshButtons());
     public static readonly BindableProperty ValueChangedCommandProperty =
         BindableProperty.Create(nameof(ValueChangedCommand), typeof(ICommand), typeof(CounterStepper));
 
@@ -38,6 +41,12 @@ public partial class CounterStepper
     public string? Glyph { get => (string?)GetValue(GlyphProperty); set => SetValue(GlyphProperty, value); }
     public string? GlyphFontFamily { get => (string?)GetValue(GlyphFontFamilyProperty); set => SetValue(GlyphFontFamilyProperty, value); }
     public string? Caption { get => (string?)GetValue(CaptionProperty); set => SetValue(CaptionProperty, value); }
+
+    /// <summary>
+    /// Disambiguates identical steppers for screen readers (e.g. "Team Green wins" when three teams
+    /// each show a "Wins" stepper). Falls back to <see cref="Caption"/> when unset.
+    /// </summary>
+    public string? SemanticCaption { get => (string?)GetValue(SemanticCaptionProperty); set => SetValue(SemanticCaptionProperty, value); }
     public ICommand? ValueChangedCommand { get => (ICommand?)GetValue(ValueChangedCommandProperty); set => SetValue(ValueChangedCommandProperty, value); }
 
     private void DecrementClicked(object? sender, EventArgs e) => ChangeValue(-Step);
@@ -53,6 +62,9 @@ public partial class CounterStepper
     {
         DecrementButton.IsEnabled = Value > Minimum;
         IncrementButton.IsEnabled = Value < Maximum;
-        SemanticProperties.SetDescription(this, $"{Caption}: {Value}");
+        var caption = string.IsNullOrWhiteSpace(SemanticCaption) ? Caption : SemanticCaption;
+        SemanticProperties.SetDescription(this, $"{caption}: {Value}");
+        SemanticProperties.SetDescription(DecrementButton, $"Decrease {caption}");
+        SemanticProperties.SetDescription(IncrementButton, $"Increase {caption}");
     }
 }

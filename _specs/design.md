@@ -96,7 +96,7 @@ Errors use RFC 7807 `ProblemDetails` per the architecture §7 status table.
 
 **Auth + token refresh (AUTH-3/4):** client posts credentials → `ITokenService` issues access+refresh → `AuthenticationHandler` attaches bearer, refreshes once on expiry with a single in-flight refresh, replays only idempotent requests; reuse of a consumed refresh token revokes the family atomically.
 
-**RSVP + waitlist (RSVP-1..4, INV-2/3):** `SubmitRsvp` validates waiver + payment eligibility, then a **serializable** transaction scoped to the session checks capacity, inserts `RsvpResponse` or `WaitlistEntry` (unique active-RSVP constraint + `rowversion`), with bounded retry → 409. Cancellation runs `PromoteWaitlist` in the same transactional pattern and raises `PlayerWaitlistPromoted` via outbox.
+**RSVP + waitlist (RSVP-1..4, INV-2/3):** `SubmitRsvp` validates payment eligibility (the waiver check was removed 2026-09-16), then a **serializable** transaction scoped to the session checks capacity, inserts `RsvpResponse` or `WaitlistEntry` (unique active-RSVP constraint + `rowversion`), with bounded retry → 409. Cancellation runs `PromoteWaitlist` in the same transactional pattern and raises `PlayerWaitlistPromoted` via outbox.
 
 **Stripe (PAY-1/2, INV-1):** client requests checkout → Function creates Checkout server-side → returns short-lived URL → user pays on Stripe → signed webhook → verify signature on raw body → insert event ID (unique) + update ledger/membership atomically → 2xx; duplicate = 2xx no-op; older event does not overwrite newer state.
 
@@ -145,7 +145,11 @@ first-class acceptance tests, traced to the story IDs in `requirements.md`.
   local identity/profile records, and issues SouthBaySoccer access/refresh tokens. WhatsApp
   challenge links and callback verification are deferred.
 - Whether SMS (Twilio) ships in v1 or later (cost + A2P 10DLC registration).
-- Team-balancing algorithm for TEAM-2 (manual vs. rating-weighted auto-balance).
+- **Resolved - team balancing (TEAM-5):** both. Captains draft manually in strict snake order
+  (1st/2nd/3rd captain rank = admin's selection order = team number), one pick per turn, and a game
+  admin can auto-balance the whole roster instead: peer ratings with a shrinkage prior (K=4 votes
+  toward the roster mean), snake fill, then bounded best-swap optimization minimizing the spread of
+  team averages. Deterministic per (match, attempt). See `_specs/stories/TEAM-5-auto-balance/`.
 - **Resolved - 4-captain topology:** three captains means three separate teams and four captains means four separate teams. Two-captain nights
   create two teams; three- and four-captain nights create rotating team formats for the game day.
 - Minimum minutes threshold for a goalkeeper clean sheet, scaled to session length.
@@ -174,7 +178,7 @@ appear behind it.
 
 1. Green-to-Pine brand header, approximately matching the wireframe's `34,16,30` padding.
    - 42-dip circular football mark on the left.
-   - `SouthBay Soccer` title.
+   - `N9ja Bay` title.
    - `Pickup soccer, organized.` subtitle.
    - white right-side flag stripe and low-opacity circular motif.
 2. Content area with 16-dip horizontal padding and 20-dip top padding.
@@ -190,7 +194,7 @@ appear behind it.
 4. Full-width `Sign in with phone` action using the primary brand button treatment.
 5. `NoticeSurface` with Font Awesome shield-check glyph and the exact security message:
    `Password-free and secure` followed by
-   `Pickup Pal verifies your account. SouthBaySoccer stores only app session tokens on this device.`
+   `Pickup Pal verifies your account. N9ja Bay stores only app session tokens on this device.`
 6. Pickup Pal bot `BrandCard` using `SurfaceAlt`.
    - uppercase `PICKUP PAL BOT` label;
    - configured display number (wireframe example `+1 (650) 220-5416`);

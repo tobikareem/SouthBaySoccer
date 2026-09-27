@@ -15,11 +15,23 @@ public interface IStatsRepository
 
     Task<Match?> FindMatchAsync(Guid matchId, CancellationToken cancellationToken = default);
 
+    Task<Match?> FindPrimaryMatchBySessionAsync(Guid sessionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Loads the primary match and its summary facts for several sessions using bounded batch
+    /// queries. Sessions without a match are omitted.
+    /// </summary>
+    Task<IReadOnlyList<GameDaySummaryStatsRecord>> ListGameDaySummaryStatsAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<MatchTeam>> ListMatchTeamsAsync(Guid matchId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<TeamAssignment>> ListAssignmentsAsync(Guid matchId, CancellationToken cancellationToken = default);
 
     Task<MatchEvent?> FindMatchEventAsync(Guid matchEventId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<MatchEvent>> ListMatchEventsAsync(Guid matchId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<MatchResult>> ListMatchResultsAsync(Guid matchId, CancellationToken cancellationToken = default);
 
@@ -28,9 +40,61 @@ public interface IStatsRepository
         IReadOnlyList<MatchEvent> events,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Replaces only the pending rows a single player submitted for themselves, leaving every other
+    /// player's rows and any already-reviewed row untouched. This makes a player's self-submission
+    /// idempotent: resubmitting overwrites their own pending claim instead of stacking duplicates.
+    /// </summary>
+    Task ReplaceOwnPendingMatchEventsAsync(
+        Guid matchId,
+        Guid submittedByPlayerProfileId,
+        IReadOnlyList<MatchEvent> events,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ensures the player has a participation row (Played = true) for the match, adding one if
+    /// absent. Leaderboards and player stats aggregate over participation, so a self-submitter who
+    /// was never drafted would otherwise have their approved goals/assists ignored.
+    /// </summary>
+    Task EnsurePlayerMatchParticipationAsync(
+        Guid matchId,
+        Guid playerProfileId,
+        CancellationToken cancellationToken = default);
+
     Task UpsertMatchResultsAsync(
         Guid matchId,
         IReadOnlyList<MatchResult> results,
+        CancellationToken cancellationToken = default);
+
+    Task ReplaceCaptainTopologyAsync(
+        Guid matchId,
+        IReadOnlyList<MatchTeam> teams,
+        IReadOnlyList<TeamAssignment> assignments,
+        IReadOnlyList<PlayerMatchStats> participants,
+        CancellationToken cancellationToken = default);
+
+    Task ReplaceTeamAssignmentsAsync(
+        Guid matchId,
+        Guid matchTeamId,
+        IReadOnlyList<Guid> playerProfileIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Replaces every team's player assignments for the match in one pass while leaving the
+    /// <see cref="MatchTeam"/> rows (names, captains, team numbers) untouched. Participation rows
+    /// are reconciled to exactly the assigned set; unchanged assignments are reused, not churned.
+    /// </summary>
+    Task ReplaceAllTeamAssignmentsAsync(
+        Guid matchId,
+        IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> playerProfileIdsByTeamId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sums peer-rating votes for the given players across rating-eligible (completed or later)
+    /// matches. Players with no votes are absent from the result.
+    /// </summary>
+    Task<IReadOnlyList<PlayerRatingAggregateRecord>> ListPlayerRatingAggregatesAsync(
+        IReadOnlyCollection<Guid> playerProfileIds,
         CancellationToken cancellationToken = default);
 
     Task SubmitPeerFeedbackAsync(
@@ -55,6 +119,7 @@ public interface IStatsRepository
         StatLeaderboardMetric metric,
         int skip,
         int take,
+        Guid? groupChatId,
         CancellationToken cancellationToken = default);
 
     Task<PlayerStatSummaryReadModel?> GetPlayerStatsAsync(
@@ -67,6 +132,27 @@ public interface IStatsRepository
         int matchTake,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>Match and stat facts needed to render one completed Game Day summary.</summary>
+/// <param name="SessionId">Session represented by this summary.</param>
+/// <param name="Match">The session's primary match.</param>
+/// <param name="Teams">Teams belonging to the primary match.</param>
+/// <param name="Results">Recorded results belonging to the primary match.</param>
+/// <param name="Assignments">Player-to-team assignments belonging to the primary match.</param>
+/// <param name="Events">Goal and assist events belonging to the primary match.</param>
+public sealed record GameDaySummaryStatsRecord(
+    Guid SessionId,
+    Match Match,
+    IReadOnlyList<MatchTeam> Teams,
+    IReadOnlyList<MatchResult> Results,
+    IReadOnlyList<TeamAssignment> Assignments,
+    IReadOnlyList<MatchEvent> Events);
+
+/// <summary>Raw peer-rating totals for one player: the sum keeps shrinkage math exact.</summary>
+public sealed record PlayerRatingAggregateRecord(
+    Guid PlayerProfileId,
+    decimal SumOfScores,
+    int VoteCount);
 
 public sealed record LeaderboardReadModel(
     Guid PlayerProfileId,
@@ -95,7 +181,9 @@ public sealed record PlayerStatSummaryReadModel(
     decimal AverageRating,
     int RatingVoteCount,
     int Likes,
-    int MvpAwards);
+    int MvpAwards,
+    int Wins = 0,
+    int Losses = 0);
 
 public sealed record PlayerRecentFormReadModel(
     Guid MatchId,

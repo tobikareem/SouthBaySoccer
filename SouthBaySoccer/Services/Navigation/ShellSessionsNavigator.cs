@@ -32,6 +32,11 @@ public sealed class ShellSessionsNavigator : ISessionsNavigator
     public Task GoToStatsAsync() =>
         Shell.Current.GoToAsync("//stats");
 
+    public Task GoToClaimSpotAsync(Guid sessionId) =>
+        sessionId == Guid.Empty
+            ? Shell.Current.GoToAsync("claim-spot")
+            : Shell.Current.GoToAsync($"claim-spot?sessionId={sessionId}");
+
     public Task GoToScheduleAsync() =>
         Shell.Current.GoToAsync("schedule");
 

@@ -13,8 +13,8 @@ and lists my upcoming sessions, *so that* I can see what's next and jump straigh
 my stats.
 
 This is the first authenticated screen behind the Shell tab bar and directly implements the `home`
-wireframe screen. In this UI-first phase its data is supplied by a seed `ISessionsClient`; no backend
-exists yet (design §12).
+wireframe screen. It reads through `ISessionsClient`; seed mode remains deterministic while API mode
+uses the authenticated, server-authoritative session feed.
 
 ## Acceptance criteria
 
@@ -29,11 +29,20 @@ Scenario: The home screen matches the wireframe composition
   And a full session card shows a "Full" Badge and a "Join waitlist" action
   And a bottom tab bar shows Sessions (active), Stats, and Profile
 
-Scenario: The session list and dues status load from the seed client
-  Given the Sessions home screen page model resolves a seed ISessionsClient (no backend, design §12)
+Scenario: The session list and dues status load through the selected client
+  Given the Sessions home screen page model resolves ISessionsClient
   When the page appears
   Then the upcoming sessions and my dues status are loaded through the client interface
   And the page model holds no knowledge of whether the data is seeded or from the API
+
+Scenario: Session capacity and waitlist state reflect persisted attendance
+  Given local RSVP rows or imported Pickup Pal participants exist for a published session
+  When Sessions home or See schedule loads
+  Then each card shows the de-duplicated Going count, capacity, and active waitlist count
+  And the status is "You're going", "You're waitlisted", "Full", "RSVP closed", or "Open" from server facts
+  And a linked player appears in only one list, with local state preferred over imported state
+  And the RSVP capacity transaction uses the same combined attendance count shown on the cards
+  And Join waitlist is offered only when the session is full, RSVP is open, and I am not already Going or waitlisted
 
 Scenario: Loading, empty, error, and offline states use StateView
   Given the Sessions home screen is loading its data
@@ -63,6 +72,7 @@ Scenario: A full session offers joining the waitlist
   Given a session card shows a "Full" Badge and remaining waitlist count
   When I activate its "Join waitlist" action
   Then the JoinWaitlist command is invoked for that session
+  And the refreshed Sessions home and See schedule cards show my waitlisted state and updated count
 
 Scenario: A canceled session remains visible
   Given an upcoming session has been canceled by an admin

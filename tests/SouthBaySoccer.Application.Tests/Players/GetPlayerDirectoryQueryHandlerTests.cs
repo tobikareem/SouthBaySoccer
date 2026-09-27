@@ -2,6 +2,7 @@ using FluentAssertions;
 using Moq;
 using SouthBaySoccer.Application.Features.Players;
 using SouthBaySoccer.Domain.Interfaces.Repositories;
+using SouthBaySoccer.Application.Tests.TestSupport;
 
 namespace SouthBaySoccer.Application.Tests.Players;
 
@@ -27,7 +28,7 @@ public sealed class GetPlayerDirectoryQueryHandlerTests
                     true,
                     1),
             ]);
-        var handler = new GetPlayerDirectoryQueryHandler(repository.Object);
+        var handler = new GetPlayerDirectoryQueryHandler(repository.Object, new PassThroughReadThroughCache());
 
         var result = await handler.HandleAsync();
 
@@ -56,7 +57,7 @@ public sealed class GetPlayerDirectoryQueryHandlerTests
                     false,
                     0),
             ]);
-        var handler = new GetPlayerDirectoryQueryHandler(repository.Object);
+        var handler = new GetPlayerDirectoryQueryHandler(repository.Object, new PassThroughReadThroughCache());
 
         var result = await handler.HandleAsync();
 

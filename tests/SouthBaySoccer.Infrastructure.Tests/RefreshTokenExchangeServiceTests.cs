@@ -47,7 +47,8 @@ public sealed class RefreshTokenExchangeServiceTests
         result.PlayerProfileId.Should().Be(playerProfileId);
         result.RefreshToken.Should().Be(replacementSecret);
         result.RefreshTokenId.Should().NotBeNull();
-        result.RefreshTokenExpiresAtUtc.Should().Be(Now.AddDays(30));
+        // Rotation keeps the family's lifetime (seeded token: created Now-1d, expires Now+7d = 8 days).
+        result.RefreshTokenExpiresAtUtc.Should().Be(Now.AddDays(8));
         tokenGenerator.Verify(x => x.CreateToken(), Times.Once);
 
         await using var assertionDb = database.CreateDbContext();
@@ -129,6 +130,24 @@ public sealed class RefreshTokenExchangeServiceTests
         expiredToken.ConsumedAtUtc.Should().BeNull();
         expiredToken.ReplacedByRefreshTokenId.Should().BeNull();
         expiredToken.RevokedAtUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RotateAsync_WhenPresentedTokenHasShortSessionLifetime_ReplacementKeepsThatLifetime()
+    {
+        // A 12-hour session token (no remember-device) must not become a 30-day token by refreshing.
+        var rawToken = $"raw-{Guid.NewGuid():N}";
+        var currentToken = CreateRefreshToken(rawToken, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        currentToken.CreatedAt = Now.AddHours(-1);
+        currentToken.ExpiresAtUtc = Now.AddHours(11);
+        await SeedAsync(currentToken);
+        using var db = database.CreateDbContext();
+        var service = CreateService(db, CreateTokenGenerator($"replacement-{Guid.NewGuid():N}").Object);
+
+        var result = await service.RotateAsync(new RefreshTokenExchangeRequest(rawToken));
+
+        result.Status.Should().Be(RefreshTokenExchangeStatus.Rotated);
+        result.RefreshTokenExpiresAtUtc.Should().Be(Now.AddHours(12));
     }
 
     [Fact]

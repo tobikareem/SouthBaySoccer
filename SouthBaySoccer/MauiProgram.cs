@@ -9,8 +9,9 @@ using SouthBaySoccer.Services.Clients;
 using SouthBaySoccer.Services.Leaderboard;
 using SouthBaySoccer.Services.Navigation;
 using SouthBaySoccer.Services.Players;
+using SouthBaySoccer.Services.GameDay;
 using SouthBaySoccer.Services.Profile;
-using Syncfusion.Maui.Toolkit.Hosting;
+using SouthBaySoccer.Services.Sessions;
 
 namespace SouthBaySoccer;
 
@@ -22,7 +23,6 @@ public static class MauiProgram
         builder
             .UseMauiApp<App>()
             .UseMauiCommunityToolkit()
-            .ConfigureSyncfusionToolkit()
             .ConfigureMauiHandlers(handlers =>
             {
 #if WINDOWS
@@ -31,17 +31,6 @@ public static class MauiProgram
                     (handler, _) =>
                     {
                         handler.PlatformView.SingleSelectionFollowsFocus = false;
-                    });
-
-                Microsoft.Maui.Handlers.ContentViewHandler.Mapper.AppendToMapping(
-                    nameof(Pages.Controls.CategoryChart),
-                    (handler, view) =>
-                    {
-                        if (view is Pages.Controls.CategoryChart
-                            && handler.PlatformView is Microsoft.Maui.Platform.ContentPanel contentPanel)
-                        {
-                            contentPanel.IsTabStop = true;
-                        }
                     });
 #endif
             })
@@ -73,22 +62,32 @@ public static class MauiProgram
         builder.Services.AddLogging(configure => configure.AddDebug());
 #endif
 
-        builder.Services.AddSingleton<ProjectRepository>();
-        builder.Services.AddSingleton<TaskRepository>();
-        builder.Services.AddSingleton<CategoryRepository>();
-        builder.Services.AddSingleton<TagRepository>();
-        builder.Services.AddSingleton<SeedDataService>();
         builder.Services.AddSingleton<ModalErrorHandler>();
         builder.Services.AddSingleton<StartupErrorHandler>();
         builder.Services.AddSingleton<IUserDialogService, UserDialogService>();
         builder.Services.AddSingleton(TimeProvider.System);
-        builder.Services.AddSingleton<MainPageModel>();
-        builder.Services.AddSingleton<ProjectListPageModel>();
-        builder.Services.AddSingleton<ManageMetaPageModel>();
+        builder.Services.AddSingleton<IPollingDelay, JitteredPollingDelay>();
+        builder.Services.AddSingleton<AppLifecycleState>();
+        builder.Services.AddSingleton<IAppLifecycleState>(services => services.GetRequiredService<AppLifecycleState>());
 
         builder.Services.AddTransient<AppShell>();
         builder.Services.AddTransient<WelcomeBackPage>();
         builder.Services.AddTransient<WelcomeBackPageModel>();
+        builder.Services.AddTransient<SignUpStartPage>();
+        builder.Services.AddTransient<SignUpStartPageModel>();
+        builder.Services.AddTransient<LinkWaitingPage>();
+        builder.Services.AddTransient<LinkWaitingPageModel>();
+        builder.Services.AddTransient<SignUpExpiredPage>();
+        builder.Services.AddTransient<SignUpExpiredPageModel>();
+        builder.Services.AddTransient<SignUpDetailsPage>();
+        builder.Services.AddTransient<SignUpDetailsPageModel>();
+        builder.Services.AddTransient<SignUpWelcomePage>();
+        builder.Services.AddTransient<SignUpWelcomePageModel>();
+        builder.Services.AddTransient<SignInVerifyPage>();
+        builder.Services.AddTransient<SignInVerifyPageModel>();
+        builder.Services.AddTransient<LinkGroupPage>();
+        builder.Services.AddTransient<LinkGroupPageModel>();
+        builder.Services.AddSingleton<IGroupLinkNavigator, ShellGroupLinkNavigator>();
 
         builder.Services.AddTransient<SessionsHomePage>();
         builder.Services.AddTransient<SessionsHomePageModel>();
@@ -96,13 +95,17 @@ public static class MauiProgram
         builder.Services.AddTransient<GameDayPageModel>();
         builder.Services.AddTransient<CaptainAssignmentPageModel>();
         builder.Services.AddTransient<TeamDraftPageModel>();
+        builder.Services.AddTransient<TeamsViewPageModel>();
         builder.Services.AddTransient<PostGameApprovalPageModel>();
-        builder.Services.AddSingleton(new GameDayOptions());
         builder.Services.AddLeaderboardFeature();
         builder.Services.AddPlayersFeature();
         builder.Services.AddProfileFeature();
         builder.Services.AddSingleton<ISessionsNavigator, ShellSessionsNavigator>();
         builder.Services.AddSingleton<IGameDayNavigator, ShellGameDayNavigator>();
+        builder.Services.AddSingleton<IClaimSpotNavigator, ShellClaimSpotNavigator>();
+        builder.Services.AddSingleton<IDismissedStatsPromptStore, DismissedStatsPromptStore>();
+        builder.Services.AddSingleton<IRosterListPresenter, PopupRosterListPresenter>();
+        builder.Services.AddSingleton<IAdminMatchNavigator, ShellAdminMatchNavigator>();
         builder.Services.AddSingleton<IMatchStatsNavigator, ShellMatchStatsNavigator>();
         builder.Services.AddSingleton(new MatchStatsOptions());
         builder.Services.AddSingleton(new RateTeammatesOptions());
@@ -117,7 +120,9 @@ public static class MauiProgram
         builder.Configuration.AddEnvironmentVariables();
 
         var defaultApiBaseUrl =
-#if DEBUG && ANDROID
+#if RELEASE
+            PickupPalOptions.ProductionApiBaseUrl;
+#elif DEBUG && ANDROID
             PickupPalOptions.AndroidDebugApiBaseUrl;
 #else
             PickupPalOptions.DefaultApiBaseUrl;
@@ -148,18 +153,32 @@ public static class MauiProgram
         builder.Services.AddSingleton<IAuthenticationCoordinator, AuthenticationCoordinator>();
         builder.Services.AddSingleton<IAppStartupService, AppStartupService>();
         builder.Services.AddSingleton<IExternalLauncher, ExternalLauncher>();
+        builder.Services.AddSingleton<IClipboardReader, ClipboardReader>();
+        builder.Services.AddSingleton<IOnboardingNavigator, OnboardingNavigator>();
+        builder.Services.AddSingleton<IOnboardingFlow, OnboardingFlow>();
+        builder.Services.AddSingleton<IAnnouncementsNavigator, ShellAnnouncementsNavigator>();
 
         builder.Services.AddTransientWithShellRoute<SessionDetailPage, SessionDetailPageModel>("session");
         builder.Services.AddTransientWithShellRoute<SchedulePage, SchedulePageModel>("schedule");
         builder.Services.AddTransientWithShellRoute<CreateSessionPage, CreateSessionPageModel>("create-session");
         builder.Services.AddTransientWithShellRoute<CaptainAssignmentPage, CaptainAssignmentPageModel>("captains");
         builder.Services.AddTransientWithShellRoute<TeamDraftPage, TeamDraftPageModel>("draft");
+        builder.Services.AddTransientWithShellRoute<TeamsViewPage, TeamsViewPageModel>("teams-view");
         builder.Services.AddTransientWithShellRoute<PostGameApprovalPage, PostGameApprovalPageModel>("postgame");
+        builder.Services.AddTransientWithShellRoute<RecentGamesPage, RecentGamesPageModel>("recent-games");
+        // Another player's profile is a pushed detail page; the Profile tab stays the signed-in
+        // player's own so its page model never carries a requested playerId.
+        builder.Services.AddTransientWithShellRoute<ProfilePage, ProfilePageModel>("player-profile");
+        builder.Services.AddTransientWithShellRoute<ClaimSpotPage, ClaimSpotPageModel>("claim-spot");
+        builder.Services.AddTransientWithShellRoute<AdminMatchPage, AdminMatchPageModel>("admin-match");
         builder.Services.AddTransientWithShellRoute<MatchStatsPage, MatchStatsPageModel>("matchstats");
         builder.Services.AddTransientWithShellRoute<RateTeammatesPage, RateTeammatesPageModel>("rate-teammates");
-
-        builder.Services.AddTransientWithShellRoute<ProjectDetailPage, ProjectDetailPageModel>("project");
-        builder.Services.AddTransientWithShellRoute<TaskDetailPage, TaskDetailPageModel>("task");
+        builder.Services.AddTransientWithShellRoute<AnnouncementsPage, AnnouncementsPageModel>("announcements");
+        builder.Services.AddTransientWithShellRoute<AdminBroadcastPage, AdminBroadcastPageModel>("admin-broadcast");
+        // GRP-1 group membership detail routes, pushed from the Profile tab.
+        builder.Services.AddTransientWithShellRoute<GroupsMinePage, GroupsMinePageModel>("my-groups");
+        builder.Services.AddTransientWithShellRoute<GroupMembersPage, GroupMembersPageModel>("group-members");
+        builder.Services.AddTransientWithShellRoute<SuperAdminGroupsPage, SuperAdminGroupsPageModel>("super-admin-groups");
 
         return builder.Build();
     }

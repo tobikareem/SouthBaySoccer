@@ -381,6 +381,20 @@ public sealed class ApiPipelineTests
     }
 
     [Fact]
+    public async Task ApiExceptionHandler_NotModifiedResponse_ReturnsResponseForConditionalClient()
+    {
+        var handler = new ApiExceptionHandler
+        {
+            InnerHandler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NotModified)),
+        };
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.test/") };
+
+        using var response = await client.GetAsync("game-day/sessions/00000000-0000-0000-0000-000000000001/draft");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotModified);
+    }
+
+    [Fact]
     public async Task ApiExceptionHandler_NonJsonErrorBody_UsesRawBodyAsUserMessage()
     {
         var handler = new ApiExceptionHandler
@@ -418,6 +432,10 @@ public sealed class ApiPipelineTests
 
     private sealed class StaticSessionRefresher(string accessToken) : IAuthenticationSessionRefresher
     {
+        public void InvalidateCachedToken()
+        {
+        }
+
         public Task<string?> GetValidAccessTokenAsync(
             bool forceRefresh = false,
             CancellationToken cancellationToken = default) =>
@@ -426,6 +444,10 @@ public sealed class ApiPipelineTests
 
     private sealed class SequenceSessionRefresher(params string[] accessTokens) : IAuthenticationSessionRefresher
     {
+        public void InvalidateCachedToken()
+        {
+        }
+
         private int index;
 
         public int ForceRefreshCount { get; private set; }
