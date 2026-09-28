@@ -120,7 +120,7 @@ public class SessionDetailPageModelTests
         first.IsGuest.Should().BeTrue();
         first.IsNextUp.Should().BeTrue();
         pageModel.Waitlist.Select(entry => entry.Position).Should().BeInAscendingOrder();
-        pageModel.CanRsvp.Should().BeFalse("a full session is not RSVP-available");
+        pageModel.CanRsvp.Should().BeTrue("a full session still accepts waitlist requests");
     }
 
     [Fact]
@@ -188,6 +188,8 @@ public class SessionDetailPageModelTests
         ApplyQuery(pageModel, SeedFixtures.MarinaSessionId);
         await pageModel.LoadCommand.ExecuteAsync(null);
         pageModel.IsGoing.Should().BeFalse();
+        sessions.Setup(client => client.GetSessionAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Detail(rsvpAvailable: true, isGoing: true));
 
         await pageModel.ToggleRsvpCommand.ExecuteAsync(null);
 
@@ -199,7 +201,7 @@ public class SessionDetailPageModelTests
     }
 
     [Fact]
-    public async Task ToggleRsvp_IntentRejected_RevertsOptimisticToggle()
+    public async Task ToggleRsvp_IntentRejected_PreservesConfirmedIntent()
     {
         var sessions = SessionsReturning(Detail(rsvpAvailable: true, isGoing: false));
         var roster = new Mock<IRosterClient>();
@@ -221,7 +223,7 @@ public class SessionDetailPageModelTests
     }
 
     [Fact]
-    public async Task ToggleRsvp_IntentThrows_RevertsOptimisticToggleAndDoesNotThrow()
+    public async Task ToggleRsvp_IntentThrows_PreservesConfirmedIntentAndDoesNotThrow()
     {
         var sessions = SessionsReturning(Detail(rsvpAvailable: true, isGoing: true));
         var roster = new Mock<IRosterClient>();
@@ -265,7 +267,7 @@ public class SessionDetailPageModelTests
     }
 
     [Fact]
-    public async Task Load_RosterLoaded_SyncsGoingCountAndFullSessionDisablesRsvp()
+    public async Task Load_RosterLoaded_SyncsGoingCountAndFullSessionOffersWaitlist()
     {
         // The composed detail carries a stale count of 16; the roster is the authority with 20/20.
         var roster = new Mock<IRosterClient>();
@@ -281,7 +283,8 @@ public class SessionDetailPageModelTests
 
         pageModel.GoingCount.Should().Be(20, "the roster count overrides the composed detail count");
         pageModel.GoingHeading.Should().Be("Going · 20");
-        pageModel.CanRsvp.Should().BeFalse("a full session closes the RSVP toggle");
+        pageModel.CanRsvp.Should().BeTrue("a full session still accepts waitlist requests");
+        pageModel.RsvpButtonText.Should().Be("Join waitlist");
     }
 
     [Fact]
@@ -351,7 +354,7 @@ public class SessionDetailPageModelTests
             GroupChatId = Guid.NewGuid(), MembershipStatus = status, CanJoin = true,
         };
         var roster = new Mock<IRosterClient>();
-        roster.Setup(x => x.GetRosterAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(EmptyRoster);
+        roster.Setup(x => x.GetRosterAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(RosterWithGoing(detail.Capacity));
         var page = new SessionDetailPageModel(SessionsReturning(detail).Object, roster.Object);
         ApplyQuery(page, detail.Id);
         await page.LoadCommand.ExecuteAsync(null);
@@ -380,9 +383,12 @@ public class SessionDetailPageModelTests
             .ReturnsAsync(RosterWithGoing(detail.Capacity));
         roster.Setup(x => x.SetRsvpIntentAsync(detail.Id, false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(ClientCommandResult.Success);
-        var page = new SessionDetailPageModel(SessionsReturning(detail).Object, roster.Object);
+        var sessions = SessionsReturning(detail);
+        var page = new SessionDetailPageModel(sessions.Object, roster.Object);
         ApplyQuery(page, detail.Id);
         await page.LoadCommand.ExecuteAsync(null);
+        sessions.Setup(x => x.GetSessionAsync(detail.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(detail with { IsGoing = false, IsWaitlisted = false });
 
         page.CanJoinGroup.Should().BeFalse();
         page.CanRsvp.Should().BeFalse();
@@ -416,6 +422,98 @@ public class SessionDetailPageModelTests
 
         page.IsWaitlisted.Should().BeTrue();
         page.ShowCancelSpot.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ToggleRsvp_FullSession_UsesServerWaitlistStateAndAllowsWithdrawal()
+    {
+        var detail = Detail(rsvpAvailable: true, isGoing: false);
+        var sessions = new Mock<ISessionsClient>();
+        sessions.SetupSequence(x => x.GetSessionAsync(detail.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(detail)
+            .ReturnsAsync(detail with { IsWaitlisted = true })
+            .ReturnsAsync(detail);
+        var roster = new Mock<IRosterClient>();
+        roster.Setup(x => x.GetRosterAsync(detail.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RosterWithGoing(detail.Capacity));
+        roster.Setup(x => x.SetRsvpIntentAsync(detail.Id, It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Success);
+        var page = new SessionDetailPageModel(sessions.Object, roster.Object);
+        ApplyQuery(page, detail.Id);
+        await page.LoadCommand.ExecuteAsync(null);
+
+        await page.ToggleRsvpCommand.ExecuteAsync(null);
+
+        page.IsGoing.Should().BeFalse();
+        page.IsWaitlisted.Should().BeTrue();
+        page.RsvpButtonText.Should().Be("Waitlisted — tap to withdraw");
+        page.CanRsvp.Should().BeTrue();
+
+        await page.ToggleRsvpCommand.ExecuteAsync(null);
+
+        page.IsWaitlisted.Should().BeFalse();
+        page.IsGoing.Should().BeFalse();
+        page.RsvpButtonText.Should().Be("Join waitlist");
+        roster.Verify(x => x.SetRsvpIntentAsync(detail.Id, true, It.IsAny<CancellationToken>()), Times.Once);
+        roster.Verify(x => x.SetRsvpIntentAsync(detail.Id, false, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ToggleRsvp_SuccessButStateRefreshFails_ShowsOfflineWithoutGuessingGoingState()
+    {
+        var detail = Detail(rsvpAvailable: true, isGoing: false);
+        var sessions = new Mock<ISessionsClient>();
+        sessions.SetupSequence(x => x.GetSessionAsync(detail.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(detail)
+            .ThrowsAsync(new HttpRequestException("offline"));
+        var roster = new Mock<IRosterClient>();
+        roster.Setup(x => x.GetRosterAsync(detail.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RosterWithGoing(detail.Capacity));
+        roster.Setup(x => x.SetRsvpIntentAsync(detail.Id, true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCommandResult.Success);
+        var page = new SessionDetailPageModel(sessions.Object, roster.Object);
+        ApplyQuery(page, detail.Id);
+        await page.LoadCommand.ExecuteAsync(null);
+
+        await page.ToggleRsvpCommand.ExecuteAsync(null);
+
+        page.State.Should().Be(ViewState.Offline);
+        page.IsGoing.Should().BeFalse();
+        page.CanRsvp.Should().BeFalse();
+        page.IsUpdatingRsvp.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ToggleRsvp_FullSessionWithClosedDeadline_DoesNotSubmit()
+    {
+        var detail = Detail(rsvpAvailable: false, isGoing: false);
+        var roster = new Mock<IRosterClient>();
+        roster.Setup(x => x.GetRosterAsync(detail.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RosterWithGoing(detail.Capacity));
+        var page = new SessionDetailPageModel(SessionsReturning(detail).Object, roster.Object);
+        ApplyQuery(page, detail.Id);
+        await page.LoadCommand.ExecuteAsync(null);
+
+        await page.ToggleRsvpCommand.ExecuteAsync(null);
+
+        page.CanRsvp.Should().BeFalse();
+        roster.Verify(x => x.SetRsvpIntentAsync(It.IsAny<Guid>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public void RsvpButtonText_WhenCapacityOrCountChanges_NotifiesWaitlistLabel()
+    {
+        var page = new SessionDetailPageModel(new Mock<ISessionsClient>().Object, new Mock<IRosterClient>().Object);
+        var changes = new List<string?>();
+        page.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
+
+        page.Capacity = 20;
+        page.GoingCount = 20;
+
+        changes.Count(name => name == nameof(page.RsvpButtonText)).Should().Be(2);
+        page.RsvpButtonText.Should().Be("Join waitlist");
+        page.GoingCount = 19;
+        page.RsvpButtonText.Should().Be("RSVP — I'm going");
     }
 
     private static RosterDto EmptyRoster =>

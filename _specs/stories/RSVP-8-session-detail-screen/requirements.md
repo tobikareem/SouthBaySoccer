@@ -46,10 +46,20 @@ Scenario: The waitlist shows ordered positions and a guest badge
 Scenario: RSVP toggles between "I'm going" and a confirmed state
   Given the session detail screen is displayed and I am not yet going
   When I select "RSVP — I'm going"
-  Then the page model records my going intent through the seed roster client optimistically
+  Then the page model submits my going intent through the roster client
+  And reloads my confirmed Going or Waitlisted state from the server
   And the primary action toggles to its confirmed state
   And the subtle "Confirmed via Pickup Pal" note is shown
   And selecting the confirmed action again toggles me back to "RSVP — I'm going"
+
+Scenario: A full game offers the waitlist
+  Given I am an approved member and RSVP is still open
+  And the game is at or above capacity
+  When I open the session detail
+  Then the primary action is enabled and says "Join waitlist"
+  And submitting it uses the normal RSVP endpoint, which decides Going or Waitlisted atomically
+  And the refreshed button reflects the confirmed state and allows withdrawal
+  And a closed deadline or canceled session still disables the action
 
 Scenario: RSVP records attendance intent only
   Given I confirm "RSVP — I'm going"

@@ -25,7 +25,8 @@ public class SeedSessionsAndRosterClientTests
         state.GetSession(SeedFixtures.StanfordSessionId)?.IsWaitlisted.Should().BeFalse();
         state.GetRoster(SeedFixtures.StanfordSessionId)?.Waitlist
             .Should().NotContain(entry => entry.Player.Id == SeedFixtures.CurrentPlayerId);
-        pageModel.CanRsvp.Should().BeFalse("the full game has no held spot left to withdraw");
+        pageModel.CanRsvp.Should().BeTrue("the player can rejoin the waitlist while RSVP is open");
+        pageModel.RsvpButtonText.Should().Be("Join waitlist");
     }
 
     [Fact]
@@ -48,7 +49,7 @@ public class SeedSessionsAndRosterClientTests
     }
 
     [Fact]
-    public async Task GetSession_FullSessionWithoutHeldSpot_DoesNotAllowPrimaryRsvp()
+    public async Task GetSession_FullSessionWithoutHeldSpot_JoinsWaitlist()
     {
         var state = new SeedState();
         var pageModel = DetailPage(state, SeedFixtures.StanfordSessionId);
@@ -56,9 +57,12 @@ public class SeedSessionsAndRosterClientTests
         await pageModel.LoadCommand.ExecuteAsync(null);
         await pageModel.ToggleRsvpCommand.ExecuteAsync(null);
 
-        pageModel.CanRsvp.Should().BeFalse();
+        pageModel.CanRsvp.Should().BeTrue();
         state.GetSession(SeedFixtures.StanfordSessionId)?.IsGoing.Should().BeFalse();
-        state.GetSession(SeedFixtures.StanfordSessionId)?.IsWaitlisted.Should().BeFalse();
+        state.GetSession(SeedFixtures.StanfordSessionId)?.IsWaitlisted.Should().BeTrue();
+        pageModel.IsWaitlisted.Should().BeTrue();
+        pageModel.IsGoing.Should().BeFalse();
+        pageModel.RsvpButtonText.Should().Be("Waitlisted — tap to withdraw");
     }
 
     [Fact]
