@@ -8,3 +8,6 @@
   local `RsvpResponses` can admit players beyond capacity when Pickup Pal already fills the game.
 - `CanJoinWaitlist` is server-derived and true only for a published, full session before the RSVP
   deadline when the caller is neither Going nor waitlisted.
+
+- Sessions includes the current Pacific calendar day plus future games, so kickoff does not remove
+  a session or make its feed-backed detail lookup fail. RSVP deadlines remain unchanged.

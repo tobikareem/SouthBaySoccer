@@ -21,7 +21,7 @@ and brand tokens — no page-local hex, font sizes, or emoji.
    (`Variant=Success`, dues glyph) and a notifications bell icon button (Font Awesome `bell`,
    semantic description "Notifications").
 2. **Next-match hero** — a tappable `BrandCard` with `IsHero=true`: `Next match · in 2 days`,
-   `Marina Field · Saturday pickup`, date/time/format `MetadataChip`s, `You're going`, and
+   `Bay Area Soccer`, date/time/format `MetadataChip`s, `You're going`, and
    `View details`.
    Bound to `OpenSessionCommand` for the featured session.
 3. **Stats prompt** — an always-visible compact tappable `BrandCard` with an `IconButton`-styled chart glyph, title
@@ -31,7 +31,7 @@ and brand tokens — no page-local hex, font sizes, or emoji.
 4. **`SectionHeader`** — text `Coming up`, with `See schedule`.
 5. **Coming-up session list** — a `CollectionView` bound to `ComingUpSessions`. Each card is a
    tappable `BrandCard` (`OpenSessionCommand`, `CommandParameter` = the session item) showing:
-   - title (`TextH2`, e.g. `Marina Field · 7v7`);
+   - title (`TextH2`, e.g. `Bay Area Soccer`), using the playing group name; ungrouped cards fall back to venue/format, then session title;
    - a status `Badge` (`Going` → `Variant=Success`; `Full` → `Variant=Danger`);
    - a date row of calendar/clock glyph chips (`TextCaption`);
    - a `CapacityBar` (`Current`/`Max`, label `16 / 20 going`);
