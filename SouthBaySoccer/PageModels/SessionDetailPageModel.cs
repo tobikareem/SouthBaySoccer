@@ -11,8 +11,7 @@ namespace SouthBaySoccer.PageModels;
 /// <summary>
 /// Page model for the Session Detail screen (RSVP-8). Loads a single session and its roster through
 /// <see cref="ISessionsClient"/> and <see cref="IRosterClient"/>, projects them onto the wireframe's
-/// when/where, capacity, going and ordered-waitlist read models, and toggles the viewer's RSVP intent
-/// optimistically. Maps every failure onto a <c>StateView</c> view state.
+/// when/where, capacity, going and ordered-waitlist read models, and displays the server-assigned RSVP state. Maps every failure onto a <c>StateView</c> view state.
 /// </summary>
 /// <remarks>
 /// This file is intentionally free of MAUI types so the behaviour is unit-testable in the plain client
@@ -66,9 +65,11 @@ public partial class SessionDetailPageModel(
     private string _locationLabel = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RsvpButtonText))]
     private int _goingCount;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RsvpButtonText))]
     private int _capacity;
 
     [ObservableProperty]
@@ -158,7 +159,8 @@ public partial class SessionDetailPageModel(
 
     /// <summary>Label for the primary RSVP button, reflecting the current intent.</summary>
     public string RsvpButtonText => IsGoing ? "Going — tap to withdraw"
-        : IsWaitlisted ? "Waitlisted — tap to withdraw" : "RSVP — I'm going";
+        : IsWaitlisted ? "Waitlisted — tap to withdraw"
+        : Capacity > 0 && GoingCount >= Capacity ? "Join waitlist" : "RSVP — I'm going";
 
     /// <summary>Going section heading with count, e.g. "Going · 16".</summary>
     public string GoingHeading => $"Going · {Going.Count}";
@@ -247,8 +249,8 @@ public partial class SessionDetailPageModel(
     }
 
     /// <summary>
-    /// Optimistically toggles the viewer's going state, records the intent, and reverts on a failed
-    /// result or exception. Refreshes the roster after a successful change. Never throws.
+    /// Records the viewer's intent and reloads the server-assigned going or waitlisted state.
+    /// Leaves the previous intent intact when the write fails.
     /// </summary>
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task ToggleRsvp(CancellationToken cancellationToken)
@@ -267,12 +269,7 @@ public partial class SessionDetailPageModel(
 
     private async Task SetIntentAsync(bool desiredIsGoing, CancellationToken cancellationToken)
     {
-        var previousIsGoing = IsGoing;
-        var previousIsWaitlisted = IsWaitlisted;
-
         IsUpdatingRsvp = true;
-        IsGoing = desiredIsGoing;
-        IsWaitlisted = false;
 
         try
         {
@@ -281,23 +278,18 @@ public partial class SessionDetailPageModel(
 
             if (!result.IsSuccess)
             {
-                IsGoing = previousIsGoing;
-                IsWaitlisted = previousIsWaitlisted;
                 return;
             }
 
-            await RefreshRosterAsync(cancellationToken);
+            await Load(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            IsGoing = previousIsGoing;
-            IsWaitlisted = previousIsWaitlisted;
             throw;
         }
         catch (Exception)
         {
-            IsGoing = previousIsGoing;
-            IsWaitlisted = previousIsWaitlisted;
+            // Keep the last confirmed intent when the write fails.
         }
         finally
         {
@@ -309,14 +301,7 @@ public partial class SessionDetailPageModel(
     [RelayCommand]
     private void ShowAllGoing() => IsGoingExpanded = true;
 
-    private async Task RefreshRosterAsync(CancellationToken cancellationToken)
-    {
-        var roster = await rosterClient.GetRosterAsync(_sessionId, cancellationToken);
-        ApplyRoster(roster);
-    }
-
-    // The session DTO's availability covers the RSVP window (deadline, cancellation); capacity is
-    // re-evaluated from the roster because the composed detail has no reliable going count.
+    // Capacity determines going versus waitlisted placement, never whether an open RSVP is allowed.
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRsvp))]
     [NotifyPropertyChangedFor(nameof(CanCancelSpot))]
@@ -362,9 +347,9 @@ public partial class SessionDetailPageModel(
             entry.Player.IsGuest,
             entry.Position == 1))];
 
-        // Keep the capacity card and RSVP gate in sync with the authoritative roster.
+        // Keep the capacity card and waitlist action label in sync with the authoritative roster.
         GoingCount = roster.Going.Count;
-        RsvpAvailable = RsvpWindowOpen && (Capacity <= 0 || roster.Going.Count < Capacity);
+        RsvpAvailable = RsvpWindowOpen;
     }
 
     private void ResetContent()

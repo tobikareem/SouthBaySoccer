@@ -144,9 +144,8 @@ public sealed class SeedState
 
                 if (going.Count >= capacity)
                 {
-                    return ClientCommandResult.Failure(
-                        "session_full",
-                        "The session is full. Join the waitlist instead.");
+                    // Match the API: a Going intent at capacity is placed on the waitlist.
+                    return JoinWaitlist(sessionId);
                 }
 
                 waitlist.RemoveAll(entry => entry.Player.Id == SeedFixtures.CurrentPlayerId);
