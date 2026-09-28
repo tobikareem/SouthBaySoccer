@@ -255,6 +255,7 @@ public sealed class ApiSessionsClient(HttpClient httpClient, TimeProvider timePr
         return days switch
         {
             < 0 => null,
+            0 when startsAtUtc <= timeProvider.GetUtcNow().UtcDateTime => "Today's match",
             0 => "Next match · today",
             1 => "Next match · tomorrow",
             _ => $"Next match · in {days} days",

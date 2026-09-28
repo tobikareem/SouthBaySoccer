@@ -30,3 +30,11 @@ One line per lesson. Skim this at the start of a task; read the full entry when 
 - [announcement-concurrency-and-ios-evidence](2026-09-26-announcement-concurrency-and-ios-evidence.md) - Preserve group scope across async operations; distinguish simulator validation from fixing the historical watchdog cause
 
 - [account-deletion-boundaries](2026-09-27-account-deletion-boundaries.md) - Reject old access tokens, preserve uncertain client outcomes, and suppress passive profile recreation with indexed deletion markers
+
+- [missing-pickuppal-games](2026-09-28-missing-pickuppal-games.md) - Check UTC season coverage and kickoff feed cutoff separately when active games disappear
+
+- [pickuppal-group-identity](2026-09-28-pickuppal-group-identity.md) - Map the real game group identifier before enforcing group RSVP access; test both provider response paths
+
+- [ios-approved-version-train](2026-09-28-ios-approved-version-train.md) - Apple 90062/90186 requires a new marketing version after approval; a build-number-only rerun cannot fix it
+
+- [full-games-accept-waitlist](2026-09-28-full-games-accept-waitlist.md) - Capacity changes RSVP placement and label, not eligibility; reload the confirmed Going or Waitlisted outcome

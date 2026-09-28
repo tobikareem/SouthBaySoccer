@@ -50,7 +50,7 @@ Realizes [`requirements.md`](requirements.md). Distilled rules for agents:
 | Application | `PickupPalGame.GroupExternalId` (`[JsonIgnore]`), `PickupPalGameImportService` | Attaches imported sessions to the persisted `GroupChat` by external id, creating a missing group from the sanitized game group name. Never clears an existing group; the id is not serialized onto the snapshot. Missing group identity fails closed in the membership gate. |
 | Infrastructure | `AdminPhoneNumberOptions.OwnerPhoneNumbers`, `ConfiguredAdminPhoneNumberService`, `PickupPalUserSyncService`, `AuthenticationPolicyMapper` | Owner promotion and policies. |
 | Infrastructure | `PlayerGroupLinkRepository`, `GroupChatRepository`, `PlayerProfileRepository`, `AnnouncementRepository` / `StatsRepository` (approved filter), EF configuration, migration `AddGroupMembershipApproval` | Persistence. |
-| Infrastructure | `PickupPalGamesClient` | Reads `group.groupId` into `GroupExternalId`; never logs it. |
+| Infrastructure | `PickupPalGamesClient` | Reads top-level `groupId`, falling back to `group.groupId` then `group.id`, into `GroupExternalId`; never logs it. |
 | Functions | `GroupMembershipFunctions`, `AuthenticationPolicies.IsSuperAdmin` / `CanManageGroupMembers`, `ProblemDetailsMapper.GroupMembershipRequiredProblemType`, DI | Transport. |
 | Contracts | `Groups/GroupMembershipDtos.cs` (unchanged, committed in 2d87523); additive `MembershipStatus` / `CanJoin` on `SessionAdminResponse`; `GroupChatId` / `MembershipStatus` / `CanJoin` on `SessionSummaryDto`; `GroupChatId` / `GroupName` / `MembershipStatus` / `CanJoin` on `SessionDetailDto`; `GroupChatId` / `MembershipStatus` on `GameDayContextDto` | Wire shapes mapped by the MAUI client; nonmembers cannot see join controls. |
 

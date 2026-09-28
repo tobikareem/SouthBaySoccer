@@ -14,8 +14,8 @@ namespace SouthBaySoccer.Infrastructure.Scheduling;
 /// HTTP client for the Pickup Pal games surface: the active feed, a single game, roster
 /// add/remove, and game create/update/terminate for app-published sessions. Mirrors <see cref="PickupPalUserClient"/>: typed HttpClient, lazy base address from
 /// <see cref="PickupPalApiOptions"/>, camelCase mapping via explicit property names. The wire
-/// records include only the fields the import needs — WhatsApp JIDs, group ids, and subscriber ids
-/// are never deserialized, so they cannot leak past this class.
+/// records include only the fields the import needs. The group identifier is carried only for
+/// catalogue linking and excluded from sanitized JSON; participant JIDs are hashed.
 /// <para>
 /// <b>URI-logging ban:</b> this client takes no <c>ILogger</c> and attaches no message handlers, and
 /// nothing may record its request URIs or bodies (a test guards the constructor).
@@ -435,7 +435,10 @@ public sealed class PickupPalGamesClient(HttpClient httpClient, IOptions<PickupP
                 .ToArray(),
             // The group id is only carried so the import can match GroupChat.ExternalId; it is
             // JsonIgnore'd on the record and never logged.
-            string.IsNullOrWhiteSpace(game.Group?.GroupId) ? null : game.Group.GroupId.Trim());
+            FirstGroupId(game.GroupId, game.Group?.GroupId, game.Group?.Id));
+
+    private static string? FirstGroupId(params string?[] candidates) =>
+        candidates.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 
     private static PickupPalGameParticipantInfo ToSanitizedParticipant(ParticipantResponse participant)
     {
@@ -498,7 +501,8 @@ public sealed class PickupPalGamesClient(HttpClient httpClient, IOptions<PickupP
         [property: JsonPropertyName("maxPlayers")] int? MaxPlayers,
         [property: JsonPropertyName("status")] string? Status,
         [property: JsonPropertyName("participants")] IReadOnlyList<ParticipantResponse>? Participants,
-        [property: JsonPropertyName("group")] GroupResponse? Group);
+        [property: JsonPropertyName("group")] GroupResponse? Group,
+        [property: JsonPropertyName("groupId")] string? GroupId = null);
 
     private sealed record ParticipantResponse(
         [property: JsonPropertyName("id")] string? Id,
@@ -512,7 +516,8 @@ public sealed class PickupPalGamesClient(HttpClient httpClient, IOptions<PickupP
 
     private sealed record GroupResponse(
         [property: JsonPropertyName("groupName")] string? GroupName,
-        [property: JsonPropertyName("groupId")] string? GroupId = null);
+        [property: JsonPropertyName("groupId")] string? GroupId = null,
+        [property: JsonPropertyName("id")] string? Id = null);
 
     private sealed record AddPlayerPayload(
         [property: JsonPropertyName("playerId")] string PlayerId,

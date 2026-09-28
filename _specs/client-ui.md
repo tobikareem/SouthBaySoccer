@@ -457,6 +457,7 @@ The client never decides an outcome — it renders the status the server returns
   with `CircleCheck` or `Clock` glyph and a status `Badge`) and a `PrimaryButton` "See upcoming
   sessions" routes to `//sessions` via `IGroupLinkNavigator` — also when every request is Pending,
   since games of groups the player is not in are view-only.
+- **Session card titles.** Sessions home (featured and coming-up cards) and See schedule use the playing group name as the primary title. Missing or blank group names retain the venue/format title, then the session title when there is no venue. Accessible card and waitlist descriptions use the same title. Location remains available in session detail.
 - **Session participation.** Grouped games require explicit `Approved` membership and server
   `CanJoin` for RSVP/join-waitlist visibility across detail, Home, Schedule, and Game Day. Hidden
   actions are also guarded in their commands. Detail uses a separate `GhostButton` "Cancel my

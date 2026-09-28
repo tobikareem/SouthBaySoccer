@@ -225,7 +225,7 @@ public sealed class GroupMembershipGateTests
         var openSession = Session(null);
         var repository = new Mock<ISessionRepository>();
         repository
-            .Setup(x => x.ListUpcomingFeedAsync(NowUtc, It.IsAny<int>(), fixture.Profile.Id, It.IsAny<CancellationToken>()))
+            .Setup(x => x.ListUpcomingFeedAsync(SessionAdminTimeZone.ToUtc(SessionAdminTimeZone.ToLocal(NowUtc).Date, TimeSpan.Zero), It.IsAny<int>(), fixture.Profile.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(
             [
                 // Full group game the caller is not a member of: visible, not joinable.

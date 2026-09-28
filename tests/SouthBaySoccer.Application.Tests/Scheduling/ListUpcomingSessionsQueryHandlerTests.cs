@@ -21,7 +21,7 @@ public sealed class ListUpcomingSessionsQueryHandlerTests
         var repository = new Mock<ISessionRepository>();
         repository
             .Setup(x => x.ListUpcomingFeedAsync(
-                now,
+                Utc(2026, 7, 23, 7, 0),
                 25,
                 profile.Id,
                 It.IsAny<CancellationToken>()))
@@ -49,7 +49,7 @@ public sealed class ListUpcomingSessionsQueryHandlerTests
         var repository = new Mock<ISessionRepository>();
         repository
             .Setup(x => x.ListUpcomingFeedAsync(
-                now,
+                Utc(2026, 7, 23, 7, 0),
                 25,
                 profile.Id,
                 It.IsAny<CancellationToken>()))
@@ -74,7 +74,7 @@ public sealed class ListUpcomingSessionsQueryHandlerTests
         var repository = new Mock<ISessionRepository>();
         repository
             .Setup(x => x.ListUpcomingFeedAsync(
-                now,
+                Utc(2026, 7, 23, 7, 0),
                 25,
                 profile.Id,
                 It.IsAny<CancellationToken>()))
@@ -88,6 +88,28 @@ public sealed class ListUpcomingSessionsQueryHandlerTests
 
         result[0].GroupName.Should().Be("N9ja Bay");
         result[1].GroupName.Should().BeNull("sessions created by hand carry no Pickup Pal group");
+    }
+
+    [Theory]
+    [InlineData("2026-09-28T01:00:00Z", "2026-09-27T07:00:00Z")]
+    [InlineData("2026-03-08T12:00:00Z", "2026-03-08T08:00:00Z")]
+    [InlineData("2026-11-01T12:00:00Z", "2026-11-01T07:00:00Z")]
+    public async Task HandleAsync_WhenGameAlreadyStartedToday_KeepsItVisibleUsingPacificMidnight(string nowText, string midnightText)
+    {
+        var now = DateTime.Parse(nowText, null, System.Globalization.DateTimeStyles.AdjustToUniversal);
+        var midnight = DateTime.Parse(midnightText, null, System.Globalization.DateTimeStyles.AdjustToUniversal);
+        var profile = Profile();
+        var session = SessionAt(now.AddMinutes(-30), capacity: 20);
+        session.RsvpDeadlineUtc = now.AddHours(-1);
+        var repository = new Mock<ISessionRepository>(MockBehavior.Strict);
+        repository.Setup(x => x.ListUpcomingFeedAsync(midnight, 25, profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new SessionFeedRecord(session, "Field", 20, 0, false, false)]);
+
+        var result = await CreateHandler(now, profile, repository.Object).HandleAsync();
+
+        result.Should().ContainSingle();
+        result[0].CanJoinWaitlist.Should().BeFalse();
+        repository.VerifyAll();
     }
 
     private static ListUpcomingSessionsQueryHandler CreateHandler(
