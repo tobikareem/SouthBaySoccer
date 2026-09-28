@@ -106,6 +106,33 @@ public sealed class LeaderboardProjectionTests
         LeaderboardProjection.GetMetricValue(row, StatLeaderboardMetric.Rating).Should().Be(4.25m);
     }
 
+    [Fact]
+    public void OrderDirectory_WhenCareerComponentsDiffer_AddsEqualWeightsAndKeepsZeroStatPlayers()
+    {
+        var scorer = Aggregate("Scorer", goals: 8);
+        var allRounder = Aggregate("All rounder", goals: 2, assists: 2, averageRating: 4.5m, mvpAwards: 1);
+        var unrated = Aggregate("Unrated");
+        var highlyRated = Aggregate("Rated", averageRating: 9.25m);
+
+        var ordered = LeaderboardProjection.OrderDirectory([scorer, unrated, highlyRated, allRounder]);
+
+        ordered.Select(row => row.DisplayName).Should().Equal("All rounder", "Rated", "Scorer", "Unrated");
+    }
+
+    [Fact]
+    public void OrderDirectory_WhenTotalsTie_UsesCaseInsensitiveNameThenStableId()
+    {
+        var first = Aggregate("adam", assists: 4);
+        first.PlayerProfileId = new Guid("11111111-1111-1111-1111-111111111111");
+        var second = Aggregate("ADAM", mvpAwards: 4, appearances: 99);
+        second.PlayerProfileId = new Guid("ffffffff-ffff-ffff-ffff-ffffffffffff");
+        var third = Aggregate("Zara", averageRating: 4m, ratingVoteCount: 100);
+
+        var ordered = LeaderboardProjection.OrderDirectory([third, second, first]);
+
+        ordered.Select(row => row.PlayerProfileId).Should().Equal(first.PlayerProfileId, second.PlayerProfileId, third.PlayerProfileId);
+    }
+
     private static PlayerStatAggregate Aggregate(
         string displayName,
         int goals = 0,
