@@ -35,6 +35,13 @@ Scenario: The session list and dues status load through the selected client
   Then the upcoming sessions and my dues status are loaded through the client interface
   And the page model holds no knowledge of whether the data is seeded or from the API
 
+Scenario: Games remain visible throughout their scheduled day
+  Given a published game has already started today in the Pacific time zone
+  When I open Sessions or its session detail
+  Then the game remains visible alongside upcoming games
+  And games before the start of today are excluded
+  And RSVP deadlines still apply
+
 Scenario: Session capacity and waitlist state reflect persisted attendance
   Given local RSVP rows or imported Pickup Pal participants exist for a published session
   When Sessions home or See schedule loads
