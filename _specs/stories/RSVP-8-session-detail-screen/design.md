@@ -87,9 +87,11 @@ State exposed by `SessionDetailPageModel`:
 
 Commands:
 
-- `ToggleRsvpCommand` — optimistically flips `IsGoing` and calls the seed roster client to record
-  going intent (or withdraw it); on failure it reverts the optimistic flip and surfaces a recoverable
-  message. Records **attendance intent only** (`INV-12`).
+- `ToggleRsvpCommand` — records going intent (or withdraws it), then reloads session and roster to
+  display the confirmed Going or Waitlisted outcome. Full games offer an enabled `Join waitlist`
+  action while the RSVP window is open and membership permits joining. Failed writes preserve the
+  last confirmed intent; failed refreshes use the existing Error/Offline retry state.
+  Records **attendance intent only** (`INV-12`).
 - `BackCommand` — bound to `BrandHeader.BackCommand`; returns to the previous route.
 - `RefreshCommand` — re-loads `Session`, `GoingRoster`, and `WaitlistRoster`; bound to the
   `StateView` retry action.
@@ -107,8 +109,8 @@ SessionDetailPage
 ## States
 
 Loading (initial fetch) · Content (roster + capacity populated) · Empty (no going players and no
-waitlist) · Error (recoverable roster/session failure, retry) · Offline. The optimistic RSVP toggle
-has its own busy state independent of the page `StateView`.
+waitlist) · Error (recoverable roster/session failure, retry) · Offline. The RSVP action
+remains busy through submission and the subsequent confirmed-state reload.
 
 ## Test design (`Client.Tests`) — RSVP-8 slice
 
@@ -116,8 +118,8 @@ has its own busy state independent of the page `StateView`.
   "Going · 16", "Waitlist · 3", and the "+ 12 more going" affordance;
 - `GoingRoster` and `WaitlistRoster` load from the seed `IRosterClient`; waitlist positions are 1, 2,
   3 in order and position 1 carries the guest flag ("Tunde B.");
-- `ToggleRsvpCommand` flips `IsGoing` and calls the seed client; a client failure reverts the
-  optimistic state and re-enables the action;
+- `ToggleRsvpCommand` displays the confirmed Going or Waitlisted result and permits withdrawal;
+  a full roster does not disable an otherwise eligible RSVP, and failed writes preserve intent;
 - the RSVP action records intent only and never invokes a check-in/attendance path (`INV-12`);
 - the seed clients perform no network/file/database access;
 - `StateView` resolves Loading → Content, surfaces Error/Offline, and `RefreshCommand` reloads;
