@@ -17,7 +17,7 @@ public sealed class GetPlayerDirectoryQueryHandlerTests
             .ReturnsAsync([
                 new PlayerDirectoryReadModel(
                     Guid.Parse("22222222-2222-2222-2222-222222222222"),
-                    "Ada Johnson",
+                    "Zuri Johnson",
                     "Midfielder",
                     false,
                     12),
@@ -35,8 +35,8 @@ public sealed class GetPlayerDirectoryQueryHandlerTests
         result.Title.Should().Be("Players");
         result.Subtitle.Should().Be("Search the crew and open career stats.");
         result.TotalPlayers.Should().Be(2);
-        result.Players[0].Player.DisplayName.Should().Be("Ada Johnson");
-        result.Players[0].Player.Initials.Should().Be("AJ");
+        result.Players[0].Player.DisplayName.Should().Be("Zuri Johnson");
+        result.Players[0].Player.Initials.Should().Be("ZJ");
         result.Players[0].Subtitle.Should().Be("Midfielder \u00B7 #1");
         result.Players[0].Matches.Should().Be(12);
         result.Players[1].Player.IsGuest.Should().BeTrue();

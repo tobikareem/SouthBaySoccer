@@ -512,6 +512,56 @@ public sealed class StatsRepositoryQueryTests
         (await db.PlayerLikes.IgnoreQueryFilters().CountAsync(row => row.MatchId == match.Id && row.IsDeleted)).Should().Be(4);
     }
 
+    [Fact]
+    public async Task ListDirectoryAsync_WhenCareerStatsSpanGroupsAndSeasons_RanksAllProfilesBySharedTotals()
+    {
+        using var provider = CreateServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SouthBaySoccerDbContext>();
+        var (season, ada, tunde, bola) = await SeedGoalLeaderboardAsync(db);
+        var zero = CreatePlayer($"Zero {Guid.NewGuid():N}", "Goalkeeper");
+        var deleted = CreatePlayer($"Deleted {Guid.NewGuid():N}", "Forward");
+        await db.PlayerProfiles.AddRangeAsync(zero, deleted);
+        var groups = new[]
+        {
+            new GroupChat { Id = Guid.NewGuid(), ExternalId = $"{Guid.NewGuid():N}@g.us", GroupName = "First", Status = "SUBSCRIBED" },
+            new GroupChat { Id = Guid.NewGuid(), ExternalId = $"{Guid.NewGuid():N}@g.us", GroupName = "Second", Status = "SUBSCRIBED" },
+        };
+        await db.GroupChats.AddRangeAsync(groups);
+        // These players deliberately have no membership links; directory ranking is global.
+        var matches = await db.Matches.Where(match => db.PlayerMatchStats.Any(
+            stats => stats.MatchId == match.Id && stats.PlayerProfileId == ada.Id)).ToArrayAsync();
+        var sessionIds = matches.Select(match => match.SessionId).ToArray();
+        var sessions = await db.Sessions.Where(session => sessionIds.Contains(session.Id)).ToArrayAsync();
+        foreach (var session in sessions)
+        {
+            session.GroupChatId = session.SeasonId == season.Id ? groups[0].Id : groups[1].Id;
+        }
+        var ratedMatch = matches.Single(match => sessions.Any(session => session.Id == match.SessionId && session.SeasonId != season.Id));
+        await db.PlayerRatingVotes.AddRangeAsync(
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = ratedMatch.Id, VoterPlayerProfileId = ada.Id, RatedPlayerProfileId = tunde.Id, Score = 6 },
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = ratedMatch.Id, VoterPlayerProfileId = bola.Id, RatedPlayerProfileId = tunde.Id, Score = 8 },
+            new PlayerRatingVote { Id = Guid.NewGuid(), MatchId = ratedMatch.Id, VoterPlayerProfileId = ada.Id, RatedPlayerProfileId = bola.Id, Score = 9 });
+        await db.MatchAwards.AddAsync(new MatchAward
+        {
+            Id = Guid.NewGuid(), MatchId = ratedMatch.Id, PlayerProfileId = tunde.Id, AwardType = MatchAwardType.Mvp,
+        });
+        await db.SaveChangesAsync();
+        deleted.IsDeleted = true;
+        await db.SaveChangesAsync();
+        var profileRepository = scope.ServiceProvider.GetRequiredService<IPlayerProfileRepository>();
+
+        var rows = await profileRepository.ListDirectoryAsync();
+
+        var scenarioIds = new[] { ada.Id, tunde.Id, bola.Id, zero.Id, deleted.Id };
+        var scenarioRows = rows.Where(row => scenarioIds.Contains(row.PlayerProfileId)).ToArray();
+        // Bola: 1 assist + 9 average = 10. Tunde: 2 goals + 7 average + 1 MVP = 10.
+        // Ada: 3 goals + 1 assist = 4. Own goals and pending goals must not contribute.
+        scenarioRows.Select(row => row.PlayerProfileId).Should().Equal(bola.Id, tunde.Id, ada.Id, zero.Id);
+        scenarioRows.Single(row => row.PlayerProfileId == ada.Id).Matches.Should().Be(3);
+        scenarioRows.Single(row => row.PlayerProfileId == zero.Id).Matches.Should().Be(0);
+    }
+
     private ServiceProvider CreateServiceProvider()
     {
         var clock = new Mock<IClock>();
