@@ -234,17 +234,38 @@ public sealed class ApiSprint03ClientTests
     }
 
     [Fact]
-    public async Task ApiSessionsClient_GetDashboardAsync_UsesVenueAndFormatDisplayTitle()
+    public async Task ApiSessionsClient_GetDashboardAsync_GroupedSessionUsesGroupDisplayTitle()
     {
         var client = CreateSessionsClient(_ => JsonResponse(SessionsJson));
 
         var dashboard = await client.GetDashboardAsync(CancellationToken.None);
 
-        dashboard.FeaturedSession!.DisplayTitle.Should().Be("Marina Field · 7v7");
+        dashboard.FeaturedSession!.DisplayTitle.Should().Be("N9ja Bay");
         dashboard.FeaturedSession.CardSemanticDescription.Should()
-            .Be("Marina Field · 7v7 — Open");
+            .Be("N9ja Bay — Open");
         dashboard.FeaturedSession.WaitlistActionDescription.Should()
-            .Be("Join the waitlist for Marina Field · 7v7");
+            .Be("Join the waitlist for N9ja Bay");
+    }
+
+    [Theory]
+    [InlineData(null, "Marina Field", "7v7", "Marina Field · 7v7")]
+    [InlineData("", "Marina Field", "7v7", "Marina Field · 7v7")]
+    [InlineData("   ", "Marina Field", "7v7", "Marina Field · 7v7")]
+    [InlineData(null, "Marina Field", "", "Marina Field")]
+    [InlineData(null, "", "7v7", "Saturday pickup")]
+    [InlineData("Bay Area Soccer", "2400 Amphitheatre Pkwy", "7v7", "Bay Area Soccer")]
+    public void SessionSummaryDto_DisplayTitle_UsesGroupWithUngroupedFallback(
+        string? groupName, string venue, string format, string expected)
+    {
+        var session = new SessionSummaryDto(
+            SessionId, "Saturday pickup", venue, format,
+            new DateTime(2026, 7, 25, 16, 0, 0, DateTimeKind.Utc),
+            "Jul 25", "9:00 AM", "Open", 0, 20, false, 0, null,
+            GroupChatName: groupName);
+
+        session.DisplayTitle.Should().Be(expected);
+        session.CardSemanticDescription.Should().Be($"{expected} — Open");
+        session.WaitlistActionDescription.Should().Be($"Join the waitlist for {expected}");
     }
 
     [Fact]

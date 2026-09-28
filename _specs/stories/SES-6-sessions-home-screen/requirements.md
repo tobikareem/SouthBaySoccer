@@ -22,7 +22,7 @@ uses the authenticated, server-authoritative session feed.
 Scenario: The home screen matches the wireframe composition
   Given I am signed in and the Sessions home screen is displayed
   Then a greeting header shows "Saturday crew", "Good morning, Tobi", a "Paid" status Badge, and a notifications bell
-  And a green tappable hero BrandCard shows the next Marina Field match and my "You're going" status
+  And a green tappable hero BrandCard shows the next group match and my "You're going" status
   And a separate "Submit your latest stats" BrandCard opens the latest match stats
   And a "Coming up" SectionHeader with "See schedule" precedes the remaining session list
   And each remaining session card shows a title, a status Badge, a date row, a CapacityBar, and an action
@@ -34,6 +34,13 @@ Scenario: The session list and dues status load through the selected client
   When the page appears
   Then the upcoming sessions and my dues status are loaded through the client interface
   And the page model holds no knowledge of whether the data is seeded or from the API
+
+Scenario: Session cards identify the group playing
+  Given a session has a nonblank group name
+  When Sessions home or See schedule displays its card
+  Then the primary title shows the group name instead of its venue or address
+  And the accessible card description and waitlist action use the same group name
+  And sessions without a group name retain their venue and format title, or session title if no venue exists
 
 Scenario: Games remain visible throughout their scheduled day
   Given a published game has already started today in the Pacific time zone

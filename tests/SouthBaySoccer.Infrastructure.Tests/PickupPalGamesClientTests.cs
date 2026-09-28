@@ -91,6 +91,26 @@ public sealed class PickupPalGamesClientTests
         }
         """;
 
+    [Theory]
+    [InlineData("""{"groupId":" root-group ","group":{"id":"nested-group"}}""", "root-group")]
+    [InlineData("""{"group":{"groupId":" legacy-group ","id":"nested-group"}}""", "legacy-group")]
+    [InlineData("""{"groupId":" ","group":{"id":" nested-group "}}""", "nested-group")]
+    [InlineData("""{"group":{"groupName":"Name only"}}""", null)]
+    public async Task GetActiveGamesAsync_WhenGroupIdentifiersVary_ResolvesStableIdWithoutSerializingIt(string groupJson, string? expected)
+    {
+        var fields = groupJson[1..^1];
+        var gameJson = "{\"id\":\"game\",\"dateTime\":\"2026-10-01T02:30:00Z\"," + fields + "}";
+        var client = CreateClient(_ => JsonResponse("{\"games\":[" + gameJson + "]}"));
+
+        var games = await client.GetActiveGamesAsync();
+
+        games.Should().ContainSingle().Which.GroupExternalId.Should().Be(expected);
+        var json = System.Text.Json.JsonSerializer.Serialize(games);
+        if (expected is not null) json.Should().NotContain(expected);
+        var singleClient = CreateClient(_ => JsonResponse(gameJson));
+        (await singleClient.GetGameAsync("game"))!.GroupExternalId.Should().Be(expected);
+    }
+
     [Fact]
     public async Task GetActiveGamesAsync_ParsesGamesAndSanitizesParticipants()
     {
