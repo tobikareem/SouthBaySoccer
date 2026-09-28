@@ -32,3 +32,5 @@ One line per lesson. Skim this at the start of a task; read the full entry when 
 - [account-deletion-boundaries](2026-09-27-account-deletion-boundaries.md) - Reject old access tokens, preserve uncertain client outcomes, and suppress passive profile recreation with indexed deletion markers
 
 - [missing-pickuppal-games](2026-09-28-missing-pickuppal-games.md) - Check UTC season coverage and kickoff feed cutoff separately when active games disappear
+
+- [pickuppal-group-identity](2026-09-28-pickuppal-group-identity.md) - Map the real game group identifier before enforcing group RSVP access; test both provider response paths

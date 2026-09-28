@@ -52,12 +52,15 @@ public sealed record SessionSummaryDto(
     /// </summary>
     public bool HasGroupChatName => !string.IsNullOrWhiteSpace(GroupChatName);
 
+    /// <summary>The playing group identifies a session card; ungrouped games retain their venue title.</summary>
     public string DisplayTitle =>
-        string.IsNullOrWhiteSpace(Venue)
-            ? Title
-            : string.IsNullOrWhiteSpace(Format)
-                ? Venue
-                : $"{Venue} · {Format}";
+        !string.IsNullOrWhiteSpace(GroupChatName)
+            ? GroupChatName
+            : string.IsNullOrWhiteSpace(Venue)
+                ? Title
+                : string.IsNullOrWhiteSpace(Format)
+                    ? Venue
+                    : $"{Venue} · {Format}";
 
     public SessionCardStatus CardStatus =>
         IsCanceled ? SessionCardStatus.Canceled
