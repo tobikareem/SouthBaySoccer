@@ -67,6 +67,21 @@ public sealed class ApiSprint03ClientTests
     }
 
     [Fact]
+    public async Task ApiSessionsClient_WhenTodaySessionAlreadyStarted_ShowsTodayLabelAndKeepsDetails()
+    {
+        var json = SessionsJson.Replace("2026-07-25T16:00:00Z", "2026-07-23T11:30:00Z")
+            .Replace("2026-07-25T15:00:00Z", "2026-07-23T10:30:00Z");
+        var client = CreateSessionsClient(_ => JsonResponse(json));
+
+        var dashboard = await client.GetDashboardAsync(CancellationToken.None);
+        var details = await client.GetSessionAsync(SessionId, CancellationToken.None);
+
+        dashboard.FeaturedSession.Should().NotBeNull();
+        dashboard.FeaturedSession!.RelativeLabel.Should().Be("Today's match");
+        details.Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task ApiSessionsClient_GetDashboardAsync_WhenSessionCarriesGroupName_MapsGroupChatName()
     {
         var client = CreateSessionsClient(_ => JsonResponse(SessionsJson));

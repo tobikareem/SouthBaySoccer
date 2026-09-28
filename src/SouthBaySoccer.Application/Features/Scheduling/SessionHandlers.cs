@@ -108,8 +108,11 @@ public sealed class ListUpcomingSessionsQueryHandler(
         var profile = await playerProfileRepository.FindByIdentityUserIdAsync(identityUserId, cancellationToken)
             ?? throw new ApplicationNotFoundException("Player profile was not found.");
         var boundedTake = Math.Clamp(take, 1, 100);
+        // Keep today's games reachable after kickoff, including detail navigation from the feed.
+        var nowUtc = clock.UtcNow;
+        var todayStartsAtUtc = SessionAdminTimeZone.ToUtc(SessionAdminTimeZone.ToLocal(nowUtc).Date, TimeSpan.Zero);
         var sessions = await sessionRepository.ListUpcomingFeedAsync(
-            clock.UtcNow,
+            todayStartsAtUtc,
             boundedTake,
             profile.Id,
             cancellationToken);
