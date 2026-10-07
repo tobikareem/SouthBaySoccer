@@ -234,6 +234,9 @@ public partial class ProfilePageModel(
     private Task OpenSuperAdminGroups() => navigator.OpenSuperAdminGroupsAsync();
 
     [RelayCommand]
+    private Task OpenUserActivity() => IsSuperAdmin ? navigator.OpenUserActivityAsync() : Task.CompletedTask;
+
+    [RelayCommand]
     private Task Back() => navigator.GoBackAsync();
 
     // Sign out / switch account. Only offered on the signed-in player's own profile (CanEditProfile).

@@ -500,3 +500,21 @@ The client never decides an outcome — it renders the status the server returns
 - Navigation is Shell (architecture §6); this spec styles it but does not replace it.
 - Product-screen adoption remains part of milestone **M11** and is tracked by its own story tasks.
   The completed reusable foundation must be used by all new client screens.
+
+
+## Owner user activity
+
+Profile shows an owner-only User activity BrandCard beside Groups & admins, gated by
+IsSuperAdmin. Route `user-activity` uses BrandHeader (Owner subtitle/back), StateView,
+white BrandCards, shared typography and spacing. Each newest-first record shows name,
+signed-up/signed-in action with local timestamp, first/last recorded activity, recorded
+sign-in count and current group names/statuses. A persistent tracking notice explains
+that earlier history is not included. Refresh restarts paging; Load more appends 25 records.
+A virtualized CollectionView holds records with tracking/refresh header and paging footer.
+One request runs at a time. Paging failure preserves rows and permits retry; forbidden
+clears private rows and shows owner-only access. Empty state offers refresh. No fake
+activity in API mode; seed mode is empty. See `_specs/owner-user-activity.md`.
+
+Wireframe preview: use the User activity toolbar shortcut or `#user-activity` to open this screen.
+Illustrative signup and returning-sign-in cards demonstrate pending/approved groups; Refresh and
+Load more operate on sample records only. Live data is never embedded in the wireframe.

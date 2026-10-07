@@ -5,7 +5,7 @@ using SouthBaySoccer.Domain.Enumerations;
 
 namespace SouthBaySoccer.Infrastructure.Repositories;
 
-/// <summary>One player's derived season totals, assembled from raw match facts.</summary>
+/// <summary>One player's derived season or career totals, assembled from raw match facts.</summary>
 internal sealed class PlayerStatAggregate
 {
     public Guid PlayerProfileId { get; set; }
@@ -80,6 +80,13 @@ internal static class LeaderboardProjection
                 .ThenBy(x => x.PlayerProfileId)
                 .ToArray(),
         };
+
+    /// <summary>Orders the global directory by the equal-weight career total, including zero-stat players.</summary>
+    internal static IReadOnlyList<PlayerStatAggregate> OrderDirectory(IEnumerable<PlayerStatAggregate> aggregates) =>
+        aggregates
+            .OrderByDescending(row => row.Goals + row.Assists + row.AverageRating + row.MvpAwards)
+            .ThenByName()
+            .ToArray();
 
     /// <summary>Gets the value the leaderboard row reports for the requested metric.</summary>
     internal static decimal GetMetricValue(PlayerStatAggregate row, StatLeaderboardMetric metric) =>

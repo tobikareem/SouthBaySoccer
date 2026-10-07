@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage x:Class="SouthBaySoccer.Pages.UserActivityPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:c="clr-namespace:SouthBaySoccer.Controls"
+    xmlns:pm="clr-namespace:SouthBaySoccer.PageModels"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="ActivityPage" x:DataType="pm:UserActivityPageModel"
+    Shell.NavBarIsVisible="False" Style="{StaticResource BrandPage}" Title="User activity">
+    <ContentPage.Behaviors>
+        <toolkit:EventToCommandBehavior
+            BindingContext="{Binding Path=BindingContext, Source={x:Reference ActivityPage}, x:DataType=ContentPage}"
+            EventName="Appearing" Command="{Binding AppearingCommand}" />
+    </ContentPage.Behaviors>
+    <Grid RowDefinitions="Auto,*">
+        <c:BrandHeader Title="User activity" Subtitle="Owner" ShowBack="True" BackCommand="{Binding BackCommand}" />
+        <c:StateView Grid.Row="1" State="{Binding State}" Title="{Binding StateTitle}"
+                     Message="{Binding StateMessage}" RetryCommand="{Binding RefreshCommand}" ShowRetryWhenEmpty="True">
+            <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing, Mode=TwoWay}">
+                <CollectionView ItemsSource="{Binding Items}" SelectionMode="None" Margin="{StaticResource LayoutPadding}">
+                    <CollectionView.ItemsLayout>
+                        <LinearItemsLayout Orientation="Vertical" ItemSpacing="{StaticResource SpaceSm}" />
+                    </CollectionView.ItemsLayout>
+                    <CollectionView.Header>
+                        <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                            <Label Text="{Binding TrackingText}" Style="{StaticResource TextCaption}" />
+                            <Button Text="Refresh" Command="{Binding RefreshCommand}" Style="{StaticResource GhostButton}" />
+                        </VerticalStackLayout>
+                    </CollectionView.Header>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="pm:UserActivityItem">
+                            <c:BrandCard>
+                                <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                                    <Label Text="{Binding DisplayName}" Style="{StaticResource TextBodyStrong}" />
+                                    <Label Text="{Binding ActivityText}" Style="{StaticResource TextBody}" />
+                                    <Label Text="{Binding FirstRecordedText}" Style="{StaticResource TextCaption}" />
+                                    <Label Text="{Binding LastRecordedText}" Style="{StaticResource TextCaption}" />
+                                    <Label Text="{Binding SignInCountText}" Style="{StaticResource TextCaption}" />
+                                    <Label Text="{Binding GroupsText}" Style="{StaticResource TextCaption}" />
+                                </VerticalStackLayout>
+                            </c:BrandCard>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                    <CollectionView.Footer>
+                        <VerticalStackLayout Spacing="{StaticResource SpaceSm}">
+                            <Label Text="{Binding PagingError}" Style="{StaticResource TextCaption}" SemanticProperties.Description="{Binding PagingError}" />
+                            <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+                            <Button Text="Load more" IsVisible="{Binding HasMore}" Command="{Binding LoadMoreCommand}" Style="{StaticResource GhostButton}" />
+                        </VerticalStackLayout>
+                    </CollectionView.Footer>
+                </CollectionView>
+            </RefreshView>
+        </c:StateView>
+    </Grid>
+</ContentPage>
