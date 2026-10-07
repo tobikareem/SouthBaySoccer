@@ -53,6 +53,8 @@ env:
   CODESIGN_PROVISION: 'N9ja Bay App Store'
   EXPECTED_APP_ID: 'WF2MPD5GKS.com.pickupsoccer.n9jabay'
   EXPECTED_TEAM_ID: 'WF2MPD5GKS'
+  # Numeric App Store Connect ID from the published N9ja Bay listing.
+  APPSTORE_APP_ID: '6794583571'
 
 jobs:
   # Cheap gate: nothing ships unless the portable test suites pass. Infrastructure.Tests is
@@ -252,8 +254,10 @@ jobs:
           printf '%s' "$API_PRIVATE_KEY" > ~/private_keys/AuthKey_${API_KEY_ID}.p8
           chmod 600 ~/private_keys/AuthKey_${API_KEY_ID}.p8
 
-          xcrun altool --upload-app --type ios --file "${{ steps.ipa.outputs.path }}" \
-            --apiKey "$API_KEY_ID" --apiIssuer "$ISSUER_ID"
+          # Supply the app identity explicitly: automatic bundle-ID lookup can fail in altool.
+          xcrun altool --upload-package "${{ steps.ipa.outputs.path }}" --platform ios \
+            --apple-id "$APPSTORE_APP_ID" \
+            --api-key "$API_KEY_ID" --api-issuer "$ISSUER_ID"
 
       - name: Clean up signing material
         if: always()
