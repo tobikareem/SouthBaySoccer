@@ -209,6 +209,17 @@ internal static class SouthBaySoccerModelConfiguration
 
     private static void ConfigureOperations(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<UserActivity>(b =>
+        {
+            ConfigureBase(b, "UserActivities", true);
+            b.Property(x => x.ActivityType).HasConversion<string>().HasMaxLength(16).IsRequired();
+            b.HasOne<ApplicationIdentityUser>().WithMany().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<PlayerProfile>().WithMany().HasForeignKey(x => x.PlayerProfileId).OnDelete(DeleteBehavior.Restrict);
+            b.HasIndex(x => x.SessionFamilyId).IsUnique();
+            b.HasIndex(x => new { x.OccurredAtUtc, x.Id }).IsDescending().HasFilter("[IsDeleted] = 0");
+            b.HasIndex(x => new { x.PlayerProfileId, x.OccurredAtUtc }).IncludeProperties(x => x.ActivityType).HasFilter("[IsDeleted] = 0");
+            b.ToTable(t => t.HasCheckConstraint("CK_UserActivities_ActivityType", "[ActivityType] IN ('SignIn', 'SignUp')"));
+        });
         modelBuilder.Entity<RefreshToken>(b =>
         {
             ConfigureBase(b, "RefreshTokens", false);

@@ -48,6 +48,7 @@ public static class FunctionsApplicationBuilderExtensions
         builder.Services.AddScoped<IValidator<CreateProfileMergeCommand>, CreateProfileMergeCommandValidator>();
         builder.Services.AddScoped<GetMyProfileQueryHandler>();
         builder.Services.AddScoped<GetPlayerDirectoryQueryHandler>();
+        builder.Services.AddScoped<SouthBaySoccer.Application.Features.UserActivity.GetUserActivityQueryHandler>();
         builder.Services.AddScoped<GetPlayerProfileQueryHandler>();
         builder.Services.AddScoped<UpdateMyProfileCommandHandler>();
         builder.Services.AddScoped<CreateGuestProfileCommandHandler>();

@@ -36,6 +36,8 @@ public sealed class ShellProfileNavigator : IProfileNavigator
     public Task OpenGroupMembersAsync(Guid groupChatId) =>
         Shell.Current.GoToAsync($"group-members?{GroupMembersPageModel.GroupIdQueryKey}={groupChatId:D}");
 
+    public Task OpenUserActivityAsync() => Shell.Current.GoToAsync("user-activity");
+
     public Task OpenSuperAdminGroupsAsync() => Shell.Current.GoToAsync("super-admin-groups");
 }
 

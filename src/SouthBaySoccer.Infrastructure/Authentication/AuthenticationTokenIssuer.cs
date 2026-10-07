@@ -46,8 +46,31 @@ public sealed class AuthenticationTokenIssuer(
             CreatedBy = subject.IdentityUserId.ToString("D"),
         };
 
+        var activity = new UserActivity
+        {
+            Id = Guid.NewGuid(),
+            IdentityUserId = subject.IdentityUserId,
+            PlayerProfileId = subject.PlayerProfileId,
+            ActivityType = subject.ActivityType,
+            OccurredAtUtc = now,
+            SessionFamilyId = refreshToken.FamilyId,
+            CreatedAt = now,
+            CreatedBy = subject.IdentityUserId.ToString("D"),
+        };
         dbContext.RefreshTokens.Add(refreshToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        dbContext.UserActivities.Add(activity);
+        try
+        {
+            // EF saves both rows atomically; retries retain their ids and unique session-family key.
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            // A later save on this scoped context must not persist a failed issuance attempt.
+            dbContext.Entry(refreshToken).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+            dbContext.Entry(activity).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+            throw;
+        }
 
         return new AuthenticationTokenSet(
             accessToken.Token,

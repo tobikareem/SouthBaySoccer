@@ -27,6 +27,8 @@ public class SouthBaySoccerDbContext : IdentityDbContext<ApplicationIdentityUser
     public DbSet<EmergencyContact> EmergencyContacts => Set<EmergencyContact>();
     public DbSet<ProfileMerge> ProfileMerges => Set<ProfileMerge>();
     public DbSet<PlayerRegistration> PlayerRegistrations => Set<PlayerRegistration>();
+    /// <summary>Successful initial sign-up and sign-in sessions.</summary>
+    public DbSet<UserActivity> UserActivities => Set<UserActivity>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<PendingPhoneSignIn> PendingPhoneSignIns => Set<PendingPhoneSignIn>();
     public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
