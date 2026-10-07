@@ -62,6 +62,7 @@ public static class DependencyInjection
         services.AddScoped<IReadThroughCache, MemoryReadThroughCache>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IPlayerProfileRepository, PlayerProfileRepository>();
+        services.AddScoped<IUserActivityRepository, UserActivityRepository>();
         services.AddScoped<IWaiverRepository, WaiverRepository>();
         // Reference lists read on nearly every request path, decorated with a short cache that the
         // unit of work invalidates after a successful commit.

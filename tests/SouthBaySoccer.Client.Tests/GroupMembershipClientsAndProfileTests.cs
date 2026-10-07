@@ -268,10 +268,23 @@ public class GroupMembershipClientsAndProfileTests
         await pageModel.OpenMyGroupsCommand.ExecuteAsync(null);
         await pageModel.OpenGroupMembersCommand.ExecuteAsync(pageModel.AdminGroups[0]);
         await pageModel.OpenSuperAdminGroupsCommand.ExecuteAsync(null);
+        await pageModel.OpenUserActivityCommand.ExecuteAsync(null);
 
         navigator.Verify(x => x.OpenMyGroupsAsync(), Times.Once);
         navigator.Verify(x => x.OpenGroupMembersAsync(GroupId), Times.Once);
         navigator.Verify(x => x.OpenSuperAdminGroupsAsync(), Times.Once);
+        navigator.Verify(x => x.OpenUserActivityAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task OpenUserActivity_WhenNotOwner_DoesNotNavigate()
+    {
+        var navigator = new Mock<IProfileNavigator>();
+        var model = CreateProfile(new Mock<IGroupsClient>(), navigator);
+
+        await model.OpenUserActivityCommand.ExecuteAsync(null);
+
+        navigator.Verify(x => x.OpenUserActivityAsync(), Times.Never);
     }
 
     [Fact]

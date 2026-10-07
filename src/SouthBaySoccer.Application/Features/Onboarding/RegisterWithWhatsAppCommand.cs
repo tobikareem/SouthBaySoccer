@@ -182,7 +182,7 @@ public sealed class RegisterWithWhatsAppCommandHandler(
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var (groupNames, historySyncPending) = await ReadGroupsAsync(user.Id, cancellationToken);
-        var tokens = await tokenIssuer.IssueTokensAsync(subject, cancellationToken);
+        var tokens = await tokenIssuer.IssueTokensAsync(subject with { ActivityType = UserActivityType.SignUp }, cancellationToken);
 
         return new RegistrationCompleted(
             tokens,
