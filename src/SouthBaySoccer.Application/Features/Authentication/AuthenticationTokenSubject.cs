@@ -1,3 +1,5 @@
+using SouthBaySoccer.Domain.Enumerations;
+
 namespace SouthBaySoccer.Application.Features.Authentication;
 
 /// <summary>
@@ -9,5 +11,9 @@ namespace SouthBaySoccer.Application.Features.Authentication;
 public sealed record AuthenticationTokenSubject(
     Guid IdentityUserId,
     Guid PlayerProfileId,
-    IReadOnlyList<string> Roles);
+    IReadOnlyList<string> Roles)
+{
+    /// <summary>The successful authentication kind, defaulting to an existing-account sign-in.</summary>
+    public UserActivityType ActivityType { get; init; } = UserActivityType.SignIn;
+}
 

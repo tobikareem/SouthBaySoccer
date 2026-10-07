@@ -154,14 +154,10 @@ internal sealed class PlayerProfileRepository(SouthBaySoccerDbContext dbContext)
             .Take(take)
             .ToArrayAsync(cancellationToken);
 
-    // Two flat queries instead of a per-profile correlated count: the subquery ran once per row, so
-    // its cost grew with the square of the directory. Matches played are grouped once and merged.
+    // Share the leaderboard's bulk aggregation; query count never grows with the number of players.
     public async Task<IReadOnlyList<PlayerDirectoryReadModel>> ListDirectoryAsync(CancellationToken cancellationToken = default)
     {
         var profiles = await dbContext.PlayerProfiles
-            .OrderBy(x => x.NormalizedDisplayName)
-            .ThenBy(x => x.DisplayName)
-            .ThenBy(x => x.Id)
             .Select(x => new { x.Id, x.DisplayName, x.PreferredPosition, x.IsGuest })
             .ToArrayAsync(cancellationToken);
         if (profiles.Length == 0)
@@ -169,22 +165,26 @@ internal sealed class PlayerProfileRepository(SouthBaySoccerDbContext dbContext)
             return [];
         }
 
-        var matchCounts = (await dbContext.PlayerMatchStats
-                .GroupBy(stat => stat.PlayerProfileId)
-                .Select(grouped => new
-                {
-                    PlayerProfileId = grouped.Key,
-                    Matches = grouped.Count(),
-                })
-                .ToArrayAsync(cancellationToken))
-            .ToDictionary(row => row.PlayerProfileId, row => row.Matches);
+        var aggregates = (await new PlayerStatAggregateReader(dbContext).ListAsync(
+            seasonId: null, playerProfileId: null, groupChatId: null, cancellationToken))
+            .ToDictionary(row => row.PlayerProfileId);
+        var allPlayers = profiles.Select(profile => aggregates.GetValueOrDefault(profile.Id)
+            ?? new PlayerStatAggregate
+            {
+                PlayerProfileId = profile.Id,
+                DisplayName = profile.DisplayName,
+                PreferredPosition = profile.PreferredPosition,
+                IsGuest = profile.IsGuest,
+            });
 
-        return profiles.Select(profile => new PlayerDirectoryReadModel(
-            profile.Id,
-            profile.DisplayName,
-            profile.PreferredPosition,
-            profile.IsGuest,
-            matchCounts.GetValueOrDefault(profile.Id))).ToArray();
+        return LeaderboardProjection.OrderDirectory(allPlayers)
+            .Select(row => new PlayerDirectoryReadModel(
+                row.PlayerProfileId,
+                row.DisplayName,
+                row.PreferredPosition,
+                row.IsGuest,
+                row.Appearances))
+            .ToArray();
     }
 
     public Task<EmergencyContact?> FindEmergencyContactAsync(Guid playerProfileId, CancellationToken cancellationToken = default) =>

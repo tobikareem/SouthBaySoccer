@@ -92,3 +92,18 @@ route and update this sprint spec and board before coding against it.
 - Adding payment status badges or waiver gates to the directory.
 - Replacing the shared MAUI control library.
 - Completing the rest of Sprint 03 API integration.
+
+## Global career ranking (September 2026)
+
+The Players directory lists every active, non-deleted profile across all groups, ordered by
+`career goals + career assists + career average rating + career MVP awards`, descending. Each
+component has weight 1; absent stats and an absent rating contribute zero. Rating is the unrounded
+average of eligible rating votes, not the sum of votes. Break equal scores by invariant,
+case-insensitive display name and then player-profile id. Zero-stat players remain visible.
+
+Use the same approved raw-match aggregation as leaderboard/profile stats across all seasons and
+all groups: completed/published/locked matches, played participants, approved goals/assists, no own
+goal credit, and soft-delete filters. Matches displayed in the directory use these eligible career
+appearances. Share the aggregation implementation; never issue per-player stat queries or persist
+mutable totals. The existing 60-second directory cache and public response shape remain unchanged.
+The server order also supplies each row's existing `#rank`; client search preserves that order.
