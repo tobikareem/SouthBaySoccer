@@ -4,6 +4,8 @@ public interface IProfileNavigator
 {
     Task OpenLeaderboardAsync();
 
+    Task OpenUserActivityAsync();
+
     /// <summary>
     /// Pops the pushed profile detail page. Used when viewing another player's profile, which is a
     /// detail route rather than the Profile tab.

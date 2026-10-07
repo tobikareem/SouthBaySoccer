@@ -55,6 +55,7 @@
   .pill.ok{background:var(--mist);color:var(--gd)}
   .pill.warn{background:var(--amber-bg);color:var(--amber)}
   .pill.full{background:var(--danger-bg);color:var(--danger)}
+  .screen[data-s="user-activity"] [hidden]{display:none}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:15px;margin:12px 0;box-shadow:0 3px 14px rgba(20,36,27,.035)}
   .card.interactive{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
   .card.interactive:hover{transform:translateY(-2px);box-shadow:var(--soft-shadow);border-color:#D5E3DA}
@@ -199,9 +200,11 @@
     </div>
     <div class="controls" aria-label="Wireframe view">
       <button class="ctl active" id="c-flow" aria-pressed="true" onclick="setView('flow')"><i class="ti ti-device-mobile"></i> Interactive</button>
+      <button class="ctl" onclick="show('user-activity')">User activity</button>
       <button class="ctl" id="c-gal" aria-pressed="false" onclick="setView('gallery')"><i class="ti ti-layout-grid"></i> All screens</button>
     </div>
   </div>
+  <p class="sub" id="activity-preview-note" hidden>Owner preview · Illustrative names and activity only, not live account records. Open from Profile → User activity.</p>
   <div class="stage" id="stage"></div>
 </div>
 
@@ -873,6 +876,7 @@
         <div class="card interactive" style="padding:11px 13px;cursor:pointer" onclick="show('group-members')"><div class="row"><span class="avatar" style="width:34px;height:34px;font-size:12px"><i class="ti ti-users"></i></span><div style="flex:1"><div style="font-weight:600">Bay Area Soccer</div><div class="muted">Approve requests · manage members</div></div><i class="ti ti-chevron-right" style="color:var(--sage)"></i></div></div>
         <!-- Owners only (IsSuperAdmin from the server). -->
         <div class="card hero-card" style="cursor:pointer" onclick="show('super-admin-groups')"><div class="hero-kicker">Super admin</div><div class="hero-title">Groups &amp; admins</div><div style="font-size:12px;opacity:.85">Manage any group, add players directly, appoint admins.</div></div>
+        <div class="card hero-card" style="cursor:pointer" onclick="show('user-activity')"><div class="hero-kicker">Owner</div><div class="hero-title">User activity</div><div style="font-size:12px;opacity:.85">Recorded sign-ups, sign-ins and current groups.</div></div>
         <button class="btn ghost" onclick="show('leaderboard')">View season leaderboard</button>
         <!-- Own profile only. Delete account confirms first, deletes N9ja Bay data only (Pickup Pal
              is never called), then signs out to Welcome Back. A 401 explains that deletion is unconfirmed
@@ -925,6 +929,20 @@
           <div class="listrow"><span class="avatar" style="width:34px;height:34px;font-size:12px">KT</span><div style="flex:1"><div style="font-weight:600">Kola T.</div><div class="muted">Member · via WhatsApp</div></div><button class="btn ghost btn-link-sm" onclick="toggleAdmin(this)">Make admin</button><span class="mini-action" role="button" aria-label="Remove Kola T." style="background:var(--danger-bg);color:var(--danger)" onclick="removeMember(this)"><i class="ti ti-user-minus"></i></span></div>
           <div class="listrow" style="border:0"><span class="avatar" style="width:34px;height:34px;font-size:12px">JD</span><div style="flex:1"><div style="font-weight:600">Jide D.</div><div class="muted">Member · requested</div></div><button class="btn ghost btn-link-sm" onclick="toggleAdmin(this)">Make admin</button><span class="mini-action" role="button" aria-label="Remove Jide D." style="background:var(--danger-bg);color:var(--danger)" onclick="removeMember(this)"><i class="ti ti-user-minus"></i></span></div>
         </div>
+      </div>
+    </section>
+
+    <!-- OWNER USER ACTIVITY — recorded history begins with this release -->
+    <section class="screen" data-s="user-activity">
+      <div class="ghdr"><span class="flag"></span><div class="row" style="gap:12px"><span class="backbtn" onclick="back()"><i class="ti ti-arrow-left"></i></span><div><div style="font-size:12px;opacity:.85">Owner</div><div style="font-size:17px;font-weight:500">User activity</div></div></div></div>
+      <div class="scroll">
+        <p class="muted" style="line-height:1.5">Recorded activity since Oct 7, 2026, 8:00 AM. Earlier history is not included.</p>
+        <button class="btn ghost" onclick="refreshActivity(this)">Refresh</button>
+        <p class="muted" data-activity-feedback role="status" aria-live="polite" hidden></p>
+        <div class="card"><strong>Jordan A.</strong><p style="margin:8px 0">Signed up · Oct 7, 2026, 10:42 AM</p><p class="muted" style="line-height:1.7">First recorded: Oct 7, 10:42 AM<br>Last recorded: Oct 7, 10:42 AM<br>Recorded sign-ins: 0</p><p class="muted" style="line-height:1.5;margin-bottom:0">Current groups: Bay Area Soccer · Pending</p></div>
+        <div class="card"><strong>Sam O.</strong><p style="margin:8px 0">Signed in · Oct 7, 2026, 10:35 AM</p><p class="muted" style="line-height:1.7">First recorded: Oct 7, 8:10 AM<br>Last recorded: Oct 7, 10:35 AM<br>Recorded sign-ins: 3</p><p class="muted" style="line-height:1.5;margin-bottom:0">Current groups: Bay Area Soccer · Approved<br>South Bay Soccer · Approved</p></div>
+        <div class="card" data-activity-older hidden><strong>Casey B.</strong><p style="margin:8px 0">Signed in · Oct 7, 2026, 9:20 AM</p><p class="muted" style="line-height:1.7">First recorded: Oct 7, 8:30 AM<br>Last recorded: Oct 7, 9:20 AM<br>Recorded sign-ins: 2</p><p class="muted" style="margin-bottom:0">Current groups: None</p></div>
+        <button class="btn ghost" data-activity-more onclick="loadMoreActivity(this)">Load more</button>
       </div>
     </section>
 
@@ -1116,6 +1134,17 @@
     updateProfile(phone);
     return phone;
   }
+  function refreshActivity(button){
+    var screen=button.closest('.screen');
+    screen.querySelector('[data-activity-older]').hidden=true;
+    screen.querySelector('[data-activity-more]').hidden=false;
+    var feedback=screen.querySelector('[data-activity-feedback]');
+    feedback.hidden=false; feedback.textContent='Sample activity refreshed. Showing newest records.';
+  }
+  function loadMoreActivity(button){
+    button.closest('.screen').querySelector('[data-activity-older]').hidden=false;
+    button.hidden=true;
+  }
   function activeScreen(){ return document.querySelector('#stage .phone .screen.on'); }
   var hist=[];
   function go(id){
@@ -1123,6 +1152,7 @@
     if(stage.dataset.view==='gallery'){ setView('flow'); }
     var ph=document.querySelector('#stage .phone');
     ph.querySelectorAll('.screen').forEach(function(s){ s.classList.toggle('on', s.dataset.s===id); });
+    document.getElementById('activity-preview-note').hidden=id!=='user-activity';
     updateProfile(ph);
     renderPlayers(ph,'');
     var sc=ph.querySelector('.screen.on .scroll'); if(sc) sc.scrollTop=0;
@@ -1268,9 +1298,10 @@
   function addMember(btn){ var pill=document.createElement('span'); pill.className='pill ok'; pill.textContent='Added'; btn.replaceWith(pill); }
   function toggleAdmin(btn){ var on=btn.textContent.trim()==='Make admin'; btn.textContent=on?'Remove admin':'Make admin'; }
 
-  var order=['signin','signin-verify','signin-waiting','signup-start','signup-waiting','signup-expired','signup-details','signup-welcome','groups-choose','groups-result','home','adminbroadcast','notifications','session','schedule','adminsession','gameday','gameday-spectator','gameday-empty','captains','draft','postgame','claim','claimpick','adminmatch','leaderboard','players','profile','groups-mine','group-members','super-admin-groups','matchstats','rate'];
+  var order=['signin','signin-verify','signin-waiting','signup-start','signup-waiting','signup-expired','signup-details','signup-welcome','groups-choose','groups-result','home','adminbroadcast','notifications','session','schedule','adminsession','gameday','gameday-spectator','gameday-empty','captains','draft','postgame','claim','claimpick','adminmatch','leaderboard','players','profile','groups-mine','group-members','super-admin-groups','user-activity','matchstats','rate'];
   function setView(v){
     var stage=document.getElementById('stage'); stage.dataset.view=v; hist=[];
+    document.getElementById('activity-preview-note').hidden=v!=='gallery';
     document.getElementById('c-flow').classList.toggle('active', v==='flow');
     document.getElementById('c-gal').classList.toggle('active', v==='gallery');
     document.getElementById('c-flow').setAttribute('aria-pressed',v==='flow');
@@ -1287,6 +1318,7 @@
     });
   },1000);
   setView('flow');
+  if(location.hash==='#user-activity'){ show('user-activity'); }
 </script>
 </body>
 </html>

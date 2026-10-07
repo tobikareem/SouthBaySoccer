@@ -273,6 +273,29 @@
                                     AutomationProperties.IsInAccessibleTree="False" />
                             </Grid>
                         </c:BrandCard>
+                        <!-- Owners only (IsSuperAdmin from the server). -->
+                        <c:BrandCard IsHero="True" IsVisible="{Binding IsSuperAdmin}">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}" MinimumHeightRequest="{StaticResource TouchMin}"
+                                  SemanticProperties.Description="Owner: user activity. Recorded sign-ups, sign-ins and current groups."
+                                  SemanticProperties.Hint="Opens user activity">
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding OpenUserActivityCommand}" />
+                                </Grid.GestureRecognizers>
+                                <VerticalStackLayout Spacing="{StaticResource SpaceXs}">
+                                    <Label Text="Owner" Style="{StaticResource TextLabel}" TextColor="White" Opacity="0.85" />
+                                    <Label Text="User activity" Style="{StaticResource TextBodyStrong}" TextColor="White" />
+                                    <Label Text="Recorded sign-ups, sign-ins and current groups." Style="{StaticResource TextCaption}" TextColor="White" Opacity="0.85" />
+                                </VerticalStackLayout>
+                                <Label
+                                    Grid.Column="1"
+                                    Text="{x:Static fonts:FontAwesomeGlyphs.ChevronRight}"
+                                    FontFamily="FontAwesomeSolid"
+                                    Style="{StaticResource TextCaption}"
+                                    TextColor="White"
+                                    VerticalTextAlignment="Center"
+                                    AutomationProperties.IsInAccessibleTree="False" />
+                            </Grid>
+                        </c:BrandCard>
                     </VerticalStackLayout>
 
                     <Button

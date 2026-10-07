@@ -91,7 +91,7 @@ public sealed class RegisterWithWhatsAppCommandHandlerTests
             .Callback(() => calls.Add("groups"))
             .ReturnsAsync([new PickupPalGroupChat("g1", "South Bay Sunday", null, "ACTIVE", 40, null)]);
         tokenIssuer
-            .Setup(x => x.IssueTokensAsync(subject, It.IsAny<CancellationToken>()))
+            .Setup(x => x.IssueTokensAsync(It.Is<AuthenticationTokenSubject>(value => value.IdentityUserId == subject.IdentityUserId && value.PlayerProfileId == subject.PlayerProfileId && value.ActivityType == UserActivityType.SignUp), It.IsAny<CancellationToken>()))
             .Callback(() => calls.Add("tokens"))
             .ReturnsAsync(tokens);
     }

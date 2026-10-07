@@ -127,6 +127,12 @@ public static class ClientServiceCollectionExtensions
             .AddHttpMessageHandler<AuthenticationHandler>()
             .AddHttpMessageHandler<ApiExceptionHandler>();
 
+        services.AddHttpClient<IUserActivityClient, ApiUserActivityClient>(
+            client => ConfigureApiClient(client, pickupPalOptions))
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<AuthenticationHandler>()
+            .AddHttpMessageHandler<ApiExceptionHandler>();
+
         services.AddHttpClient<ApiGroupsClient>(
             client => ConfigureApiClient(client, pickupPalOptions))
             .AddHttpMessageHandler<CorrelationIdHandler>()
@@ -201,6 +207,7 @@ public static class ClientServiceCollectionExtensions
         services.TryAddSingleton<IGameDayClient, SeedGameDayClient>();
         services.TryAddSingleton<IGroupsClient, SeedGroupsClient>();
         services.TryAddSingleton<IAnnouncementsClient, SeedAnnouncementsClient>();
+        services.TryAddSingleton<IUserActivityClient, SeedUserActivityClient>();
     }
 #endif
 

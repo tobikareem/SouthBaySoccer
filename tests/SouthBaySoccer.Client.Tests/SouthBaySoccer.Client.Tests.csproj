@@ -50,6 +50,7 @@
     <Compile Include="..\..\SouthBaySoccer\PageModels\GroupMembershipViewModels.cs" Link="Client\PageModels\GroupMembershipViewModels.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\GroupsMinePageModel.cs" Link="Client\PageModels\GroupsMinePageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\GroupMembersPageModel.cs" Link="Client\PageModels\GroupMembersPageModel.cs" />
+    <Compile Include="..\..\SouthBaySoccer\PageModels\UserActivityPageModel.cs" Link="Client\PageModels\UserActivityPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\SuperAdminGroupsPageModel.cs" Link="Client\PageModels\SuperAdminGroupsPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\PlayersPageModel.cs" Link="Client\PageModels\PlayersPageModel.cs" />
     <Compile Include="..\..\SouthBaySoccer\PageModels\MatchStatsPageModel.cs" Link="Client\PageModels\MatchStatsPageModel.cs" />
